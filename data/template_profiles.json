@@ -19,8 +19,18 @@
     "id": "7049880a-abd8-4f7d-a525-1784f8d5882f",
     "name": "液体饮料",
     "template_file": "7049880a-abd8-4f7d-a525-1784f8d5882f.xlsx",
-    "mappings": {},
-    "composite_mappings": []
+    "mappings": {
+      "customer_name": "D3",
+      "product_name": "D4",
+      "quantity": "D5",
+      "specification": "D6"
+    },
+    "composite_mappings": [
+      {
+        "cell": "D8",
+        "template": "客户名称：{customer_name}\n产品名称：{product_name}\n数量：{quantity}\n规格：{specification}"
+      }
+    ]
   },
   {
     "id": "28ddc16f-bee5-4b2d-a55a-bd05b2cdbd88",

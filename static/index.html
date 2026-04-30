@@ -102,6 +102,7 @@
             margin-bottom: 14px;
             color: #555;
             font-size: 14px;
+            line-height: 1.6;
         }
 
         .error {
@@ -129,6 +130,15 @@
             color: white;
             border-radius: 5px;
             text-decoration: none;
+        }
+
+        .empty-form {
+            color: #999;
+            background: #fafafa;
+            border: 1px dashed #ddd;
+            padding: 18px;
+            border-radius: 6px;
+            margin-top: 15px;
         }
 
         @media (max-width: 900px) {
@@ -175,7 +185,7 @@
         <h2>订单信息确认</h2>
 
         <p class="tips">
-            字段来自字段库，确认后会按照左侧选择的模板映射生成 Excel。
+            这里只显示当前模板映射中使用到的字段。
         </p>
 
         <form id="confirmForm"></form>
@@ -190,13 +200,15 @@
 </div>
 
 <script>
-    let fields = [];
+    let allFields = [];
+    let visibleFields = [];
     let profiles = [];
     let parsedData = {};
 
     async function loadInitialData() {
         await loadFields();
         await loadProfiles();
+        updateVisibleFields();
         renderForm({});
     }
 
@@ -209,7 +221,7 @@
             return;
         }
 
-        fields = (result.fields || []).filter(field => field.enabled !== false);
+        allFields = (result.fields || []).filter(field => field.enabled !== false);
     }
 
     async function loadProfiles() {
@@ -233,7 +245,12 @@
             select.appendChild(option);
         });
 
-        select.onchange = updateProfileTips;
+        select.onchange = function () {
+            updateProfileTips();
+            updateVisibleFields();
+            renderForm(parsedData);
+            document.getElementById("submitResult").innerHTML = "";
+        };
 
         if (profiles.length > 0) {
             select.value = profiles[0].id;
@@ -242,9 +259,52 @@
         updateProfileTips();
     }
 
-    function updateProfileTips() {
+    function getSelectedProfile() {
         const profileId = document.getElementById("profileSelect").value;
-        const profile = profiles.find(p => p.id === profileId);
+        return profiles.find(p => p.id === profileId) || null;
+    }
+
+    function extractKeysFromCompositeTemplates(profile) {
+        const keys = new Set();
+        const compositeMappings = profile && profile.composite_mappings ? profile.composite_mappings : [];
+
+        compositeMappings.forEach(item => {
+            const template = item.template || "";
+            const matches = template.matchAll(/\{([^{}]+)\}/g);
+
+            for (const match of matches) {
+                const key = match[1].trim();
+
+                if (key) {
+                    keys.add(key);
+                }
+            }
+        });
+
+        return keys;
+    }
+
+    function updateVisibleFields() {
+        const profile = getSelectedProfile();
+
+        if (!profile) {
+            visibleFields = [];
+            return;
+        }
+
+        const usedKeys = new Set();
+
+        const mappings = profile.mappings || {};
+        Object.keys(mappings).forEach(key => usedKeys.add(key));
+
+        const compositeKeys = extractKeysFromCompositeTemplates(profile);
+        compositeKeys.forEach(key => usedKeys.add(key));
+
+        visibleFields = allFields.filter(field => usedKeys.has(field.key));
+    }
+
+    function updateProfileTips() {
+        const profile = getSelectedProfile();
         const tips = document.getElementById("profileTips");
 
         if (!profile) {
@@ -254,15 +314,26 @@
 
         const templateText = profile.template_file ? "已上传" : "未上传模板";
         const mappingCount = profile.mappings ? Object.keys(profile.mappings).length : 0;
+        const compositeCount = profile.composite_mappings ? profile.composite_mappings.length : 0;
 
-        tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}；已配置字段数：${mappingCount}`;
+        tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}；普通字段：${mappingCount}；组合单元格：${compositeCount}`;
     }
 
     function renderForm(data) {
         const form = document.getElementById("confirmForm");
         form.innerHTML = "";
 
-        fields.forEach(field => {
+        if (!getSelectedProfile()) {
+            form.innerHTML = `<div class="empty-form">请先选择模板映射。</div>`;
+            return;
+        }
+
+        if (visibleFields.length === 0) {
+            form.innerHTML = `<div class="empty-form">当前模板映射还没有选择任何字段，请先到配置中心设置。</div>`;
+            return;
+        }
+
+        visibleFields.forEach(field => {
             const label = document.createElement("label");
 
             label.innerHTML = `
@@ -333,13 +404,14 @@
         }
 
         parsedData = result.data;
+        updateVisibleFields();
         renderForm(parsedData);
     }
 
     function collectFormData() {
         const data = {};
 
-        fields.forEach(field => {
+        visibleFields.forEach(field => {
             const input = document.getElementById("field_" + field.key);
             data[field.key] = input ? input.value : null;
         });
@@ -350,7 +422,7 @@
     function validateRequiredFields(data) {
         const missing = [];
 
-        fields.forEach(field => {
+        visibleFields.forEach(field => {
             if (field.required) {
                 const value = data[field.key];
 
