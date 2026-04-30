@@ -1,0 +1,38 @@
+{
+  "template_file": "solid_drink.xlsx",
+
+  "fields": [
+    {
+      "field": "customer_name",
+      "cell": "B3",
+      "type": "single"
+    },
+    {
+      "field": "quantity",
+      "cell": "B4",
+      "type": "single"
+    },
+    {
+      "field": "product_name",
+      "cell": "B5",
+      "type": "single"
+    },
+    {
+      "field": "product_spec",
+      "cell": "B6",
+      "type": "combine",
+      "components": [
+        "net_weight",
+        "box_qty",
+        "carton_qty",
+        "flavor",
+        "packaging_type"
+      ]
+    },
+    {
+      "field": "packaging_type",
+      "cell": "B8",
+      "type": "single"
+    }
+  ]
+}

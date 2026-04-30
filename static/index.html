@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>外贸订单解析系统 V2</title>
+    <style>
+        body {
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            background: #f5f6f8;
+            padding: 30px;
+            margin: 0;
+        }
+
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+
+        .nav {
+            margin-bottom: 20px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            align-items: stretch;
+        }
+
+        .card {
+            background: white;
+            padding: 22px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            min-height: 620px;
+            box-sizing: border-box;
+        }
+
+        textarea, input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            margin-bottom: 14px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 15px;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 260px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 5px;
+            background: #1677ff;
+            color: white;
+            cursor: pointer;
+            font-size: 15px;
+        }
+
+        button.secondary {
+            background: #52c41a;
+        }
+
+        button:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+
+        .field-key {
+            color: #999;
+            font-size: 13px;
+            margin-left: 6px;
+        }
+
+        .required {
+            color: red;
+            margin-left: 4px;
+        }
+
+        .tips {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .info-box {
+            background: #f7f9fc;
+            border: 1px solid #e6edf7;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 14px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .error {
+            color: red;
+            margin-top: 12px;
+            word-break: break-word;
+        }
+
+        .success {
+            color: green;
+            margin-top: 12px;
+        }
+
+        #submitResult {
+            margin-top: 15px;
+            max-width: 100%;
+            word-break: break-word;
+        }
+
+        .download-link {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 9px 14px;
+            background: #1677ff;
+            color: white;
+            border-radius: 5px;
+            text-decoration: none;
+        }
+
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                min-height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<h1>外贸订单解析系统 V2</h1>
+
+<div class="nav">
+    <a href="/config">进入配置中心</a>
+</div>
+
+<div class="layout">
+
+    <div class="card">
+        <h2>客户聊天内容</h2>
+
+        <textarea id="message" placeholder="例如：客户小李要订购5000盒固体饮料，电话是13800138000，下周发货"></textarea>
+
+        <label>选择模板映射</label>
+        <select id="profileSelect">
+            <option value="">请选择模板映射</option>
+        </select>
+
+        <div class="info-box" id="profileTips">
+            请选择本次要使用的 Excel 模板映射。
+        </div>
+
+        <button id="parseBtn" onclick="parseMessage()">AI解析</button>
+
+        <div id="parseError" class="error"></div>
+    </div>
+
+    <div class="card">
+        <h2>订单信息确认</h2>
+
+        <p class="tips">
+            字段来自字段库，确认后会按照左侧选择的模板映射生成 Excel。
+        </p>
+
+        <form id="confirmForm"></form>
+
+        <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
+            确认生成Excel
+        </button>
+
+        <div id="submitResult"></div>
+    </div>
+
+</div>
+
+<script>
+    let fields = [];
+    let profiles = [];
+    let parsedData = {};
+
+    async function loadInitialData() {
+        await loadFields();
+        await loadProfiles();
+        renderForm({});
+    }
+
+    async function loadFields() {
+        const response = await fetch("/api/fields");
+        const result = await response.json();
+
+        if (!result.success) {
+            alert("字段库加载失败");
+            return;
+        }
+
+        fields = (result.fields || []).filter(field => field.enabled !== false);
+    }
+
+    async function loadProfiles() {
+        const response = await fetch("/api/template-profiles");
+        const result = await response.json();
+
+        if (!result.success) {
+            alert("模板映射加载失败");
+            return;
+        }
+
+        profiles = result.profiles || [];
+
+        const select = document.getElementById("profileSelect");
+        select.innerHTML = `<option value="">请选择模板映射</option>`;
+
+        profiles.forEach(profile => {
+            const option = document.createElement("option");
+            option.value = profile.id;
+            option.textContent = profile.name;
+            select.appendChild(option);
+        });
+
+        select.onchange = updateProfileTips;
+
+        if (profiles.length > 0) {
+            select.value = profiles[0].id;
+        }
+
+        updateProfileTips();
+    }
+
+    function updateProfileTips() {
+        const profileId = document.getElementById("profileSelect").value;
+        const profile = profiles.find(p => p.id === profileId);
+        const tips = document.getElementById("profileTips");
+
+        if (!profile) {
+            tips.innerText = "请选择本次要使用的 Excel 模板映射。";
+            return;
+        }
+
+        const templateText = profile.template_file ? "已上传" : "未上传模板";
+        const mappingCount = profile.mappings ? Object.keys(profile.mappings).length : 0;
+
+        tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}；已配置字段数：${mappingCount}`;
+    }
+
+    function renderForm(data) {
+        const form = document.getElementById("confirmForm");
+        form.innerHTML = "";
+
+        fields.forEach(field => {
+            const label = document.createElement("label");
+
+            label.innerHTML = `
+                ${field.label}
+                <span class="field-key">(${field.key})</span>
+                ${field.required ? '<span class="required">*</span>' : ''}
+            `;
+
+            const input = document.createElement("input");
+            input.id = "field_" + field.key;
+            input.name = field.key;
+            input.type = getInputType(field.type);
+            input.value = data[field.key] || "";
+
+            form.appendChild(label);
+            form.appendChild(input);
+        });
+    }
+
+    function getInputType(type) {
+        if (type === "number") {
+            return "number";
+        }
+
+        return "text";
+    }
+
+    async function parseMessage() {
+        const message = document.getElementById("message").value.trim();
+        const errorDiv = document.getElementById("parseError");
+        const submitResult = document.getElementById("submitResult");
+        const parseBtn = document.getElementById("parseBtn");
+
+        errorDiv.innerText = "";
+        submitResult.innerHTML = "";
+
+        if (!message) {
+            errorDiv.innerText = "请输入客户聊天内容";
+            return;
+        }
+
+        parseBtn.disabled = true;
+        parseBtn.innerText = "解析中...";
+
+        const response = await fetch("/api/parse", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                message: message
+            })
+        });
+
+        const result = await response.json();
+
+        parseBtn.disabled = false;
+        parseBtn.innerText = "AI解析";
+
+        if (!result.success) {
+            errorDiv.innerText = result.error || "解析失败";
+            return;
+        }
+
+        if (result.data.error) {
+            errorDiv.innerText = result.data.error;
+            return;
+        }
+
+        parsedData = result.data;
+        renderForm(parsedData);
+    }
+
+    function collectFormData() {
+        const data = {};
+
+        fields.forEach(field => {
+            const input = document.getElementById("field_" + field.key);
+            data[field.key] = input ? input.value : null;
+        });
+
+        return data;
+    }
+
+    function validateRequiredFields(data) {
+        const missing = [];
+
+        fields.forEach(field => {
+            if (field.required) {
+                const value = data[field.key];
+
+                if (value === null || value === undefined || String(value).trim() === "") {
+                    missing.push(field.label);
+                }
+            }
+        });
+
+        return missing;
+    }
+
+    async function submitOrder() {
+        const profileId = document.getElementById("profileSelect").value;
+        const data = collectFormData();
+        const submitResult = document.getElementById("submitResult");
+        const generateBtn = document.getElementById("generateBtn");
+
+        submitResult.innerHTML = "";
+
+        if (!profileId) {
+            submitResult.innerHTML = `<p class="error">请先选择模板映射</p>`;
+            return;
+        }
+
+        const missing = validateRequiredFields(data);
+
+        if (missing.length > 0) {
+            submitResult.innerHTML = `
+                <p class="error">以下必填字段不能为空：${missing.join("、")}</p>
+            `;
+            return;
+        }
+
+        generateBtn.disabled = true;
+        generateBtn.innerText = "生成中...";
+
+        const response = await fetch("/api/generate-excel", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                profile_id: profileId,
+                data: data
+            })
+        });
+
+        const result = await response.json();
+
+        generateBtn.disabled = false;
+        generateBtn.innerText = "确认生成Excel";
+
+        if (!result.success) {
+            submitResult.innerHTML = `
+                <p class="error">生成失败：${result.error}</p>
+            `;
+            return;
+        }
+
+        submitResult.innerHTML = `
+            <p class="success">Excel生成成功！</p>
+            <a class="download-link" href="${result.download_url}" target="_blank">点击下载Excel</a>
+        `;
+    }
+
+    loadInitialData();
+</script>
+
+</body>
+</html>

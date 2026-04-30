@@ -1,0 +1,44 @@
+{
+  "customer_name": {
+    "label": "客户名称",
+    "description": "客户公司名称或客户联系人名称",
+    "type": "text",
+    "required": false,
+    "enabled": true
+  },
+  "product_name": {
+    "label": "产品名称",
+    "description": "客户需要订购的产品名称",
+    "type": "text",
+    "required": true,
+    "enabled": true
+  },
+  "quantity": {
+    "label": "数量",
+    "description": "订单数量",
+    "type": "number",
+    "required": false,
+    "enabled": true
+  },
+  "unit": {
+    "label": "单位",
+    "description": "数量单位，例如箱、件、kg、袋",
+    "type": "text",
+    "required": false,
+    "enabled": true
+  },
+  "delivery_date": {
+    "label": "交货日期",
+    "description": "客户要求的交货日期",
+    "type": "date",
+    "required": false,
+    "enabled": true
+  },
+  "remark": {
+    "label": "备注",
+    "description": "客户的其他补充要求",
+    "type": "text",
+    "required": false,
+    "enabled": true
+  }
+}

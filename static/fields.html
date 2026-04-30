@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>字段库管理</title>
+    <style>
+        body {
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            background: #f5f6f8;
+            padding: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            margin-top: 6px;
+            margin-bottom: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        button {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 4px;
+            background: #1677ff;
+            color: white;
+            cursor: pointer;
+        }
+
+        button.delete {
+            background: #ff4d4f;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            border-bottom: 1px solid #eee;
+            padding: 10px;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            background: #fafafa;
+        }
+
+        .tips {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .nav {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>字段库管理</h1>
+
+<div class="nav">
+    <a href="/config">返回模板映射管理</a>
+    <a href="/">返回首页</a>
+</div>
+
+<div class="card">
+    <h2>新增字段</h2>
+
+    <p class="tips">
+        字段库是全局字段池。模板映射页只能选择是否使用这些字段，不能新增或删除字段。
+    </p>
+
+    <label>字段 key（英文，例如 customer_phone）</label>
+    <input id="key" placeholder="customer_phone">
+
+    <label>字段中文名</label>
+    <input id="label" placeholder="客户电话">
+
+    <label>字段类型</label>
+    <select id="type">
+        <option value="text">文本</option>
+        <option value="number">数字</option>
+        <option value="date">日期</option>
+    </select>
+
+    <label>是否必填</label>
+    <select id="required">
+        <option value="false">否</option>
+        <option value="true">是</option>
+    </select>
+
+    <label>字段说明</label>
+    <textarea id="description" placeholder="例如：客户联系电话、手机号、WhatsApp等"></textarea>
+
+    <button onclick="addField()">新增字段</button>
+
+    <div id="addResult"></div>
+</div>
+
+<div class="card">
+    <h2>字段列表</h2>
+
+    <table>
+        <thead>
+        <tr>
+            <th>中文名</th>
+            <th>Key</th>
+            <th>类型</th>
+            <th>必填</th>
+            <th>说明</th>
+            <th>启用</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody id="fieldTable"></tbody>
+    </table>
+</div>
+
+<script>
+    let fields = [];
+
+    async function loadFields() {
+        const response = await fetch("/api/fields");
+        const result = await response.json();
+
+        if (!result.success) {
+            alert("字段库加载失败");
+            return;
+        }
+
+        fields = result.fields || [];
+        renderTable();
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById("fieldTable");
+        tbody.innerHTML = "";
+
+        fields.forEach(field => {
+            const tr = document.createElement("tr");
+
+            tr.innerHTML = `
+                <td>${field.label}</td>
+                <td>${field.key}</td>
+                <td>${field.type}</td>
+                <td>${field.required ? "是" : "否"}</td>
+                <td>${field.description || ""}</td>
+                <td>${field.enabled ? "是" : "否"}</td>
+                <td>
+                    <button class="delete" onclick="deleteField('${field.key}')">删除</button>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function addField() {
+        const resultDiv = document.getElementById("addResult");
+        resultDiv.innerHTML = "";
+
+        const field = {
+            key: document.getElementById("key").value.trim(),
+            label: document.getElementById("label").value.trim(),
+            type: document.getElementById("type").value,
+            required: document.getElementById("required").value === "true",
+            description: document.getElementById("description").value.trim(),
+            enabled: true
+        };
+
+        if (!field.key || !field.label) {
+            resultDiv.innerHTML = `<p class="error">字段 key 和中文名不能为空</p>`;
+            return;
+        }
+
+        const response = await fetch("/api/fields", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(field)
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            resultDiv.innerHTML = `<p class="error">${result.error || "新增失败"}</p>`;
+            return;
+        }
+
+        document.getElementById("key").value = "";
+        document.getElementById("label").value = "";
+        document.getElementById("description").value = "";
+        document.getElementById("required").value = "false";
+        document.getElementById("type").value = "text";
+
+        resultDiv.innerHTML = `<p class="success">新增字段成功</p>`;
+
+        await loadFields();
+    }
+
+    async function deleteField(key) {
+        if (!confirm("确定要删除字段：" + key + " 吗？删除后所有模板映射中也不应继续使用它。")) {
+            return;
+        }
+
+        const response = await fetch("/api/fields/" + key, {
+            method: "DELETE"
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            alert(result.error || "删除失败");
+            return;
+        }
+
+        await loadFields();
+    }
+
+    loadFields();
+</script>
+
+</body>
+</html>
