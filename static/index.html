@@ -49,7 +49,14 @@
 
         textarea {
             resize: vertical;
-            min-height: 260px;
+            min-height: 220px;
+            line-height: 1.6;
+        }
+
+        .composite-textarea {
+            min-height: 160px;
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            white-space: pre-wrap;
         }
 
         label {
@@ -103,6 +110,27 @@
             color: #555;
             font-size: 14px;
             line-height: 1.6;
+        }
+
+        .section-title {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+            color: #333;
+        }
+
+        .composite-box {
+            background: #fafafa;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+
+        .composite-cell {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 8px;
         }
 
         .error {
@@ -185,10 +213,12 @@
         <h2>订单信息确认</h2>
 
         <p class="tips">
-            这里只显示当前模板映射中使用到的字段。
+            普通字段和组合单元格都可以在这里确认、修改。组合单元格会按这里编辑后的格式写入 Excel。
         </p>
 
         <form id="confirmForm"></form>
+
+        <div id="compositeConfirmArea"></div>
 
         <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
             确认生成Excel
@@ -210,6 +240,7 @@
         await loadProfiles();
         updateVisibleFields();
         renderForm({});
+        renderCompositeArea({});
     }
 
     async function loadFields() {
@@ -249,6 +280,7 @@
             updateProfileTips();
             updateVisibleFields();
             renderForm(parsedData);
+            renderCompositeArea(parsedData);
             document.getElementById("submitResult").innerHTML = "";
         };
 
@@ -333,6 +365,11 @@
             return;
         }
 
+        const title = document.createElement("h3");
+        title.className = "section-title";
+        title.innerText = "普通字段确认";
+        form.appendChild(title);
+
         visibleFields.forEach(field => {
             const label = document.createElement("label");
 
@@ -347,9 +384,97 @@
             input.name = field.key;
             input.type = getInputType(field.type);
             input.value = data[field.key] || "";
+            input.oninput = function () {
+                refreshCompositeFromCurrentFields();
+            };
 
             form.appendChild(label);
             form.appendChild(input);
+        });
+    }
+
+    function renderCompositeArea(data) {
+        const area = document.getElementById("compositeConfirmArea");
+        area.innerHTML = "";
+
+        const profile = getSelectedProfile();
+
+        if (!profile) {
+            return;
+        }
+
+        const compositeMappings = profile.composite_mappings || [];
+
+        if (compositeMappings.length === 0) {
+            return;
+        }
+
+        const title = document.createElement("h3");
+        title.className = "section-title";
+        title.innerText = "组合单元格确认";
+        area.appendChild(title);
+
+        const tip = document.createElement("p");
+        tip.className = "tips";
+        tip.innerText = "这里显示的是将写入 Excel 组合单元格的最终内容，可以按实际情况手动修改。换行格式会保留。";
+        area.appendChild(tip);
+
+        compositeMappings.forEach(item => {
+            const cell = String(item.cell || "").trim().toUpperCase();
+            const template = item.template || "";
+            const renderedText = renderTemplate(template, data);
+
+            const box = document.createElement("div");
+            box.className = "composite-box";
+
+            box.innerHTML = `
+                <div class="composite-cell">目标单元格：${cell}</div>
+                <textarea
+                    class="composite-textarea"
+                    id="composite_${cell}"
+                >${escapeHtml(renderedText)}</textarea>
+            `;
+
+            area.appendChild(box);
+        });
+    }
+
+    function refreshCompositeFromCurrentFields() {
+        const profile = getSelectedProfile();
+
+        if (!profile) {
+            return;
+        }
+
+        const data = collectFormData();
+        const compositeMappings = profile.composite_mappings || [];
+
+        compositeMappings.forEach(item => {
+            const cell = String(item.cell || "").trim().toUpperCase();
+            const textarea = document.getElementById("composite_" + cell);
+
+            if (textarea && !textarea.dataset.manuallyEdited) {
+                textarea.value = renderTemplate(item.template || "", data);
+            }
+        });
+    }
+
+    document.addEventListener("input", function (event) {
+        if (event.target && event.target.classList.contains("composite-textarea")) {
+            event.target.dataset.manuallyEdited = "true";
+        }
+    });
+
+    function renderTemplate(template, data) {
+        return String(template || "").replace(/\{([^{}]+)\}/g, function (match, key) {
+            key = key.trim();
+            const value = data[key];
+
+            if (value === null || value === undefined) {
+                return "";
+            }
+
+            return String(value);
         });
     }
 
@@ -406,6 +531,7 @@
         parsedData = result.data;
         updateVisibleFields();
         renderForm(parsedData);
+        renderCompositeArea(parsedData);
     }
 
     function collectFormData() {
@@ -417,6 +543,28 @@
         });
 
         return data;
+    }
+
+    function collectCompositeValues() {
+        const values = {};
+        const profile = getSelectedProfile();
+
+        if (!profile) {
+            return values;
+        }
+
+        const compositeMappings = profile.composite_mappings || [];
+
+        compositeMappings.forEach(item => {
+            const cell = String(item.cell || "").trim().toUpperCase();
+            const textarea = document.getElementById("composite_" + cell);
+
+            if (cell && textarea) {
+                values[cell] = textarea.value;
+            }
+        });
+
+        return values;
     }
 
     function validateRequiredFields(data) {
@@ -438,6 +586,7 @@
     async function submitOrder() {
         const profileId = document.getElementById("profileSelect").value;
         const data = collectFormData();
+        const compositeValues = collectCompositeValues();
         const submitResult = document.getElementById("submitResult");
         const generateBtn = document.getElementById("generateBtn");
 
@@ -467,7 +616,8 @@
             },
             body: JSON.stringify({
                 profile_id: profileId,
-                data: data
+                data: data,
+                composite_values: compositeValues
             })
         });
 
@@ -487,6 +637,13 @@
             <p class="success">Excel生成成功！</p>
             <a class="download-link" href="${result.download_url}" target="_blank">点击下载Excel</a>
         `;
+    }
+
+    function escapeHtml(text) {
+        return String(text || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
     }
 
     loadInitialData();

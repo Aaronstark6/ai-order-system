@@ -21,7 +21,7 @@ from app.template_manager import (
     upload_template_file
 )
 
-
+# ✅ 关键：必须在最前面
 app = FastAPI(title="AI Order System V2")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -51,256 +51,126 @@ def fields_page():
     return FileResponse(STATIC_DIR / "fields.html")
 
 
-@app.get("/api/health")
-def health_check():
-    return {
-        "success": True,
-        "message": "AI Order System V2 is running"
-    }
-
+# ================= 字段库 =================
 
 @app.get("/api/fields")
 def api_get_fields():
-    return {
-        "success": True,
-        "fields": load_fields()
-    }
+    return {"success": True, "fields": load_fields()}
 
 
 @app.post("/api/fields")
 def api_add_field(field: dict):
     try:
-        saved_field = add_field(field)
-
-        return {
-            "success": True,
-            "field": saved_field
-        }
-
+        return {"success": True, "field": add_field(field)}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 @app.put("/api/fields/{key}")
 def api_update_field(key: str, field: dict):
     try:
-        updated_field = update_field(key, field)
-
-        return {
-            "success": True,
-            "field": updated_field
-        }
-
+        return {"success": True, "field": update_field(key, field)}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 @app.post("/api/fields/{key}/toggle")
-def api_toggle_field_enabled(key: str):
+def api_toggle_field(key: str):
     try:
-        field = toggle_field_enabled(key)
-
-        return {
-            "success": True,
-            "field": field
-        }
-
+        return {"success": True, "field": toggle_field_enabled(key)}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 @app.delete("/api/fields/{key}")
 def api_delete_field(key: str):
     try:
-        result = delete_field(key)
-
-        return {
-            "success": True,
-            "result": result
-        }
-
+        return {"success": True, "result": delete_field(key)}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
+
+# ================= 模板映射 =================
 
 @app.get("/api/template-profiles")
-def api_get_template_profiles():
-    return {
-        "success": True,
-        "profiles": load_profiles()
-    }
+def api_get_profiles():
+    return {"success": True, "profiles": load_profiles()}
 
 
 @app.post("/api/template-profiles")
-def api_create_template_profile(data: dict):
+def api_create_profile(data: dict):
     try:
-        name = data.get("name", "")
-        profile = create_profile(name)
-
-        return {
-            "success": True,
-            "profile": profile
-        }
-
+        return {"success": True, "profile": create_profile(data.get("name", ""))}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 @app.delete("/api/template-profiles/{profile_id}")
-def api_delete_template_profile(profile_id: str):
+def api_delete_profile(profile_id: str):
     try:
-        result = delete_profile(profile_id)
-
-        return {
-            "success": True,
-            "result": result
-        }
-
+        return {"success": True, "result": delete_profile(profile_id)}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 @app.post("/api/template-profiles/{profile_id}/upload-template")
 def api_upload_template(profile_id: str, file: UploadFile = File(...)):
     try:
-        profile = upload_template_file(profile_id, file)
-
-        return {
-            "success": True,
-            "profile": profile
-        }
-
+        return {"success": True, "profile": upload_template_file(profile_id, file)}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 @app.post("/api/template-profiles/{profile_id}/mappings")
-def api_update_template_profile_mappings(profile_id: str, data: dict):
+def api_update_mappings(profile_id: str, data: dict):
     try:
-        mappings = data.get("mappings", {})
-        composite_mappings = data.get("composite_mappings", [])
-
-        if not isinstance(mappings, dict):
-            return {
-                "success": False,
-                "error": "mappings 必须是对象格式"
-            }
-
-        if not isinstance(composite_mappings, list):
-            return {
-                "success": False,
-                "error": "composite_mappings 必须是数组格式"
-            }
-
-        profile = update_profile_mappings(
-            profile_id=profile_id,
-            mappings=mappings,
-            composite_mappings=composite_mappings
-        )
-
         return {
             "success": True,
-            "profile": profile
+            "profile": update_profile_mappings(
+                profile_id=profile_id,
+                mappings=data.get("mappings", {}),
+                composite_mappings=data.get("composite_mappings", [])
+            )
         }
-
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
+
+# ================= AI解析 =================
 
 @app.post("/api/parse")
 def api_parse(data: dict):
     try:
-        message = data.get("message", "")
-
-        if not isinstance(message, str):
-            message = str(message)
-
-        message = message.strip()
+        message = data.get("message", "").strip()
 
         if not message:
-            return {
-                "success": False,
-                "error": "message不能为空"
-            }
+            return {"success": False, "error": "message不能为空"}
 
-        result = parse_message(message)
-
-        return {
-            "success": True,
-            "data": result
-        }
+        return {"success": True, "data": parse_message(message)}
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
+
+# ================= Excel生成 =================
 
 @app.post("/api/generate-excel")
 def api_generate_excel(data: dict):
     try:
         profile_id = data.get("profile_id", "")
         order_data = data.get("data", {})
+        composite_data = data.get("composite_data", [])
 
-        if not profile_id:
-            return {
-                "success": False,
-                "error": "请选择模板映射"
-            }
-
-        if not isinstance(order_data, dict):
-            return {
-                "success": False,
-                "error": "订单数据格式错误"
-            }
-
-        result = generate_excel(order_data, profile_id)
-        return result
+        return generate_excel(
+            data=order_data,
+            profile_id=profile_id,
+            composite_data=composite_data
+        )
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 @app.get("/api/download/{filename}")
-def api_download_file(filename: str):
-    file_path = OUTPUT_DIR / filename
-
-    if not file_path.exists():
-        return {
-            "success": False,
-            "error": "文件不存在"
-        }
-
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+def api_download(filename: str):
+    return FileResponse(OUTPUT_DIR / filename)

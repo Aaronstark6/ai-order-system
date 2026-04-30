@@ -46,13 +46,26 @@ def write_cell(sheet, cell, value):
     if not cell:
         return
 
-    try:
-        sheet[cell] = value
-    except Exception as e:
-        raise ValueError(f"单元格 {cell} 写入失败：{str(e)}")
+    sheet[cell] = value
 
 
-def generate_excel(data: dict, profile_id: str):
+def set_wrap_text(sheet, cell):
+    old_alignment = sheet[cell].alignment
+
+    sheet[cell].alignment = Alignment(
+        horizontal=old_alignment.horizontal,
+        vertical=old_alignment.vertical,
+        text_rotation=old_alignment.text_rotation,
+        wrap_text=True,
+        shrink_to_fit=old_alignment.shrink_to_fit,
+        indent=old_alignment.indent
+    )
+
+
+def generate_excel(data: dict, profile_id: str, composite_values=None):
+    if composite_values is None:
+        composite_values = {}
+
     profile = get_profile(profile_id)
 
     if not profile:
@@ -91,7 +104,7 @@ def generate_excel(data: dict, profile_id: str):
     workbook = load_workbook(template_path)
     sheet = workbook.active
 
-    # 1. 普通字段映射
+    # 普通字段映射
     for field_key, cell in mappings.items():
         value = data.get(field_key, "")
 
@@ -106,27 +119,23 @@ def generate_excel(data: dict, profile_id: str):
                 "error": f"普通字段 {field_key} → {cell} 写入失败：{str(e)}"
             }
 
-    # 2. 组合单元格映射
+    # 组合单元格映射
     for item in composite_mappings:
         cell = str(item.get("cell", "")).strip().upper()
         template = item.get("template", "")
 
-        if not cell or not template:
+        if not cell:
             continue
 
         try:
-            rendered_text = render_composite_template(template, data)
-            write_cell(sheet, cell, rendered_text)
+            # 优先使用首页编辑后的组合单元格内容
+            if cell in composite_values:
+                final_text = composite_values.get(cell, "")
+            else:
+                final_text = render_composite_template(template, data)
 
-            old_alignment = sheet[cell].alignment
-            sheet[cell].alignment = Alignment(
-                horizontal=old_alignment.horizontal,
-                vertical=old_alignment.vertical,
-                text_rotation=old_alignment.text_rotation,
-                wrap_text=True,
-                shrink_to_fit=old_alignment.shrink_to_fit,
-                indent=old_alignment.indent
-            )
+            write_cell(sheet, cell, final_text)
+            set_wrap_text(sheet, cell)
 
         except Exception as e:
             return {
