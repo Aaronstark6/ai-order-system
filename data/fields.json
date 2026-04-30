@@ -37,7 +37,7 @@
     "type": "number",
     "required": false,
     "description": "客户联系手机号",
-    "enabled": true
+    "enabled": false
   },
   {
     "key": "formula_requirement",
