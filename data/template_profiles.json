@@ -23,13 +23,6 @@
     "composite_mappings": []
   },
   {
-    "id": "e92fdf82-27a3-4209-9230-863673bf9c20",
-    "name": "固体饮料模板",
-    "template_file": "e92fdf82-27a3-4209-9230-863673bf9c20.xlsx",
-    "mappings": {},
-    "composite_mappings": []
-  },
-  {
     "id": "28ddc16f-bee5-4b2d-a55a-bd05b2cdbd88",
     "name": "液体饮料模板",
     "template_file": "28ddc16f-bee5-4b2d-a55a-bd05b2cdbd88.xlsx",
