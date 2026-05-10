@@ -159,7 +159,10 @@ def api_generate_excel(data: dict):
     try:
         profile_id = data.get("profile_id", "")
         order_data = data.get("data", {})
-        composite_data = data.get("composite_data", [])
+        # 兼容新旧字段名：优先 composite_data，其次 composite_values
+        composite_data = data.get("composite_data")
+        if composite_data is None:
+            composite_data = data.get("composite_values", [])
 
         return generate_excel(
             data=order_data,

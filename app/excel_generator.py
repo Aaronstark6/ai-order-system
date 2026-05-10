@@ -62,9 +62,51 @@ def set_wrap_text(sheet, cell):
     )
 
 
-def generate_excel(data: dict, profile_id: str, composite_values=None):
+def normalize_composite_values(composite_data=None, composite_values=None):
+    # 向后兼容：旧调用使用 composite_values，新调用使用 composite_data
+    raw = composite_data if composite_data is not None else composite_values
+
+    if raw is None:
+        return {}
+
+    if isinstance(raw, dict):
+        return {
+            str(cell or "").strip().upper(): value
+            for cell, value in raw.items()
+            if str(cell or "").strip()
+        }
+
+    if isinstance(raw, list):
+        normalized = {}
+
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+
+            cell = str(item.get("cell", "")).strip().upper()
+            if not cell:
+                continue
+
+            value = item.get("value")
+            if value is None:
+                value = item.get("text")
+            if value is None:
+                value = item.get("content", "")
+
+            normalized[cell] = value
+
+        return normalized
+
+    return {}
+
+
+def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None):
     if composite_values is None:
         composite_values = {}
+    composite_values = normalize_composite_values(
+        composite_data=composite_data,
+        composite_values=composite_values
+    )
 
     profile = get_profile(profile_id)
 
