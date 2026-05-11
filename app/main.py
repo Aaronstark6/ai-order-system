@@ -11,7 +11,7 @@ from app.field_library import (
     toggle_field_enabled,
     delete_field
 )
-from app.ai_parser import parse_message
+from app.ai_parser import parse_message, fill_description_from_message
 from app.excel_generator import generate_excel
 from app.description_template_manager import (
     list_description_templates,
@@ -192,12 +192,24 @@ def api_generate_description(data: dict):
             return {"success": False, "error": "template_name cannot be empty"}
 
         template = get_description_template(template_name)
-        rendered = render_description_template(template, data.get("data", {}))
+        order_data = data.get("data", {})
+        message = str(data.get("message") or "").strip()
+
+        if message:
+            generated = fill_description_from_message(message, template, order_data)
+            if generated.get("error"):
+                return {"success": False, "error": generated.get("error"), "detail": generated}
+            rendered = generated.get("description_text", "")
+            used_ai = True
+        else:
+            rendered = render_description_template(template, order_data)
+            used_ai = False
 
         return {
             "success": True,
             "template_name": template_name,
             "description_text": rendered,
+            "used_ai": used_ai,
         }
     except Exception as e:
         return {"success": False, "error": str(e)}

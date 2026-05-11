@@ -419,7 +419,9 @@
             updateVisibleFields();
             renderDocumentNoSection(parsedData);
             renderForm(parsedData);
-            renderDescriptionArea(mergeDataWithMappingDefaults(parsedData));
+            renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), {
+                useAi: Boolean((document.getElementById("message").value || "").trim())
+            });
             renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
             document.getElementById("submitResult").innerHTML = "";
         };
@@ -885,7 +887,8 @@
         });
     }
 
-    async function renderDescriptionArea(data) {
+    async function renderDescriptionArea(data, options) {
+        options = options || {};
         const area = document.getElementById("descriptionConfirmArea");
         if (!area) {
             return;
@@ -933,7 +936,7 @@
                 profile_id: profile.id,
                 template_name: settings.template_name,
                 data: data || {},
-                message: document.getElementById("message").value || ""
+                message: options.useAi ? (document.getElementById("message").value || "") : ""
             })
         });
         const result = await response.json();
@@ -944,6 +947,9 @@
         }
 
         textarea.value = result.description_text || "";
+        if (result.used_ai) {
+            textarea.dataset.generatedByAi = "true";
+        }
     }
 
     function refreshCompositeFromCurrentFields() {
@@ -968,7 +974,7 @@
 
     async function refreshDescriptionFromCurrentFields() {
         const textarea = document.getElementById("description_text");
-        if (!textarea || textarea.dataset.manuallyEdited) {
+        if (!textarea || textarea.dataset.manuallyEdited || textarea.dataset.generatedByAi) {
             return;
         }
         await renderDescriptionArea(mergeDataWithMappingDefaults(collectAllOrderData()));
@@ -1053,7 +1059,7 @@
         updateVisibleFields();
         renderDocumentNoSection(parsedData);
         renderForm(parsedData);
-        await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData));
+        await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
         renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
     }
 

@@ -110,3 +110,76 @@ def parse_message(message: str):
             parsed[key] = None
 
     return parsed
+
+
+def fill_description_from_message(message: str, template: str, data=None):
+    if not DEEPSEEK_API_KEY:
+        return {
+            "error": "没有读取到 DEEPSEEK_API_KEY，请检查 .env 文件"
+        }
+
+    order_data = data if isinstance(data, dict) else {}
+    data_text = json.dumps(order_data, ensure_ascii=False, indent=2)
+
+    prompt = f"""
+你是一个外贸订单产品描述填写助手。
+
+请根据客户聊天内容和已解析的订单字段，补全下面的产品描述模板。
+
+【要求】
+1. 保留模板原有行顺序、标题、换行和整体格式。
+2. 能从聊天内容或订单字段明确判断的内容，填写到对应标题后面。
+3. 不确定或没有提到的内容保持空白，不要编造。
+4. 模板中的 {{字段key}} 占位符可以先用订单字段替换。
+5. 只返回补全后的产品描述正文，不要解释，不要使用 markdown。
+
+【已解析订单字段】
+{data_text}
+
+【客户聊天内容】
+{message}
+
+【产品描述模板】
+{template}
+"""
+
+    response = requests.post(
+        DEEPSEEK_URL,
+        headers={
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "deepseek-chat",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0
+        },
+        timeout=60
+    )
+
+    if response.status_code != 200:
+        return {
+            "error": "DeepSeek请求失败",
+            "status_code": response.status_code,
+            "detail": response.text
+        }
+
+    result = response.json()
+    content = result["choices"][0]["message"]["content"].strip()
+
+    if content.startswith("```"):
+        lines = content.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        content = "\n".join(lines).strip()
+
+    return {
+        "description_text": content
+    }
