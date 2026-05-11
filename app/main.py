@@ -13,8 +13,15 @@ from app.field_library import (
 )
 from app.ai_parser import parse_message
 from app.excel_generator import generate_excel
+from app.description_template_manager import (
+    list_description_templates,
+    get_description_template,
+    save_description_template,
+    render_description_template,
+)
 from app.template_manager import (
     load_profiles,
+    get_profile,
     create_profile,
     delete_profile,
     update_profile_mappings,
@@ -132,7 +139,65 @@ def api_update_mappings(profile_id: str, data: dict):
                 composite_mappings=data.get("composite_mappings", []),
                 document_no_settings=data.get("document_no_settings"),
                 mapping_defaults=data.get("mapping_defaults"),
+                description_settings=data.get("description_settings"),
             )
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ================= 产品描述模板 =================
+
+@app.get("/api/description-templates")
+def api_list_description_templates():
+    try:
+        return {"success": True, "templates": list_description_templates()}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/description-templates/{template_name}")
+def api_get_description_template(template_name: str):
+    try:
+        return {
+            "success": True,
+            "template_name": template_name,
+            "content": get_description_template(template_name),
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/description-templates/{template_name}")
+def api_save_description_template(template_name: str, data: dict):
+    try:
+        saved = save_description_template(template_name, data.get("content", ""))
+        return {"success": True, "template": saved}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/generate-description")
+def api_generate_description(data: dict):
+    try:
+        template_name = str(data.get("template_name") or "").strip()
+        profile_id = str(data.get("profile_id") or "").strip()
+
+        if not template_name and profile_id:
+            profile = get_profile(profile_id)
+            settings = profile.get("description_settings", {}) if profile else {}
+            template_name = str(settings.get("template_name") or "").strip()
+
+        if not template_name:
+            return {"success": False, "error": "template_name cannot be empty"}
+
+        template = get_description_template(template_name)
+        rendered = render_description_template(template, data.get("data", {}))
+
+        return {
+            "success": True,
+            "template_name": template_name,
+            "description_text": rendered,
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -169,7 +234,8 @@ def api_generate_excel(data: dict):
         return generate_excel(
             data=order_data,
             profile_id=profile_id,
-            composite_data=composite_data
+            composite_data=composite_data,
+            description_text=data.get("description_text")
         )
 
     except Exception as e:

@@ -10,6 +10,10 @@ from app.template_manager import (
     RESERVED_DOCUMENT_MAPPING_KEYS,
     get_profile,
 )
+from app.description_template_manager import (
+    get_description_template,
+    render_description_template,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -187,7 +191,7 @@ def _apply_mapping_defaults(data: dict, profile: dict):
             data[k] = str(dv)
 
 
-def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None):
+def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None, description_text=None):
     if composite_values is None:
         composite_values = {}
     composite_values = normalize_composite_values(
@@ -224,6 +228,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
 
     mappings = profile.get("mappings", {}) or {}
     composite_mappings = profile.get("composite_mappings", []) or {}
+    description_settings = profile.get("description_settings", {}) or {}
 
     _apply_mapping_defaults(data, profile)
 
@@ -256,7 +261,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
         document_no = render_placeholder_rule(document_no_rule, data)
     data["document_no"] = document_no
 
-    if not mappings and not composite_mappings:
+    if not mappings and not composite_mappings and not description_settings.get("enabled"):
         return {
             "success": False,
             "error": f"映射「{profile.get('name')}」还没有配置字段单元格"
@@ -309,6 +314,29 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
                 "success": False,
                 "error": f"组合单元格 {cell} 写入失败：{str(e)}"
             }
+
+    # 产品描述独立于组合单元格；若目标单元格相同，此处后写入以优先使用 description_text。
+    if description_settings.get("enabled") is True:
+        target_cell = str(description_settings.get("target_cell") or "").strip().upper()
+        if target_cell:
+            try:
+                final_description = description_text
+
+                if final_description is None or str(final_description).strip() == "":
+                    template_name = str(description_settings.get("template_name") or "").strip()
+                    if template_name:
+                        template = get_description_template(template_name)
+                        final_description = render_description_template(template, data)
+                    else:
+                        final_description = ""
+
+                write_cell(sheet, target_cell, final_description)
+                set_wrap_text(sheet, target_cell)
+            except Exception as e:
+                return {
+                    "success": False,
+                    "error": f"产品描述写入 {target_cell} 失败：{str(e)}"
+                }
 
     # 文档编号写入专用单元格（最后写入，避免被组合单元格覆盖）
     if settings.get("enabled", True):

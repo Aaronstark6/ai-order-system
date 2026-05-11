@@ -59,6 +59,12 @@
             white-space: pre-wrap;
         }
 
+        .description-textarea {
+            min-height: 260px;
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            white-space: pre-wrap;
+        }
+
         label {
             font-weight: bold;
             display: block;
@@ -333,6 +339,8 @@
 
         <form id="confirmForm"></form>
 
+        <div id="descriptionConfirmArea"></div>
+
         <div id="compositeConfirmArea"></div>
 
         <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
@@ -369,6 +377,7 @@
         updateVisibleFields();
         renderDocumentNoSection({});
         renderForm({});
+        renderDescriptionArea(mergeDataWithMappingDefaults({}));
         renderCompositeArea(mergeDataWithMappingDefaults({}));
     }
 
@@ -410,6 +419,7 @@
             updateVisibleFields();
             renderDocumentNoSection(parsedData);
             renderForm(parsedData);
+            renderDescriptionArea(mergeDataWithMappingDefaults(parsedData));
             renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
             document.getElementById("submitResult").innerHTML = "";
         };
@@ -617,6 +627,7 @@
         }
 
         refreshCompositeFromCurrentFields();
+        refreshDescriptionFromCurrentFields();
     }
 
     function bindDocNoSyncInputs() {
@@ -820,6 +831,7 @@
 
             input.oninput = function () {
                 refreshCompositeFromCurrentFields();
+                refreshDescriptionFromCurrentFields();
             };
 
             form.appendChild(label);
@@ -873,6 +885,67 @@
         });
     }
 
+    async function renderDescriptionArea(data) {
+        const area = document.getElementById("descriptionConfirmArea");
+        if (!area) {
+            return;
+        }
+
+        area.innerHTML = "";
+
+        const profile = getSelectedProfile();
+        if (!profile) {
+            return;
+        }
+
+        const settings = profile.description_settings || {};
+        if (settings.enabled !== true) {
+            return;
+        }
+
+        const title = document.createElement("h3");
+        title.className = "section-title";
+        title.innerText = "产品描述";
+        area.appendChild(title);
+
+        const tip = document.createElement("p");
+        tip.className = "tips";
+        tip.innerText = "这里是将写入 Excel 产品描述大单元格的最终文本，可以人工修改。";
+        area.appendChild(tip);
+
+        const textarea = document.createElement("textarea");
+        textarea.id = "description_text";
+        textarea.className = "description-textarea";
+        textarea.placeholder = "产品描述生成中...";
+        area.appendChild(textarea);
+
+        if (!settings.template_name) {
+            textarea.placeholder = "当前模板映射未选择产品描述模板";
+            return;
+        }
+
+        const response = await fetch("/api/generate-description", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                profile_id: profile.id,
+                template_name: settings.template_name,
+                data: data || {},
+                message: document.getElementById("message").value || ""
+            })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            textarea.placeholder = result.error || "产品描述生成失败";
+            return;
+        }
+
+        textarea.value = result.description_text || "";
+    }
+
     function refreshCompositeFromCurrentFields() {
         const profile = getSelectedProfile();
 
@@ -893,8 +966,19 @@
         });
     }
 
+    async function refreshDescriptionFromCurrentFields() {
+        const textarea = document.getElementById("description_text");
+        if (!textarea || textarea.dataset.manuallyEdited) {
+            return;
+        }
+        await renderDescriptionArea(mergeDataWithMappingDefaults(collectAllOrderData()));
+    }
+
     document.addEventListener("input", function (event) {
         if (event.target && event.target.classList.contains("composite-textarea")) {
+            event.target.dataset.manuallyEdited = "true";
+        }
+        if (event.target && event.target.id === "description_text") {
             event.target.dataset.manuallyEdited = "true";
         }
     });
@@ -969,6 +1053,7 @@
         updateVisibleFields();
         renderDocumentNoSection(parsedData);
         renderForm(parsedData);
+        await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData));
         renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
     }
 
@@ -1020,6 +1105,11 @@
         return values;
     }
 
+    function collectDescriptionText() {
+        const textarea = document.getElementById("description_text");
+        return textarea ? textarea.value : "";
+    }
+
     function validateRequiredFields(data) {
         const missing = [];
 
@@ -1040,6 +1130,7 @@
         const profileId = document.getElementById("profileSelect").value;
         const data = collectAllOrderData();
         const compositeValues = collectCompositeValues();
+        const descriptionText = collectDescriptionText();
         const submitResult = document.getElementById("submitResult");
         const generateBtn = document.getElementById("generateBtn");
 
@@ -1070,7 +1161,8 @@
             body: JSON.stringify({
                 profile_id: profileId,
                 data: data,
-                composite_values: compositeValues
+                composite_values: compositeValues,
+                description_text: descriptionText
             })
         });
 

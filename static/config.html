@@ -224,6 +224,29 @@
 </div>
 
 <div class="card">
+    <h2>产品描述设置</h2>
+    <p class="tips">
+        产品描述模板是独立模块，不混入普通字段映射或组合单元格。模板内容支持 {字段key} 占位符。
+    </p>
+
+    <label><input type="checkbox" id="ds_enabled"> 启用产品描述模板</label>
+
+    <label for="ds_template_name">产品描述模板选择</label>
+    <select id="ds_template_name" onchange="loadSelectedDescriptionTemplate()">
+        <option value="">请选择产品描述模板</option>
+    </select>
+
+    <label for="ds_target_cell">产品描述写入单元格</label>
+    <input id="ds_target_cell" placeholder="例如 B8">
+
+    <label for="ds_template_content">模板内容</label>
+    <textarea id="ds_template_content" rows="14" placeholder="选择模板后可编辑模板内容"></textarea>
+
+    <button type="button" onclick="saveSelectedDescriptionTemplate()">保存产品描述模板内容</button>
+    <div id="descriptionTemplateResult"></div>
+</div>
+
+<div class="card">
     <h2>文档编号设置</h2>
     <p class="tips">
         此处配置文档编号的生成规则、默认值及写入 Excel 的单元格；与普通字段映射分离，避免混淆。
@@ -289,9 +312,11 @@
     let fields = [];
     let profiles = [];
     let currentProfile = null;
+    let descriptionTemplateNames = [];
 
     async function loadAll() {
         await loadFields();
+        await loadDescriptionTemplates();
         await loadProfiles();
         renderProfileSelect();
         selectProfile();
@@ -322,6 +347,18 @@
         profiles = result.profiles || [];
     }
 
+    async function loadDescriptionTemplates() {
+        const response = await fetch("/api/description-templates");
+        const result = await response.json();
+
+        if (!result.success) {
+            alert("产品描述模板加载失败");
+            return;
+        }
+
+        descriptionTemplateNames = result.templates || [];
+    }
+
     function renderProfileSelect() {
         const select = document.getElementById("profileSelect");
         const oldValue = select.value;
@@ -349,6 +386,7 @@
         renderProfileInfo();
         renderFieldTable();
         renderCompositeMappings();
+        renderDescriptionSettings();
         renderDocumentNoSettings();
     }
 
@@ -590,6 +628,128 @@
         };
     }
 
+    function renderDescriptionSettings() {
+        const s = currentProfile && currentProfile.description_settings ? currentProfile.description_settings : {};
+        const enabled = document.getElementById("ds_enabled");
+        const select = document.getElementById("ds_template_name");
+        const targetCell = document.getElementById("ds_target_cell");
+        const content = document.getElementById("ds_template_content");
+        const resultDiv = document.getElementById("descriptionTemplateResult");
+
+        if (resultDiv) {
+            resultDiv.innerHTML = "";
+        }
+
+        if (select) {
+            select.innerHTML = `<option value="">请选择产品描述模板</option>`;
+            descriptionTemplateNames.forEach(name => {
+                const option = document.createElement("option");
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            select.value = s.template_name || "";
+            select.disabled = !currentProfile;
+        }
+
+        if (enabled) {
+            enabled.checked = s.enabled === true;
+            enabled.disabled = !currentProfile;
+        }
+        if (targetCell) {
+            targetCell.value = s.target_cell || "";
+            targetCell.disabled = !currentProfile;
+        }
+        if (content) {
+            content.value = "";
+            content.disabled = !currentProfile || !select || !select.value;
+        }
+
+        if (currentProfile && select && select.value) {
+            loadSelectedDescriptionTemplate();
+        }
+    }
+
+    async function loadSelectedDescriptionTemplate() {
+        const select = document.getElementById("ds_template_name");
+        const content = document.getElementById("ds_template_content");
+        const resultDiv = document.getElementById("descriptionTemplateResult");
+        const templateName = select ? select.value : "";
+
+        if (resultDiv) {
+            resultDiv.innerHTML = "";
+        }
+        if (!content) {
+            return;
+        }
+        content.value = "";
+        content.disabled = !templateName;
+
+        if (!templateName) {
+            return;
+        }
+
+        const response = await fetch(`/api/description-templates/${encodeURIComponent(templateName)}`);
+        const result = await response.json();
+
+        if (!result.success) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${result.error || "模板内容加载失败"}</p>`;
+            }
+            return;
+        }
+
+        content.value = result.content || "";
+    }
+
+    async function saveSelectedDescriptionTemplate() {
+        const select = document.getElementById("ds_template_name");
+        const content = document.getElementById("ds_template_content");
+        const resultDiv = document.getElementById("descriptionTemplateResult");
+        const templateName = select ? select.value : "";
+
+        if (!templateName) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">请先选择产品描述模板</p>`;
+            }
+            return;
+        }
+
+        const response = await fetch(`/api/description-templates/${encodeURIComponent(templateName)}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                content: content ? content.value : ""
+            })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${result.error || "模板保存失败"}</p>`;
+            }
+            return;
+        }
+
+        if (resultDiv) {
+            resultDiv.innerHTML = `<p class="success">产品描述模板内容已保存</p>`;
+        }
+    }
+
+    function collectDescriptionSettings() {
+        const enabled = document.getElementById("ds_enabled");
+        const select = document.getElementById("ds_template_name");
+        const targetCell = document.getElementById("ds_target_cell");
+
+        return {
+            enabled: enabled ? enabled.checked : false,
+            template_name: select ? select.value.trim() : "",
+            target_cell: targetCell ? targetCell.value.trim().toUpperCase() : ""
+        };
+    }
+
     function addCompositeMapping() {
         if (!currentProfile) {
             alert("请先选择一个映射");
@@ -713,6 +873,7 @@
 
         const compositeMappings = collectCompositeMappings();
         const documentNoSettings = collectDocumentNoSettings();
+        const descriptionSettings = collectDescriptionSettings();
 
         const mappingDefaults = {};
         fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
@@ -732,6 +893,7 @@
                 mappings: mappings,
                 composite_mappings: compositeMappings,
                 document_no_settings: documentNoSettings,
+                description_settings: descriptionSettings,
                 mapping_defaults: mappingDefaults
             })
         });

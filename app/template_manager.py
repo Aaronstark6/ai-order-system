@@ -37,6 +37,12 @@ DEFAULT_DOCUMENT_NO_SETTINGS = {
     "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}",
 }
 
+DEFAULT_DESCRIPTION_SETTINGS = {
+    "enabled": False,
+    "template_name": "",
+    "target_cell": "",
+}
+
 
 def ensure_dirs():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -66,6 +72,20 @@ def normalize_document_no_settings(raw, legacy_document_no_rule=None):
 
     prod_rule = str(merged.get("product_code_rule") or "").strip()
     merged["product_code_rule"] = prod_rule or DEFAULT_DOCUMENT_NO_SETTINGS["product_code_rule"]
+
+    return merged
+
+
+def normalize_description_settings(raw):
+    merged = deepcopy(DEFAULT_DESCRIPTION_SETTINGS)
+    if isinstance(raw, dict):
+        for key, value in raw.items():
+            if key in DEFAULT_DESCRIPTION_SETTINGS:
+                merged[key] = value
+
+    merged["enabled"] = bool(merged.get("enabled", False))
+    merged["template_name"] = Path(str(merged.get("template_name") or "").strip()).name
+    merged["target_cell"] = str(merged.get("target_cell") or "").strip().upper()
 
     return merged
 
@@ -101,6 +121,9 @@ def normalize_profile(profile: dict):
     profile["document_no_settings"] = normalize_document_no_settings(
         raw_settings if isinstance(raw_settings, dict) else {},
         legacy_document_no_rule=legacy_rule if legacy_rule else None,
+    )
+    profile["description_settings"] = normalize_description_settings(
+        profile.get("description_settings") if isinstance(profile.get("description_settings"), dict) else {}
     )
 
     if "document_no_rule" in profile:
@@ -168,6 +191,7 @@ def create_profile(name: str):
         "mapping_defaults": {},
         "composite_mappings": [],
         "document_no_settings": deepcopy(DEFAULT_DOCUMENT_NO_SETTINGS),
+        "description_settings": deepcopy(DEFAULT_DESCRIPTION_SETTINGS),
     }
 
     profiles.append(profile)
@@ -208,6 +232,7 @@ def update_profile_mappings(
     composite_mappings=None,
     document_no_settings=None,
     mapping_defaults=None,
+    description_settings=None,
 ):
     profiles = load_profiles()
 
@@ -261,6 +286,15 @@ def update_profile_mappings(
                 if isinstance(document_no_settings, dict):
                     merged.update(document_no_settings)
                 profile["document_no_settings"] = normalize_document_no_settings(merged)
+
+            if description_settings is not None:
+                current = profile.get("description_settings")
+                merged = {}
+                if isinstance(current, dict):
+                    merged.update(current)
+                if isinstance(description_settings, dict):
+                    merged.update(description_settings)
+                profile["description_settings"] = normalize_description_settings(merged)
 
             save_profiles(profiles)
 
