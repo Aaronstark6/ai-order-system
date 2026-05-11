@@ -29,6 +29,12 @@
             box-sizing: border-box;
         }
 
+        label input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
         textarea {
             min-height: 120px;
             resize: vertical;
@@ -174,6 +180,7 @@
 
     <p class="tips">
         适合“一个字段值写入一个单元格”的情况。勾选“使用”并填写单元格，例如：客户名称 → B3。
+        <strong>文档编号、业务员、成交日期、产品编码等相关字段请在下方「文档编号设置」中配置，不会出现在本表中。</strong>
     </p>
 
     <table>
@@ -209,6 +216,48 @@
 </div>
 
 <div class="card">
+    <h2>文档编号设置</h2>
+    <p class="tips">
+        此处配置文档编号的生成规则、默认值及写入 Excel 的单元格；与普通字段映射分离，避免混淆。
+    </p>
+
+    <label><input type="checkbox" id="dns_enabled"> 启用文档编号写入 Excel</label>
+
+    <label for="dns_document_no_cell">文档编号写入单元格（document_no_cell）</label>
+    <input id="dns_document_no_cell" placeholder="例如 B4">
+
+    <label><input type="checkbox" id="dns_use_filename"> 使用文档编号作为导出文件名（use_document_no_as_filename）</label>
+
+    <label for="dns_def_sales_name">默认业务员英文名（default_sales_name）</label>
+    <input id="dns_def_sales_name" placeholder="Anna">
+
+    <label for="dns_def_sales_code">默认业务员代号（default_salesperson_code）</label>
+    <input id="dns_def_sales_code" placeholder="AN">
+
+    <label for="dns_def_company">默认公司/客户简称（default_company_code）</label>
+    <input id="dns_def_company" placeholder="GS">
+
+    <label for="dns_def_sequence">默认序号（default_sequence）</label>
+    <input id="dns_def_sequence" placeholder="A01">
+
+    <label for="dns_doc_rule">文档编号规则（document_no_rule）</label>
+    <textarea id="dns_doc_rule" rows="2" placeholder="{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}"></textarea>
+
+    <label for="dns_prod_rule">产品编码规则（product_code_rule）</label>
+    <textarea id="dns_prod_rule" rows="2" placeholder="{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}"></textarea>
+
+    <div class="field-help">
+        <strong>文档编号规则可用占位符：</strong><br>
+        {sales_name}、{company_code}、{deal_date_yyyymmdd}、{sequence}、{product_code} 及任意订单字段 key。<br><br>
+        <strong>产品编码规则可用占位符：</strong><br>
+        {salesperson_code}、{product_index_or_day}、{product_abbr}、{dosage_form_code} 等。<br><br>
+        <strong>剂型代码映射（产品剂型 → 代号）：</strong><br>
+        硬胶囊/胶囊=C，软胶囊=S，软糖=G，滴剂=D，压片=T，固体饮料/粉末=P，精油=O，凝胶=N<br><br>
+        <strong>示例文档编号：</strong>Anna-GS20260318A01-AN211CLBD
+    </div>
+</div>
+
+<div class="card">
     <button class="save" onclick="saveCurrentMappings()">保存当前映射</button>
     <a href="/config/fields" style="margin-left: 15px;">字段库管理</a>
 
@@ -216,6 +265,19 @@
 </div>
 
 <script>
+    const DOCUMENT_NO_RESERVED_KEYS = new Set([
+        "document_no",
+        "sales_name",
+        "salesperson_code",
+        "company_code",
+        "deal_date",
+        "sequence",
+        "product_index_or_day",
+        "product_abbr",
+        "product_form",
+        "product_code",
+        "dosage_form_code"
+    ]);
     let fields = [];
     let profiles = [];
     let currentProfile = null;
@@ -279,6 +341,7 @@
         renderProfileInfo();
         renderFieldTable();
         renderCompositeMappings();
+        renderDocumentNoSettings();
     }
 
     function renderProfileInfo() {
@@ -314,7 +377,7 @@
 
         const mappings = currentProfile ? (currentProfile.mappings || {}) : {};
 
-        fields.forEach(field => {
+        fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
             const used = mappings[field.key] ? true : false;
             const cellValue = mappings[field.key] || "";
 
@@ -384,6 +447,121 @@
         compositeMappings.forEach((item, index) => {
             appendCompositeBlock(item.cell || "", item.template || "");
         });
+    }
+
+    function renderDocumentNoSettings() {
+        const s = currentProfile && currentProfile.document_no_settings ? currentProfile.document_no_settings : {};
+
+        const enabled = document.getElementById("dns_enabled");
+        const cell = document.getElementById("dns_document_no_cell");
+        const useFn = document.getElementById("dns_use_filename");
+        const defName = document.getElementById("dns_def_sales_name");
+        const defCode = document.getElementById("dns_def_sales_code");
+        const defCompany = document.getElementById("dns_def_company");
+        const defSeq = document.getElementById("dns_def_sequence");
+        const docRule = document.getElementById("dns_doc_rule");
+        const prodRule = document.getElementById("dns_prod_rule");
+
+        if (!currentProfile) {
+            if (enabled) {
+                enabled.checked = true;
+                enabled.disabled = true;
+            }
+            if (cell) {
+                cell.value = "";
+                cell.disabled = true;
+            }
+            if (useFn) {
+                useFn.checked = true;
+                useFn.disabled = true;
+            }
+            if (defName) {
+                defName.value = "Anna";
+                defName.disabled = true;
+            }
+            if (defCode) {
+                defCode.value = "AN";
+                defCode.disabled = true;
+            }
+            if (defCompany) {
+                defCompany.value = "GS";
+                defCompany.disabled = true;
+            }
+            if (defSeq) {
+                defSeq.value = "A01";
+                defSeq.disabled = true;
+            }
+            if (docRule) {
+                docRule.value = "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}";
+                docRule.disabled = true;
+            }
+            if (prodRule) {
+                prodRule.value = "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}";
+                prodRule.disabled = true;
+            }
+            return;
+        }
+
+        if (enabled) {
+            enabled.checked = s.enabled !== false;
+            enabled.disabled = false;
+        }
+        if (cell) {
+            cell.value = s.document_no_cell || "";
+            cell.disabled = false;
+        }
+        if (useFn) {
+            useFn.checked = s.use_document_no_as_filename !== false;
+            useFn.disabled = false;
+        }
+        if (defName) {
+            defName.value = s.default_sales_name || "Anna";
+            defName.disabled = false;
+        }
+        if (defCode) {
+            defCode.value = s.default_salesperson_code || "AN";
+            defCode.disabled = false;
+        }
+        if (defCompany) {
+            defCompany.value = s.default_company_code || "GS";
+            defCompany.disabled = false;
+        }
+        if (defSeq) {
+            defSeq.value = s.default_sequence || "A01";
+            defSeq.disabled = false;
+        }
+        if (docRule) {
+            docRule.value = s.document_no_rule || "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}";
+            docRule.disabled = false;
+        }
+        if (prodRule) {
+            prodRule.value = s.product_code_rule || "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}";
+            prodRule.disabled = false;
+        }
+    }
+
+    function collectDocumentNoSettings() {
+        const enabled = document.getElementById("dns_enabled");
+        const cell = document.getElementById("dns_document_no_cell");
+        const useFn = document.getElementById("dns_use_filename");
+        const defName = document.getElementById("dns_def_sales_name");
+        const defCode = document.getElementById("dns_def_sales_code");
+        const defCompany = document.getElementById("dns_def_company");
+        const defSeq = document.getElementById("dns_def_sequence");
+        const docRule = document.getElementById("dns_doc_rule");
+        const prodRule = document.getElementById("dns_prod_rule");
+
+        return {
+            enabled: enabled ? enabled.checked : true,
+            document_no_cell: cell ? cell.value.trim() : "",
+            use_document_no_as_filename: useFn ? useFn.checked : true,
+            default_sales_name: defName ? defName.value.trim() : "",
+            default_salesperson_code: defCode ? defCode.value.trim() : "",
+            default_company_code: defCompany ? defCompany.value.trim() : "",
+            default_sequence: defSeq ? defSeq.value.trim() : "",
+            document_no_rule: docRule ? docRule.value.trim() : "",
+            product_code_rule: prodRule ? prodRule.value.trim() : ""
+        };
     }
 
     function addCompositeMapping() {
@@ -494,7 +672,7 @@
 
         const mappings = {};
 
-        fields.forEach(field => {
+        fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
             const checkbox = document.getElementById("use_" + field.key);
             const input = document.getElementById("mapping_" + field.key);
 
@@ -508,6 +686,7 @@
         });
 
         const compositeMappings = collectCompositeMappings();
+        const documentNoSettings = collectDocumentNoSettings();
 
         const response = await fetch(`/api/template-profiles/${currentProfile.id}/mappings`, {
             method: "POST",
@@ -516,7 +695,8 @@
             },
             body: JSON.stringify({
                 mappings: mappings,
-                composite_mappings: compositeMappings
+                composite_mappings: compositeMappings,
+                document_no_settings: documentNoSettings
             })
         });
 

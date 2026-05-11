@@ -1,5 +1,6 @@
 import json
 import shutil
+from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,10 +10,74 @@ DATA_DIR = BASE_DIR / "data"
 TEMPLATE_UPLOAD_DIR = BASE_DIR / "templates" / "uploads"
 PROFILES_FILE = DATA_DIR / "template_profiles.json"
 
+# 归入文档编号体系，不应出现在「普通字段单元格映射」中的字段 key
+RESERVED_DOCUMENT_MAPPING_KEYS = frozenset({
+    "document_no",
+    "sales_name",
+    "salesperson_code",
+    "company_code",
+    "deal_date",
+    "sequence",
+    "product_index_or_day",
+    "product_abbr",
+    "product_form",
+    "product_code",
+    "dosage_form_code",
+})
+
+DEFAULT_DOCUMENT_NO_SETTINGS = {
+    "enabled": True,
+    "document_no_cell": "",
+    "use_document_no_as_filename": True,
+    "default_sales_name": "Anna",
+    "default_salesperson_code": "AN",
+    "default_company_code": "GS",
+    "default_sequence": "A01",
+    "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
+    "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}",
+}
+
 
 def ensure_dirs():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     TEMPLATE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def normalize_document_no_settings(raw, legacy_document_no_rule=None):
+    merged = deepcopy(DEFAULT_DOCUMENT_NO_SETTINGS)
+    if isinstance(raw, dict):
+        for key, value in raw.items():
+            if key in DEFAULT_DOCUMENT_NO_SETTINGS:
+                merged[key] = value
+
+    merged["enabled"] = bool(merged.get("enabled", True))
+    merged["use_document_no_as_filename"] = bool(merged.get("use_document_no_as_filename", True))
+
+    merged["document_no_cell"] = str(merged.get("document_no_cell") or "").strip().upper()
+    merged["default_sales_name"] = str(merged.get("default_sales_name") or "Anna").strip() or "Anna"
+    merged["default_salesperson_code"] = str(merged.get("default_salesperson_code") or "AN").strip() or "AN"
+    merged["default_company_code"] = str(merged.get("default_company_code") or "GS").strip() or "GS"
+    merged["default_sequence"] = str(merged.get("default_sequence") or "A01").strip() or "A01"
+
+    doc_rule = str(merged.get("document_no_rule") or "").strip()
+    if not doc_rule and legacy_document_no_rule:
+        doc_rule = str(legacy_document_no_rule or "").strip()
+    merged["document_no_rule"] = doc_rule or DEFAULT_DOCUMENT_NO_SETTINGS["document_no_rule"]
+
+    prod_rule = str(merged.get("product_code_rule") or "").strip()
+    merged["product_code_rule"] = prod_rule or DEFAULT_DOCUMENT_NO_SETTINGS["product_code_rule"]
+
+    return merged
+
+
+def _strip_reserved_from_mappings(mappings: dict):
+    if not isinstance(mappings, dict):
+        return {}
+    return {
+        k: v
+        for k, v in mappings.items()
+        if str(k or "").strip() and str(k).strip() not in RESERVED_DOCUMENT_MAPPING_KEYS
+    }
 
 
 def normalize_profile(profile: dict):
@@ -31,8 +96,17 @@ def normalize_profile(profile: dict):
     if "composite_mappings" not in profile:
         profile["composite_mappings"] = []
 
-    if "document_no_rule" not in profile:
-        profile["document_no_rule"] = ""
+    legacy_rule = profile.get("document_no_rule")
+    raw_settings = profile.get("document_no_settings")
+    profile["document_no_settings"] = normalize_document_no_settings(
+        raw_settings if isinstance(raw_settings, dict) else {},
+        legacy_document_no_rule=legacy_rule if legacy_rule else None,
+    )
+
+    if "document_no_rule" in profile:
+        del profile["document_no_rule"]
+
+    profile["mappings"] = _strip_reserved_from_mappings(profile.get("mappings") or {})
 
     return profile
 
@@ -84,13 +158,13 @@ def create_profile(name: str):
         "template_file": "",
         "mappings": {},
         "composite_mappings": [],
-        "document_no_rule": ""
+        "document_no_settings": deepcopy(DEFAULT_DOCUMENT_NO_SETTINGS),
     }
 
     profiles.append(profile)
     save_profiles(profiles)
 
-    return profile
+    return normalize_profile(profile)
 
 
 def delete_profile(profile_id: str):
@@ -119,7 +193,12 @@ def delete_profile(profile_id: str):
     }
 
 
-def update_profile_mappings(profile_id: str, mappings: dict, composite_mappings=None, document_no_rule: str = ""):
+def update_profile_mappings(
+    profile_id: str,
+    mappings: dict,
+    composite_mappings=None,
+    document_no_settings=None,
+):
     profiles = load_profiles()
 
     if composite_mappings is None:
@@ -129,8 +208,10 @@ def update_profile_mappings(profile_id: str, mappings: dict, composite_mappings=
         if profile.get("id") == profile_id:
             clean_mappings = {}
 
-            for key, cell in mappings.items():
+            for key, cell in (mappings or {}).items():
                 key = str(key or "").strip()
+                if key in RESERVED_DOCUMENT_MAPPING_KEYS:
+                    continue
                 cell = str(cell or "").strip().upper()
 
                 if key and cell:
@@ -150,7 +231,15 @@ def update_profile_mappings(profile_id: str, mappings: dict, composite_mappings=
 
             profile["mappings"] = clean_mappings
             profile["composite_mappings"] = clean_composite_mappings
-            profile["document_no_rule"] = str(document_no_rule or "").strip()
+
+            if document_no_settings is not None:
+                current = profile.get("document_no_settings")
+                merged = {}
+                if isinstance(current, dict):
+                    merged.update(current)
+                if isinstance(document_no_settings, dict):
+                    merged.update(document_no_settings)
+                profile["document_no_settings"] = normalize_document_no_settings(merged)
 
             save_profiles(profiles)
 

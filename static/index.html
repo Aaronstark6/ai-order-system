@@ -214,7 +214,10 @@
 
         <p class="tips">
             普通字段和组合单元格都可以在这里确认、修改。组合单元格会按这里编辑后的格式写入 Excel。
+            文档编号相关字段请在下方的「文档编号信息」中填写；未填项将使用模板映射中的默认值（如 Anna、GS、A01 等）。
         </p>
+
+        <div id="documentNoConfirmArea"></div>
 
         <form id="confirmForm"></form>
 
@@ -230,6 +233,19 @@
 </div>
 
 <script>
+    const DOC_SECTION_KEYS = [
+        "document_no",
+        "sales_name",
+        "salesperson_code",
+        "company_code",
+        "deal_date",
+        "sequence",
+        "product_index_or_day",
+        "product_abbr",
+        "product_form",
+        "dosage_form_code",
+        "product_code"
+    ];
     let allFields = [];
     let visibleFields = [];
     let profiles = [];
@@ -239,6 +255,7 @@
         await loadFields();
         await loadProfiles();
         updateVisibleFields();
+        renderDocumentNoSection({});
         renderForm({});
         renderCompositeArea({});
     }
@@ -279,6 +296,7 @@
         select.onchange = function () {
             updateProfileTips();
             updateVisibleFields();
+            renderDocumentNoSection(parsedData);
             renderForm(parsedData);
             renderCompositeArea(parsedData);
             document.getElementById("submitResult").innerHTML = "";
@@ -325,6 +343,7 @@
         }
 
         const usedKeys = new Set();
+        const docKeySet = new Set(DOC_SECTION_KEYS);
 
         const mappings = profile.mappings || {};
         Object.keys(mappings).forEach(key => usedKeys.add(key));
@@ -332,7 +351,9 @@
         const compositeKeys = extractKeysFromCompositeTemplates(profile);
         compositeKeys.forEach(key => usedKeys.add(key));
 
-        visibleFields = allFields.filter(field => usedKeys.has(field.key));
+        visibleFields = allFields.filter(
+            field => usedKeys.has(field.key) && !docKeySet.has(field.key)
+        );
     }
 
     function updateProfileTips() {
@@ -349,6 +370,83 @@
         const compositeCount = profile.composite_mappings ? profile.composite_mappings.length : 0;
 
         tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}；普通字段：${mappingCount}；组合单元格：${compositeCount}`;
+    }
+
+    function getTodayISODate() {
+        const d = new Date();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${d.getFullYear()}-${m}-${day}`;
+    }
+
+    function renderDocumentNoSection(data) {
+        const area = document.getElementById("documentNoConfirmArea");
+        if (!area) {
+            return;
+        }
+
+        const profile = getSelectedProfile();
+        area.innerHTML = "";
+
+        if (!profile) {
+            return;
+        }
+
+        const s = profile.document_no_settings || {};
+        const today = getTodayISODate();
+        const d = data || {};
+
+        const title = document.createElement("h3");
+        title.className = "section-title";
+        title.innerText = "文档编号信息";
+        area.appendChild(title);
+
+        const tip = document.createElement("p");
+        tip.className = "tips";
+        tip.innerText = "「文档编号」留空时由系统按规则自动生成；若填写了文档编号（含 AI 解析结果），导出时将优先使用该值。";
+        area.appendChild(tip);
+
+        DOC_SECTION_KEYS.forEach(key => {
+            const fieldMeta = allFields.find(f => f.key === key);
+            const label = document.createElement("label");
+            label.innerHTML = `
+                ${fieldMeta ? fieldMeta.label : key}
+                <span class="field-key">(${key})</span>
+            `;
+
+            const input = document.createElement("input");
+            input.id = "doc_field_" + key;
+            input.name = key;
+            input.type = key === "deal_date" ? "date" : "text";
+
+            let val = d[key] != null && String(d[key]).trim() !== "" ? String(d[key]).trim() : "";
+
+            if (!val) {
+                if (key === "sales_name") {
+                    val = s.default_sales_name || "Anna";
+                } else if (key === "salesperson_code") {
+                    val = s.default_salesperson_code || "AN";
+                } else if (key === "company_code") {
+                    val = s.default_company_code || "GS";
+                } else if (key === "sequence") {
+                    val = s.default_sequence || "A01";
+                } else if (key === "deal_date") {
+                    val = today;
+                }
+            }
+
+            if (key === "document_no") {
+                val = d[key] != null ? String(d[key]) : "";
+            }
+
+            input.value = val;
+            input.oninput = function () {
+                refreshCompositeFromCurrentFields();
+            };
+
+            area.appendChild(label);
+            area.appendChild(input);
+        });
     }
 
     function renderForm(data) {
@@ -446,7 +544,7 @@
             return;
         }
 
-        const data = collectFormData();
+        const data = collectAllOrderData();
         const compositeMappings = profile.composite_mappings || [];
 
         compositeMappings.forEach(item => {
@@ -481,6 +579,9 @@
     function getInputType(type) {
         if (type === "number") {
             return "number";
+        }
+        if (type === "date") {
+            return "date";
         }
 
         return "text";
@@ -530,8 +631,20 @@
 
         parsedData = result.data;
         updateVisibleFields();
+        renderDocumentNoSection(parsedData);
         renderForm(parsedData);
         renderCompositeArea(parsedData);
+    }
+
+    function collectDocNoFormData() {
+        const data = {};
+
+        DOC_SECTION_KEYS.forEach(key => {
+            const input = document.getElementById("doc_field_" + key);
+            data[key] = input ? input.value : "";
+        });
+
+        return data;
     }
 
     function collectFormData() {
@@ -543,6 +656,10 @@
         });
 
         return data;
+    }
+
+    function collectAllOrderData() {
+        return Object.assign({}, collectDocNoFormData(), collectFormData());
     }
 
     function collectCompositeValues() {
@@ -585,7 +702,7 @@
 
     async function submitOrder() {
         const profileId = document.getElementById("profileSelect").value;
-        const data = collectFormData();
+        const data = collectAllOrderData();
         const compositeValues = collectCompositeValues();
         const submitResult = document.getElementById("submitResult");
         const generateBtn = document.getElementById("generateBtn");

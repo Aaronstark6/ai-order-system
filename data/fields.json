@@ -54,5 +54,109 @@
     "required": false,
     "description": "",
     "enabled": true
+  },
+  {
+    "key": "sales_name",
+    "label": "业务员英文名",
+    "type": "text",
+    "required": false,
+    "description": "示例: Anna",
+    "enabled": true
+  },
+  {
+    "key": "deal_date",
+    "label": "成交日期",
+    "type": "text",
+    "required": false,
+    "description": "示例: 2026-03-18 或 20260318",
+    "enabled": true
+  },
+  {
+    "key": "sequence",
+    "label": "序号",
+    "type": "text",
+    "required": false,
+    "description": "示例: A01",
+    "enabled": true
+  },
+  {
+    "key": "salesperson_initials",
+    "label": "业务员英文名简拼",
+    "type": "text",
+    "required": false,
+    "description": "示例: AN",
+    "enabled": true
+  },
+  {
+    "key": "product_number",
+    "label": "产品编号",
+    "type": "text",
+    "required": false,
+    "description": "示例: 211",
+    "enabled": true
+  },
+  {
+    "key": "custom_product_initials",
+    "label": "订制品英文首字母",
+    "type": "text",
+    "required": false,
+    "description": "示例: CLB",
+    "enabled": true
+  },
+  {
+    "key": "product_form",
+    "label": "产品形式",
+    "type": "text",
+    "required": false,
+    "description": "示例: 胶囊、软胶囊、粉末、凝胶、软糖",
+    "enabled": true
+  },
+  {
+    "key": "product_code",
+    "label": "产品编码",
+    "type": "text",
+    "required": false,
+    "description": "根据业务员简拼、产品编号、订制品首字母、产品形式编码生成",
+    "enabled": true
+  },
+  {
+    "key": "salesperson_code",
+    "label": "业务员代号",
+    "type": "text",
+    "required": false,
+    "description": "2个字母，示例: AN、MD、CR",
+    "enabled": true
+  },
+  {
+    "key": "company_code",
+    "label": "公司/客户简称",
+    "type": "text",
+    "required": false,
+    "description": "示例: GS",
+    "enabled": true
+  },
+  {
+    "key": "product_index_or_day",
+    "label": "中间数字",
+    "type": "text",
+    "required": false,
+    "description": "1-2位，可为产品序号或成交日中的日等",
+    "enabled": true
+  },
+  {
+    "key": "product_abbr",
+    "label": "产品代号",
+    "type": "text",
+    "required": false,
+    "description": "2个字母，如 MV、PB、OG",
+    "enabled": true
+  },
+  {
+    "key": "dosage_form_code",
+    "label": "剂型代号",
+    "type": "text",
+    "required": false,
+    "description": "根据产品剂型自动映射生成",
+    "enabled": true
   }
 ]
