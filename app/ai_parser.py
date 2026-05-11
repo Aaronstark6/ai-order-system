@@ -121,15 +121,73 @@ def _line_key(line: str):
     return ""
 
 
+def _is_formula_key(key: str):
+    return key in ("配方", "配方要求")
+
+
+def _looks_like_extra_chinese_field(line: str, key: str):
+    text = str(line or "").lstrip()
+    if text.startswith(("(", "（")):
+        return False
+    return bool(key and re.search(r"[\u4e00-\u9fff]", key))
+
+
+def _formula_alias_block(ai_by_key: dict):
+    for formula_key in ("配方", "配方要求"):
+        block = ai_by_key.get(formula_key)
+        if block:
+            return block
+    return ""
+
+
+def _replace_first_line_key(block: str, template_line: str):
+    lines = str(block or "").splitlines()
+    if not lines:
+        return block
+
+    template_key = _line_key(template_line)
+    if not template_key:
+        return block
+
+    separator = "：" if "：" in template_line else ":"
+    first_line = lines[0]
+    for sep in ("：", ":"):
+        if sep in first_line:
+            first_value = first_line.split(sep, 1)[1]
+            lines[0] = f"{template_key}{separator}{first_value}"
+            return "\n".join(lines).rstrip()
+
+    lines[0] = f"{template_key}{separator}"
+    return "\n".join(lines).rstrip()
+
+
 def constrain_description_to_template(template: str, ai_text: str):
     template_lines = str(template or "").splitlines()
     ai_lines = str(ai_text or "").splitlines()
+    template_keys = {
+        _line_key(line)
+        for line in template_lines
+        if _line_key(line)
+    }
 
     ai_by_key = {}
-    for line in ai_lines:
+    for index, line in enumerate(ai_lines):
         key = _line_key(line)
         if key and key not in ai_by_key:
-            ai_by_key[key] = line
+            if _is_formula_key(key):
+                block = [line]
+                for next_line in ai_lines[index + 1:]:
+                    next_key = _line_key(next_line)
+                    if (
+                        next_key
+                        and not _is_formula_key(next_key)
+                        and (next_key in template_keys or _looks_like_extra_chinese_field(next_line, next_key))
+                    ):
+                        break
+                    block.append(next_line)
+                ai_by_key[key] = "\n".join(block).rstrip()
+            else:
+                ai_by_key[key] = line
 
     result = []
     for template_line in template_lines:
@@ -139,9 +197,14 @@ def constrain_description_to_template(template: str, ai_text: str):
             continue
 
         ai_line = ai_by_key.get(key)
+        if not ai_line and _is_formula_key(key):
+            ai_line = _formula_alias_block(ai_by_key)
         if not ai_line:
             result.append(template_line)
             continue
+
+        if _is_formula_key(key):
+            ai_line = _replace_first_line_key(ai_line, template_line)
 
         if template_line.strip() != f"{key}：" and template_line.strip() != f"{key}:" and ai_line.strip() in (f"{key}：", f"{key}:"):
             result.append(template_line)
@@ -202,6 +265,35 @@ def generate_description_from_message(message: str, description_template: str, o
 - formula、配方、ingredients、成分等，填入“配方”。
 - capsule、softgel、gummy、powder、drop、tablet、effervescent tablet 等英文产品形式也要识别，并填入剂型、形状或相关描述词条。
 - 如果聊天内容和已解析订单字段都提供了同一信息，优先使用更具体、更完整的内容。
+
+【配方/配方要求格式】
+当模板中出现“配方”或“配方要求”时，必须按下面格式输出：
+1. 不要使用项目符号。
+2. 不要使用表格。
+3. 不要使用 markdown。
+4. 不要输出“中文：”或“English：”。
+5. 每个成分输出两行：第一行英文，保留 mg、g、ml 等英文单位格式；第二行中文，使用“毫克”“克”“毫升”等中文单位。
+6. 每个成分之间空一行。
+7. 如果聊天记录只提供英文配方，则翻译中文行。
+8. 如果聊天记录只提供中文配方，则翻译英文行。
+9. 如果聊天记录已经包含中英文，则整理成英文一行、中文一行的上下对应格式。
+10. 剂量、单位、括号内容必须尽量保留。
+11. 不允许编造聊天记录中没有的成分。
+12. 如果有总含量说明，也按英文一行、中文一行输出在配方末尾。
+
+配方格式示例：
+配方要求：
+300 mg New Zealand Green-Lipped Mussel Oil (Perna canaliculus oil) lipid extract
+300毫克新西兰绿唇贻贝油（Perna canaliculus油）脂质提取物
+
+199.55 mg organic extra virgin olive oil
+199.55毫克有机特级初榨橄榄油
+
+0.45 mg organic vitamin E
+0.45毫克有机维生素E
+
+(Total content per softgel capsule: 500 mg liquid)
+（每粒软胶囊总含量：500毫克；毛重需要做到700mg）
 
 【示例】
 聊天：客户要草莓味软糖，小熊形状，60粒/瓶，1000瓶，客户自己设计标签。
