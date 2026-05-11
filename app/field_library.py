@@ -4,13 +4,45 @@ from pathlib import Path
 
 FIELDS_FILE = Path("data/fields.json")
 
+BUILTIN_FIELDS = [
+    {
+        "key": "document_no",
+        "label": "文档编号",
+        "type": "text",
+        "required": False,
+        "description": "",
+        "enabled": True,
+    }
+]
+
+
+def _ensure_builtin_fields(fields: list):
+    existing_keys = {str(f.get("key") or "").strip() for f in (fields or []) if isinstance(f, dict)}
+
+    changed = False
+    for field in BUILTIN_FIELDS:
+        if field["key"] not in existing_keys:
+            fields.append(field)
+            changed = True
+
+    if changed:
+        save_fields(fields)
+
+    return fields
+
 
 def load_fields():
     if not FIELDS_FILE.exists():
-        return []
+        fields = []
+        return _ensure_builtin_fields(fields)
 
     with open(FIELDS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        fields = json.load(f)
+
+    if not isinstance(fields, list):
+        fields = []
+
+    return _ensure_builtin_fields(fields)
 
 
 def save_fields(fields):

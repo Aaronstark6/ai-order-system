@@ -40,6 +40,21 @@ def render_composite_template(template: str, data: dict):
     return re.sub(r"\{([^{}]+)\}", replace_placeholder, template)
 
 
+def generate_document_no(rule: str, data: dict):
+    rule = str(rule or "").strip()
+    if not rule:
+        return ""
+
+    def replace_placeholder(match):
+        key = match.group(1).strip()
+        value = data.get(key)
+        if value is None:
+            return ""
+        return str(value)
+
+    return re.sub(r"\{([^{}]+)\}", replace_placeholder, rule).strip()
+
+
 def write_cell(sheet, cell, value):
     cell = str(cell or "").strip().upper()
 
@@ -135,6 +150,12 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
     mappings = profile.get("mappings", {}) or {}
     composite_mappings = profile.get("composite_mappings", []) or []
 
+    document_no = str(data.get("document_no") or "").strip()
+    document_no_rule = str(profile.get("document_no_rule") or "").strip()
+    if not document_no and document_no_rule:
+        document_no = generate_document_no(document_no_rule, data)
+        data["document_no"] = document_no
+
     if not mappings and not composite_mappings:
         return {
             "success": False,
@@ -189,7 +210,10 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
     product_name = safe_filename_text(data.get("product_name") or "订单")
     profile_name = safe_filename_text(profile.get("name") or "模板")
 
-    filename = f"{profile_name}_{product_name}_{customer_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    if document_no:
+        filename = f"{safe_filename_text(document_no)}.xlsx"
+    else:
+        filename = f"{profile_name}_{product_name}_{customer_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     output_file = OUTPUT_DIR / filename
 
     workbook.save(output_file)

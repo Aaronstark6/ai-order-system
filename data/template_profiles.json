@@ -6,14 +6,16 @@
     "mappings": {
       "customer_name": "B3",
       "product_name": "B4",
-      "quantity": "B5"
+      "quantity": "B5",
+      "document_no": "B6"
     },
     "composite_mappings": [
       {
         "cell": "B9",
         "template": "客户名称：{customer_name}\n产品名称：{product_name}\n数量：{quantity}\n规格：{specification}\n配方要求：{formula_requirement}"
       }
-    ]
+    ],
+    "document_no_rule": ""
   },
   {
     "id": "7049880a-abd8-4f7d-a525-1784f8d5882f",
@@ -30,13 +32,15 @@
         "cell": "D8",
         "template": "客户名称：{customer_name}\n产品名称：{product_name}\n数量：{quantity}\n规格：{specification}"
       }
-    ]
+    ],
+    "document_no_rule": ""
   },
   {
     "id": "28ddc16f-bee5-4b2d-a55a-bd05b2cdbd88",
     "name": "液体饮料模板",
     "template_file": "28ddc16f-bee5-4b2d-a55a-bd05b2cdbd88.xlsx",
     "mappings": {},
-    "composite_mappings": []
+    "composite_mappings": [],
+    "document_no_rule": ""
   }
 ]

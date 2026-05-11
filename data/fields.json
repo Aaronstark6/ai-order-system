@@ -46,5 +46,13 @@
     "required": false,
     "description": "产品配方",
     "enabled": true
+  },
+  {
+    "key": "document_no",
+    "label": "文档编号",
+    "type": "text",
+    "required": false,
+    "description": "",
+    "enabled": true
   }
 ]

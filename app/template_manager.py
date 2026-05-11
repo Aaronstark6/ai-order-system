@@ -31,6 +31,9 @@ def normalize_profile(profile: dict):
     if "composite_mappings" not in profile:
         profile["composite_mappings"] = []
 
+    if "document_no_rule" not in profile:
+        profile["document_no_rule"] = ""
+
     return profile
 
 
@@ -80,7 +83,8 @@ def create_profile(name: str):
         "name": name,
         "template_file": "",
         "mappings": {},
-        "composite_mappings": []
+        "composite_mappings": [],
+        "document_no_rule": ""
     }
 
     profiles.append(profile)
@@ -115,7 +119,7 @@ def delete_profile(profile_id: str):
     }
 
 
-def update_profile_mappings(profile_id: str, mappings: dict, composite_mappings=None):
+def update_profile_mappings(profile_id: str, mappings: dict, composite_mappings=None, document_no_rule: str = ""):
     profiles = load_profiles()
 
     if composite_mappings is None:
@@ -146,6 +150,7 @@ def update_profile_mappings(profile_id: str, mappings: dict, composite_mappings=
 
             profile["mappings"] = clean_mappings
             profile["composite_mappings"] = clean_composite_mappings
+            profile["document_no_rule"] = str(document_no_rule or "").strip()
 
             save_profiles(profiles)
 
