@@ -927,6 +927,11 @@
             return;
         }
 
+        if (!options.useAi) {
+            textarea.placeholder = "点击 AI解析 后自动生成产品描述";
+            return;
+        }
+
         const response = await fetch("/api/generate-description", {
             method: "POST",
             headers: {
@@ -947,9 +952,7 @@
         }
 
         textarea.value = result.description_text || "";
-        if (result.used_ai) {
-            textarea.dataset.generatedByAi = "true";
-        }
+        textarea.dataset.generatedByAi = "true";
     }
 
     function refreshCompositeFromCurrentFields() {

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 import requests
 from dotenv import load_dotenv
@@ -116,7 +117,7 @@ def _line_key(line: str):
     text = str(line or "")
     for sep in ("：", ":"):
         if sep in text:
-            return text.split(sep, 1)[0].strip() + sep
+            return text.split(sep, 1)[0].strip()
     return ""
 
 
@@ -142,7 +143,7 @@ def constrain_description_to_template(template: str, ai_text: str):
             result.append(template_line)
             continue
 
-        if template_line.strip() != key and ai_line.strip() == key:
+        if template_line.strip() != f"{key}：" and template_line.strip() != f"{key}:" and ai_line.strip() in (f"{key}：", f"{key}:"):
             result.append(template_line)
             continue
 
@@ -151,30 +152,71 @@ def constrain_description_to_template(template: str, ai_text: str):
     return "\n".join(result)
 
 
-def fill_description_from_message(message: str, template: str, data=None):
-    if not DEEPSEEK_API_KEY:
-        return {
-            "error": "没有读取到 DEEPSEEK_API_KEY，请检查 .env 文件"
-        }
+def _render_description_placeholders(description_template: str, order_data: dict):
+    source = "" if description_template is None else str(description_template)
+    values = order_data if isinstance(order_data, dict) else {}
 
-    order_data = data if isinstance(data, dict) else {}
-    data_text = json.dumps(order_data, ensure_ascii=False, indent=2)
+    def replace_placeholder(match):
+        key = match.group(1).strip()
+        value = values.get(key)
+        if value is None:
+            return ""
+        return str(value)
+
+    return re.sub(r"\{([^{}]+)\}", replace_placeholder, source)
+
+
+def generate_description_from_message(message: str, description_template: str, order_data: dict):
+    if not DEEPSEEK_API_KEY:
+        raise RuntimeError("没有读取到 DEEPSEEK_API_KEY，请检查 .env 文件")
+
+    if not str(message or "").strip():
+        raise ValueError("message不能为空，产品描述需要客户聊天内容才能 AI 生成")
+
+    clean_data = order_data if isinstance(order_data, dict) else {}
+    rendered_template = _render_description_placeholders(description_template, clean_data)
+    data_text = json.dumps(clean_data, ensure_ascii=False, indent=2)
 
     prompt = f"""
 你是一个外贸订单产品描述填写助手。
 
-请根据客户聊天内容和已解析的订单字段，补全下面的产品描述模板。
+你不是简单复制模板。你的任务是认真阅读客户聊天记录，把能对应的信息主动填写到产品描述模板的对应词条中。
 
 【要求】
 1. 必须严格使用下方产品描述模板中的词条。
 2. 不允许新增模板中没有的项目。
 3. 不允许删除模板中的项目。
 4. 保留模板原有行顺序、默认文字、空行、中文标点和整体格式。
-5. 聊天记录中明确提到的信息，填入对应词条后面。
+5. 聊天记录中明确出现的信息，必须尽量填入最合适的词条后面。
 6. 聊天记录未提到的信息，保留模板默认文字。
-7. 如果模板某一项原本为空，聊天也没提到，则保持为空。
+7. 如果模板某一项原本为空，聊天也没提到，则保持为空，不要编造。
 8. 模板中的 {{字段key}} 占位符可以先用订单字段替换。
 9. 最终输出纯文本，不要 JSON，不要 markdown。
+
+【信息匹配规则】
+- 颜色、瓶子颜色、胶囊颜色、软糖颜色、color 等信息，填入“颜色”“形状、大小和颜色”“包装尺寸和要求”等相关词条。
+- 口味、flavor、taste、strawberry、mint、lemon、orange、berry 等中英文口味，填入“口味”相关词条。
+- 60粒/瓶、1000瓶、20片/管、15g/袋、500 bags、1000 bottles 等数量规格，填入“包装数量和规格”或“包装方式、数量和规格”。
+- label、标签、贴纸、客户设计、client design、customer design 等，填入“是否贴标签”“谁设计制作标签”“标签材质和工艺要求”。
+- bottle、jar、bag、stick、tube、瓶、罐、袋、条、管等包装形式，填入“包装方式”或“包装尺寸和要求”相关词条。
+- formula、配方、ingredients、成分等，填入“配方”。
+- capsule、softgel、gummy、powder、drop、tablet、effervescent tablet 等英文产品形式也要识别，并填入剂型、形状或相关描述词条。
+- 如果聊天内容和已解析订单字段都提供了同一信息，优先使用更具体、更完整的内容。
+
+【示例】
+聊天：客户要草莓味软糖，小熊形状，60粒/瓶，1000瓶，客户自己设计标签。
+模板：
+软糖形状、大小和颜色：
+软糖口味：
+包装方式、数量和规格：
+是否贴标签：
+谁设计制作标签：
+输出：
+软糖形状、大小和颜色：小熊形状
+软糖口味：草莓味
+包装方式、数量和规格：1000瓶，60粒/瓶
+是否贴标签：是
+谁设计制作标签：客户自己设计
 
 【已解析订单字段】
 {data_text}
@@ -183,7 +225,7 @@ def fill_description_from_message(message: str, template: str, data=None):
 {message}
 
 【产品描述模板】
-{template}
+{rendered_template}
 """
 
     response = requests.post(
@@ -206,11 +248,7 @@ def fill_description_from_message(message: str, template: str, data=None):
     )
 
     if response.status_code != 200:
-        return {
-            "error": "DeepSeek请求失败",
-            "status_code": response.status_code,
-            "detail": response.text
-        }
+        raise RuntimeError(f"DeepSeek请求失败：{response.status_code} {response.text}")
 
     result = response.json()
     content = result["choices"][0]["message"]["content"].strip()
@@ -223,6 +261,15 @@ def fill_description_from_message(message: str, template: str, data=None):
             lines = lines[:-1]
         content = "\n".join(lines).strip()
 
-    return {
-        "description_text": constrain_description_to_template(template, content)
-    }
+    return constrain_description_to_template(rendered_template, content)
+
+
+def fill_description_from_message(message: str, template: str, data=None):
+    try:
+        return {
+            "description_text": generate_description_from_message(message, template, data)
+        }
+    except Exception as e:
+        return {
+            "error": str(e)
+        }

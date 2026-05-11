@@ -11,13 +11,12 @@ from app.field_library import (
     toggle_field_enabled,
     delete_field
 )
-from app.ai_parser import parse_message, fill_description_from_message
+from app.ai_parser import parse_message, generate_description_from_message
 from app.excel_generator import generate_excel
 from app.description_template_manager import (
     list_description_templates,
     get_description_template,
     save_description_template,
-    render_description_template,
 )
 from app.template_manager import (
     load_profiles,
@@ -195,21 +194,18 @@ def api_generate_description(data: dict):
         order_data = data.get("data", {})
         message = str(data.get("message") or "").strip()
 
-        if message:
-            generated = fill_description_from_message(message, template, order_data)
-            if generated.get("error"):
-                return {"success": False, "error": generated.get("error"), "detail": generated}
-            rendered = generated.get("description_text", "")
-            used_ai = True
-        else:
-            rendered = render_description_template(template, order_data)
-            used_ai = False
+        if not message:
+            return {"success": False, "error": "message不能为空，产品描述需要客户聊天内容才能 AI 生成"}
+
+        description_text = generate_description_from_message(message, template, order_data)
 
         return {
             "success": True,
             "template_name": template_name,
-            "description_text": rendered,
-            "used_ai": used_ai,
+            "used_ai": True,
+            "description_text": description_text,
+            "debug_message_length": len(message),
+            "debug_template_length": len(template),
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
