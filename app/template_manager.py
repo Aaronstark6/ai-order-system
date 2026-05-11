@@ -43,6 +43,12 @@ DEFAULT_DESCRIPTION_SETTINGS = {
     "target_cell": "",
 }
 
+PRODUCT_DESCRIPTION_TEMPLATE_MAP = {
+    "片剂": "片剂.txt",
+    "泡腾片": "泡腾片.txt",
+    "果冻和凝胶": "果冻和凝胶.txt",
+}
+
 
 def ensure_dirs():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -90,6 +96,21 @@ def normalize_description_settings(raw):
     return merged
 
 
+def get_default_description_template_name(profile_name: str):
+    name = str(profile_name or "").strip()
+    if not name:
+        return ""
+
+    if name in PRODUCT_DESCRIPTION_TEMPLATE_MAP:
+        return PRODUCT_DESCRIPTION_TEMPLATE_MAP[name]
+
+    for product_type, template_name in PRODUCT_DESCRIPTION_TEMPLATE_MAP.items():
+        if product_type in name:
+            return template_name
+
+    return ""
+
+
 def _strip_reserved_from_mappings(mappings: dict):
     if not isinstance(mappings, dict):
         return {}
@@ -125,6 +146,8 @@ def normalize_profile(profile: dict):
     profile["description_settings"] = normalize_description_settings(
         profile.get("description_settings") if isinstance(profile.get("description_settings"), dict) else {}
     )
+    if not profile["description_settings"].get("template_name"):
+        profile["description_settings"]["template_name"] = get_default_description_template_name(profile.get("name"))
 
     if "document_no_rule" in profile:
         del profile["document_no_rule"]

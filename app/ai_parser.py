@@ -112,6 +112,45 @@ def parse_message(message: str):
     return parsed
 
 
+def _line_key(line: str):
+    text = str(line or "")
+    for sep in ("：", ":"):
+        if sep in text:
+            return text.split(sep, 1)[0].strip() + sep
+    return ""
+
+
+def constrain_description_to_template(template: str, ai_text: str):
+    template_lines = str(template or "").splitlines()
+    ai_lines = str(ai_text or "").splitlines()
+
+    ai_by_key = {}
+    for line in ai_lines:
+        key = _line_key(line)
+        if key and key not in ai_by_key:
+            ai_by_key[key] = line
+
+    result = []
+    for template_line in template_lines:
+        key = _line_key(template_line)
+        if not key:
+            result.append(template_line)
+            continue
+
+        ai_line = ai_by_key.get(key)
+        if not ai_line:
+            result.append(template_line)
+            continue
+
+        if template_line.strip() != key and ai_line.strip() == key:
+            result.append(template_line)
+            continue
+
+        result.append(ai_line)
+
+    return "\n".join(result)
+
+
 def fill_description_from_message(message: str, template: str, data=None):
     if not DEEPSEEK_API_KEY:
         return {
@@ -127,11 +166,15 @@ def fill_description_from_message(message: str, template: str, data=None):
 请根据客户聊天内容和已解析的订单字段，补全下面的产品描述模板。
 
 【要求】
-1. 保留模板原有行顺序、标题、换行和整体格式。
-2. 能从聊天内容或订单字段明确判断的内容，填写到对应标题后面。
-3. 不确定或没有提到的内容保持空白，不要编造。
-4. 模板中的 {{字段key}} 占位符可以先用订单字段替换。
-5. 只返回补全后的产品描述正文，不要解释，不要使用 markdown。
+1. 必须严格使用下方产品描述模板中的词条。
+2. 不允许新增模板中没有的项目。
+3. 不允许删除模板中的项目。
+4. 保留模板原有行顺序、默认文字、空行、中文标点和整体格式。
+5. 聊天记录中明确提到的信息，填入对应词条后面。
+6. 聊天记录未提到的信息，保留模板默认文字。
+7. 如果模板某一项原本为空，聊天也没提到，则保持为空。
+8. 模板中的 {{字段key}} 占位符可以先用订单字段替换。
+9. 最终输出纯文本，不要 JSON，不要 markdown。
 
 【已解析订单字段】
 {data_text}
@@ -181,5 +224,5 @@ def fill_description_from_message(message: str, template: str, data=None):
         content = "\n".join(lines).strip()
 
     return {
-        "description_text": content
+        "description_text": constrain_description_to_template(template, content)
     }
