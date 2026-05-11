@@ -557,10 +557,13 @@
             "软糖": "G",
             "滴剂": "D",
             "压片": "T",
+            "片剂": "T",
+            "泡腾片": "T",
             "固体饮料": "P",
             "粉末": "P",
             "精油": "O",
-            "凝胶": "N"
+            "凝胶": "N",
+            "果冻和凝胶": "N"
         };
         return map[String(productForm || "").trim()] || "";
     }
@@ -755,18 +758,28 @@
                     </div>
                     <div class="doc-no-cell">
                         <label for="doc_field_product_form">产品形式</label>
-                        <input class="doc-no-sync" id="doc_field_product_form" type="text" value="${escapeHtml(initForm)}" placeholder="滴剂" list="doc_product_form_list" autocomplete="off">
+                        <select class="doc-no-sync" id="doc_field_product_form">
+                            <option value="">请选择产品形式</option>
+                            <option value="硬胶囊">硬胶囊</option>
+                            <option value="胶囊">胶囊</option>
+                            <option value="软胶囊">软胶囊</option>
+                            <option value="软糖">软糖</option>
+                            <option value="滴剂">滴剂</option>
+                            <option value="压片">压片</option>
+                            <option value="固体饮料">固体饮料</option>
+                            <option value="粉末">粉末</option>
+                            <option value="精油">精油</option>
+                            <option value="凝胶">凝胶</option>
+                            <option value="片剂">片剂</option>
+                            <option value="泡腾片">泡腾片</option>
+                            <option value="果冻和凝胶">果冻和凝胶</option>
+                        </select>
                     </div>
                     <div class="doc-no-cell">
                         <label for="doc_field_product_code">产品编码</label>
                         <input class="doc-no-sync" id="doc_field_product_code" type="text" value="${escapeHtml(initPc)}" placeholder="留空则按规则拼接" autocomplete="off">
                     </div>
                 </div>
-                <datalist id="doc_product_form_list">
-                    <option value="硬胶囊"><option value="胶囊"><option value="软胶囊"><option value="软糖">
-                    <option value="滴剂"><option value="压片"><option value="固体饮料"><option value="粉末">
-                    <option value="精油"><option value="凝胶">
-                </datalist>
                 <p class="doc-no-dosage-hint">剂型代号（自动）：<span id="docPreviewDosage"></span></p>
                 <input type="hidden" id="doc_field_dosage_form_code" value="${escapeHtml(initDosage)}">
                 <div class="doc-preview-block">
@@ -795,6 +808,11 @@
             dnInput.addEventListener("input", function () {
                 refreshCompositeFromCurrentFields();
             });
+        }
+
+        const formSelect = document.getElementById("doc_field_product_form");
+        if (formSelect) {
+            formSelect.value = initForm;
         }
 
         bindDocNoSyncInputs();
