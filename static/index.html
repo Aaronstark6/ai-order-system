@@ -22,9 +22,9 @@
 
         .layout {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
             gap: 25px;
-            align-items: stretch;
+            align-items: start;
         }
 
         .card {
@@ -34,6 +34,18 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             min-height: 620px;
             box-sizing: border-box;
+        }
+
+        .left-panel {
+            position: sticky;
+            top: 20px;
+            align-self: flex-start;
+            min-height: 0;
+        }
+
+        .right-panel {
+            max-height: calc(100vh - 60px);
+            overflow-y: auto;
         }
 
         textarea, input, select {
@@ -51,6 +63,11 @@
             resize: vertical;
             min-height: 220px;
             line-height: 1.6;
+        }
+
+        #message {
+            min-height: 290px;
+            max-height: 340px;
         }
 
         .composite-textarea {
@@ -291,6 +308,15 @@
                 min-height: auto;
             }
 
+            .left-panel {
+                position: static;
+            }
+
+            .right-panel {
+                max-height: none;
+                overflow-y: visible;
+            }
+
             .doc-no-grid,
             .doc-no-grid-row2 {
                 grid-template-columns: repeat(2, 1fr);
@@ -308,7 +334,7 @@
 
 <div class="layout">
 
-    <div class="card">
+    <div class="card left-panel">
         <h2>客户聊天内容</h2>
 
         <textarea id="message" placeholder="例如：客户小李要订购5000盒固体饮料，电话是13800138000，下周发货"></textarea>
@@ -327,13 +353,8 @@
         <div id="parseError" class="error"></div>
     </div>
 
-    <div class="card">
+    <div class="card right-panel">
         <h2>订单信息确认</h2>
-
-        <p class="tips">
-            普通字段和组合单元格都可以在这里确认、修改。组合单元格会按这里编辑后的格式写入 Excel。
-            文档编号相关字段请在下方的「文档编号信息」中填写；未填项将使用模板映射中的默认值（如 Anna、GS、A01 等）。
-        </p>
 
         <div id="documentNoConfirmArea"></div>
 
@@ -701,10 +722,6 @@
         area.innerHTML = `
             <div class="doc-no-card">
                 <h3>文档编号信息</h3>
-                <p class="tips">
-                    紧凑编辑区；「计算产品编码」「规则生成文档编号」会随上方字段实时变化。
-                    「最终文档编号」可留空（导出时由后端按规则生成），或手动填写/点「重新按规则生成」填入当前规则结果。
-                </p>
                 <div class="doc-no-grid">
                     <div class="doc-no-cell">
                         <label for="doc_field_sales_name">业务员英文名</label>
@@ -753,11 +770,11 @@
                 <p class="doc-no-dosage-hint">剂型代号（自动）：<span id="docPreviewDosage"></span></p>
                 <input type="hidden" id="doc_field_dosage_form_code" value="${escapeHtml(initDosage)}">
                 <div class="doc-preview-block">
-                    <div class="doc-preview-label">计算产品编码（实时）</div>
+                    <div class="doc-preview-label">产品编码</div>
                     <div class="doc-preview-line" id="docPreviewProductCode"></div>
-                    <div class="doc-preview-label">规则生成文档编号（实时）</div>
+                    <div class="doc-preview-label">文档编号预览</div>
                     <div class="doc-preview-line" id="docPreviewRuleDocumentNo"></div>
-                    <div class="doc-preview-label">最终文档编号（可修改；留空则导出时由后端生成）</div>
+                    <div class="doc-preview-label">最终文档编号</div>
                     <div class="doc-no-final-row">
                         <div class="doc-no-final-input-wrap">
                             <input id="doc_field_document_no" type="text" value="${escapeHtml(initDn)}" placeholder="例如 Anna-GS20260511A01-AN1MVD" autocomplete="off">
@@ -862,11 +879,6 @@
         title.innerText = "组合单元格确认";
         area.appendChild(title);
 
-        const tip = document.createElement("p");
-        tip.className = "tips";
-        tip.innerText = "这里显示的是将写入 Excel 组合单元格的最终内容，可以按实际情况手动修改。换行格式会保留。";
-        area.appendChild(tip);
-
         compositeMappings.forEach(item => {
             const cell = String(item.cell || "").trim().toUpperCase();
             const template = item.template || "";
@@ -910,11 +922,6 @@
         title.className = "section-title";
         title.innerText = "产品描述";
         area.appendChild(title);
-
-        const tip = document.createElement("p");
-        tip.className = "tips";
-        tip.innerText = "这里是将写入 Excel 产品描述大单元格的最终文本，可以人工修改。";
-        area.appendChild(tip);
 
         const textarea = document.createElement("textarea");
         textarea.id = "description_text";
