@@ -89,6 +89,12 @@
             margin: 0;
         }
 
+        .field-default-input {
+            width: 100%;
+            max-width: 160px;
+            margin: 0;
+        }
+
         .tips {
             color: #666;
             font-size: 14px;
@@ -180,6 +186,7 @@
 
     <p class="tips">
         适合“一个字段值写入一个单元格”的情况。勾选“使用”并填写单元格，例如：客户名称 → B3。
+        可填写<strong>默认值</strong>：首页订单确认区在解析结果为空时会自动带出，仍可在前端修改；导出时若仍为空，后端也会用该默认值写入 Excel。
         <strong>文档编号、业务员、成交日期、产品编码等相关字段请在下方「文档编号设置」中配置，不会出现在本表中。</strong>
     </p>
 
@@ -193,6 +200,7 @@
             <th>必填</th>
             <th>说明</th>
             <th>Excel单元格</th>
+            <th>默认值</th>
         </tr>
         </thead>
         <tbody id="fieldTable"></tbody>
@@ -376,10 +384,12 @@
         tbody.innerHTML = "";
 
         const mappings = currentProfile ? (currentProfile.mappings || {}) : {};
+        const mappingDefaults = currentProfile ? (currentProfile.mapping_defaults || {}) : {};
 
         fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
             const used = mappings[field.key] ? true : false;
             const cellValue = mappings[field.key] || "";
+            const defVal = mappingDefaults[field.key] != null ? String(mappingDefaults[field.key]) : "";
 
             const tr = document.createElement("tr");
 
@@ -402,8 +412,17 @@
                     <input
                         class="small-input"
                         id="mapping_${field.key}"
-                        value="${cellValue}"
+                        value="${escapeHtml(cellValue)}"
                         placeholder="B3"
+                        ${currentProfile && used ? "" : "disabled"}
+                    >
+                </td>
+                <td>
+                    <input
+                        class="field-default-input"
+                        id="default_${field.key}"
+                        value="${escapeHtml(defVal)}"
+                        placeholder="首页预填"
                         ${currentProfile && used ? "" : "disabled"}
                     >
                 </td>
@@ -416,15 +435,22 @@
     function toggleFieldUse(key) {
         const checkbox = document.getElementById("use_" + key);
         const input = document.getElementById("mapping_" + key);
+        const defInput = document.getElementById("default_" + key);
 
         if (!checkbox || !input) {
             return;
         }
 
         input.disabled = !checkbox.checked;
+        if (defInput) {
+            defInput.disabled = !checkbox.checked;
+        }
 
         if (!checkbox.checked) {
             input.value = "";
+            if (defInput) {
+                defInput.value = "";
+            }
         }
     }
 
@@ -688,6 +714,15 @@
         const compositeMappings = collectCompositeMappings();
         const documentNoSettings = collectDocumentNoSettings();
 
+        const mappingDefaults = {};
+        fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
+            const checkbox = document.getElementById("use_" + field.key);
+            const defInput = document.getElementById("default_" + field.key);
+            if (checkbox && checkbox.checked && defInput) {
+                mappingDefaults[field.key] = defInput.value.trim();
+            }
+        });
+
         const response = await fetch(`/api/template-profiles/${currentProfile.id}/mappings`, {
             method: "POST",
             headers: {
@@ -696,7 +731,8 @@
             body: JSON.stringify({
                 mappings: mappings,
                 composite_mappings: compositeMappings,
-                document_no_settings: documentNoSettings
+                document_no_settings: documentNoSettings,
+                mapping_defaults: mappingDefaults
             })
         });
 

@@ -108,6 +108,14 @@ def normalize_profile(profile: dict):
 
     profile["mappings"] = _strip_reserved_from_mappings(profile.get("mappings") or {})
 
+    if "mapping_defaults" not in profile or not isinstance(profile.get("mapping_defaults"), dict):
+        profile["mapping_defaults"] = {}
+    profile["mapping_defaults"] = {
+        str(k or "").strip(): str(v) if v is not None else ""
+        for k, v in (profile.get("mapping_defaults") or {}).items()
+        if str(k or "").strip() and str(k or "").strip() not in RESERVED_DOCUMENT_MAPPING_KEYS
+    }
+
     return profile
 
 
@@ -157,6 +165,7 @@ def create_profile(name: str):
         "name": name,
         "template_file": "",
         "mappings": {},
+        "mapping_defaults": {},
         "composite_mappings": [],
         "document_no_settings": deepcopy(DEFAULT_DOCUMENT_NO_SETTINGS),
     }
@@ -198,6 +207,7 @@ def update_profile_mappings(
     mappings: dict,
     composite_mappings=None,
     document_no_settings=None,
+    mapping_defaults=None,
 ):
     profiles = load_profiles()
 
@@ -231,6 +241,17 @@ def update_profile_mappings(
 
             profile["mappings"] = clean_mappings
             profile["composite_mappings"] = clean_composite_mappings
+
+            if mapping_defaults is not None:
+                clean_defaults = {}
+                for key, val in (mapping_defaults or {}).items():
+                    key = str(key or "").strip()
+                    if not key or key in RESERVED_DOCUMENT_MAPPING_KEYS:
+                        continue
+                    if key not in clean_mappings:
+                        continue
+                    clean_defaults[key] = str(val) if val is not None else ""
+                profile["mapping_defaults"] = clean_defaults
 
             if document_no_settings is not None:
                 current = profile.get("document_no_settings")

@@ -169,6 +169,113 @@
             margin-top: 15px;
         }
 
+        .doc-no-card {
+            border: 1px solid #e0e4ec;
+            border-radius: 10px;
+            padding: 14px 16px 16px;
+            margin-bottom: 18px;
+            background: #fafbfd;
+        }
+
+        .doc-no-card > h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #222;
+            border-top: none;
+            padding-top: 0;
+        }
+
+        .doc-no-card .tips {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+
+        .doc-no-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px 12px;
+            margin-bottom: 12px;
+        }
+
+        .doc-no-grid-row2 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .doc-no-cell label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+            margin-top: 0;
+            margin-bottom: 4px;
+        }
+
+        .doc-no-cell input {
+            width: 100%;
+            margin-top: 0;
+            margin-bottom: 0;
+            padding: 8px 10px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .doc-no-dosage-hint {
+            font-size: 13px;
+            color: #666;
+            margin: 0 0 12px 0;
+        }
+
+        .doc-no-dosage-hint strong {
+            color: #333;
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        .doc-preview-block {
+            border-top: 1px dashed #dde1ea;
+            padding-top: 12px;
+            margin-top: 4px;
+        }
+
+        .doc-preview-line {
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            font-size: 14px;
+            color: #1a1a1a;
+            margin: 6px 0;
+            word-break: break-all;
+        }
+
+        .doc-preview-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 2px;
+        }
+
+        .doc-no-final-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: flex-end;
+            margin-top: 10px;
+        }
+
+        .doc-no-final-row .doc-no-final-input-wrap {
+            flex: 1 1 220px;
+            min-width: 180px;
+        }
+
+        .doc-no-final-row .doc-no-final-input-wrap input {
+            margin-bottom: 0;
+        }
+
+        button.doc-no-regen {
+            background: #1677ff;
+            font-size: 14px;
+            padding: 9px 14px;
+            white-space: nowrap;
+        }
+
         @media (max-width: 900px) {
             .layout {
                 grid-template-columns: 1fr;
@@ -176,6 +283,11 @@
 
             .card {
                 min-height: auto;
+            }
+
+            .doc-no-grid,
+            .doc-no-grid-row2 {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
     </style>
@@ -257,7 +369,7 @@
         updateVisibleFields();
         renderDocumentNoSection({});
         renderForm({});
-        renderCompositeArea({});
+        renderCompositeArea(mergeDataWithMappingDefaults({}));
     }
 
     async function loadFields() {
@@ -298,7 +410,7 @@
             updateVisibleFields();
             renderDocumentNoSection(parsedData);
             renderForm(parsedData);
-            renderCompositeArea(parsedData);
+            renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
             document.getElementById("submitResult").innerHTML = "";
         };
 
@@ -312,6 +424,22 @@
     function getSelectedProfile() {
         const profileId = document.getElementById("profileSelect").value;
         return profiles.find(p => p.id === profileId) || null;
+    }
+
+    function mergeDataWithMappingDefaults(data) {
+        const profile = getSelectedProfile();
+        const defs = profile && profile.mapping_defaults ? profile.mapping_defaults : {};
+        const out = Object.assign({}, data || {});
+        Object.keys(defs).forEach(k => {
+            const v = out[k];
+            if (v === null || v === undefined || String(v).trim() === "") {
+                const dv = defs[k];
+                if (dv != null && String(dv).trim() !== "") {
+                    out[k] = dv;
+                }
+            }
+        });
+        return out;
     }
 
     function extractKeysFromCompositeTemplates(profile) {
@@ -379,6 +507,139 @@
         return `${d.getFullYear()}-${m}-${day}`;
     }
 
+    function formatDealDateYyyymmdd(value) {
+        let text = String(value || "").trim().replace(/\//g, "-");
+        const digits = text.replace(/\D/g, "");
+        if (digits.length === 8) {
+            return digits;
+        }
+        return "";
+    }
+
+    function getDosageFormCode(productForm) {
+        const map = {
+            "硬胶囊": "C",
+            "胶囊": "C",
+            "软胶囊": "S",
+            "软糖": "G",
+            "滴剂": "D",
+            "压片": "T",
+            "固体饮料": "P",
+            "粉末": "P",
+            "精油": "O",
+            "凝胶": "N"
+        };
+        return map[String(productForm || "").trim()] || "";
+    }
+
+    function resolveDocInputOrDefault(elId, settingKey, fallback) {
+        const profile = getSelectedProfile();
+        const st = profile && profile.document_no_settings ? profile.document_no_settings : {};
+        const el = document.getElementById(elId);
+        let v = el && el.value != null ? String(el.value).trim() : "";
+        if (!v && settingKey && st[settingKey] != null && String(st[settingKey]).trim() !== "") {
+            v = String(st[settingKey]).trim();
+        }
+        if (!v) {
+            v = fallback || "";
+        }
+        return v;
+    }
+
+    function getDocNoPreviewComputations() {
+        const salesName = resolveDocInputOrDefault("doc_field_sales_name", "default_sales_name", "Anna");
+        const salesCode = resolveDocInputOrDefault("doc_field_salesperson_code", "default_salesperson_code", "AN");
+        const companyCode = resolveDocInputOrDefault("doc_field_company_code", "default_company_code", "GS");
+        const sequence = resolveDocInputOrDefault("doc_field_sequence", "default_sequence", "A01");
+
+        const dealEl = document.getElementById("doc_field_deal_date");
+        let dealRaw = dealEl && dealEl.value != null ? String(dealEl.value).trim() : "";
+        if (!dealRaw) {
+            dealRaw = getTodayISODate();
+        }
+
+        const yyyymmdd = formatDealDateYyyymmdd(dealRaw);
+        const idxEl = document.getElementById("doc_field_product_index_or_day");
+        const abbrEl = document.getElementById("doc_field_product_abbr");
+        const formEl = document.getElementById("doc_field_product_form");
+        const pcEl = document.getElementById("doc_field_product_code");
+
+        const indexOrDay = idxEl ? String(idxEl.value || "").trim() : "";
+        const abbr = abbrEl ? String(abbrEl.value || "").trim() : "";
+        const productForm = formEl ? String(formEl.value || "").trim() : "";
+        const manualPc = pcEl ? String(pcEl.value || "").trim() : "";
+
+        const dosageCode = getDosageFormCode(productForm);
+        const dosageHidden = document.getElementById("doc_field_dosage_form_code");
+        if (dosageHidden) {
+            dosageHidden.value = dosageCode;
+        }
+
+        const computedPc = `${salesCode}${indexOrDay}${abbr}${dosageCode}`;
+        const effectivePc = manualPc || computedPc;
+
+        const ruleDocNo = yyyymmdd
+            ? `${salesName}-${companyCode}${yyyymmdd}${sequence}-${effectivePc}`
+            : "";
+
+        return {
+            salesName,
+            salesCode,
+            companyCode,
+            sequence,
+            yyyymmdd,
+            dosageCode,
+            productForm,
+            computedPc,
+            effectivePc,
+            ruleDocNo
+        };
+    }
+
+    function updateDocNoPreviews() {
+        const c = getDocNoPreviewComputations();
+
+        const elDosageHint = document.getElementById("docPreviewDosage");
+        if (elDosageHint) {
+            elDosageHint.innerHTML = c.dosageCode
+                ? `<strong>${escapeHtml(c.dosageCode)}</strong>（根据「${escapeHtml(c.productForm || "（未填）")}」）`
+                : "（请先填写产品形式）";
+        }
+
+        const elPc = document.getElementById("docPreviewProductCode");
+        if (elPc) {
+            elPc.textContent = c.effectivePc || "（尚不完整）";
+        }
+
+        const elRuleDn = document.getElementById("docPreviewRuleDocumentNo");
+        if (elRuleDn) {
+            elRuleDn.textContent = c.ruleDocNo || "（请填写有效成交日期）";
+        }
+
+        refreshCompositeFromCurrentFields();
+    }
+
+    function bindDocNoSyncInputs() {
+        document.querySelectorAll(".doc-no-sync").forEach(el => {
+            el.addEventListener("input", function () {
+                updateDocNoPreviews();
+            });
+            el.addEventListener("change", function () {
+                updateDocNoPreviews();
+            });
+        });
+    }
+
+    function regenerateDocumentNoFromRule() {
+        updateDocNoPreviews();
+        const c = getDocNoPreviewComputations();
+        const dnInput = document.getElementById("doc_field_document_no");
+        if (dnInput) {
+            dnInput.value = c.ruleDocNo || "";
+        }
+        refreshCompositeFromCurrentFields();
+    }
+
     function renderDocumentNoSection(data) {
         const area = document.getElementById("documentNoConfirmArea");
         if (!area) {
@@ -396,57 +657,118 @@
         const today = getTodayISODate();
         const d = data || {};
 
-        const title = document.createElement("h3");
-        title.className = "section-title";
-        title.innerText = "文档编号信息";
-        area.appendChild(title);
-
-        const tip = document.createElement("p");
-        tip.className = "tips";
-        tip.innerText = "「文档编号」留空时由系统按规则自动生成；若填写了文档编号（含 AI 解析结果），导出时将优先使用该值。";
-        area.appendChild(tip);
-
-        DOC_SECTION_KEYS.forEach(key => {
-            const fieldMeta = allFields.find(f => f.key === key);
-            const label = document.createElement("label");
-            label.innerHTML = `
-                ${fieldMeta ? fieldMeta.label : key}
-                <span class="field-key">(${key})</span>
-            `;
-
-            const input = document.createElement("input");
-            input.id = "doc_field_" + key;
-            input.name = key;
-            input.type = key === "deal_date" ? "date" : "text";
-
-            let val = d[key] != null && String(d[key]).trim() !== "" ? String(d[key]).trim() : "";
-
-            if (!val) {
-                if (key === "sales_name") {
-                    val = s.default_sales_name || "Anna";
-                } else if (key === "salesperson_code") {
-                    val = s.default_salesperson_code || "AN";
-                } else if (key === "company_code") {
-                    val = s.default_company_code || "GS";
-                } else if (key === "sequence") {
-                    val = s.default_sequence || "A01";
-                } else if (key === "deal_date") {
-                    val = today;
-                }
+        const v = function (key, fallbackSetting, fallbackLiteral) {
+            let raw = d[key] != null && String(d[key]).trim() !== "" ? String(d[key]).trim() : "";
+            if (!raw && fallbackSetting && s[fallbackSetting]) {
+                raw = String(s[fallbackSetting]).trim();
             }
-
-            if (key === "document_no") {
-                val = d[key] != null ? String(d[key]) : "";
+            if (!raw && fallbackLiteral) {
+                raw = fallbackLiteral;
             }
+            return raw;
+        };
 
-            input.value = val;
-            input.oninput = function () {
+        const initSales = v("sales_name", "default_sales_name", "Anna");
+        const initCode = v("salesperson_code", "default_salesperson_code", "AN");
+        const initCompany = v("company_code", "default_company_code", "GS");
+        const initSeq = v("sequence", "default_sequence", "A01");
+        let initDeal = d.deal_date != null && String(d.deal_date).trim() !== "" ? String(d.deal_date).trim() : "";
+        if (!initDeal) {
+            initDeal = today;
+        }
+
+        const initIdx = d.product_index_or_day != null ? String(d.product_index_or_day) : "";
+        const initAbbr = d.product_abbr != null ? String(d.product_abbr) : "";
+        const initForm = d.product_form != null ? String(d.product_form) : "";
+        const initPc = d.product_code != null ? String(d.product_code) : "";
+        const initDn = d.document_no != null ? String(d.document_no) : "";
+
+        const initDosage = getDosageFormCode(initForm);
+
+        area.innerHTML = `
+            <div class="doc-no-card">
+                <h3>文档编号信息</h3>
+                <p class="tips">
+                    紧凑编辑区；「计算产品编码」「规则生成文档编号」会随上方字段实时变化。
+                    「最终文档编号」可留空（导出时由后端按规则生成），或手动填写/点「重新按规则生成」填入当前规则结果。
+                </p>
+                <div class="doc-no-grid">
+                    <div class="doc-no-cell">
+                        <label for="doc_field_sales_name">业务员英文名</label>
+                        <input class="doc-no-sync" id="doc_field_sales_name" type="text" value="${escapeHtml(initSales)}" placeholder="Anna" autocomplete="off">
+                    </div>
+                    <div class="doc-no-cell">
+                        <label for="doc_field_salesperson_code">业务员代号</label>
+                        <input class="doc-no-sync" id="doc_field_salesperson_code" type="text" value="${escapeHtml(initCode)}" placeholder="AN" autocomplete="off">
+                    </div>
+                    <div class="doc-no-cell">
+                        <label for="doc_field_company_code">公司简称</label>
+                        <input class="doc-no-sync" id="doc_field_company_code" type="text" value="${escapeHtml(initCompany)}" placeholder="GS" autocomplete="off">
+                    </div>
+                    <div class="doc-no-cell">
+                        <label for="doc_field_deal_date">成交日期</label>
+                        <input class="doc-no-sync" id="doc_field_deal_date" type="date" value="${escapeHtml(initDeal)}" autocomplete="off">
+                    </div>
+                    <div class="doc-no-cell">
+                        <label for="doc_field_sequence">序号</label>
+                        <input class="doc-no-sync" id="doc_field_sequence" type="text" value="${escapeHtml(initSeq)}" placeholder="A01" autocomplete="off">
+                    </div>
+                </div>
+                <div class="doc-no-grid doc-no-grid-row2">
+                    <div class="doc-no-cell">
+                        <label for="doc_field_product_index_or_day">中间数字</label>
+                        <input class="doc-no-sync" id="doc_field_product_index_or_day" type="text" value="${escapeHtml(initIdx)}" placeholder="1" autocomplete="off">
+                    </div>
+                    <div class="doc-no-cell">
+                        <label for="doc_field_product_abbr">产品代号</label>
+                        <input class="doc-no-sync" id="doc_field_product_abbr" type="text" value="${escapeHtml(initAbbr)}" placeholder="MV" autocomplete="off">
+                    </div>
+                    <div class="doc-no-cell">
+                        <label for="doc_field_product_form">产品形式</label>
+                        <input class="doc-no-sync" id="doc_field_product_form" type="text" value="${escapeHtml(initForm)}" placeholder="滴剂" list="doc_product_form_list" autocomplete="off">
+                    </div>
+                    <div class="doc-no-cell">
+                        <label for="doc_field_product_code">产品编码</label>
+                        <input class="doc-no-sync" id="doc_field_product_code" type="text" value="${escapeHtml(initPc)}" placeholder="留空则按规则拼接" autocomplete="off">
+                    </div>
+                </div>
+                <datalist id="doc_product_form_list">
+                    <option value="硬胶囊"><option value="胶囊"><option value="软胶囊"><option value="软糖">
+                    <option value="滴剂"><option value="压片"><option value="固体饮料"><option value="粉末">
+                    <option value="精油"><option value="凝胶">
+                </datalist>
+                <p class="doc-no-dosage-hint">剂型代号（自动）：<span id="docPreviewDosage"></span></p>
+                <input type="hidden" id="doc_field_dosage_form_code" value="${escapeHtml(initDosage)}">
+                <div class="doc-preview-block">
+                    <div class="doc-preview-label">计算产品编码（实时）</div>
+                    <div class="doc-preview-line" id="docPreviewProductCode"></div>
+                    <div class="doc-preview-label">规则生成文档编号（实时）</div>
+                    <div class="doc-preview-line" id="docPreviewRuleDocumentNo"></div>
+                    <div class="doc-preview-label">最终文档编号（可修改；留空则导出时由后端生成）</div>
+                    <div class="doc-no-final-row">
+                        <div class="doc-no-final-input-wrap">
+                            <input id="doc_field_document_no" type="text" value="${escapeHtml(initDn)}" placeholder="例如 Anna-GS20260511A01-AN1MVD" autocomplete="off">
+                        </div>
+                        <button type="button" class="doc-no-regen" id="docNoRegenBtn">重新按规则生成</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const regenBtn = document.getElementById("docNoRegenBtn");
+        if (regenBtn) {
+            regenBtn.addEventListener("click", regenerateDocumentNoFromRule);
+        }
+
+        const dnInput = document.getElementById("doc_field_document_no");
+        if (dnInput) {
+            dnInput.addEventListener("input", function () {
                 refreshCompositeFromCurrentFields();
-            };
+            });
+        }
 
-            area.appendChild(label);
-            area.appendChild(input);
-        });
+        bindDocNoSyncInputs();
+        updateDocNoPreviews();
     }
 
     function renderForm(data) {
@@ -462,6 +784,9 @@
             form.innerHTML = `<div class="empty-form">当前模板映射还没有选择任何字段，请先到配置中心设置。</div>`;
             return;
         }
+
+        const profile = getSelectedProfile();
+        const mappingDefaults = profile && profile.mapping_defaults ? profile.mapping_defaults : {};
 
         const title = document.createElement("h3");
         title.className = "section-title";
@@ -481,7 +806,18 @@
             input.id = "field_" + field.key;
             input.name = field.key;
             input.type = getInputType(field.type);
-            input.value = data[field.key] || "";
+
+            let raw = data[field.key];
+            if (raw === null || raw === undefined || String(raw).trim() === "") {
+                const dv = mappingDefaults[field.key];
+                if (dv != null && String(dv).trim() !== "") {
+                    raw = dv;
+                } else {
+                    raw = "";
+                }
+            }
+            input.value = raw !== null && raw !== undefined ? String(raw) : "";
+
             input.oninput = function () {
                 refreshCompositeFromCurrentFields();
             };
@@ -633,7 +969,7 @@
         updateVisibleFields();
         renderDocumentNoSection(parsedData);
         renderForm(parsedData);
-        renderCompositeArea(parsedData);
+        renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
     }
 
     function collectDocNoFormData() {

@@ -166,6 +166,27 @@ def normalize_composite_values(composite_data=None, composite_values=None):
     return {}
 
 
+def _apply_mapping_defaults(data: dict, profile: dict):
+    mapping_defaults = profile.get("mapping_defaults") or {}
+    if not isinstance(mapping_defaults, dict):
+        return
+
+    for key, dv in mapping_defaults.items():
+        k = str(key or "").strip()
+        if not k or k in RESERVED_DOCUMENT_MAPPING_KEYS:
+            continue
+
+        cur = data.get(k)
+        if isinstance(cur, str):
+            if cur.strip():
+                continue
+        elif cur is not None and cur != "":
+            continue
+
+        if dv is not None and str(dv).strip() != "":
+            data[k] = str(dv)
+
+
 def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None):
     if composite_values is None:
         composite_values = {}
@@ -203,6 +224,8 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
 
     mappings = profile.get("mappings", {}) or {}
     composite_mappings = profile.get("composite_mappings", []) or {}
+
+    _apply_mapping_defaults(data, profile)
 
     settings = dict(DEFAULT_DOCUMENT_NO_SETTINGS)
     raw_settings = profile.get("document_no_settings")

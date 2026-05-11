@@ -24,6 +24,11 @@
       "default_sequence": "A01",
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
       "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}"
+    },
+    "mapping_defaults": {
+      "customer_name": "李娜",
+      "product_name": "",
+      "quantity": ""
     }
   },
   {
@@ -52,7 +57,8 @@
       "default_sequence": "A01",
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
       "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}"
-    }
+    },
+    "mapping_defaults": {}
   },
   {
     "id": "28ddc16f-bee5-4b2d-a55a-bd05b2cdbd88",
@@ -70,6 +76,7 @@
       "default_sequence": "A01",
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
       "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}"
-    }
+    },
+    "mapping_defaults": {}
   }
 ]

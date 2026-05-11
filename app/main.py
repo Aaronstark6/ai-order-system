@@ -130,7 +130,8 @@ def api_update_mappings(profile_id: str, data: dict):
                 profile_id=profile_id,
                 mappings=data.get("mappings", {}),
                 composite_mappings=data.get("composite_mappings", []),
-                document_no_settings=data.get("document_no_settings")
+                document_no_settings=data.get("document_no_settings"),
+                mapping_defaults=data.get("mapping_defaults"),
             )
         }
     except Exception as e:
