@@ -70,12 +70,6 @@
             max-height: 340px;
         }
 
-        .composite-textarea {
-            min-height: 160px;
-            font-family: Consolas, "Microsoft YaHei", monospace;
-            white-space: pre-wrap;
-        }
-
         .description-textarea {
             min-height: 260px;
             font-family: Consolas, "Microsoft YaHei", monospace;
@@ -136,20 +130,6 @@
             padding-top: 15px;
             border-top: 1px solid #eee;
             color: #333;
-        }
-
-        .composite-box {
-            background: #fafafa;
-            border: 1px solid #e8e8e8;
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 15px;
-        }
-
-        .composite-cell {
-            color: #666;
-            font-size: 13px;
-            margin-bottom: 8px;
         }
 
         .error {
@@ -451,8 +431,6 @@
 
         <div id="descriptionConfirmArea"></div>
 
-        <div id="compositeConfirmArea"></div>
-
         <div class="excel-action-row">
             <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
                 确认生成Excel
@@ -500,7 +478,6 @@
         renderDocumentNoSection({});
         renderForm({});
         renderDescriptionArea(mergeDataWithMappingDefaults({}));
-        renderCompositeArea(mergeDataWithMappingDefaults({}));
         resetExcelActions();
     }
 
@@ -545,7 +522,6 @@
             renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), {
                 useAi: Boolean((document.getElementById("message").value || "").trim())
             });
-            renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
             document.getElementById("submitResult").innerHTML = "";
             resetExcelActions();
         };
@@ -578,26 +554,6 @@
         return out;
     }
 
-    function extractKeysFromCompositeTemplates(profile) {
-        const keys = new Set();
-        const compositeMappings = profile && profile.composite_mappings ? profile.composite_mappings : [];
-
-        compositeMappings.forEach(item => {
-            const template = item.template || "";
-            const matches = template.matchAll(/\{([^{}]+)\}/g);
-
-            for (const match of matches) {
-                const key = match[1].trim();
-
-                if (key) {
-                    keys.add(key);
-                }
-            }
-        });
-
-        return keys;
-    }
-
     function updateVisibleFields() {
         const profile = getSelectedProfile();
 
@@ -611,9 +567,6 @@
 
         const mappings = profile.mappings || {};
         Object.keys(mappings).forEach(key => usedKeys.add(key));
-
-        const compositeKeys = extractKeysFromCompositeTemplates(profile);
-        compositeKeys.forEach(key => usedKeys.add(key));
 
         const mappingOrder = Array.isArray(profile.mapping_order) ? profile.mapping_order : [];
         const orderIndex = new Map(mappingOrder.map((key, index) => [key, index]));
@@ -646,9 +599,7 @@
 
         const templateText = profile.template_file ? "已上传" : "未上传模板";
         const mappingCount = profile.mappings ? Object.keys(profile.mappings).length : 0;
-        const compositeCount = profile.composite_mappings ? profile.composite_mappings.length : 0;
-
-        tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}；普通字段：${mappingCount}；组合单元格：${compositeCount}`;
+        tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}；普通字段：${mappingCount}`;
     }
 
     function getTodayISODate() {
@@ -791,7 +742,6 @@
             dnInput.value = c.ruleDocNo || "";
         }
 
-        refreshCompositeFromCurrentFields();
         refreshDescriptionFromCurrentFields();
     }
 
@@ -813,7 +763,6 @@
         if (dnInput) {
             dnInput.value = c.ruleDocNo || "";
         }
-        refreshCompositeFromCurrentFields();
     }
 
     function renderDocumentNoSection(data) {
@@ -932,7 +881,7 @@
         const dnInput = document.getElementById("doc_field_document_no");
         if (dnInput) {
             dnInput.addEventListener("input", function () {
-                refreshCompositeFromCurrentFields();
+                refreshDescriptionFromCurrentFields();
             });
         }
 
@@ -999,54 +948,12 @@
             input.value = raw !== null && raw !== undefined ? String(raw) : "";
 
             input.oninput = function () {
-                refreshCompositeFromCurrentFields();
                 refreshDescriptionFromCurrentFields();
             };
 
             item.appendChild(label);
             item.appendChild(input);
             grid.appendChild(item);
-        });
-    }
-
-    function renderCompositeArea(data) {
-        const area = document.getElementById("compositeConfirmArea");
-        area.innerHTML = "";
-
-        const profile = getSelectedProfile();
-
-        if (!profile) {
-            return;
-        }
-
-        const compositeMappings = profile.composite_mappings || [];
-
-        if (compositeMappings.length === 0) {
-            return;
-        }
-
-        const title = document.createElement("h3");
-        title.className = "section-title";
-        title.innerText = "组合单元格确认";
-        area.appendChild(title);
-
-        compositeMappings.forEach(item => {
-            const cell = String(item.cell || "").trim().toUpperCase();
-            const template = item.template || "";
-            const renderedText = renderTemplate(template, data);
-
-            const box = document.createElement("div");
-            box.className = "composite-box";
-
-            box.innerHTML = `
-                <div class="composite-cell">目标单元格：${cell}</div>
-                <textarea
-                    class="composite-textarea"
-                    id="composite_${cell}"
-                >${escapeHtml(renderedText)}</textarea>
-            `;
-
-            area.appendChild(box);
         });
     }
 
@@ -1113,26 +1020,6 @@
         textarea.dataset.generatedByAi = "true";
     }
 
-    function refreshCompositeFromCurrentFields() {
-        const profile = getSelectedProfile();
-
-        if (!profile) {
-            return;
-        }
-
-        const data = collectAllOrderData();
-        const compositeMappings = profile.composite_mappings || [];
-
-        compositeMappings.forEach(item => {
-            const cell = String(item.cell || "").trim().toUpperCase();
-            const textarea = document.getElementById("composite_" + cell);
-
-            if (textarea && !textarea.dataset.manuallyEdited) {
-                textarea.value = renderTemplate(item.template || "", data);
-            }
-        });
-    }
-
     async function refreshDescriptionFromCurrentFields() {
         const textarea = document.getElementById("description_text");
         if (!textarea || textarea.dataset.manuallyEdited || textarea.dataset.generatedByAi) {
@@ -1142,9 +1029,6 @@
     }
 
     document.addEventListener("input", function (event) {
-        if (event.target && event.target.classList.contains("composite-textarea")) {
-            event.target.dataset.manuallyEdited = "true";
-        }
         if (event.target && event.target.id === "description_text") {
             event.target.dataset.manuallyEdited = "true";
         }
@@ -1222,7 +1106,6 @@
         renderDocumentNoSection(parsedData);
         renderForm(parsedData);
         await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
-        renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
     }
 
     function collectDocNoFormData() {
@@ -1249,28 +1132,6 @@
 
     function collectAllOrderData() {
         return Object.assign({}, collectDocNoFormData(), collectFormData());
-    }
-
-    function collectCompositeValues() {
-        const values = {};
-        const profile = getSelectedProfile();
-
-        if (!profile) {
-            return values;
-        }
-
-        const compositeMappings = profile.composite_mappings || [];
-
-        compositeMappings.forEach(item => {
-            const cell = String(item.cell || "").trim().toUpperCase();
-            const textarea = document.getElementById("composite_" + cell);
-
-            if (cell && textarea) {
-                values[cell] = textarea.value;
-            }
-        });
-
-        return values;
     }
 
     function resetExcelActions() {
@@ -1323,7 +1184,6 @@
     async function submitOrder() {
         const profileId = document.getElementById("profileSelect").value;
         const data = collectAllOrderData();
-        const compositeValues = collectCompositeValues();
         const descriptionText = collectDescriptionText();
         const submitResult = document.getElementById("submitResult");
         const generateBtn = document.getElementById("generateBtn");
@@ -1347,7 +1207,6 @@
             body: JSON.stringify({
                 profile_id: profileId,
                 data: data,
-                composite_values: compositeValues,
                 description_text: descriptionText
             })
         });

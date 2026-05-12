@@ -117,6 +117,26 @@
             margin-right: 15px;
         }
 
+        .management-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            align-items: end;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .button-row input[type="file"] {
+            width: auto;
+            margin: 0;
+        }
+
         .profile-info {
             background: #f7f9fc;
             border: 1px solid #e6edf7;
@@ -125,14 +145,6 @@
             margin-top: 12px;
             margin-bottom: 12px;
             color: #555;
-        }
-
-        .composite-block {
-            border: 1px solid #eee;
-            background: #fafafa;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 15px;
         }
 
         .row {
@@ -176,24 +188,45 @@
 
 <div class="nav">
     <a href="/">返回首页</a>
-    <a href="/config/new-profile">新建映射</a>
     <a href="/config/fields">字段库管理</a>
 </div>
 
 <div class="card">
-    <h2>选择模板映射</h2>
+    <h2>映射与模板管理</h2>
 
     <p class="tips">
-        请选择一个映射。不同映射对应不同 Excel 模板和不同字段单元格设置。
+        在当前页面完成映射新建、模板上传/替换、模板删除和映射删除。
     </p>
 
-    <select id="profileSelect" onchange="selectProfile()">
-        <option value="">请选择映射</option>
-    </select>
+    <div class="management-grid">
+        <div>
+            <label for="newProfileName">新建映射名称</label>
+            <input id="newProfileName" placeholder="例如：固体饮料">
+        </div>
+        <div>
+            <button type="button" onclick="createProfileInline()">新建映射</button>
+        </div>
+        <div>
+            <label for="profileSelect">当前映射</label>
+            <select id="profileSelect" onchange="selectProfile()">
+                <option value="">请选择映射</option>
+            </select>
+        </div>
+        <div>
+            <label for="templateUploadInput">上传/替换当前映射模板</label>
+            <div class="button-row">
+                <input id="templateUploadInput" type="file" accept=".xlsx,.xlsm">
+                <button type="button" onclick="uploadCurrentTemplate()">上传模板</button>
+            </div>
+        </div>
+    </div>
 
     <div id="profileInfo" class="profile-info"></div>
 
-    <button class="delete" onclick="deleteCurrentProfile()">删除当前映射</button>
+    <div class="button-row">
+        <button class="delete" type="button" onclick="deleteCurrentTemplate()">删除当前模板文件</button>
+        <button class="delete" type="button" onclick="deleteCurrentProfile()">删除当前映射</button>
+    </div>
     <div id="profileResult"></div>
 </div>
 
@@ -224,25 +257,9 @@
 </div>
 
 <div class="card">
-    <h2>组合单元格设置</h2>
-
-    <p class="tips">
-        适合“一个 Excel 单元格里包含多组关键字和值”的情况。可以用 <strong>{字段key}</strong> 作为占位符，一行一组。
-    </p>
-
-    <div class="field-help" id="fieldHelp"></div>
-
-    <br>
-
-    <button onclick="addCompositeMapping()">添加组合单元格</button>
-
-    <div id="compositeList" style="margin-top: 15px;"></div>
-</div>
-
-<div class="card">
     <h2>产品描述设置</h2>
     <p class="tips">
-        产品描述模板是独立模块，不混入普通字段映射或组合单元格。模板内容支持 {字段key} 占位符。
+        产品描述模板是独立模块，不混入普通字段映射。模板内容支持 {字段key} 占位符。
     </p>
 
     <label><input type="checkbox" id="ds_enabled"> 启用产品描述模板</label>
@@ -353,7 +370,6 @@
         await loadProfiles();
         renderProfileSelect();
         selectProfile();
-        renderFieldHelp();
         renderAppSettings();
     }
 
@@ -470,7 +486,6 @@
 
         renderProfileInfo();
         renderFieldTable();
-        renderCompositeMappings();
         renderDescriptionSettings();
         renderDocumentNoSettings();
     }
@@ -489,17 +504,108 @@
         `;
     }
 
-    function renderFieldHelp() {
-        const div = document.getElementById("fieldHelp");
+    async function createProfileInline() {
+        const input = document.getElementById("newProfileName");
+        const resultDiv = document.getElementById("profileResult");
+        const name = input ? input.value.trim() : "";
+        resultDiv.innerHTML = "";
 
-        if (!fields.length) {
-            div.innerHTML = "字段库暂无字段。";
+        if (!name) {
+            resultDiv.innerHTML = `<p class="error">请输入新映射名称</p>`;
             return;
         }
 
-        div.innerHTML = fields.map(field => {
-            return `${field.label}：{${field.key}}`;
-        }).join("<br>");
+        const response = await fetch("/api/template-profiles", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ name })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            resultDiv.innerHTML = `<p class="error">${result.error || "新建失败"}</p>`;
+            return;
+        }
+
+        if (input) {
+            input.value = "";
+        }
+        await loadProfiles();
+        renderProfileSelect();
+        document.getElementById("profileSelect").value = result.profile.id;
+        selectProfile();
+        resultDiv.innerHTML = `<p class="success">映射新建成功</p>`;
+    }
+
+    async function uploadCurrentTemplate() {
+        const resultDiv = document.getElementById("profileResult");
+        const input = document.getElementById("templateUploadInput");
+        resultDiv.innerHTML = "";
+
+        if (!currentProfile) {
+            resultDiv.innerHTML = `<p class="error">请先选择一个映射</p>`;
+            return;
+        }
+        if (!input || !input.files || input.files.length === 0) {
+            resultDiv.innerHTML = `<p class="error">请选择要上传的 Excel 模板</p>`;
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", input.files[0]);
+
+        const response = await fetch(`/api/template-profiles/${currentProfile.id}/upload-template`, {
+            method: "POST",
+            body: formData
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            resultDiv.innerHTML = `<p class="error">${result.error || "上传失败"}</p>`;
+            return;
+        }
+
+        input.value = "";
+        await loadProfiles();
+        renderProfileSelect();
+        document.getElementById("profileSelect").value = result.profile.id;
+        selectProfile();
+        resultDiv.innerHTML = `<p class="success">模板上传成功：${escapeHtml(result.profile.template_file || "")}</p>`;
+    }
+
+    async function deleteCurrentTemplate() {
+        const resultDiv = document.getElementById("profileResult");
+        resultDiv.innerHTML = "";
+
+        if (!currentProfile) {
+            resultDiv.innerHTML = `<p class="error">请先选择一个映射</p>`;
+            return;
+        }
+        if (!currentProfile.template_file) {
+            resultDiv.innerHTML = `<p class="error">当前映射还没有上传模板文件</p>`;
+            return;
+        }
+        if (!confirm("确定要删除当前映射绑定的模板文件吗？映射本身会保留。")) {
+            return;
+        }
+
+        const response = await fetch(`/api/template-profiles/${currentProfile.id}/template`, {
+            method: "DELETE"
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            resultDiv.innerHTML = `<p class="error">${result.error || "删除模板失败"}</p>`;
+            return;
+        }
+
+        await loadProfiles();
+        renderProfileSelect();
+        document.getElementById("profileSelect").value = result.profile.id;
+        selectProfile();
+        resultDiv.innerHTML = `<p class="success">模板文件已删除</p>`;
     }
 
     function renderFieldTable() {
@@ -669,27 +775,6 @@
         draggedFieldKey = "";
         document.querySelectorAll("#fieldTable tr").forEach(row => {
             row.classList.remove("dragging", "drag-over");
-        });
-    }
-
-    function renderCompositeMappings() {
-        const list = document.getElementById("compositeList");
-        list.innerHTML = "";
-
-        const compositeMappings = currentProfile ? (currentProfile.composite_mappings || []) : [];
-
-        if (!currentProfile) {
-            list.innerHTML = `<p class="error">请先选择一个映射。</p>`;
-            return;
-        }
-
-        if (compositeMappings.length === 0) {
-            list.innerHTML = `<p class="tips">当前没有组合单元格。点击“添加组合单元格”创建。</p>`;
-            return;
-        }
-
-        compositeMappings.forEach((item, index) => {
-            appendCompositeBlock(item.cell || "", item.template || "");
         });
     }
 
@@ -930,103 +1015,6 @@
         };
     }
 
-    function addCompositeMapping() {
-        if (!currentProfile) {
-            alert("请先选择一个映射");
-            return;
-        }
-
-        appendCompositeBlock("", getDefaultCompositeTemplate());
-    }
-
-    function appendCompositeBlock(cell, template) {
-        const list = document.getElementById("compositeList");
-
-        if (list.innerText.includes("当前没有组合单元格")) {
-            list.innerHTML = "";
-        }
-
-        const div = document.createElement("div");
-        div.className = "composite-block";
-
-        div.innerHTML = `
-            <div class="row">
-                <div>
-                    <label>目标单元格</label>
-                    <input class="cell-input composite-cell" value="${escapeHtml(cell)}" placeholder="例如 A10">
-                </div>
-                <div>
-                    <label>内容模板</label>
-                    <textarea class="composite-template" placeholder="例如：
-客户名称：{customer_name}
-客户电话：{customer_phone}
-产品名称：{product_name}">${escapeHtml(template)}</textarea>
-                </div>
-                <div>
-                    <label>&nbsp;</label>
-                    <button class="delete" onclick="removeCompositeBlock(this)">删除</button>
-                </div>
-            </div>
-        `;
-
-        list.appendChild(div);
-    }
-
-    function getDefaultCompositeTemplate() {
-        const preferredKeys = ["customer_name", "customer_phone", "product_name", "quantity", "specification", "delivery_date"];
-        const lines = [];
-
-        preferredKeys.forEach(key => {
-            const field = fields.find(f => f.key === key);
-
-            if (field) {
-                lines.push(`${field.label}：{${field.key}}`);
-            }
-        });
-
-        if (lines.length > 0) {
-            return lines.join("\n");
-        }
-
-        return fields.slice(0, 5).map(field => `${field.label}：{${field.key}}`).join("\n");
-    }
-
-    function removeCompositeBlock(button) {
-        const block = button.closest(".composite-block");
-
-        if (block) {
-            block.remove();
-        }
-
-        const list = document.getElementById("compositeList");
-
-        if (!list.querySelector(".composite-block")) {
-            list.innerHTML = `<p class="tips">当前没有组合单元格。点击“添加组合单元格”创建。</p>`;
-        }
-    }
-
-    function collectCompositeMappings() {
-        const blocks = document.querySelectorAll(".composite-block");
-        const result = [];
-
-        blocks.forEach(block => {
-            const cellInput = block.querySelector(".composite-cell");
-            const templateInput = block.querySelector(".composite-template");
-
-            const cell = cellInput ? cellInput.value.trim().toUpperCase() : "";
-            const template = templateInput ? templateInput.value.trim() : "";
-
-            if (cell && template) {
-                result.push({
-                    cell: cell,
-                    template: template
-                });
-            }
-        });
-
-        return result;
-    }
-
     async function saveCurrentMappings() {
         const resultDiv = document.getElementById("mappingResult");
         resultDiv.innerHTML = "";
@@ -1051,7 +1039,6 @@
             }
         });
 
-        const compositeMappings = collectCompositeMappings();
         const documentNoSettings = collectDocumentNoSettings();
         const descriptionSettings = collectDescriptionSettings();
         const mappingOrder = getCurrentMappingOrderFromTable();
@@ -1072,7 +1059,6 @@
             },
             body: JSON.stringify({
                 mappings: mappings,
-                composite_mappings: compositeMappings,
                 document_no_settings: documentNoSettings,
                 description_settings: descriptionSettings,
                 mapping_defaults: mappingDefaults,

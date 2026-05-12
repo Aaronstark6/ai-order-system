@@ -26,7 +26,8 @@ from app.template_manager import (
     create_profile,
     delete_profile,
     update_profile_mappings,
-    upload_template_file
+    upload_template_file,
+    delete_template_file,
 )
 
 # ✅ 关键：必须在最前面
@@ -129,6 +130,14 @@ def api_upload_template(profile_id: str, file: UploadFile = File(...)):
         return {"success": False, "error": str(e)}
 
 
+@app.delete("/api/template-profiles/{profile_id}/template")
+def api_delete_template_file(profile_id: str):
+    try:
+        return {"success": True, "profile": delete_template_file(profile_id)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.post("/api/template-profiles/{profile_id}/mappings")
 def api_update_mappings(profile_id: str, data: dict):
     try:
@@ -137,7 +146,7 @@ def api_update_mappings(profile_id: str, data: dict):
             "profile": update_profile_mappings(
                 profile_id=profile_id,
                 mappings=data.get("mappings", {}),
-                composite_mappings=data.get("composite_mappings", []),
+                composite_mappings=data.get("composite_mappings"),
                 document_no_settings=data.get("document_no_settings"),
                 mapping_defaults=data.get("mapping_defaults"),
                 description_settings=data.get("description_settings"),

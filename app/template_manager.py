@@ -273,9 +273,6 @@ def update_profile_mappings(
 ):
     profiles = load_profiles()
 
-    if composite_mappings is None:
-        composite_mappings = []
-
     for profile in profiles:
         if profile.get("id") == profile_id:
             clean_mappings = {}
@@ -289,18 +286,6 @@ def update_profile_mappings(
                 if key and cell:
                     clean_mappings[key] = cell
 
-            clean_composite_mappings = []
-
-            for item in composite_mappings:
-                cell = str(item.get("cell", "")).strip().upper()
-                template = str(item.get("template", "")).strip()
-
-                if cell and template:
-                    clean_composite_mappings.append({
-                        "cell": cell,
-                        "template": template
-                    })
-
             profile["mappings"] = clean_mappings
             clean_order = []
             if isinstance(mapping_order, list):
@@ -312,7 +297,20 @@ def update_profile_mappings(
                 if key not in clean_order:
                     clean_order.append(key)
             profile["mapping_order"] = clean_order
-            profile["composite_mappings"] = clean_composite_mappings
+            if composite_mappings is not None:
+                clean_composite_mappings = []
+
+                for item in composite_mappings:
+                    cell = str(item.get("cell", "")).strip().upper()
+                    template = str(item.get("template", "")).strip()
+
+                    if cell and template:
+                        clean_composite_mappings.append({
+                            "cell": cell,
+                            "template": template
+                        })
+
+                profile["composite_mappings"] = clean_composite_mappings
 
             if mapping_defaults is not None:
                 clean_defaults = {}
@@ -365,12 +363,37 @@ def upload_template_file(profile_id: str, uploaded_file):
 
             filename = f"{profile_id}{suffix}"
             target_path = TEMPLATE_UPLOAD_DIR / filename
+            old_template = str(profile.get("template_file") or "").strip()
+            if old_template and old_template != filename:
+                old_path = TEMPLATE_UPLOAD_DIR / Path(old_template).name
+                if old_path.exists():
+                    old_path.unlink()
 
             with target_path.open("wb") as buffer:
                 shutil.copyfileobj(uploaded_file.file, buffer)
 
             profile["template_file"] = filename
 
+            save_profiles(profiles)
+
+            return normalize_profile(profile)
+
+    raise ValueError("映射不存在")
+
+
+def delete_template_file(profile_id: str):
+    profiles = load_profiles()
+
+    for profile in profiles:
+        if profile.get("id") == profile_id:
+            template_file = str(profile.get("template_file") or "").strip()
+
+            if template_file:
+                file_path = TEMPLATE_UPLOAD_DIR / Path(template_file).name
+                if file_path.exists():
+                    file_path.unlink()
+
+            profile["template_file"] = ""
             save_profiles(profiles)
 
             return normalize_profile(profile)
