@@ -304,6 +304,10 @@
             padding: 7px 8px;
         }
 
+        .field-library-table {
+            table-layout: fixed;
+        }
+
         .field-library-table th:nth-child(1),
         .field-library-table th:nth-child(2),
         .field-library-table td:nth-child(1),
@@ -311,6 +315,41 @@
             width: 42px;
             text-align: center;
             vertical-align: middle;
+        }
+
+        .field-library-table th:nth-child(3),
+        .field-library-table td:nth-child(3) {
+            width: 160px;
+        }
+
+        .field-library-table th:nth-child(4),
+        .field-library-table td:nth-child(4) {
+            width: 180px;
+        }
+
+        .field-library-table th:nth-child(5),
+        .field-library-table td:nth-child(5) {
+            width: 100px;
+        }
+
+        .field-library-table th:nth-child(6),
+        .field-library-table td:nth-child(6) {
+            width: auto;
+        }
+
+        .field-library-table th:nth-child(7),
+        .field-library-table td:nth-child(7) {
+            width: 110px;
+        }
+
+        .field-library-table th:nth-child(8),
+        .field-library-table td:nth-child(8) {
+            width: 130px;
+        }
+
+        .field-library-table th:nth-child(9),
+        .field-library-table td:nth-child(9) {
+            width: 170px;
         }
 
         .field-library-table input[type="checkbox"] {
@@ -366,6 +405,10 @@
         .checkbox-line label {
             display: inline-flex;
             align-items: center;
+        }
+
+        .export-filename-check {
+            margin-top: 12px;
         }
 
         .button-row {
@@ -664,7 +707,7 @@
         <button type="button" onclick="testExportSyncDir()">测试路径</button>
     </div>
 
-    <label class="checkbox-line">
+    <label class="checkbox-line export-filename-check">
         <input type="checkbox" id="dns_use_filename">
         <span>使用文档编号作为Excel文件名</span>
     </label>
