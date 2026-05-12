@@ -199,9 +199,10 @@
 
         .doc-no-settings-grid {
             display: grid;
-            grid-template-columns: 1.2fr repeat(5, 1fr);
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 14px;
             align-items: end;
+            margin-top: 8px;
         }
 
         .doc-no-settings-grid input {
@@ -267,10 +268,17 @@
 
         .field-library-add-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 150px 2fr auto;
+            grid-template-columns: 1fr 1fr 150px minmax(260px, 2fr);
             gap: 12px;
             align-items: end;
             margin-bottom: 16px;
+        }
+
+        .field-add-description {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 112px;
+            gap: 12px;
+            align-items: end;
         }
 
         .field-library-add-row input,
@@ -313,6 +321,17 @@
         }
 
         .field-library-table .action-cell {
+            white-space: nowrap;
+        }
+
+        .system-field-badge {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-size: 12px;
             white-space: nowrap;
         }
 
@@ -421,7 +440,8 @@
             .mapping-inline-row button,
             .template-file-row button,
             .export-sync-row button,
-            .ai-key-row button {
+            .ai-key-row button,
+            .field-add-description button {
                 width: 100%;
             }
 
@@ -498,11 +518,16 @@
                 <option value="select">select</option>
             </select>
         </div>
-        <div>
-            <label for="newFieldDescription">说明</label>
-            <input id="newFieldDescription" placeholder="字段说明">
+        <div class="field-add-description">
+            <div>
+                <label for="newFieldDescription">说明</label>
+                <input id="newFieldDescription" placeholder="字段说明">
+            </div>
+            <div>
+                <label>&nbsp;</label>
+                <button type="button" onclick="addLibraryField()">新增字段</button>
+            </div>
         </div>
-        <button type="button" onclick="addLibraryField()">新增字段</button>
     </div>
 
     <table class="field-library-table">
@@ -527,8 +552,9 @@
 <div class="card">
     <h2>文档编号设置</h2>
 
+    <label class="compact-check"><input type="checkbox" id="dns_enabled"> 启用文档编号写入 Excel</label>
+
     <div class="doc-no-settings-grid">
-        <label class="compact-check"><input type="checkbox" id="dns_enabled"> 启用文档编号写入 Excel</label>
         <div>
             <label for="dns_document_no_cell">文档编号写入单元格</label>
             <input id="dns_document_no_cell" placeholder="例如 B4">
@@ -657,6 +683,20 @@
         "product_code",
         "dosage_form_code"
     ]);
+    const SYSTEM_FIELD_KEYS = new Set([
+        "document_no",
+        "sales_name",
+        "salesperson_code",
+        "company_code",
+        "deal_date",
+        "sequence",
+        "ingredient_initials",
+        "product_index_or_day",
+        "product_abbr",
+        "product_form",
+        "dosage_form_code",
+        "product_code"
+    ]);
     let allFields = [];
     let fields = [];
     let profiles = [];
@@ -710,6 +750,11 @@
         const description = document.getElementById("newFieldDescription").value.trim();
 
         resultDiv.innerHTML = "";
+        if (SYSTEM_FIELD_KEYS.has(key)) {
+            resultDiv.innerHTML = `<p class="error">该 key 是系统规则字段，不能作为普通字段新增</p>`;
+            return;
+        }
+
         const response = await fetch("/api/fields", {
             method: "POST",
             headers: {
@@ -744,6 +789,15 @@
         const description = document.getElementById("lib_desc_" + oldKey).value.trim();
 
         resultDiv.innerHTML = "";
+        if (SYSTEM_FIELD_KEYS.has(oldKey) && key !== oldKey) {
+            resultDiv.innerHTML = `<p class="error">系统规则字段 key 不能修改</p>`;
+            return;
+        }
+        if (!SYSTEM_FIELD_KEYS.has(oldKey) && SYSTEM_FIELD_KEYS.has(key)) {
+            resultDiv.innerHTML = `<p class="error">该 key 是系统规则字段，不能作为普通字段新增</p>`;
+            return;
+        }
+
         const response = await fetch(`/api/fields/${encodeURIComponent(oldKey)}`, {
             method: "PUT",
             headers: {
@@ -783,6 +837,11 @@
 
     async function deleteLibraryField(key) {
         const resultDiv = document.getElementById("fieldSettingsResult");
+        if (SYSTEM_FIELD_KEYS.has(key)) {
+            resultDiv.innerHTML = `<p class="error">系统规则字段不能删除，它被文档编号/产品编码等功能使用</p>`;
+            return;
+        }
+
         if (!confirm("确定要删除字段：" + key + " 吗？")) {
             return;
         }
@@ -1235,6 +1294,7 @@
 
         normalFields.forEach(field => {
             const used = mappings[field.key] ? true : false;
+            const isSystemField = SYSTEM_FIELD_KEYS.has(field.key);
             const cellValue = mappings[field.key] || "";
             const defVal = mappingDefaults[field.key] != null ? String(mappingDefaults[field.key]) : "";
 
@@ -1258,8 +1318,11 @@
                     >
                 </td>
                 <td><span class="drag-handle" title="拖动排序">☰</span></td>
-                <td><input id="lib_label_${field.key}" value="${escapeHtml(field.label || "")}"></td>
-                <td><input id="lib_key_${field.key}" value="${escapeHtml(field.key || "")}"></td>
+                <td>
+                    <input id="lib_label_${field.key}" value="${escapeHtml(field.label || "")}">
+                    ${isSystemField ? '<span class="system-field-badge">系统字段</span>' : ""}
+                </td>
+                <td><input id="lib_key_${field.key}" value="${escapeHtml(field.key || "")}" ${isSystemField ? "disabled" : ""}></td>
                 <td>
                     <select id="lib_type_${field.key}">
                         <option value="text" ${field.type === "text" ? "selected" : ""}>text</option>
@@ -1289,7 +1352,7 @@
                 </td>
                 <td class="action-cell">
                     <button type="button" onclick="saveLibraryField('${field.key}')">保存字段</button>
-                    <button class="delete" type="button" onclick="deleteLibraryField('${field.key}')">删除字段</button>
+                    <button class="delete" type="button" onclick="deleteLibraryField('${field.key}')" ${isSystemField ? "disabled" : ""}>删除字段</button>
                 </td>
             `;
 

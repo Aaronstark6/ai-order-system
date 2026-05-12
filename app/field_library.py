@@ -4,6 +4,21 @@ from pathlib import Path
 
 FIELDS_FILE = Path("data/fields.json")
 
+SYSTEM_FIELD_KEYS = {
+    "document_no",
+    "sales_name",
+    "salesperson_code",
+    "company_code",
+    "deal_date",
+    "sequence",
+    "ingredient_initials",
+    "product_index_or_day",
+    "product_abbr",
+    "product_form",
+    "dosage_form_code",
+    "product_code",
+}
+
 BUILTIN_FIELDS = [
     {
         "key": "document_no",
@@ -136,6 +151,9 @@ def add_field(new_field):
     if not key:
         raise ValueError("字段 key 不能为空")
 
+    if key in SYSTEM_FIELD_KEYS:
+        raise ValueError("该 key 是系统规则字段，不能作为普通字段新增")
+
     for field in fields:
         if field.get("key") == key:
             raise ValueError("字段 key 已存在")
@@ -168,6 +186,12 @@ def update_field(key, updated_data):
             if not new_key:
                 raise ValueError("字段 key 不能为空")
 
+            if key in SYSTEM_FIELD_KEYS and new_key != key:
+                raise ValueError("系统规则字段 key 不能修改")
+
+            if key not in SYSTEM_FIELD_KEYS and new_key in SYSTEM_FIELD_KEYS:
+                raise ValueError("该 key 是系统规则字段，不能作为普通字段新增")
+
             if new_key != key and any(item.get("key") == new_key for item in fields):
                 raise ValueError("字段 key 已存在")
 
@@ -187,6 +211,9 @@ def update_field(key, updated_data):
 
 
 def delete_field(key):
+    if key in SYSTEM_FIELD_KEYS:
+        raise ValueError("系统规则字段不能删除，它被文档编号/产品编码等功能使用")
+
     fields = load_fields()
     new_fields = [field for field in fields if field.get("key") != key]
 
