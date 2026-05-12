@@ -14,7 +14,16 @@ DEFAULT_APP_SETTINGS = {
     "default_salesperson_code": "AN",
     "default_company_code": "GS",
     "default_sequence": "A01",
-    "export_sync_dir": ""
+    "export_sync_dir": "",
+    "deepseek_api_key": ""
+}
+
+PUBLIC_APP_SETTING_KEYS = {
+    "default_sales_name",
+    "default_salesperson_code",
+    "default_company_code",
+    "default_sequence",
+    "export_sync_dir",
 }
 
 
@@ -43,9 +52,13 @@ def load_app_settings():
 def save_app_settings(data):
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
+    current = load_app_settings() if SETTINGS_FILE.exists() else dict(DEFAULT_APP_SETTINGS)
     settings = dict(DEFAULT_APP_SETTINGS)
     if isinstance(data, dict):
         for key, fallback in DEFAULT_APP_SETTINGS.items():
+            if key not in data and key == "deepseek_api_key":
+                settings[key] = str(current.get(key) or "").strip()
+                continue
             value = str(data.get(key) or "").strip()
             settings[key] = value or ("" if key == "export_sync_dir" else fallback)
 
@@ -62,3 +75,26 @@ def get_export_sync_dir():
         return configured
 
     return os.getenv("EXPORT_SYNC_DIR", "").strip()
+
+
+def public_app_settings():
+    settings = load_app_settings()
+    return {
+        key: settings.get(key, DEFAULT_APP_SETTINGS.get(key, ""))
+        for key in PUBLIC_APP_SETTING_KEYS
+    }
+
+
+def get_deepseek_api_key():
+    settings = load_app_settings()
+    configured = str(settings.get("deepseek_api_key") or "").strip()
+    if configured:
+        return configured
+
+    return os.getenv("DEEPSEEK_API_KEY", "").strip()
+
+
+def save_deepseek_api_key(api_key):
+    settings = load_app_settings()
+    settings["deepseek_api_key"] = str(api_key or "").strip()
+    return save_app_settings(settings)

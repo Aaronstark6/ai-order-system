@@ -117,11 +117,163 @@
             margin-right: 15px;
         }
 
-        .management-grid {
+        .mapping-section {
+            margin-bottom: 18px;
+        }
+
+        .mapping-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .mapping-section h3 {
+            margin: 0 0 10px;
+            font-size: 15px;
+            color: #333;
+        }
+
+        .mapping-inline-row {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: 1.5fr 1fr auto;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .template-file-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .mapping-inline-row input,
+        .mapping-inline-row button,
+        .template-file-row input,
+        .template-file-row button,
+        .mapping-select,
+        .danger-actions button {
+            height: 42px;
+            box-sizing: border-box;
+        }
+
+        .mapping-inline-row input,
+        .template-file-row input,
+        .mapping-select {
+            width: 100%;
+            min-width: 0;
+            margin: 0;
+        }
+
+        .template-file-row input[type="file"] {
+            padding: 8px;
+        }
+
+        .mapping-inline-row button,
+        .template-file-row button {
+            width: 120px;
+            white-space: nowrap;
+        }
+
+        .status-card {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 14px 16px;
+            color: #374151;
+        }
+
+        .status-card p {
+            margin: 0;
+        }
+
+        .danger-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+            min-height: 42px;
+        }
+
+        .doc-no-settings-grid {
+            display: grid;
+            grid-template-columns: 1.2fr repeat(5, 1fr);
+            gap: 14px;
+            align-items: end;
+        }
+
+        .doc-no-settings-grid input {
+            height: 42px;
+            box-sizing: border-box;
+        }
+
+        .settings-grid {
+            display: grid;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .grid-3 {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .product-description-config-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
             gap: 16px;
             align-items: end;
+        }
+
+        .product-description-config-row select,
+        .product-description-config-row input {
+            height: 42px;
+            box-sizing: border-box;
+        }
+
+        .export-sync-row {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .export-sync-row input,
+        .export-sync-row button,
+        .ai-key-row input,
+        .ai-key-row button {
+            height: 42px;
+            box-sizing: border-box;
+        }
+
+        .export-sync-row input,
+        .ai-key-row input {
+            width: 100%;
+            min-width: 0;
+            margin: 0;
+        }
+
+        .ai-key-row {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .full-row {
+            grid-column: 1 / -1;
+        }
+
+        .compact-check {
+            display: flex;
+            align-items: center;
+            min-height: 38px;
+            font-weight: normal;
         }
 
         .button-row {
@@ -180,6 +332,51 @@
             outline: 2px dashed #1677ff;
             outline-offset: -2px;
         }
+
+        .bottom-action-bar {
+            position: sticky;
+            bottom: 0;
+            background: rgba(245, 246, 248, 0.96);
+            border-top: 1px solid #e5e7eb;
+            padding: 14px 0 4px;
+            margin-top: 12px;
+        }
+
+        .bottom-action-inner {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .bottom-action-inner .save {
+            font-size: 16px;
+            padding: 11px 22px;
+        }
+
+        @media (max-width: 900px) {
+            .mapping-inline-row,
+            .template-file-row,
+            .product-description-config-row,
+            .doc-no-settings-grid,
+            .export-sync-row,
+            .ai-key-row,
+            .settings-grid,
+            .grid-3,
+            .grid-4 {
+                grid-template-columns: 1fr;
+            }
+
+            .mapping-inline-row button,
+            .template-file-row button,
+            .export-sync-row button,
+            .ai-key-row button {
+                width: 100%;
+            }
+
+            .danger-actions {
+                justify-content: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
@@ -193,34 +390,35 @@
 <div class="card">
     <h2>映射与模板管理</h2>
 
-    <div class="management-grid">
-        <div>
-            <label for="newProfileName">新建映射名称</label>
-            <input id="newProfileName" placeholder="例如：固体饮料">
-        </div>
-        <div>
-            <button type="button" onclick="createProfileInline()">新建映射</button>
-        </div>
-        <div>
-            <label for="profileSelect">当前映射</label>
-            <select id="profileSelect" onchange="selectProfile()">
+    <div class="mapping-section">
+        <h3>映射选择</h3>
+        <div class="mapping-inline-row">
+            <select id="profileSelect" class="mapping-select" onchange="selectProfile()">
                 <option value="">请选择映射</option>
             </select>
-        </div>
-        <div>
-            <label for="templateUploadInput">上传/替换当前映射模板</label>
-            <div class="button-row">
-                <input id="templateUploadInput" type="file" accept=".xlsx,.xlsm">
-                <button type="button" onclick="uploadCurrentTemplate()">上传模板</button>
-            </div>
+            <input id="newProfileName" placeholder="新建映射名称，例如：固体饮料">
+            <button type="button" onclick="createProfileInline()">新建映射</button>
         </div>
     </div>
 
-    <div id="profileInfo" class="profile-info"></div>
+    <div class="mapping-section">
+        <h3>当前映射状态</h3>
+        <div class="status-card" id="profileInfo"></div>
+    </div>
 
-    <div class="button-row">
-        <button class="delete" type="button" onclick="deleteCurrentTemplate()">删除当前模板文件</button>
-        <button class="delete" type="button" onclick="deleteCurrentProfile()">删除当前映射</button>
+    <div class="mapping-section">
+        <h3>模板文件操作</h3>
+        <div class="template-file-row">
+            <input id="templateUploadInput" type="file" accept=".xlsx,.xlsm">
+            <button type="button" onclick="uploadCurrentTemplate()">上传模板</button>
+        </div>
+    </div>
+
+    <div class="mapping-section">
+        <div class="danger-actions">
+            <button class="delete" type="button" onclick="deleteCurrentTemplate()">删除当前模板文件</button>
+            <button class="delete" type="button" onclick="deleteCurrentProfile()">删除当前映射</button>
+        </div>
     </div>
     <div id="profileResult"></div>
 </div>
@@ -243,39 +441,44 @@
         </thead>
         <tbody id="fieldTable"></tbody>
     </table>
-    <div class="button-row">
-        <button class="save" onclick="saveCurrentMappings()">保存当前映射</button>
-    </div>
-    <div id="mappingResult"></div>
 </div>
 
 <div class="card">
     <h2>文档编号设置</h2>
 
-    <label><input type="checkbox" id="dns_enabled"> 启用文档编号写入 Excel</label>
+    <div class="doc-no-settings-grid">
+        <label class="compact-check"><input type="checkbox" id="dns_enabled"> 启用文档编号写入 Excel</label>
+        <div>
+            <label for="dns_document_no_cell">文档编号写入单元格</label>
+            <input id="dns_document_no_cell" placeholder="例如 B4">
+        </div>
+        <div>
+            <label for="dns_def_sales_name">默认业务员英文名</label>
+            <input id="dns_def_sales_name" placeholder="Anna">
+        </div>
+        <div>
+            <label for="dns_def_sales_code">默认业务员代号</label>
+            <input id="dns_def_sales_code" placeholder="AN">
+        </div>
+        <div>
+            <label for="dns_def_company">默认公司/客户简称</label>
+            <input id="dns_def_company" placeholder="GS">
+        </div>
+        <div>
+            <label for="dns_def_sequence">默认序号</label>
+            <input id="dns_def_sequence" placeholder="A01">
+        </div>
+    </div>
 
-    <label for="dns_document_no_cell">文档编号写入单元格（document_no_cell）</label>
-    <input id="dns_document_no_cell" placeholder="例如 B4">
+    <div>
+        <label for="dns_doc_rule">文档编号规则</label>
+        <textarea id="dns_doc_rule" rows="2" placeholder="{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}"></textarea>
+    </div>
 
-    <label><input type="checkbox" id="dns_use_filename"> 使用文档编号作为导出文件名（use_document_no_as_filename）</label>
-
-    <label for="dns_def_sales_name">默认业务员英文名（default_sales_name）</label>
-    <input id="dns_def_sales_name" placeholder="Anna">
-
-    <label for="dns_def_sales_code">默认业务员代号（default_salesperson_code）</label>
-    <input id="dns_def_sales_code" placeholder="AN">
-
-    <label for="dns_def_company">默认公司/客户简称（default_company_code）</label>
-    <input id="dns_def_company" placeholder="GS">
-
-    <label for="dns_def_sequence">默认序号（default_sequence）</label>
-    <input id="dns_def_sequence" placeholder="A01">
-
-    <label for="dns_doc_rule">文档编号规则（document_no_rule）</label>
-    <textarea id="dns_doc_rule" rows="2" placeholder="{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}"></textarea>
-
-    <label for="dns_prod_rule">产品编码规则（product_code_rule）</label>
-    <textarea id="dns_prod_rule" rows="2" placeholder="{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"></textarea>
+    <div>
+        <label for="dns_prod_rule">产品编码规则</label>
+        <textarea id="dns_prod_rule" rows="2" placeholder="{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"></textarea>
+    </div>
 
     <div class="field-help">
         <strong>文档编号规则可用占位符：</strong><br>
@@ -291,21 +494,29 @@
 <div class="card">
     <h2>产品描述设置</h2>
 
-    <label><input type="checkbox" id="ds_enabled"> 启用产品描述模板</label>
+    <div class="mapping-section">
+        <label class="compact-check"><input type="checkbox" id="ds_enabled"> 启用产品描述模板</label>
+    </div>
 
-    <label for="ds_template_name">产品描述模板选择</label>
-    <select id="ds_template_name" onchange="loadSelectedDescriptionTemplate()">
-        <option value="">请选择产品描述模板</option>
-    </select>
+    <div class="product-description-config-row">
+        <div>
+            <label for="ds_template_name">产品描述模板选择</label>
+            <select id="ds_template_name" onchange="loadSelectedDescriptionTemplate()">
+                <option value="">请选择产品描述模板</option>
+            </select>
+        </div>
+        <div>
+            <label for="ds_target_cell">产品描述写入单元格</label>
+            <input id="ds_target_cell" placeholder="例如 B8">
+        </div>
+    </div>
 
-    <label for="ds_target_cell">产品描述写入单元格</label>
-    <input id="ds_target_cell" placeholder="例如 B8">
-
-    <label for="ds_template_content">模板内容</label>
-    <textarea id="ds_template_content" rows="14" placeholder="选择模板后可编辑模板内容"></textarea>
+    <div>
+        <label for="ds_template_content">模板内容</label>
+        <textarea id="ds_template_content" rows="14" placeholder="选择模板后可编辑模板内容"></textarea>
+    </div>
 
     <div class="button-row">
-        <button type="button" onclick="saveSelectedDescriptionTemplate()">保存产品描述模板内容</button>
         <button type="button" class="gray" onclick="restoreSelectedDescriptionTemplate()">恢复当前产品描述模板为系统默认</button>
     </div>
     <div id="descriptionTemplateResult"></div>
@@ -314,23 +525,40 @@
 <div class="card">
     <h2>本地导出设置</h2>
 
-    <label for="app_default_sales_name">默认业务员英文名</label>
-    <input id="app_default_sales_name" placeholder="Anna">
+    <div class="export-sync-row">
+        <div>
+            <label for="export_sync_dir">Excel同步文件夹路径</label>
+            <input id="export_sync_dir" placeholder="D:/订单输出">
+        </div>
+        <button type="button" class="gray" onclick="chooseExportSyncDir()">选择文件夹</button>
+        <button type="button" onclick="testExportSyncDir()">测试路径</button>
+    </div>
 
-    <label for="app_default_salesperson_code">默认业务员代号</label>
-    <input id="app_default_salesperson_code" placeholder="AN">
+    <label class="compact-check"><input type="checkbox" id="dns_use_filename"> 使用文档编号作为Excel文件名</label>
 
-    <label for="app_default_company_code">默认公司简称</label>
-    <input id="app_default_company_code" placeholder="GS">
-
-    <label for="app_default_sequence">默认序号</label>
-    <input id="app_default_sequence" placeholder="A01">
-
-    <label for="export_sync_dir">Excel同步文件夹路径</label>
-    <input id="export_sync_dir" placeholder="D:/订单输出">
-
-    <button type="button" onclick="saveAppSettings()">保存本地导出设置</button>
     <div id="appSettingsResult"></div>
+</div>
+
+<div class="card">
+    <h2>AI 设置</h2>
+
+    <div class="ai-key-row">
+        <div>
+            <label for="deepseek_api_key">DeepSeek API Key</label>
+            <input id="deepseek_api_key" type="password" value="************" disabled autocomplete="off">
+        </div>
+        <button type="button" class="gray" onclick="unlockAiSettings()">解锁查看/修改</button>
+        <button type="button" onclick="saveAiSettings()">保存 AI Key</button>
+    </div>
+
+    <div id="aiSettingsResult"></div>
+</div>
+
+<div class="bottom-action-bar">
+    <div class="bottom-action-inner">
+        <button id="saveAllBtn" class="save" onclick="saveCurrentMappings()">保存当前映射</button>
+        <div id="mappingResult"></div>
+    </div>
 </div>
 
 <script>
@@ -359,11 +587,14 @@
         default_sequence: "A01",
         export_sync_dir: ""
     };
+    let aiSettingsUnlocked = false;
+    let aiSettingsPassword = "";
     let draggedFieldKey = "";
 
     async function loadAll() {
         await loadFields();
         await loadAppSettings();
+        await loadAiSettingsStatus();
         await loadDescriptionTemplates();
         await loadProfiles();
         renderProfileSelect();
@@ -415,10 +646,6 @@
 
     function renderAppSettings() {
         const values = {
-            app_default_sales_name: appSettings.default_sales_name || "Anna",
-            app_default_salesperson_code: appSettings.default_salesperson_code || "AN",
-            app_default_company_code: appSettings.default_company_code || "GS",
-            app_default_sequence: appSettings.default_sequence || "A01",
             export_sync_dir: appSettings.export_sync_dir || ""
         };
         Object.keys(values).forEach(id => {
@@ -429,39 +656,202 @@
         });
     }
 
-    async function saveAppSettings() {
+    function collectAppSettings() {
         const exportInput = document.getElementById("export_sync_dir");
-        const resultDiv = document.getElementById("appSettingsResult");
-        if (resultDiv) {
-            resultDiv.innerHTML = "";
-        }
+        const docSettings = collectDocumentNoSettings();
 
+        return {
+            default_sales_name: docSettings.default_sales_name || "Anna",
+            default_salesperson_code: docSettings.default_salesperson_code || "AN",
+            default_company_code: docSettings.default_company_code || "GS",
+            default_sequence: docSettings.default_sequence || "A01",
+            export_sync_dir: exportInput ? exportInput.value.trim() : ""
+        };
+    }
+
+    async function saveAppSettings() {
+        const resultDiv = document.getElementById("appSettingsResult");
         const response = await fetch("/api/app-settings", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                default_sales_name: document.getElementById("app_default_sales_name")?.value.trim() || "Anna",
-                default_salesperson_code: document.getElementById("app_default_salesperson_code")?.value.trim() || "AN",
-                default_company_code: document.getElementById("app_default_company_code")?.value.trim() || "GS",
-                default_sequence: document.getElementById("app_default_sequence")?.value.trim() || "A01",
-                export_sync_dir: exportInput ? exportInput.value.trim() : ""
-            })
+            body: JSON.stringify(collectAppSettings())
         });
         const result = await response.json();
 
         if (!result.success) {
-            if (resultDiv) {
-                resultDiv.innerHTML = `<p class="error">${result.error || "保存失败"}</p>`;
-            }
-            return;
+            throw new Error(result.error || "本地导出设置保存失败");
         }
 
         appSettings = Object.assign(appSettings, result.settings || {});
         renderAppSettings();
         if (resultDiv) {
             resultDiv.innerHTML = `<p class="success">本地导出设置已保存</p>`;
+        }
+        return result;
+    }
+
+    async function chooseExportSyncDir() {
+        const resultDiv = document.getElementById("appSettingsResult");
+
+        if (!window.showDirectoryPicker) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">浏览器无法直接读取完整本地路径，请手动输入文件夹路径</p>`;
+            }
+            return;
+        }
+
+        try {
+            await window.showDirectoryPicker();
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">浏览器无法直接读取完整本地路径，请手动输入文件夹路径</p>`;
+            }
+        } catch (error) {
+            if (error && error.name === "AbortError") {
+                return;
+            }
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">浏览器无法直接读取完整本地路径，请手动输入文件夹路径</p>`;
+            }
+        }
+    }
+
+    async function testExportSyncDir() {
+        const input = document.getElementById("export_sync_dir");
+        const resultDiv = document.getElementById("appSettingsResult");
+        const exportSyncDir = input ? input.value.trim() : "";
+
+        if (resultDiv) {
+            resultDiv.innerHTML = "";
+        }
+
+        const response = await fetch("/api/test-export-sync-dir", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ export_sync_dir: exportSyncDir })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "路径不可用")}</p>`;
+            }
+            return;
+        }
+
+        if (resultDiv) {
+            resultDiv.innerHTML = `<p class="success">${escapeHtml(result.message || "路径可用")}</p>`;
+        }
+    }
+
+    async function loadAiSettingsStatus() {
+        const input = document.getElementById("deepseek_api_key");
+        const resultDiv = document.getElementById("aiSettingsResult");
+
+        try {
+            const response = await fetch("/api/ai-settings/status");
+            const result = await response.json();
+            if (input && !aiSettingsUnlocked) {
+                input.type = "password";
+                input.disabled = true;
+                input.value = result.has_api_key ? "************" : "";
+                input.placeholder = result.has_api_key ? "" : "未设置";
+            }
+            if (resultDiv) {
+                resultDiv.innerHTML = result.has_api_key
+                    ? `<p class="success">DeepSeek API Key 已设置</p>`
+                    : `<p class="error">DeepSeek API Key 未设置</p>`;
+            }
+        } catch (error) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">AI 设置状态加载失败</p>`;
+            }
+        }
+    }
+
+    async function unlockAiSettings() {
+        const password = prompt("请输入 AI 设置密码");
+        const input = document.getElementById("deepseek_api_key");
+        const resultDiv = document.getElementById("aiSettingsResult");
+
+        if (password === null) {
+            return;
+        }
+
+        const response = await fetch("/api/ai-settings/unlock", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ password })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            aiSettingsUnlocked = false;
+            aiSettingsPassword = "";
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "密码错误")}</p>`;
+            }
+            return;
+        }
+
+        aiSettingsUnlocked = true;
+        aiSettingsPassword = password;
+        if (input) {
+            input.type = "text";
+            input.disabled = false;
+            input.value = result.api_key || "";
+            input.focus();
+        }
+        if (resultDiv) {
+            resultDiv.innerHTML = `<p class="success">已解锁，可查看和修改 API Key</p>`;
+        }
+    }
+
+    async function saveAiSettings() {
+        const input = document.getElementById("deepseek_api_key");
+        const resultDiv = document.getElementById("aiSettingsResult");
+
+        if (!aiSettingsUnlocked || !aiSettingsPassword) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">请先解锁后再保存 AI Key</p>`;
+            }
+            return;
+        }
+
+        const response = await fetch("/api/ai-settings", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                password: aiSettingsPassword,
+                api_key: input ? input.value.trim() : ""
+            })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "保存失败")}</p>`;
+            }
+            return;
+        }
+
+        aiSettingsUnlocked = false;
+        aiSettingsPassword = "";
+        if (input) {
+            input.type = "password";
+            input.disabled = true;
+            input.value = result.has_api_key ? "************" : "";
+            input.placeholder = result.has_api_key ? "" : "未设置";
+        }
+        if (resultDiv) {
+            resultDiv.innerHTML = `<p class="success">AI Key 已保存</p>`;
         }
     }
 
@@ -516,8 +906,8 @@
         }
 
         div.innerHTML = `
-            <p><strong>当前映射：</strong>${currentProfile.name}</p>
-            <p><strong>模板文件：</strong>${currentProfile.template_file || "未上传"}</p>
+            <p><strong>当前映射：</strong>${escapeHtml(currentProfile.name)}</p>
+            <p><strong>模板文件：</strong>${escapeHtml(currentProfile.template_file || "未上传")}</p>
         `;
     }
 
@@ -984,17 +1374,18 @@
         content.value = result.content || "";
     }
 
-    async function saveSelectedDescriptionTemplate() {
+    async function saveSelectedDescriptionTemplate(options) {
+        options = options || {};
         const select = document.getElementById("ds_template_name");
         const content = document.getElementById("ds_template_content");
         const resultDiv = document.getElementById("descriptionTemplateResult");
         const templateName = select ? select.value : "";
 
         if (!templateName) {
-            if (resultDiv) {
+            if (!options.silent && resultDiv) {
                 resultDiv.innerHTML = `<p class="error">请先选择产品描述模板</p>`;
             }
-            return;
+            return { skipped: true };
         }
 
         const response = await fetch(`/api/description-templates/${encodeURIComponent(templateName)}`, {
@@ -1009,15 +1400,13 @@
         const result = await response.json();
 
         if (!result.success) {
-            if (resultDiv) {
-                resultDiv.innerHTML = `<p class="error">${result.error || "模板保存失败"}</p>`;
-            }
-            return;
+            throw new Error(result.error || "产品描述模板内容保存失败");
         }
 
-        if (resultDiv) {
+        if (!options.silent && resultDiv) {
             resultDiv.innerHTML = `<p class="success">产品描述模板内容已保存</p>`;
         }
+        return result;
     }
 
     async function restoreSelectedDescriptionTemplate() {
@@ -1071,6 +1460,7 @@
 
     async function saveCurrentMappings() {
         const resultDiv = document.getElementById("mappingResult");
+        const saveBtn = document.getElementById("saveAllBtn");
         resultDiv.innerHTML = "";
 
         if (!currentProfile) {
@@ -1078,62 +1468,81 @@
             return;
         }
 
-        const mappings = {};
-
-        fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
-            const checkbox = document.getElementById("use_" + field.key);
-            const input = document.getElementById("mapping_" + field.key);
-
-            if (checkbox && checkbox.checked && input) {
-                const cell = input.value.trim().toUpperCase();
-
-                if (cell) {
-                    mappings[field.key] = cell;
-                }
-            }
-        });
-
-        const documentNoSettings = collectDocumentNoSettings();
-        const descriptionSettings = collectDescriptionSettings();
-        const mappingOrder = getCurrentMappingOrderFromTable();
-
-        const mappingDefaults = {};
-        fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
-            const checkbox = document.getElementById("use_" + field.key);
-            const defInput = document.getElementById("default_" + field.key);
-            if (checkbox && checkbox.checked && defInput) {
-                mappingDefaults[field.key] = defInput.value.trim();
-            }
-        });
-
-        const response = await fetch(`/api/template-profiles/${currentProfile.id}/mappings`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                mappings: mappings,
-                document_no_settings: documentNoSettings,
-                description_settings: descriptionSettings,
-                mapping_defaults: mappingDefaults,
-                mapping_order: mappingOrder
-            })
-        });
-
-        const result = await response.json();
-
-        if (!result.success) {
-            resultDiv.innerHTML = `<p class="error">${result.error || "保存失败"}</p>`;
-            return;
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerText = "保存中...";
         }
 
-        await loadProfiles();
-        renderProfileSelect();
+        try {
+            const mappings = {};
 
-        document.getElementById("profileSelect").value = result.profile.id;
-        selectProfile();
+            fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
+                const checkbox = document.getElementById("use_" + field.key);
+                const input = document.getElementById("mapping_" + field.key);
 
-        resultDiv.innerHTML = `<p class="success">当前映射保存成功</p>`;
+                if (checkbox && checkbox.checked && input) {
+                    const cell = input.value.trim().toUpperCase();
+
+                    if (cell) {
+                        mappings[field.key] = cell;
+                    }
+                }
+            });
+
+            const documentNoSettings = collectDocumentNoSettings();
+            const descriptionSettings = collectDescriptionSettings();
+            const mappingOrder = getCurrentMappingOrderFromTable();
+
+            const mappingDefaults = {};
+            fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
+                const checkbox = document.getElementById("use_" + field.key);
+                const defInput = document.getElementById("default_" + field.key);
+                if (checkbox && checkbox.checked && defInput) {
+                    mappingDefaults[field.key] = defInput.value.trim();
+                }
+            });
+
+            const response = await fetch(`/api/template-profiles/${currentProfile.id}/mappings`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    mappings: mappings,
+                    document_no_settings: documentNoSettings,
+                    description_settings: descriptionSettings,
+                    mapping_defaults: mappingDefaults,
+                    mapping_order: mappingOrder
+                })
+            });
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.error || "当前映射保存失败");
+            }
+
+            if (descriptionSettings.template_name) {
+                await saveSelectedDescriptionTemplate({ silent: true });
+            }
+
+            await saveAppSettings();
+
+            await loadProfiles();
+            renderProfileSelect();
+
+            document.getElementById("profileSelect").value = result.profile.id;
+            selectProfile();
+
+            resultDiv.innerHTML = `<p class="success">保存成功</p>`;
+        } catch (error) {
+            resultDiv.innerHTML = `<p class="error">${escapeHtml(error.message || "保存失败")}</p>`;
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerText = "保存当前映射";
+            }
+        }
     }
 
     async function deleteCurrentProfile() {

@@ -5,12 +5,12 @@ import re
 import requests
 from dotenv import load_dotenv
 
+from app.app_settings import get_deepseek_api_key
 from app.field_library import load_fields
 
 
 load_dotenv()
 
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 
@@ -57,9 +57,10 @@ def build_prompt(message: str):
 
 
 def parse_message(message: str):
-    if not DEEPSEEK_API_KEY:
+    api_key = get_deepseek_api_key()
+    if not api_key:
         return {
-            "error": "没有读取到 DEEPSEEK_API_KEY，请检查 .env 文件"
+            "error": "没有读取到 DeepSeek API Key，请在配置中心 AI 设置或 .env 中配置"
         }
 
     prompt, field_keys = build_prompt(message)
@@ -67,7 +68,7 @@ def parse_message(message: str):
     response = requests.post(
         DEEPSEEK_URL,
         headers={
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         },
         json={
@@ -230,8 +231,9 @@ def _render_description_placeholders(description_template: str, order_data: dict
 
 
 def generate_description_from_message(message: str, description_template: str, order_data: dict):
-    if not DEEPSEEK_API_KEY:
-        raise RuntimeError("没有读取到 DEEPSEEK_API_KEY，请检查 .env 文件")
+    api_key = get_deepseek_api_key()
+    if not api_key:
+        raise RuntimeError("没有读取到 DeepSeek API Key，请在配置中心 AI 设置或 .env 中配置")
 
     if not str(message or "").strip():
         raise ValueError("message不能为空，产品描述需要客户聊天内容才能 AI 生成")
@@ -323,7 +325,7 @@ def generate_description_from_message(message: str, description_template: str, o
     response = requests.post(
         DEEPSEEK_URL,
         headers={
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         },
         json={

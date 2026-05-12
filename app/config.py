@@ -10,6 +10,7 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.path.join(BASE_DIR, "config")
 EXPORT_SYNC_DIR = os.getenv("EXPORT_SYNC_DIR", "").strip()
+AI_SETTINGS_PASSWORD = os.getenv("AI_SETTINGS_PASSWORD", "admin123")
 
 FIELDS_FILE = os.path.join(CONFIG_DIR, "fields.json")
 TEMPLATE_MAPPINGS_FILE = os.path.join(CONFIG_DIR, "template_mappings.json")

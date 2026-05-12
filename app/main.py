@@ -5,7 +5,15 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.app_settings import load_app_settings, save_app_settings, get_export_sync_dir
+from app.app_settings import (
+    load_app_settings,
+    save_app_settings,
+    get_export_sync_dir,
+    get_deepseek_api_key,
+    public_app_settings,
+    save_deepseek_api_key,
+)
+from app.config import AI_SETTINGS_PASSWORD
 from app.field_library import (
     load_fields,
     add_field,
@@ -160,13 +168,61 @@ def api_update_mappings(profile_id: str, data: dict):
 
 @app.get("/api/app-settings")
 def api_get_app_settings():
-    return {"success": True, "settings": load_app_settings()}
+    return {"success": True, "settings": public_app_settings()}
 
 
 @app.post("/api/app-settings")
 def api_save_app_settings(data: dict):
     try:
-        return {"success": True, "settings": save_app_settings(data)}
+        save_app_settings(data)
+        return {"success": True, "settings": public_app_settings()}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/test-export-sync-dir")
+def api_test_export_sync_dir(data: dict):
+    try:
+        export_sync_dir = str(data.get("export_sync_dir") or "").strip()
+        if not export_sync_dir:
+            return {"success": False, "error": "请先输入 Excel 同步文件夹路径"}
+
+        target_dir = Path(export_sync_dir).expanduser()
+        target_dir.mkdir(parents=True, exist_ok=True)
+        if not target_dir.is_dir():
+            return {"success": False, "error": "路径不是有效文件夹"}
+
+        test_file = target_dir / ".ai_order_write_test.tmp"
+        test_file.write_text("ok", encoding="utf-8")
+        test_file.unlink(missing_ok=True)
+        return {"success": True, "message": "路径可用"}
+    except Exception as e:
+        return {"success": False, "error": f"路径不可用：{e}"}
+
+
+@app.get("/api/ai-settings/status")
+def api_ai_settings_status():
+    return {"success": True, "has_api_key": bool(get_deepseek_api_key())}
+
+
+@app.post("/api/ai-settings/unlock")
+def api_ai_settings_unlock(data: dict):
+    password = str(data.get("password") or "")
+    if password != AI_SETTINGS_PASSWORD:
+        return {"success": False, "error": "密码错误"}
+
+    return {"success": True, "api_key": get_deepseek_api_key()}
+
+
+@app.post("/api/ai-settings")
+def api_save_ai_settings(data: dict):
+    try:
+        password = str(data.get("password") or "")
+        if password != AI_SETTINGS_PASSWORD:
+            return {"success": False, "error": "密码错误"}
+
+        save_deepseek_api_key(data.get("api_key", ""))
+        return {"success": True, "has_api_key": bool(str(data.get("api_key") or "").strip())}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
