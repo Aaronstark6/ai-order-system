@@ -1,3 +1,7 @@
 {
-  "export_sync_dir": ""
+  "default_sales_name": "Anna",
+  "default_salesperson_code": "AN",
+  "default_company_code": "GS",
+  "default_sequence": "A01",
+  "export_sync_dir": "D:/订单"
 }

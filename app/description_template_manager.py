@@ -4,6 +4,13 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DESCRIPTION_TEMPLATE_DIR = BASE_DIR / "data" / "description_templates"
+DEFAULT_DESCRIPTION_TEMPLATE_CONTENT = """产品名称：{product_name}
+产品形式：{product_form}
+规格：{specification}
+数量：{quantity}
+配方要求：{formula_requirement}
+备注：
+"""
 
 
 def ensure_description_template_dir():
@@ -44,6 +51,10 @@ def save_description_template(template_name, content):
         "template_name": path.name,
         "content": text,
     }
+
+
+def restore_default_description_template(template_name):
+    return save_description_template(template_name, DEFAULT_DESCRIPTION_TEMPLATE_CONTENT)
 
 
 def render_description_template(template, data):

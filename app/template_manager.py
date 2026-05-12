@@ -4,6 +4,8 @@ from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 
+from app.app_settings import DEFAULT_APP_SETTINGS, load_app_settings
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -30,10 +32,10 @@ DEFAULT_DOCUMENT_NO_SETTINGS = {
     "enabled": True,
     "document_no_cell": "",
     "use_document_no_as_filename": True,
-    "default_sales_name": "Anna",
-    "default_salesperson_code": "AN",
-    "default_company_code": "GS",
-    "default_sequence": "A01",
+    "default_sales_name": DEFAULT_APP_SETTINGS["default_sales_name"],
+    "default_salesperson_code": DEFAULT_APP_SETTINGS["default_salesperson_code"],
+    "default_company_code": DEFAULT_APP_SETTINGS["default_company_code"],
+    "default_sequence": DEFAULT_APP_SETTINGS["default_sequence"],
     "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
     "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}",
 }
@@ -67,10 +69,10 @@ def normalize_document_no_settings(raw, legacy_document_no_rule=None):
     merged["use_document_no_as_filename"] = bool(merged.get("use_document_no_as_filename", True))
 
     merged["document_no_cell"] = str(merged.get("document_no_cell") or "").strip().upper()
-    merged["default_sales_name"] = str(merged.get("default_sales_name") or "Anna").strip() or "Anna"
-    merged["default_salesperson_code"] = str(merged.get("default_salesperson_code") or "AN").strip() or "AN"
-    merged["default_company_code"] = str(merged.get("default_company_code") or "GS").strip() or "GS"
-    merged["default_sequence"] = str(merged.get("default_sequence") or "A01").strip() or "A01"
+    merged["default_sales_name"] = str(merged.get("default_sales_name") or DEFAULT_APP_SETTINGS["default_sales_name"]).strip() or DEFAULT_APP_SETTINGS["default_sales_name"]
+    merged["default_salesperson_code"] = str(merged.get("default_salesperson_code") or DEFAULT_APP_SETTINGS["default_salesperson_code"]).strip() or DEFAULT_APP_SETTINGS["default_salesperson_code"]
+    merged["default_company_code"] = str(merged.get("default_company_code") or DEFAULT_APP_SETTINGS["default_company_code"]).strip() or DEFAULT_APP_SETTINGS["default_company_code"]
+    merged["default_sequence"] = str(merged.get("default_sequence") or DEFAULT_APP_SETTINGS["default_sequence"]).strip() or DEFAULT_APP_SETTINGS["default_sequence"]
 
     doc_rule = str(merged.get("document_no_rule") or "").strip()
     if not doc_rule and legacy_document_no_rule:
@@ -217,6 +219,12 @@ def create_profile(name: str):
         raise ValueError("映射名不能为空")
 
     profiles = load_profiles()
+    app_settings = load_app_settings()
+    document_no_settings = deepcopy(DEFAULT_DOCUMENT_NO_SETTINGS)
+    document_no_settings["default_sales_name"] = app_settings.get("default_sales_name") or DEFAULT_APP_SETTINGS["default_sales_name"]
+    document_no_settings["default_salesperson_code"] = app_settings.get("default_salesperson_code") or DEFAULT_APP_SETTINGS["default_salesperson_code"]
+    document_no_settings["default_company_code"] = app_settings.get("default_company_code") or DEFAULT_APP_SETTINGS["default_company_code"]
+    document_no_settings["default_sequence"] = app_settings.get("default_sequence") or DEFAULT_APP_SETTINGS["default_sequence"]
 
     profile = {
         "id": str(uuid4()),
@@ -226,7 +234,7 @@ def create_profile(name: str):
         "mapping_order": [],
         "mapping_defaults": {},
         "composite_mappings": [],
-        "document_no_settings": deepcopy(DEFAULT_DOCUMENT_NO_SETTINGS),
+        "document_no_settings": document_no_settings,
         "description_settings": deepcopy(DEFAULT_DESCRIPTION_SETTINGS),
     }
 

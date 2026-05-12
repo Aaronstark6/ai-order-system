@@ -26,10 +26,15 @@
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
       "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
     },
-    "mapping_defaults": {},
+    "mapping_defaults": {
+      "customer_name": "",
+      "product_name": "",
+      "quantity": "",
+      "specification": ""
+    },
     "description_settings": {
-      "enabled": false,
-      "template_name": "",
+      "enabled": true,
+      "template_name": "滴剂和液体饮料.txt",
       "target_cell": ""
     },
     "mapping_order": [

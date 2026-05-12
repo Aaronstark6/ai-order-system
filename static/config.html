@@ -188,15 +188,10 @@
 
 <div class="nav">
     <a href="/">返回首页</a>
-    <a href="/config/fields">字段库管理</a>
 </div>
 
 <div class="card">
     <h2>映射与模板管理</h2>
-
-    <p class="tips">
-        在当前页面完成映射新建、模板上传/替换、模板删除和映射删除。
-    </p>
 
     <div class="management-grid">
         <div>
@@ -233,12 +228,6 @@
 <div class="card">
     <h2>普通字段单元格设置</h2>
 
-    <p class="tips">
-        适合“一个字段值写入一个单元格”的情况。勾选“使用”并填写单元格，例如：客户名称 → B3。
-        可填写<strong>默认值</strong>：首页订单确认区在解析结果为空时会自动带出，仍可在前端修改；导出时若仍为空，后端也会用该默认值写入 Excel。
-        <strong>文档编号、业务员、成交日期、产品编码等相关字段请在下方「文档编号设置」中配置，不会出现在本表中。</strong>
-    </p>
-
     <table>
         <thead>
         <tr>
@@ -254,36 +243,14 @@
         </thead>
         <tbody id="fieldTable"></tbody>
     </table>
-</div>
-
-<div class="card">
-    <h2>产品描述设置</h2>
-    <p class="tips">
-        产品描述模板是独立模块，不混入普通字段映射。模板内容支持 {字段key} 占位符。
-    </p>
-
-    <label><input type="checkbox" id="ds_enabled"> 启用产品描述模板</label>
-
-    <label for="ds_template_name">产品描述模板选择</label>
-    <select id="ds_template_name" onchange="loadSelectedDescriptionTemplate()">
-        <option value="">请选择产品描述模板</option>
-    </select>
-
-    <label for="ds_target_cell">产品描述写入单元格</label>
-    <input id="ds_target_cell" placeholder="例如 B8">
-
-    <label for="ds_template_content">模板内容</label>
-    <textarea id="ds_template_content" rows="14" placeholder="选择模板后可编辑模板内容"></textarea>
-
-    <button type="button" onclick="saveSelectedDescriptionTemplate()">保存产品描述模板内容</button>
-    <div id="descriptionTemplateResult"></div>
+    <div class="button-row">
+        <button class="save" onclick="saveCurrentMappings()">保存当前映射</button>
+    </div>
+    <div id="mappingResult"></div>
 </div>
 
 <div class="card">
     <h2>文档编号设置</h2>
-    <p class="tips">
-        此处配置文档编号的生成规则、默认值及写入 Excel 的单元格；与普通字段映射分离，避免混淆。
-    </p>
 
     <label><input type="checkbox" id="dns_enabled"> 启用文档编号写入 Excel</label>
 
@@ -322,23 +289,48 @@
 </div>
 
 <div class="card">
+    <h2>产品描述设置</h2>
+
+    <label><input type="checkbox" id="ds_enabled"> 启用产品描述模板</label>
+
+    <label for="ds_template_name">产品描述模板选择</label>
+    <select id="ds_template_name" onchange="loadSelectedDescriptionTemplate()">
+        <option value="">请选择产品描述模板</option>
+    </select>
+
+    <label for="ds_target_cell">产品描述写入单元格</label>
+    <input id="ds_target_cell" placeholder="例如 B8">
+
+    <label for="ds_template_content">模板内容</label>
+    <textarea id="ds_template_content" rows="14" placeholder="选择模板后可编辑模板内容"></textarea>
+
+    <div class="button-row">
+        <button type="button" onclick="saveSelectedDescriptionTemplate()">保存产品描述模板内容</button>
+        <button type="button" class="gray" onclick="restoreSelectedDescriptionTemplate()">恢复当前产品描述模板为系统默认</button>
+    </div>
+    <div id="descriptionTemplateResult"></div>
+</div>
+
+<div class="card">
     <h2>本地导出设置</h2>
-    <p class="tips">
-        生成 Excel 后可自动复制一份到该文件夹；如果为空，则只保留下载功能。
-    </p>
+
+    <label for="app_default_sales_name">默认业务员英文名</label>
+    <input id="app_default_sales_name" placeholder="Anna">
+
+    <label for="app_default_salesperson_code">默认业务员代号</label>
+    <input id="app_default_salesperson_code" placeholder="AN">
+
+    <label for="app_default_company_code">默认公司简称</label>
+    <input id="app_default_company_code" placeholder="GS">
+
+    <label for="app_default_sequence">默认序号</label>
+    <input id="app_default_sequence" placeholder="A01">
 
     <label for="export_sync_dir">Excel同步文件夹路径</label>
     <input id="export_sync_dir" placeholder="D:/订单输出">
 
     <button type="button" onclick="saveAppSettings()">保存本地导出设置</button>
     <div id="appSettingsResult"></div>
-</div>
-
-<div class="card">
-    <button class="save" onclick="saveCurrentMappings()">保存当前映射</button>
-    <a href="/config/fields" style="margin-left: 15px;">字段库管理</a>
-
-    <div id="mappingResult"></div>
 </div>
 
 <script>
@@ -360,7 +352,13 @@
     let profiles = [];
     let currentProfile = null;
     let descriptionTemplateNames = [];
-    let appSettings = { export_sync_dir: "" };
+    let appSettings = {
+        default_sales_name: "Anna",
+        default_salesperson_code: "AN",
+        default_company_code: "GS",
+        default_sequence: "A01",
+        export_sync_dir: ""
+    };
     let draggedFieldKey = "";
 
     async function loadAll() {
@@ -402,22 +400,37 @@
         const result = await response.json();
 
         if (!result.success) {
-            appSettings = { export_sync_dir: "" };
+            appSettings = {
+                default_sales_name: "Anna",
+                default_salesperson_code: "AN",
+                default_company_code: "GS",
+                default_sequence: "A01",
+                export_sync_dir: ""
+            };
             return;
         }
 
-        appSettings = result.settings || { export_sync_dir: "" };
+        appSettings = Object.assign(appSettings, result.settings || {});
     }
 
     function renderAppSettings() {
-        const input = document.getElementById("export_sync_dir");
-        if (input) {
-            input.value = appSettings.export_sync_dir || "";
-        }
+        const values = {
+            app_default_sales_name: appSettings.default_sales_name || "Anna",
+            app_default_salesperson_code: appSettings.default_salesperson_code || "AN",
+            app_default_company_code: appSettings.default_company_code || "GS",
+            app_default_sequence: appSettings.default_sequence || "A01",
+            export_sync_dir: appSettings.export_sync_dir || ""
+        };
+        Object.keys(values).forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                input.value = values[id];
+            }
+        });
     }
 
     async function saveAppSettings() {
-        const input = document.getElementById("export_sync_dir");
+        const exportInput = document.getElementById("export_sync_dir");
         const resultDiv = document.getElementById("appSettingsResult");
         if (resultDiv) {
             resultDiv.innerHTML = "";
@@ -429,7 +442,11 @@
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                export_sync_dir: input ? input.value.trim() : ""
+                default_sales_name: document.getElementById("app_default_sales_name")?.value.trim() || "Anna",
+                default_salesperson_code: document.getElementById("app_default_salesperson_code")?.value.trim() || "AN",
+                default_company_code: document.getElementById("app_default_company_code")?.value.trim() || "GS",
+                default_sequence: document.getElementById("app_default_sequence")?.value.trim() || "A01",
+                export_sync_dir: exportInput ? exportInput.value.trim() : ""
             })
         });
         const result = await response.json();
@@ -441,7 +458,7 @@
             return;
         }
 
-        appSettings = result.settings || { export_sync_dir: "" };
+        appSettings = Object.assign(appSettings, result.settings || {});
         renderAppSettings();
         if (resultDiv) {
             resultDiv.innerHTML = `<p class="success">本地导出设置已保存</p>`;
@@ -805,19 +822,19 @@
                 useFn.disabled = true;
             }
             if (defName) {
-                defName.value = "Anna";
+                defName.value = appSettings.default_sales_name || "Anna";
                 defName.disabled = true;
             }
             if (defCode) {
-                defCode.value = "AN";
+                defCode.value = appSettings.default_salesperson_code || "AN";
                 defCode.disabled = true;
             }
             if (defCompany) {
-                defCompany.value = "GS";
+                defCompany.value = appSettings.default_company_code || "GS";
                 defCompany.disabled = true;
             }
             if (defSeq) {
-                defSeq.value = "A01";
+                defSeq.value = appSettings.default_sequence || "A01";
                 defSeq.disabled = true;
             }
             if (docRule) {
@@ -844,19 +861,19 @@
             useFn.disabled = false;
         }
         if (defName) {
-            defName.value = s.default_sales_name || "Anna";
+            defName.value = s.default_sales_name || appSettings.default_sales_name || "Anna";
             defName.disabled = false;
         }
         if (defCode) {
-            defCode.value = s.default_salesperson_code || "AN";
+            defCode.value = s.default_salesperson_code || appSettings.default_salesperson_code || "AN";
             defCode.disabled = false;
         }
         if (defCompany) {
-            defCompany.value = s.default_company_code || "GS";
+            defCompany.value = s.default_company_code || appSettings.default_company_code || "GS";
             defCompany.disabled = false;
         }
         if (defSeq) {
-            defSeq.value = s.default_sequence || "A01";
+            defSeq.value = s.default_sequence || appSettings.default_sequence || "A01";
             defSeq.disabled = false;
         }
         if (docRule) {
@@ -1000,6 +1017,43 @@
 
         if (resultDiv) {
             resultDiv.innerHTML = `<p class="success">产品描述模板内容已保存</p>`;
+        }
+    }
+
+    async function restoreSelectedDescriptionTemplate() {
+        const select = document.getElementById("ds_template_name");
+        const content = document.getElementById("ds_template_content");
+        const resultDiv = document.getElementById("descriptionTemplateResult");
+        const templateName = select ? select.value : "";
+
+        if (!templateName) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">请先选择产品描述模板</p>`;
+            }
+            return;
+        }
+
+        if (!confirm("确定要恢复当前产品描述模板为系统默认内容吗？当前编辑内容会被覆盖。")) {
+            return;
+        }
+
+        const response = await fetch(`/api/description-templates/${encodeURIComponent(templateName)}/restore-default`, {
+            method: "POST"
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${result.error || "恢复失败"}</p>`;
+            }
+            return;
+        }
+
+        if (content) {
+            content.value = result.template ? (result.template.content || "") : "";
+        }
+        if (resultDiv) {
+            resultDiv.innerHTML = `<p class="success">产品描述模板已恢复为系统默认</p>`;
         }
     }
 

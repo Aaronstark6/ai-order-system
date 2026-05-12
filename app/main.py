@@ -19,6 +19,7 @@ from app.description_template_manager import (
     list_description_templates,
     get_description_template,
     save_description_template,
+    restore_default_description_template,
 )
 from app.template_manager import (
     load_profiles,
@@ -197,6 +198,15 @@ def api_save_description_template(template_name: str, data: dict):
     try:
         saved = save_description_template(template_name, data.get("content", ""))
         return {"success": True, "template": saved}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/description-templates/{template_name}/restore-default")
+def api_restore_description_template(template_name: str):
+    try:
+        restored = restore_default_description_template(template_name)
+        return {"success": True, "template": restored}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

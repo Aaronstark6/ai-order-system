@@ -468,11 +468,19 @@
     let visibleFields = [];
     let profiles = [];
     let parsedData = {};
+    let appSettings = {
+        default_sales_name: "Anna",
+        default_salesperson_code: "AN",
+        default_company_code: "GS",
+        default_sequence: "A01",
+        export_sync_dir: ""
+    };
     let currentGeneratedFilename = "";
     let currentDownloadUrl = "";
 
     async function loadInitialData() {
         await loadFields();
+        await loadAppSettings();
         await loadProfiles();
         updateVisibleFields();
         renderDocumentNoSection({});
@@ -531,6 +539,18 @@
         }
 
         updateProfileTips();
+    }
+
+    async function loadAppSettings() {
+        try {
+            const response = await fetch("/api/app-settings");
+            const result = await response.json();
+            if (result.success && result.settings) {
+                appSettings = Object.assign(appSettings, result.settings);
+            }
+        } catch (e) {
+            appSettings = appSettings || {};
+        }
     }
 
     function getSelectedProfile() {
@@ -652,6 +672,9 @@
         let v = el && el.value != null ? String(el.value).trim() : "";
         if (!v && settingKey && st[settingKey] != null && String(st[settingKey]).trim() !== "") {
             v = String(st[settingKey]).trim();
+        }
+        if (!v && settingKey && appSettings[settingKey] != null && String(appSettings[settingKey]).trim() !== "") {
+            v = String(appSettings[settingKey]).trim();
         }
         if (!v) {
             v = fallback || "";
@@ -786,6 +809,9 @@
             let raw = d[key] != null && String(d[key]).trim() !== "" ? String(d[key]).trim() : "";
             if (!raw && fallbackSetting && s[fallbackSetting]) {
                 raw = String(s[fallbackSetting]).trim();
+            }
+            if (!raw && fallbackSetting && appSettings[fallbackSetting]) {
+                raw = String(appSettings[fallbackSetting]).trim();
             }
             if (!raw && fallbackLiteral) {
                 raw = fallbackLiteral;
@@ -1068,6 +1094,11 @@
         submitResult.innerHTML = "";
         resetExcelActions();
 
+        if (!getSelectedProfile()) {
+            errorDiv.innerText = "请先选择模板映射";
+            return;
+        }
+
         if (!message) {
             errorDiv.innerText = "请输入客户聊天内容";
             return;
@@ -1196,6 +1227,17 @@
             return;
         }
 
+        const profile = getSelectedProfile();
+        if (!profile || !profile.template_file) {
+            submitResult.innerHTML = `<p class="error">请先在配置中心上传当前映射的 Excel 模板</p>`;
+            return;
+        }
+
+        const descSettings = profile.description_settings || {};
+        const descriptionWarning = descSettings.enabled === true && !descSettings.template_name
+            ? `<p class="error">当前未设置产品描述模板，产品描述将为空。</p>`
+            : "";
+
         generateBtn.disabled = true;
         generateBtn.innerText = "生成中...";
 
@@ -1234,6 +1276,7 @@
 
         submitResult.innerHTML = `
             <p class="success excel-result-message">Excel生成成功！</p>
+            ${descriptionWarning}
             ${syncPathHtml}
             ${syncErrorHtml}
         `;
