@@ -118,6 +118,11 @@
             margin-left: 4px;
         }
 
+        .warning-empty {
+            border-color: #f59e0b !important;
+            background: #fffbea !important;
+        }
+
         .tips {
             color: #666;
             font-size: 14px;
@@ -216,14 +221,14 @@
 
         .doc-no-grid {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 14px;
             align-items: end;
             margin-bottom: 12px;
         }
 
         .doc-no-grid-row2 {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
         .doc-no-cell {
@@ -290,14 +295,13 @@
 
         .doc-no-final-row {
             display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: flex-end;
+            gap: 12px;
+            align-items: center;
             margin-top: 10px;
         }
 
         .doc-no-final-row .doc-no-final-input-wrap {
-            flex: 1 1 220px;
+            flex: 1 1 auto;
             min-width: 180px;
         }
 
@@ -310,6 +314,35 @@
             font-size: 14px;
             padding: 9px 14px;
             white-space: nowrap;
+            flex: 0 0 auto;
+        }
+
+        .generate-tip {
+            margin: 8px 0 0;
+            color: #8a6d1d;
+            font-size: 13px;
+        }
+
+        .excel-result-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .excel-result-row .download-link {
+            margin-top: 0;
+        }
+
+        .excel-result-message {
+            margin: 0;
+        }
+
+        .sync-path {
+            margin: 6px 0 0;
+            color: #555;
+            word-break: break-all;
         }
 
         @media (max-width: 900px) {
@@ -333,6 +366,11 @@
             .doc-no-grid,
             .doc-no-grid-row2 {
                 grid-template-columns: 1fr;
+            }
+
+            .doc-no-final-row {
+                flex-direction: column;
+                align-items: stretch;
             }
         }
     </style>
@@ -380,6 +418,7 @@
         <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
             确认生成Excel
         </button>
+        <p class="generate-tip">部分字段为空时仍可导出，请人工确认内容完整性。</p>
 
         <div id="submitResult"></div>
     </div>
@@ -394,6 +433,7 @@
         "company_code",
         "deal_date",
         "sequence",
+        "ingredient_initials",
         "product_index_or_day",
         "product_abbr",
         "product_form",
@@ -571,14 +611,22 @@
             "滴剂": "D",
             "压片": "T",
             "片剂": "T",
-            "泡腾片": "T",
-            "固体饮料": "P",
+            "泡腾片": "E",
+            "固体饮料": "B",
             "粉末": "P",
-            "精油": "O",
+            "精油": "D",
             "凝胶": "N",
             "果冻和凝胶": "N"
         };
         return map[String(productForm || "").trim()] || "";
+    }
+
+    function formatDealDateMonthDay(value) {
+        const yyyymmdd = formatDealDateYyyymmdd(value);
+        if (!yyyymmdd) {
+            return "";
+        }
+        return yyyymmdd.slice(4).replace(/^0/, "");
     }
 
     function resolveDocInputOrDefault(elId, settingKey, fallback) {
@@ -595,9 +643,32 @@
         return v;
     }
 
-    function getDocNoPreviewComputations() {
-        const salesName = resolveDocInputOrDefault("doc_field_sales_name", "default_sales_name", "Anna");
+    function buildProductCode() {
         const salesCode = resolveDocInputOrDefault("doc_field_salesperson_code", "default_salesperson_code", "AN");
+
+        const dealEl = document.getElementById("doc_field_deal_date");
+        let dealRaw = dealEl && dealEl.value != null ? String(dealEl.value).trim() : "";
+        if (!dealRaw) {
+            dealRaw = getTodayISODate();
+        }
+
+        const initialsEl = document.getElementById("doc_field_ingredient_initials");
+        const formEl = document.getElementById("doc_field_product_form");
+        const monthDay = formatDealDateMonthDay(dealRaw);
+        const ingredientInitials = initialsEl ? String(initialsEl.value || "").trim().toUpperCase() : "";
+        const productForm = formEl ? String(formEl.value || "").trim() : "";
+
+        const dosageCode = getDosageFormCode(productForm);
+        const dosageHidden = document.getElementById("doc_field_dosage_form_code");
+        if (dosageHidden) {
+            dosageHidden.value = dosageCode;
+        }
+
+        return `${salesCode}${monthDay}${ingredientInitials}${dosageCode}`;
+    }
+
+    function buildDocumentNo() {
+        const salesName = resolveDocInputOrDefault("doc_field_sales_name", "default_sales_name", "Anna");
         const companyCode = resolveDocInputOrDefault("doc_field_company_code", "default_company_code", "GS");
         const sequence = resolveDocInputOrDefault("doc_field_sequence", "default_sequence", "A01");
 
@@ -608,39 +679,29 @@
         }
 
         const yyyymmdd = formatDealDateYyyymmdd(dealRaw);
-        const idxEl = document.getElementById("doc_field_product_index_or_day");
-        const abbrEl = document.getElementById("doc_field_product_abbr");
+        const productCode = buildProductCode();
+
+        return yyyymmdd
+            ? `${salesName}-${companyCode}${yyyymmdd}${sequence}-${productCode}`
+            : "";
+    }
+
+    function getDocNoPreviewComputations() {
         const formEl = document.getElementById("doc_field_product_form");
-        const pcEl = document.getElementById("doc_field_product_code");
-
-        const indexOrDay = idxEl ? String(idxEl.value || "").trim() : "";
-        const abbr = abbrEl ? String(abbrEl.value || "").trim() : "";
         const productForm = formEl ? String(formEl.value || "").trim() : "";
-        const manualPc = pcEl ? String(pcEl.value || "").trim() : "";
-
         const dosageCode = getDosageFormCode(productForm);
         const dosageHidden = document.getElementById("doc_field_dosage_form_code");
         if (dosageHidden) {
             dosageHidden.value = dosageCode;
         }
 
-        const computedPc = `${salesCode}${indexOrDay}${abbr}${dosageCode}`;
-        const effectivePc = manualPc || computedPc;
-
-        const ruleDocNo = yyyymmdd
-            ? `${salesName}-${companyCode}${yyyymmdd}${sequence}-${effectivePc}`
-            : "";
+        const productCode = buildProductCode();
+        const ruleDocNo = buildDocumentNo();
 
         return {
-            salesName,
-            salesCode,
-            companyCode,
-            sequence,
-            yyyymmdd,
             dosageCode,
             productForm,
-            computedPc,
-            effectivePc,
+            productCode,
             ruleDocNo
         };
     }
@@ -655,14 +716,14 @@
                 : "（请先填写产品形式）";
         }
 
-        const elPc = document.getElementById("docPreviewProductCode");
-        if (elPc) {
-            elPc.textContent = c.effectivePc || "（尚不完整）";
+        const productCodeInput = document.getElementById("doc_field_product_code");
+        if (productCodeInput) {
+            productCodeInput.value = c.productCode || "";
         }
 
-        const elRuleDn = document.getElementById("docPreviewRuleDocumentNo");
-        if (elRuleDn) {
-            elRuleDn.textContent = c.ruleDocNo || "（请填写有效成交日期）";
+        const dnInput = document.getElementById("doc_field_document_no");
+        if (dnInput) {
+            dnInput.value = c.ruleDocNo || "";
         }
 
         refreshCompositeFromCurrentFields();
@@ -727,10 +788,8 @@
             initDeal = today;
         }
 
-        const initIdx = d.product_index_or_day != null ? String(d.product_index_or_day) : "";
-        const initAbbr = d.product_abbr != null ? String(d.product_abbr) : "";
+        const initIngredientInitials = d.ingredient_initials != null ? String(d.ingredient_initials) : "";
         const initForm = d.product_form != null ? String(d.product_form) : "";
-        const initPc = d.product_code != null ? String(d.product_code) : "";
         const initDn = d.document_no != null ? String(d.document_no) : "";
 
         const initDosage = getDosageFormCode(initForm);
@@ -742,10 +801,6 @@
                     <div class="doc-no-cell">
                         <label for="doc_field_sales_name">业务员英文名</label>
                         <input class="doc-no-sync" id="doc_field_sales_name" type="text" value="${escapeHtml(initSales)}" placeholder="Anna" autocomplete="off">
-                    </div>
-                    <div class="doc-no-cell">
-                        <label for="doc_field_salesperson_code">业务员代号</label>
-                        <input class="doc-no-sync" id="doc_field_salesperson_code" type="text" value="${escapeHtml(initCode)}" placeholder="AN" autocomplete="off">
                     </div>
                     <div class="doc-no-cell">
                         <label for="doc_field_company_code">公司简称</label>
@@ -762,12 +817,12 @@
                 </div>
                 <div class="doc-no-grid doc-no-grid-row2">
                     <div class="doc-no-cell">
-                        <label for="doc_field_product_index_or_day">中间数字</label>
-                        <input class="doc-no-sync" id="doc_field_product_index_or_day" type="text" value="${escapeHtml(initIdx)}" placeholder="1" autocomplete="off">
+                        <label for="doc_field_salesperson_code">业务员代号</label>
+                        <input class="doc-no-sync" id="doc_field_salesperson_code" type="text" value="${escapeHtml(initCode)}" placeholder="AN" autocomplete="off">
                     </div>
                     <div class="doc-no-cell">
-                        <label for="doc_field_product_abbr">产品代号</label>
-                        <input class="doc-no-sync" id="doc_field_product_abbr" type="text" value="${escapeHtml(initAbbr)}" placeholder="MV" autocomplete="off">
+                        <label for="doc_field_ingredient_initials">产品成分缩写</label>
+                        <input class="doc-no-sync" id="doc_field_ingredient_initials" type="text" value="${escapeHtml(initIngredientInitials)}" placeholder="AOC" autocomplete="off">
                     </div>
                     <div class="doc-no-cell">
                         <label for="doc_field_product_form">产品形式</label>
@@ -788,22 +843,15 @@
                             <option value="果冻和凝胶">果冻和凝胶</option>
                         </select>
                     </div>
-                    <div class="doc-no-cell">
-                        <label for="doc_field_product_code">产品编码</label>
-                        <input class="doc-no-sync" id="doc_field_product_code" type="text" value="${escapeHtml(initPc)}" placeholder="留空则按规则拼接" autocomplete="off">
-                    </div>
                 </div>
                 <p class="doc-no-dosage-hint">剂型代号（自动）：<span id="docPreviewDosage"></span></p>
                 <input type="hidden" id="doc_field_dosage_form_code" value="${escapeHtml(initDosage)}">
+                <input type="hidden" id="doc_field_product_code" value="">
                 <div class="doc-preview-block">
-                    <div class="doc-preview-label">产品编码</div>
-                    <div class="doc-preview-line" id="docPreviewProductCode"></div>
-                    <div class="doc-preview-label">文档编号预览</div>
-                    <div class="doc-preview-line" id="docPreviewRuleDocumentNo"></div>
                     <div class="doc-preview-label">最终文档编号</div>
                     <div class="doc-no-final-row">
                         <div class="doc-no-final-input-wrap">
-                            <input id="doc_field_document_no" type="text" value="${escapeHtml(initDn)}" placeholder="例如 Anna-GS20260511A01-AN1MVD" autocomplete="off">
+                            <input id="doc_field_document_no" type="text" value="${escapeHtml(initDn)}" placeholder="例如 Anna-GS20260512A01-AN311AOCC" autocomplete="off">
                         </div>
                         <button type="button" class="doc-no-regen" id="docNoRegenBtn">重新按规则生成</button>
                     </div>
@@ -880,6 +928,9 @@
             input.value = raw !== null && raw !== undefined ? String(raw) : "";
 
             input.oninput = function () {
+                if (field.required) {
+                    input.classList.toggle("warning-empty", String(input.value || "").trim() === "");
+                }
                 refreshCompositeFromCurrentFields();
                 refreshDescriptionFromCurrentFields();
             };
@@ -1157,16 +1208,24 @@
         return textarea ? textarea.value : "";
     }
 
-    function validateRequiredFields(data) {
+    function markEmptyRequiredFields(data) {
         const missing = [];
 
         visibleFields.forEach(field => {
-            if (field.required) {
-                const value = data[field.key];
+            if (!field.required) {
+                return;
+            }
 
-                if (value === null || value === undefined || String(value).trim() === "") {
-                    missing.push(field.label);
-                }
+            const value = data[field.key];
+            const isEmpty = value === null || value === undefined || String(value).trim() === "";
+            const input = document.getElementById("field_" + field.key);
+
+            if (input) {
+                input.classList.toggle("warning-empty", isEmpty);
+            }
+
+            if (isEmpty) {
+                missing.push(field.label);
             }
         });
 
@@ -1188,14 +1247,7 @@
             return;
         }
 
-        const missing = validateRequiredFields(data);
-
-        if (missing.length > 0) {
-            submitResult.innerHTML = `
-                <p class="error">以下必填字段不能为空：${missing.join("、")}</p>
-            `;
-            return;
-        }
+        markEmptyRequiredFields(data);
 
         generateBtn.disabled = true;
         generateBtn.innerText = "生成中...";
@@ -1225,9 +1277,22 @@
             return;
         }
 
+        const syncPathHtml = result.synced && result.sync_path
+            ? `<p class="sync-path">已同步到：${escapeHtml(result.sync_path)}</p>`
+            : "";
+        const syncErrorHtml = result.sync_error
+            ? `<p class="error">Excel已生成，但同步到本地文件夹失败：${escapeHtml(result.sync_error)}</p>`
+            : "";
+
         submitResult.innerHTML = `
-            <p class="success">Excel生成成功！</p>
-            <a class="download-link" href="${result.download_url}" target="_blank">点击下载Excel</a>
+            <div class="excel-result-row">
+                <div>
+                    <p class="success excel-result-message">Excel生成成功！</p>
+                    ${syncPathHtml}
+                    ${syncErrorHtml}
+                </div>
+                <a class="download-link" href="${result.download_url}" target="_blank">点击下载Excel</a>
+            </div>
         `;
     }
 

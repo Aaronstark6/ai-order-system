@@ -70,8 +70,16 @@ BUILTIN_FIELDS = [
         "enabled": True,
     },
     {
+        "key": "ingredient_initials",
+        "label": "产品成分缩写",
+        "type": "text",
+        "required": False,
+        "description": "人工确认的产品成分英文首字母组合，示例: AOC",
+        "enabled": True,
+    },
+    {
         "key": "product_form",
-        "label": "产品剂型",
+        "label": "产品形式",
         "type": "text",
         "required": False,
         "description": "如：硬胶囊、软胶囊、粉末、滴剂等，用于生成剂型代号",
@@ -90,7 +98,7 @@ BUILTIN_FIELDS = [
         "label": "产品编码",
         "type": "text",
         "required": False,
-        "description": "由业务员代号、中间数字、产品代号、剂型代号按规则拼接；可手动覆盖",
+        "description": "由业务员代号、成交日期月日、产品成分缩写、剂型代号按规则拼接",
         "enabled": True,
     },
 ]

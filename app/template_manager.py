@@ -18,6 +18,7 @@ RESERVED_DOCUMENT_MAPPING_KEYS = frozenset({
     "company_code",
     "deal_date",
     "sequence",
+    "ingredient_initials",
     "product_index_or_day",
     "product_abbr",
     "product_form",
@@ -34,7 +35,7 @@ DEFAULT_DOCUMENT_NO_SETTINGS = {
     "default_company_code": "GS",
     "default_sequence": "A01",
     "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
-    "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}",
+    "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}",
 }
 
 DEFAULT_DESCRIPTION_SETTINGS = {

@@ -1,10 +1,12 @@
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment
 
+from app.config import EXPORT_SYNC_DIR
 from app.template_manager import (
     DEFAULT_DOCUMENT_NO_SETTINGS,
     RESERVED_DOCUMENT_MAPPING_KEYS,
@@ -62,6 +64,14 @@ def format_deal_date_yyyymmdd(value):
     return ""
 
 
+def format_deal_date_month_day(value):
+    yyyymmdd = format_deal_date_yyyymmdd(value)
+    if not yyyymmdd:
+        return ""
+
+    return yyyymmdd[4:].lstrip("0")
+
+
 def get_dosage_form_code(product_form):
     text = str(product_form or "").strip()
     form_code_map = {
@@ -71,12 +81,39 @@ def get_dosage_form_code(product_form):
         "软糖": "G",
         "滴剂": "D",
         "压片": "T",
-        "固体饮料": "P",
+        "片剂": "T",
+        "泡腾片": "E",
+        "固体饮料": "B",
         "粉末": "P",
-        "精油": "O",
+        "精油": "D",
         "凝胶": "N",
+        "果冻和凝胶": "N",
     }
     return form_code_map.get(text, "")
+
+
+def build_product_code(data: dict):
+    salesperson_code = str(data.get("salesperson_code") or "").strip()
+    month_day = format_deal_date_month_day(data.get("deal_date"))
+    ingredient_initials = str(data.get("ingredient_initials") or "").strip().upper()
+    dosage_form_code = get_dosage_form_code(data.get("product_form"))
+
+    data["dosage_form_code"] = dosage_form_code
+    return f"{salesperson_code}{month_day}{ingredient_initials}{dosage_form_code}"
+
+
+def build_document_no(data: dict):
+    yyyymmdd = format_deal_date_yyyymmdd(data.get("deal_date"))
+    if not yyyymmdd:
+        return ""
+
+    product_code = build_product_code(data)
+    data["product_code"] = product_code
+
+    sales_name = str(data.get("sales_name") or "").strip()
+    company_code = str(data.get("company_code") or "").strip()
+    sequence = str(data.get("sequence") or "").strip()
+    return f"{sales_name}-{company_code}{yyyymmdd}{sequence}-{product_code}"
 
 
 def render_placeholder_rule(rule: str, data: dict):
@@ -88,6 +125,8 @@ def render_placeholder_rule(rule: str, data: dict):
         key = match.group(1).strip()
         if key == "deal_date_yyyymmdd":
             value = format_deal_date_yyyymmdd(data.get("deal_date"))
+        elif key == "deal_date_mmdd_no_leading_zero":
+            value = format_deal_date_month_day(data.get("deal_date"))
         else:
             value = data.get(key)
         if value is None:
@@ -239,26 +278,14 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
 
     _apply_document_no_defaults(data, settings)
 
-    manual_dosage = str(data.get("dosage_form_code") or "").strip()
-    if manual_dosage:
-        data["dosage_form_code"] = manual_dosage
-    else:
-        data["dosage_form_code"] = get_dosage_form_code(data.get("product_form"))
-
-    product_code_rule = str(settings.get("product_code_rule") or "").strip() or DEFAULT_DOCUMENT_NO_SETTINGS["product_code_rule"]
-    manual_product_code = str(data.get("product_code") or "").strip()
-    if manual_product_code:
-        product_code = manual_product_code
-    else:
-        product_code = render_placeholder_rule(product_code_rule, data)
+    product_code = build_product_code(data)
     data["product_code"] = product_code
 
-    document_no_rule = str(settings.get("document_no_rule") or "").strip() or DEFAULT_DOCUMENT_NO_SETTINGS["document_no_rule"]
     manual_document_no = str(data.get("document_no") or "").strip()
     if manual_document_no:
         document_no = manual_document_no
     else:
-        document_no = render_placeholder_rule(document_no_rule, data)
+        document_no = build_document_no(data)
     data["document_no"] = document_no
 
     if not mappings and not composite_mappings and not description_settings.get("enabled"):
@@ -363,8 +390,27 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
 
     workbook.save(output_file)
 
+    synced = False
+    sync_path = ""
+    sync_error = ""
+    sync_dir = str(EXPORT_SYNC_DIR or "").strip()
+
+    if sync_dir:
+        try:
+            sync_target_dir = Path(sync_dir).expanduser()
+            sync_target_dir.mkdir(parents=True, exist_ok=True)
+            sync_target_file = sync_target_dir / filename
+            shutil.copy2(output_file, sync_target_file)
+            synced = True
+            sync_path = str(sync_target_file)
+        except Exception as e:
+            sync_error = str(e)
+
     return {
         "success": True,
         "filename": filename,
-        "download_url": f"/api/download/{filename}"
+        "download_url": f"/api/download/{filename}",
+        "synced": synced,
+        "sync_path": sync_path,
+        "sync_error": sync_error
     }

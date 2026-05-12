@@ -116,7 +116,7 @@
     "label": "产品编码",
     "type": "text",
     "required": false,
-    "description": "根据业务员简拼、产品编号、订制品首字母、产品形式编码生成",
+    "description": "根据业务员代号、成交日期月日、产品成分缩写、产品形式编码生成",
     "enabled": true
   },
   {
@@ -149,6 +149,14 @@
     "type": "text",
     "required": false,
     "description": "2个字母，如 MV、PB、OG",
+    "enabled": true
+  },
+  {
+    "key": "ingredient_initials",
+    "label": "产品成分缩写",
+    "type": "text",
+    "required": false,
+    "description": "人工确认的产品成分英文首字母组合，示例: AOC",
     "enabled": true
   },
   {

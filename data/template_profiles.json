@@ -11,14 +11,14 @@
     "composite_mappings": [],
     "document_no_settings": {
       "enabled": true,
-      "document_no_cell": "",
+      "document_no_cell": "C4",
       "use_document_no_as_filename": true,
       "default_sales_name": "Anna",
       "default_salesperson_code": "AN",
       "default_company_code": "GS",
       "default_sequence": "A01",
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
-      "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}"
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
     },
     "mapping_defaults": {
       "customer_name": "李娜",
@@ -56,7 +56,7 @@
       "default_company_code": "GS",
       "default_sequence": "A01",
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
-      "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}"
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
     },
     "mapping_defaults": {},
     "description_settings": {
@@ -80,7 +80,7 @@
       "default_company_code": "GS",
       "default_sequence": "A01",
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
-      "product_code_rule": "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}"
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
     },
     "mapping_defaults": {},
     "description_settings": {

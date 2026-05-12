@@ -275,16 +275,16 @@
     <textarea id="dns_doc_rule" rows="2" placeholder="{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}"></textarea>
 
     <label for="dns_prod_rule">产品编码规则（product_code_rule）</label>
-    <textarea id="dns_prod_rule" rows="2" placeholder="{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}"></textarea>
+    <textarea id="dns_prod_rule" rows="2" placeholder="{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"></textarea>
 
     <div class="field-help">
         <strong>文档编号规则可用占位符：</strong><br>
         {sales_name}、{company_code}、{deal_date_yyyymmdd}、{sequence}、{product_code} 及任意订单字段 key。<br><br>
         <strong>产品编码规则可用占位符：</strong><br>
-        {salesperson_code}、{product_index_or_day}、{product_abbr}、{dosage_form_code} 等。<br><br>
+        {salesperson_code}、{deal_date_mmdd_no_leading_zero}、{ingredient_initials}、{dosage_form_code} 等。<br><br>
         <strong>剂型代码映射（产品剂型 → 代号）：</strong><br>
-        硬胶囊/胶囊=C，软胶囊=S，软糖=G，滴剂=D，压片=T，固体饮料/粉末=P，精油=O，凝胶=N<br><br>
-        <strong>示例文档编号：</strong>Anna-GS20260318A01-AN211CLBD
+        硬胶囊/胶囊=C，软胶囊=S，软糖=G，滴剂=D，粉末=P，凝胶=N，片剂/压片=T，泡腾片=E，固体饮料=B<br><br>
+        <strong>示例文档编号：</strong>Anna-GS20260512A01-AN311AOCC
     </div>
 </div>
 
@@ -303,6 +303,7 @@
         "company_code",
         "deal_date",
         "sequence",
+        "ingredient_initials",
         "product_index_or_day",
         "product_abbr",
         "product_form",
@@ -560,7 +561,7 @@
                 docRule.disabled = true;
             }
             if (prodRule) {
-                prodRule.value = "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}";
+                prodRule.value = "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}";
                 prodRule.disabled = true;
             }
             return;
@@ -599,7 +600,7 @@
             docRule.disabled = false;
         }
         if (prodRule) {
-            prodRule.value = s.product_code_rule || "{salesperson_code}{product_index_or_day}{product_abbr}{dosage_form_code}";
+            prodRule.value = s.product_code_rule || "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}";
             prodRule.disabled = false;
         }
     }
