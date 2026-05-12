@@ -268,17 +268,10 @@
 
         .field-library-add-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 150px minmax(260px, 2fr);
+            grid-template-columns: 1.2fr 1.2fr 0.6fr 1.8fr auto;
             gap: 12px;
             align-items: end;
             margin-bottom: 16px;
-        }
-
-        .field-add-description {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 112px;
-            gap: 12px;
-            align-items: end;
         }
 
         .field-library-add-row input,
@@ -322,6 +315,14 @@
 
         .field-library-table .action-cell {
             white-space: nowrap;
+        }
+
+        .field-library-add-row button {
+            min-width: 112px;
+        }
+
+        .field-library-add-row > button {
+            margin-bottom: 14px;
         }
 
         .system-field-badge {
@@ -441,7 +442,7 @@
             .template-file-row button,
             .export-sync-row button,
             .ai-key-row button,
-            .field-add-description button {
+            .field-library-add-row button {
                 width: 100%;
             }
 
@@ -518,16 +519,11 @@
                 <option value="select">select</option>
             </select>
         </div>
-        <div class="field-add-description">
-            <div>
-                <label for="newFieldDescription">说明</label>
-                <input id="newFieldDescription" placeholder="字段说明">
-            </div>
-            <div>
-                <label>&nbsp;</label>
-                <button type="button" onclick="addLibraryField()">新增字段</button>
-            </div>
+        <div>
+            <label for="newFieldDescription">说明</label>
+            <input id="newFieldDescription" placeholder="字段说明">
         </div>
+        <button type="button" onclick="addLibraryField()">新增字段</button>
     </div>
 
     <table class="field-library-table">
