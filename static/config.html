@@ -265,6 +265,57 @@
             align-items: end;
         }
 
+        .field-library-add-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 150px 2fr auto;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 16px;
+        }
+
+        .field-library-add-row input,
+        .field-library-add-row select,
+        .field-library-add-row button,
+        .field-library-table input,
+        .field-library-table select,
+        .field-library-table button {
+            height: 38px;
+            box-sizing: border-box;
+        }
+
+        .field-library-table input,
+        .field-library-table select {
+            width: 100%;
+            margin: 0;
+            padding: 6px 7px;
+        }
+
+        .field-library-table td,
+        .field-library-table th {
+            padding: 7px 8px;
+        }
+
+        .field-library-table th:nth-child(1),
+        .field-library-table th:nth-child(2),
+        .field-library-table td:nth-child(1),
+        .field-library-table td:nth-child(2) {
+            width: 42px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .field-library-table input[type="checkbox"] {
+            width: auto;
+            height: auto;
+            margin: 0;
+            transform: scale(1);
+            vertical-align: middle;
+        }
+
+        .field-library-table .action-cell {
+            white-space: nowrap;
+        }
+
         .full-row {
             grid-column: 1 / -1;
         }
@@ -360,6 +411,7 @@
             .doc-no-settings-grid,
             .export-sync-row,
             .ai-key-row,
+            .field-library-add-row,
             .settings-grid,
             .grid-3,
             .grid-4 {
@@ -424,9 +476,36 @@
 </div>
 
 <div class="card">
-    <h2>普通字段单元格设置</h2>
+    <h2>普通字段设置</h2>
 
-    <table>
+    <p class="tips">使用：当前模板是否使用该字段。勾选后会显示在首页确认区，并写入 Excel。</p>
+
+    <div class="field-library-add-row">
+        <div>
+            <label for="newFieldLabel">中文名</label>
+            <input id="newFieldLabel" placeholder="例如：客户名称">
+        </div>
+        <div>
+            <label for="newFieldKey">Key</label>
+            <input id="newFieldKey" placeholder="customer_name">
+        </div>
+        <div>
+            <label for="newFieldType">类型</label>
+            <select id="newFieldType">
+                <option value="text">text</option>
+                <option value="number">number</option>
+                <option value="date">date</option>
+                <option value="select">select</option>
+            </select>
+        </div>
+        <div>
+            <label for="newFieldDescription">说明</label>
+            <input id="newFieldDescription" placeholder="字段说明">
+        </div>
+        <button type="button" onclick="addLibraryField()">新增字段</button>
+    </div>
+
+    <table class="field-library-table">
         <thead>
         <tr>
             <th>使用</th>
@@ -437,10 +516,12 @@
             <th>说明</th>
             <th>Excel单元格</th>
             <th>默认值</th>
+            <th>操作</th>
         </tr>
         </thead>
         <tbody id="fieldTable"></tbody>
     </table>
+    <div id="fieldSettingsResult"></div>
 </div>
 
 <div class="card">
@@ -576,6 +657,7 @@
         "product_code",
         "dosage_form_code"
     ]);
+    let allFields = [];
     let fields = [];
     let profiles = [];
     let currentProfile = null;
@@ -611,7 +693,125 @@
             return;
         }
 
-        fields = (result.fields || []).filter(field => field.enabled !== false);
+        allFields = result.fields || [];
+        fields = allFields;
+    }
+
+    async function reloadFieldsAndRefresh() {
+        await loadFields();
+        renderFieldTable();
+    }
+
+    async function addLibraryField() {
+        const resultDiv = document.getElementById("fieldSettingsResult");
+        const label = document.getElementById("newFieldLabel").value.trim();
+        const key = document.getElementById("newFieldKey").value.trim();
+        const type = document.getElementById("newFieldType").value;
+        const description = document.getElementById("newFieldDescription").value.trim();
+
+        resultDiv.innerHTML = "";
+        const response = await fetch("/api/fields", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                label,
+                key,
+                type,
+                description
+            })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "新增失败")}</p>`;
+            return;
+        }
+
+        document.getElementById("newFieldLabel").value = "";
+        document.getElementById("newFieldKey").value = "";
+        document.getElementById("newFieldDescription").value = "";
+        await reloadFieldsAndRefresh();
+        resultDiv.innerHTML = `<p class="success">字段已新增</p>`;
+    }
+
+    async function saveLibraryField(oldKey) {
+        const resultDiv = document.getElementById("fieldSettingsResult");
+        const label = document.getElementById("lib_label_" + oldKey).value.trim();
+        const key = document.getElementById("lib_key_" + oldKey).value.trim();
+        const type = document.getElementById("lib_type_" + oldKey).value;
+        const description = document.getElementById("lib_desc_" + oldKey).value.trim();
+
+        resultDiv.innerHTML = "";
+        const response = await fetch(`/api/fields/${encodeURIComponent(oldKey)}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                label,
+                key,
+                type,
+                description
+            })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "保存失败")}</p>`;
+            return;
+        }
+
+        if (currentProfile && key && key !== oldKey) {
+            if (currentProfile.mappings && Object.prototype.hasOwnProperty.call(currentProfile.mappings, oldKey)) {
+                currentProfile.mappings[key] = currentProfile.mappings[oldKey];
+                delete currentProfile.mappings[oldKey];
+            }
+            if (currentProfile.mapping_defaults && Object.prototype.hasOwnProperty.call(currentProfile.mapping_defaults, oldKey)) {
+                currentProfile.mapping_defaults[key] = currentProfile.mapping_defaults[oldKey];
+                delete currentProfile.mapping_defaults[oldKey];
+            }
+            if (Array.isArray(currentProfile.mapping_order)) {
+                currentProfile.mapping_order = currentProfile.mapping_order.map(item => item === oldKey ? key : item);
+            }
+        }
+
+        await reloadFieldsAndRefresh();
+        resultDiv.innerHTML = `<p class="success">字段已保存</p>`;
+    }
+
+    async function deleteLibraryField(key) {
+        const resultDiv = document.getElementById("fieldSettingsResult");
+        if (!confirm("确定要删除字段：" + key + " 吗？")) {
+            return;
+        }
+
+        resultDiv.innerHTML = "";
+        const response = await fetch(`/api/fields/${encodeURIComponent(key)}`, {
+            method: "DELETE"
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "删除失败")}</p>`;
+            return;
+        }
+
+        if (currentProfile) {
+            if (currentProfile.mappings) {
+                delete currentProfile.mappings[key];
+            }
+            if (currentProfile.mapping_defaults) {
+                delete currentProfile.mapping_defaults[key];
+            }
+            if (Array.isArray(currentProfile.mapping_order)) {
+                currentProfile.mapping_order = currentProfile.mapping_order.filter(item => item !== key);
+            }
+        }
+
+        await reloadFieldsAndRefresh();
+        resultDiv.innerHTML = `<p class="success">字段已删除</p>`;
     }
 
     async function loadProfiles() {
@@ -1023,19 +1223,14 @@
         const mappingDefaults = currentProfile ? (currentProfile.mapping_defaults || {}) : {};
         const mappingOrder = currentProfile && Array.isArray(currentProfile.mapping_order) ? currentProfile.mapping_order : [];
         const orderIndex = new Map(mappingOrder.map((key, index) => [key, index]));
-        const normalFields = fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key));
+        const normalFields = allFields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key));
         normalFields.sort((a, b) => {
-            const aUsed = mappings[a.key] ? 0 : 1;
-            const bUsed = mappings[b.key] ? 0 : 1;
-            if (aUsed !== bUsed) {
-                return aUsed - bUsed;
-            }
             const aOrder = orderIndex.has(a.key) ? orderIndex.get(a.key) : 9999;
             const bOrder = orderIndex.has(b.key) ? orderIndex.get(b.key) : 9999;
             if (aOrder !== bOrder) {
                 return aOrder - bOrder;
             }
-            return fields.findIndex(field => field.key === a.key) - fields.findIndex(field => field.key === b.key);
+            return allFields.findIndex(field => field.key === a.key) - allFields.findIndex(field => field.key === b.key);
         });
 
         normalFields.forEach(field => {
@@ -1045,7 +1240,7 @@
 
             const tr = document.createElement("tr");
             tr.dataset.fieldKey = field.key;
-            tr.draggable = Boolean(currentProfile && used);
+            tr.draggable = Boolean(currentProfile);
             tr.addEventListener("dragstart", handleFieldDragStart);
             tr.addEventListener("dragover", handleFieldDragOver);
             tr.addEventListener("dragleave", handleFieldDragLeave);
@@ -1063,10 +1258,17 @@
                     >
                 </td>
                 <td><span class="drag-handle" title="拖动排序">☰</span></td>
-                <td>${field.label}</td>
-                <td>${field.key}</td>
-                <td>${field.type}</td>
-                <td>${field.description || ""}</td>
+                <td><input id="lib_label_${field.key}" value="${escapeHtml(field.label || "")}"></td>
+                <td><input id="lib_key_${field.key}" value="${escapeHtml(field.key || "")}"></td>
+                <td>
+                    <select id="lib_type_${field.key}">
+                        <option value="text" ${field.type === "text" ? "selected" : ""}>text</option>
+                        <option value="number" ${field.type === "number" ? "selected" : ""}>number</option>
+                        <option value="date" ${field.type === "date" ? "selected" : ""}>date</option>
+                        <option value="select" ${field.type === "select" ? "selected" : ""}>select</option>
+                    </select>
+                </td>
+                <td><input id="lib_desc_${field.key}" value="${escapeHtml(field.description || "")}"></td>
                 <td>
                     <input
                         class="small-input"
@@ -1084,6 +1286,10 @@
                         placeholder="首页预填"
                         ${currentProfile && used ? "" : "disabled"}
                     >
+                </td>
+                <td class="action-cell">
+                    <button type="button" onclick="saveLibraryField('${field.key}')">保存字段</button>
+                    <button class="delete" type="button" onclick="deleteLibraryField('${field.key}')">删除字段</button>
                 </td>
             `;
 
@@ -1114,25 +1320,20 @@
         }
 
         if (row) {
-            row.draggable = checkbox.checked;
+            row.draggable = Boolean(currentProfile);
         }
     }
 
     function getCurrentMappingOrderFromTable() {
         return Array.from(document.querySelectorAll("#fieldTable tr"))
             .map(row => row.dataset.fieldKey)
-            .filter(key => {
-                const checkbox = document.getElementById("use_" + key);
-                const input = document.getElementById("mapping_" + key);
-                return checkbox && checkbox.checked && input && input.value.trim();
-            });
+            .filter(Boolean);
     }
 
     function handleFieldDragStart(event) {
         const row = event.currentTarget;
         const key = row.dataset.fieldKey || "";
-        const checkbox = document.getElementById("use_" + key);
-        if (!checkbox || !checkbox.checked) {
+        if (!currentProfile) {
             event.preventDefault();
             return;
         }

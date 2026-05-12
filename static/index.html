@@ -498,7 +498,7 @@
             return;
         }
 
-        allFields = (result.fields || []).filter(field => field.enabled !== false);
+        allFields = result.fields || [];
     }
 
     async function loadProfiles() {

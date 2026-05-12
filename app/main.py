@@ -18,7 +18,6 @@ from app.field_library import (
     load_fields,
     add_field,
     update_field,
-    toggle_field_enabled,
     delete_field
 )
 from app.ai_parser import parse_message, generate_description_from_message
@@ -88,14 +87,6 @@ def api_add_field(field: dict):
 def api_update_field(key: str, field: dict):
     try:
         return {"success": True, "field": update_field(key, field)}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.post("/api/fields/{key}/toggle")
-def api_toggle_field(key: str):
-    try:
-        return {"success": True, "field": toggle_field_enabled(key)}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

@@ -11,7 +11,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "根据规则自动生成的文档编号，可作为Excel文件名",
-        "enabled": True,
     },
     {
         "key": "sales_name",
@@ -19,7 +18,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "示例: Anna",
-        "enabled": True,
     },
     {
         "key": "salesperson_code",
@@ -27,7 +25,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "2个字母，示例: AN、MD、CR",
-        "enabled": True,
     },
     {
         "key": "company_code",
@@ -35,7 +32,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "示例: GS",
-        "enabled": True,
     },
     {
         "key": "deal_date",
@@ -43,7 +39,6 @@ BUILTIN_FIELDS = [
         "type": "date",
         "required": False,
         "description": "示例: 2026-03-18，默认可为当天",
-        "enabled": True,
     },
     {
         "key": "sequence",
@@ -51,7 +46,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "示例: A01",
-        "enabled": True,
     },
     {
         "key": "product_index_or_day",
@@ -59,7 +53,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "1-2位，可为产品序号或成交日中的日等",
-        "enabled": True,
     },
     {
         "key": "product_abbr",
@@ -67,7 +60,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "2个字母，如 MV、PB、OG",
-        "enabled": True,
     },
     {
         "key": "ingredient_initials",
@@ -75,7 +67,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "人工确认的产品成分英文首字母组合，示例: AOC",
-        "enabled": True,
     },
     {
         "key": "product_form",
@@ -83,7 +74,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "如：硬胶囊、软胶囊、粉末、滴剂等，用于生成剂型代号",
-        "enabled": True,
     },
     {
         "key": "dosage_form_code",
@@ -91,7 +81,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "根据产品剂型自动映射生成",
-        "enabled": True,
     },
     {
         "key": "product_code",
@@ -99,7 +88,6 @@ BUILTIN_FIELDS = [
         "type": "text",
         "required": False,
         "description": "由业务员代号、成交日期月日、产品成分缩写、剂型代号按规则拼接",
-        "enabled": True,
     },
 ]
 
@@ -140,11 +128,6 @@ def save_fields(fields):
         json.dump(fields, f, ensure_ascii=False, indent=2)
 
 
-def get_enabled_fields():
-    fields = load_fields()
-    return [field for field in fields if field.get("enabled", True)]
-
-
 def add_field(new_field):
     fields = load_fields()
 
@@ -162,8 +145,7 @@ def add_field(new_field):
         "label": new_field.get("label", "").strip(),
         "type": new_field.get("type", "text"),
         "required": bool(new_field.get("required", False)),
-        "description": new_field.get("description", "").strip(),
-        "enabled": bool(new_field.get("enabled", True))
+        "description": new_field.get("description", "").strip()
     }
 
     if not normalized_field["label"]:
@@ -180,29 +162,24 @@ def update_field(key, updated_data):
 
     for field in fields:
         if field.get("key") == key:
+            new_key = str(updated_data.get("key", key) or "").strip()
             label = updated_data.get("label", field.get("label", "")).strip()
+
+            if not new_key:
+                raise ValueError("字段 key 不能为空")
+
+            if new_key != key and any(item.get("key") == new_key for item in fields):
+                raise ValueError("字段 key 已存在")
 
             if not label:
                 raise ValueError("字段中文名不能为空")
 
+            field["key"] = new_key
             field["label"] = label
             field["type"] = updated_data.get("type", field.get("type", "text"))
             field["required"] = bool(updated_data.get("required", field.get("required", False)))
             field["description"] = updated_data.get("description", field.get("description", "")).strip()
-            field["enabled"] = bool(updated_data.get("enabled", field.get("enabled", True)))
 
-            save_fields(fields)
-            return field
-
-    raise ValueError("字段不存在")
-
-
-def toggle_field_enabled(key):
-    fields = load_fields()
-
-    for field in fields:
-        if field.get("key") == key:
-            field["enabled"] = not field.get("enabled", True)
             save_fields(fields)
             return field
 
