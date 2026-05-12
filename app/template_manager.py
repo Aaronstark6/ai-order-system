@@ -154,6 +154,17 @@ def normalize_profile(profile: dict):
         del profile["document_no_rule"]
 
     profile["mappings"] = _strip_reserved_from_mappings(profile.get("mappings") or {})
+    mapping_keys = set(profile["mappings"].keys())
+    raw_order = profile.get("mapping_order") if isinstance(profile.get("mapping_order"), list) else []
+    clean_order = []
+    for key in raw_order:
+        key = str(key or "").strip()
+        if key and key in mapping_keys and key not in clean_order:
+            clean_order.append(key)
+    for key in profile["mappings"].keys():
+        if key not in clean_order:
+            clean_order.append(key)
+    profile["mapping_order"] = clean_order
 
     if "mapping_defaults" not in profile or not isinstance(profile.get("mapping_defaults"), dict):
         profile["mapping_defaults"] = {}
@@ -212,6 +223,7 @@ def create_profile(name: str):
         "name": name,
         "template_file": "",
         "mappings": {},
+        "mapping_order": [],
         "mapping_defaults": {},
         "composite_mappings": [],
         "document_no_settings": deepcopy(DEFAULT_DOCUMENT_NO_SETTINGS),
@@ -257,6 +269,7 @@ def update_profile_mappings(
     document_no_settings=None,
     mapping_defaults=None,
     description_settings=None,
+    mapping_order=None,
 ):
     profiles = load_profiles()
 
@@ -289,6 +302,16 @@ def update_profile_mappings(
                     })
 
             profile["mappings"] = clean_mappings
+            clean_order = []
+            if isinstance(mapping_order, list):
+                for key in mapping_order:
+                    key = str(key or "").strip()
+                    if key in clean_mappings and key not in clean_order:
+                        clean_order.append(key)
+            for key in clean_mappings.keys():
+                if key not in clean_order:
+                    clean_order.append(key)
+            profile["mapping_order"] = clean_order
             profile["composite_mappings"] = clean_composite_mappings
 
             if mapping_defaults is not None:

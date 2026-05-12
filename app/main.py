@@ -1,9 +1,11 @@
 from pathlib import Path
+import shutil
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.app_settings import load_app_settings, save_app_settings, get_export_sync_dir
 from app.field_library import (
     load_fields,
     add_field,
@@ -139,8 +141,22 @@ def api_update_mappings(profile_id: str, data: dict):
                 document_no_settings=data.get("document_no_settings"),
                 mapping_defaults=data.get("mapping_defaults"),
                 description_settings=data.get("description_settings"),
+                mapping_order=data.get("mapping_order"),
             )
         }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/app-settings")
+def api_get_app_settings():
+    return {"success": True, "settings": load_app_settings()}
+
+
+@app.post("/api/app-settings")
+def api_save_app_settings(data: dict):
+    try:
+        return {"success": True, "settings": save_app_settings(data)}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -250,6 +266,36 @@ def api_generate_excel(data: dict):
         return {"success": False, "error": str(e)}
 
 
+@app.post("/api/sync-output")
+def api_sync_output(data: dict):
+    try:
+        filename = Path(str(data.get("filename") or "")).name
+        if not filename:
+            return {"success": False, "error": "filename不能为空"}
+
+        source_file = OUTPUT_DIR / filename
+        if not source_file.exists():
+            return {"success": False, "error": "输出文件不存在，请先生成 Excel"}
+
+        export_sync_dir = str(get_export_sync_dir() or "").strip()
+        if not export_sync_dir:
+            return {"success": False, "error": "请先在配置中心设置 Excel 同步文件夹路径"}
+
+        target_dir = Path(export_sync_dir).expanduser()
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_file = target_dir / filename
+        shutil.copy2(source_file, target_file)
+
+        return {
+            "success": True,
+            "synced": True,
+            "sync_path": str(target_file)
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.get("/api/download/{filename}")
 def api_download(filename: str):
-    return FileResponse(OUTPUT_DIR / filename)
+    safe_filename = Path(str(filename or "")).name
+    return FileResponse(OUTPUT_DIR / safe_filename)

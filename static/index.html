@@ -104,6 +104,7 @@
 
         button:disabled {
             background: #aaa;
+            color: #777;
             cursor: not-allowed;
         }
 
@@ -111,16 +112,6 @@
             color: #999;
             font-size: 13px;
             margin-left: 6px;
-        }
-
-        .required {
-            color: red;
-            margin-left: 4px;
-        }
-
-        .warning-empty {
-            border-color: #f59e0b !important;
-            background: #fffbea !important;
         }
 
         .tips {
@@ -195,6 +186,24 @@
             padding: 18px;
             border-radius: 6px;
             margin-top: 15px;
+        }
+
+        .normal-fields-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .normal-field-item {
+            min-width: 0;
+        }
+
+        .normal-field-item label {
+            margin-top: 0;
+        }
+
+        .normal-field-item input {
+            margin-bottom: 0;
         }
 
         .doc-no-card {
@@ -323,7 +332,7 @@
             font-size: 13px;
         }
 
-        .excel-result-row {
+        .excel-action-row {
             display: flex;
             align-items: center;
             gap: 12px;
@@ -331,8 +340,33 @@
             flex-wrap: wrap;
         }
 
-        .excel-result-row .download-link {
-            margin-top: 0;
+        .action-btn {
+            background: #1677ff;
+            border: 1px solid #1677ff;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: #0958d9;
+            border-color: #0958d9;
+        }
+
+        .action-btn:disabled,
+        .action-btn.disabled {
+            background: #d1d5db !important;
+            border-color: #d1d5db !important;
+            color: #6b7280 !important;
+            cursor: not-allowed !important;
+            opacity: 1 !important;
+            box-shadow: none !important;
+        }
+
+        .action-btn:disabled:hover,
+        .action-btn.disabled:hover {
+            background: #d1d5db !important;
+            border-color: #d1d5db !important;
+            color: #6b7280 !important;
         }
 
         .excel-result-message {
@@ -371,6 +405,10 @@
             .doc-no-final-row {
                 flex-direction: column;
                 align-items: stretch;
+            }
+
+            .normal-fields-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -415,9 +453,17 @@
 
         <div id="compositeConfirmArea"></div>
 
-        <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
-            确认生成Excel
-        </button>
+        <div class="excel-action-row">
+            <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
+                确认生成Excel
+            </button>
+            <button id="downloadExcelBtn" class="action-btn" onclick="downloadCurrentExcel()" type="button" disabled>
+                点击下载Excel
+            </button>
+            <button id="syncExcelBtn" class="action-btn" onclick="syncCurrentExcel()" type="button" disabled>
+                同步到指定文件夹
+            </button>
+        </div>
         <p class="generate-tip">部分字段为空时仍可导出，请人工确认内容完整性。</p>
 
         <div id="submitResult"></div>
@@ -444,6 +490,8 @@
     let visibleFields = [];
     let profiles = [];
     let parsedData = {};
+    let currentGeneratedFilename = "";
+    let currentDownloadUrl = "";
 
     async function loadInitialData() {
         await loadFields();
@@ -453,6 +501,7 @@
         renderForm({});
         renderDescriptionArea(mergeDataWithMappingDefaults({}));
         renderCompositeArea(mergeDataWithMappingDefaults({}));
+        resetExcelActions();
     }
 
     async function loadFields() {
@@ -498,6 +547,7 @@
             });
             renderCompositeArea(mergeDataWithMappingDefaults(parsedData));
             document.getElementById("submitResult").innerHTML = "";
+            resetExcelActions();
         };
 
         if (profiles.length > 0) {
@@ -565,9 +615,24 @@
         const compositeKeys = extractKeysFromCompositeTemplates(profile);
         compositeKeys.forEach(key => usedKeys.add(key));
 
+        const mappingOrder = Array.isArray(profile.mapping_order) ? profile.mapping_order : [];
+        const orderIndex = new Map(mappingOrder.map((key, index) => [key, index]));
+
         visibleFields = allFields.filter(
             field => usedKeys.has(field.key) && !docKeySet.has(field.key)
-        );
+        ).sort((a, b) => {
+            const aMapped = mappings[a.key] ? 0 : 1;
+            const bMapped = mappings[b.key] ? 0 : 1;
+            if (aMapped !== bMapped) {
+                return aMapped - bMapped;
+            }
+            const aOrder = orderIndex.has(a.key) ? orderIndex.get(a.key) : 9999;
+            const bOrder = orderIndex.has(b.key) ? orderIndex.get(b.key) : 9999;
+            if (aOrder !== bOrder) {
+                return aOrder - bOrder;
+            }
+            return allFields.findIndex(field => field.key === a.key) - allFields.findIndex(field => field.key === b.key);
+        });
     }
 
     function updateProfileTips() {
@@ -902,13 +967,19 @@
         title.innerText = "普通字段确认";
         form.appendChild(title);
 
+        const grid = document.createElement("div");
+        grid.className = "normal-fields-grid";
+        form.appendChild(grid);
+
         visibleFields.forEach(field => {
+            const item = document.createElement("div");
+            item.className = "normal-field-item";
+
             const label = document.createElement("label");
 
             label.innerHTML = `
                 ${field.label}
                 <span class="field-key">(${field.key})</span>
-                ${field.required ? '<span class="required">*</span>' : ''}
             `;
 
             const input = document.createElement("input");
@@ -928,15 +999,13 @@
             input.value = raw !== null && raw !== undefined ? String(raw) : "";
 
             input.oninput = function () {
-                if (field.required) {
-                    input.classList.toggle("warning-empty", String(input.value || "").trim() === "");
-                }
                 refreshCompositeFromCurrentFields();
                 refreshDescriptionFromCurrentFields();
             };
 
-            form.appendChild(label);
-            form.appendChild(input);
+            item.appendChild(label);
+            item.appendChild(input);
+            grid.appendChild(item);
         });
     }
 
@@ -1113,6 +1182,7 @@
 
         errorDiv.innerText = "";
         submitResult.innerHTML = "";
+        resetExcelActions();
 
         if (!message) {
             errorDiv.innerText = "请输入客户聊天内容";
@@ -1203,33 +1273,51 @@
         return values;
     }
 
+    function resetExcelActions() {
+        currentGeneratedFilename = "";
+        currentDownloadUrl = "";
+
+        const downloadBtn = document.getElementById("downloadExcelBtn");
+        const syncBtn = document.getElementById("syncExcelBtn");
+
+        if (downloadBtn) {
+            downloadBtn.disabled = true;
+            downloadBtn.classList.add("disabled");
+            downloadBtn.setAttribute("aria-disabled", "true");
+        }
+        if (syncBtn) {
+            syncBtn.disabled = true;
+        }
+    }
+
+    function enableExcelActions(result) {
+        currentGeneratedFilename = result.filename || "";
+        currentDownloadUrl = result.download_url || "";
+
+        const downloadBtn = document.getElementById("downloadExcelBtn");
+        const syncBtn = document.getElementById("syncExcelBtn");
+
+        if (downloadBtn && currentDownloadUrl) {
+            downloadBtn.disabled = false;
+            downloadBtn.classList.remove("disabled");
+            downloadBtn.setAttribute("aria-disabled", "false");
+        }
+        if (syncBtn && currentGeneratedFilename) {
+            syncBtn.disabled = false;
+        }
+    }
+
+    function downloadCurrentExcel() {
+        if (!currentDownloadUrl) {
+            return;
+        }
+
+        window.open(currentDownloadUrl, "_blank");
+    }
+
     function collectDescriptionText() {
         const textarea = document.getElementById("description_text");
         return textarea ? textarea.value : "";
-    }
-
-    function markEmptyRequiredFields(data) {
-        const missing = [];
-
-        visibleFields.forEach(field => {
-            if (!field.required) {
-                return;
-            }
-
-            const value = data[field.key];
-            const isEmpty = value === null || value === undefined || String(value).trim() === "";
-            const input = document.getElementById("field_" + field.key);
-
-            if (input) {
-                input.classList.toggle("warning-empty", isEmpty);
-            }
-
-            if (isEmpty) {
-                missing.push(field.label);
-            }
-        });
-
-        return missing;
     }
 
     async function submitOrder() {
@@ -1241,13 +1329,12 @@
         const generateBtn = document.getElementById("generateBtn");
 
         submitResult.innerHTML = "";
+        resetExcelActions();
 
         if (!profileId) {
             submitResult.innerHTML = `<p class="error">请先选择模板映射</p>`;
             return;
         }
-
-        markEmptyRequiredFields(data);
 
         generateBtn.disabled = true;
         generateBtn.innerText = "生成中...";
@@ -1277,6 +1364,8 @@
             return;
         }
 
+        enableExcelActions(result);
+
         const syncPathHtml = result.synced && result.sync_path
             ? `<p class="sync-path">已同步到：${escapeHtml(result.sync_path)}</p>`
             : "";
@@ -1285,14 +1374,56 @@
             : "";
 
         submitResult.innerHTML = `
-            <div class="excel-result-row">
-                <div>
-                    <p class="success excel-result-message">Excel生成成功！</p>
-                    ${syncPathHtml}
-                    ${syncErrorHtml}
-                </div>
-                <a class="download-link" href="${result.download_url}" target="_blank">点击下载Excel</a>
-            </div>
+            <p class="success excel-result-message">Excel生成成功！</p>
+            ${syncPathHtml}
+            ${syncErrorHtml}
+        `;
+    }
+
+    async function syncCurrentExcel() {
+        const submitResult = document.getElementById("submitResult");
+        const syncBtn = document.getElementById("syncExcelBtn");
+
+        if (!currentGeneratedFilename) {
+            if (submitResult) {
+                submitResult.innerHTML = `<p class="error">请先生成 Excel</p>`;
+            }
+            return;
+        }
+
+        if (syncBtn) {
+            syncBtn.disabled = true;
+            syncBtn.innerText = "同步中...";
+        }
+
+        const response = await fetch("/api/sync-output", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                filename: currentGeneratedFilename
+            })
+        });
+        const result = await response.json();
+
+        if (syncBtn) {
+            syncBtn.disabled = false;
+            syncBtn.innerText = "同步到指定文件夹";
+        }
+
+        if (!submitResult) {
+            return;
+        }
+
+        if (!result.success) {
+            submitResult.innerHTML = `<p class="error">${escapeHtml(result.error || "同步失败")}</p>`;
+            return;
+        }
+
+        submitResult.innerHTML = `
+            <p class="success excel-result-message">同步成功！</p>
+            <p class="sync-path">已同步到：${escapeHtml(result.sync_path || "")}</p>
         `;
     }
 

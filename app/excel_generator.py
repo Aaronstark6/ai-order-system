@@ -6,7 +6,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment
 
-from app.config import EXPORT_SYNC_DIR
+from app.app_settings import get_export_sync_dir
 from app.template_manager import (
     DEFAULT_DOCUMENT_NO_SETTINGS,
     RESERVED_DOCUMENT_MAPPING_KEYS,
@@ -393,7 +393,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
     synced = False
     sync_path = ""
     sync_error = ""
-    sync_dir = str(EXPORT_SYNC_DIR or "").strip()
+    sync_dir = str(get_export_sync_dir() or "").strip()
 
     if sync_dir:
         try:
@@ -409,6 +409,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
     return {
         "success": True,
         "filename": filename,
+        "output_path": str(output_file),
         "download_url": f"/api/download/{filename}",
         "synced": synced,
         "sync_path": sync_path,

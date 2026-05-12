@@ -152,6 +152,22 @@
             max-height: 160px;
             overflow-y: auto;
         }
+
+        .drag-handle {
+            cursor: grab;
+            color: #666;
+            font-size: 18px;
+            user-select: none;
+        }
+
+        tr.dragging {
+            opacity: 0.45;
+        }
+
+        tr.drag-over {
+            outline: 2px dashed #1677ff;
+            outline-offset: -2px;
+        }
     </style>
 </head>
 <body>
@@ -194,10 +210,10 @@
         <thead>
         <tr>
             <th>使用</th>
+            <th>排序</th>
             <th>中文名</th>
             <th>Key</th>
             <th>类型</th>
-            <th>必填</th>
             <th>说明</th>
             <th>Excel单元格</th>
             <th>默认值</th>
@@ -289,6 +305,19 @@
 </div>
 
 <div class="card">
+    <h2>本地导出设置</h2>
+    <p class="tips">
+        生成 Excel 后可自动复制一份到该文件夹；如果为空，则只保留下载功能。
+    </p>
+
+    <label for="export_sync_dir">Excel同步文件夹路径</label>
+    <input id="export_sync_dir" placeholder="D:/订单输出">
+
+    <button type="button" onclick="saveAppSettings()">保存本地导出设置</button>
+    <div id="appSettingsResult"></div>
+</div>
+
+<div class="card">
     <button class="save" onclick="saveCurrentMappings()">保存当前映射</button>
     <a href="/config/fields" style="margin-left: 15px;">字段库管理</a>
 
@@ -314,14 +343,18 @@
     let profiles = [];
     let currentProfile = null;
     let descriptionTemplateNames = [];
+    let appSettings = { export_sync_dir: "" };
+    let draggedFieldKey = "";
 
     async function loadAll() {
         await loadFields();
+        await loadAppSettings();
         await loadDescriptionTemplates();
         await loadProfiles();
         renderProfileSelect();
         selectProfile();
         renderFieldHelp();
+        renderAppSettings();
     }
 
     async function loadFields() {
@@ -346,6 +379,57 @@
         }
 
         profiles = result.profiles || [];
+    }
+
+    async function loadAppSettings() {
+        const response = await fetch("/api/app-settings");
+        const result = await response.json();
+
+        if (!result.success) {
+            appSettings = { export_sync_dir: "" };
+            return;
+        }
+
+        appSettings = result.settings || { export_sync_dir: "" };
+    }
+
+    function renderAppSettings() {
+        const input = document.getElementById("export_sync_dir");
+        if (input) {
+            input.value = appSettings.export_sync_dir || "";
+        }
+    }
+
+    async function saveAppSettings() {
+        const input = document.getElementById("export_sync_dir");
+        const resultDiv = document.getElementById("appSettingsResult");
+        if (resultDiv) {
+            resultDiv.innerHTML = "";
+        }
+
+        const response = await fetch("/api/app-settings", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                export_sync_dir: input ? input.value.trim() : ""
+            })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${result.error || "保存失败"}</p>`;
+            }
+            return;
+        }
+
+        appSettings = result.settings || { export_sync_dir: "" };
+        renderAppSettings();
+        if (resultDiv) {
+            resultDiv.innerHTML = `<p class="success">本地导出设置已保存</p>`;
+        }
     }
 
     async function loadDescriptionTemplates() {
@@ -424,13 +508,36 @@
 
         const mappings = currentProfile ? (currentProfile.mappings || {}) : {};
         const mappingDefaults = currentProfile ? (currentProfile.mapping_defaults || {}) : {};
+        const mappingOrder = currentProfile && Array.isArray(currentProfile.mapping_order) ? currentProfile.mapping_order : [];
+        const orderIndex = new Map(mappingOrder.map((key, index) => [key, index]));
+        const normalFields = fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key));
+        normalFields.sort((a, b) => {
+            const aUsed = mappings[a.key] ? 0 : 1;
+            const bUsed = mappings[b.key] ? 0 : 1;
+            if (aUsed !== bUsed) {
+                return aUsed - bUsed;
+            }
+            const aOrder = orderIndex.has(a.key) ? orderIndex.get(a.key) : 9999;
+            const bOrder = orderIndex.has(b.key) ? orderIndex.get(b.key) : 9999;
+            if (aOrder !== bOrder) {
+                return aOrder - bOrder;
+            }
+            return fields.findIndex(field => field.key === a.key) - fields.findIndex(field => field.key === b.key);
+        });
 
-        fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
+        normalFields.forEach(field => {
             const used = mappings[field.key] ? true : false;
             const cellValue = mappings[field.key] || "";
             const defVal = mappingDefaults[field.key] != null ? String(mappingDefaults[field.key]) : "";
 
             const tr = document.createElement("tr");
+            tr.dataset.fieldKey = field.key;
+            tr.draggable = Boolean(currentProfile && used);
+            tr.addEventListener("dragstart", handleFieldDragStart);
+            tr.addEventListener("dragover", handleFieldDragOver);
+            tr.addEventListener("dragleave", handleFieldDragLeave);
+            tr.addEventListener("drop", handleFieldDrop);
+            tr.addEventListener("dragend", handleFieldDragEnd);
 
             tr.innerHTML = `
                 <td>
@@ -442,10 +549,10 @@
                         onchange="toggleFieldUse('${field.key}')"
                     >
                 </td>
+                <td><span class="drag-handle" title="拖动排序">☰</span></td>
                 <td>${field.label}</td>
                 <td>${field.key}</td>
                 <td>${field.type}</td>
-                <td>${field.required ? "是" : "否"}</td>
                 <td>${field.description || ""}</td>
                 <td>
                     <input
@@ -475,6 +582,7 @@
         const checkbox = document.getElementById("use_" + key);
         const input = document.getElementById("mapping_" + key);
         const defInput = document.getElementById("default_" + key);
+        const row = checkbox ? checkbox.closest("tr") : null;
 
         if (!checkbox || !input) {
             return;
@@ -491,6 +599,77 @@
                 defInput.value = "";
             }
         }
+
+        if (row) {
+            row.draggable = checkbox.checked;
+        }
+    }
+
+    function getCurrentMappingOrderFromTable() {
+        return Array.from(document.querySelectorAll("#fieldTable tr"))
+            .map(row => row.dataset.fieldKey)
+            .filter(key => {
+                const checkbox = document.getElementById("use_" + key);
+                const input = document.getElementById("mapping_" + key);
+                return checkbox && checkbox.checked && input && input.value.trim();
+            });
+    }
+
+    function handleFieldDragStart(event) {
+        const row = event.currentTarget;
+        const key = row.dataset.fieldKey || "";
+        const checkbox = document.getElementById("use_" + key);
+        if (!checkbox || !checkbox.checked) {
+            event.preventDefault();
+            return;
+        }
+
+        draggedFieldKey = key;
+        row.classList.add("dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", key);
+    }
+
+    function handleFieldDragOver(event) {
+        const targetKey = event.currentTarget.dataset.fieldKey || "";
+        if (!draggedFieldKey || targetKey === draggedFieldKey) {
+            return;
+        }
+        event.preventDefault();
+        event.currentTarget.classList.add("drag-over");
+    }
+
+    function handleFieldDragLeave(event) {
+        event.currentTarget.classList.remove("drag-over");
+    }
+
+    function handleFieldDrop(event) {
+        event.preventDefault();
+        const targetKey = event.currentTarget.dataset.fieldKey || "";
+        event.currentTarget.classList.remove("drag-over");
+        if (!currentProfile || !draggedFieldKey || !targetKey || draggedFieldKey === targetKey) {
+            return;
+        }
+
+        const order = getCurrentMappingOrderFromTable();
+        const fromIndex = order.indexOf(draggedFieldKey);
+        const toIndex = order.indexOf(targetKey);
+        if (fromIndex < 0 || toIndex < 0) {
+            return;
+        }
+
+        const nextOrder = order.slice();
+        nextOrder.splice(fromIndex, 1);
+        nextOrder.splice(toIndex, 0, draggedFieldKey);
+        currentProfile.mapping_order = nextOrder;
+        renderFieldTable();
+    }
+
+    function handleFieldDragEnd() {
+        draggedFieldKey = "";
+        document.querySelectorAll("#fieldTable tr").forEach(row => {
+            row.classList.remove("dragging", "drag-over");
+        });
     }
 
     function renderCompositeMappings() {
@@ -875,6 +1054,7 @@
         const compositeMappings = collectCompositeMappings();
         const documentNoSettings = collectDocumentNoSettings();
         const descriptionSettings = collectDescriptionSettings();
+        const mappingOrder = getCurrentMappingOrderFromTable();
 
         const mappingDefaults = {};
         fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
@@ -895,7 +1075,8 @@
                 composite_mappings: compositeMappings,
                 document_no_settings: documentNoSettings,
                 description_settings: descriptionSettings,
-                mapping_defaults: mappingDefaults
+                mapping_defaults: mappingDefaults,
+                mapping_order: mappingOrder
             })
         });
 
