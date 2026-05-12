@@ -276,7 +276,7 @@
 
         .field-library-add-row {
             display: grid;
-            grid-template-columns: 1.2fr 1.2fr 0.6fr 1.8fr auto;
+            grid-template-columns: 1.35fr 1.35fr 0.65fr 2fr 96px;
             gap: 12px;
             align-items: end;
             margin-bottom: 16px;
@@ -306,6 +306,11 @@
 
         .field-library-table {
             table-layout: fixed;
+            min-width: 1080px;
+        }
+
+        .field-library-table-wrap {
+            overflow-x: auto;
         }
 
         .field-library-table th:nth-child(1),
@@ -319,17 +324,17 @@
 
         .field-library-table th:nth-child(3),
         .field-library-table td:nth-child(3) {
-            width: 160px;
+            width: 180px;
         }
 
         .field-library-table th:nth-child(4),
         .field-library-table td:nth-child(4) {
-            width: 180px;
+            width: 200px;
         }
 
         .field-library-table th:nth-child(5),
         .field-library-table td:nth-child(5) {
-            width: 100px;
+            width: 96px;
         }
 
         .field-library-table th:nth-child(6),
@@ -339,17 +344,17 @@
 
         .field-library-table th:nth-child(7),
         .field-library-table td:nth-child(7) {
-            width: 110px;
+            width: 120px;
         }
 
         .field-library-table th:nth-child(8),
         .field-library-table td:nth-child(8) {
-            width: 130px;
+            width: 150px;
         }
 
         .field-library-table th:nth-child(9),
         .field-library-table td:nth-child(9) {
-            width: 170px;
+            width: 96px;
         }
 
         .field-library-table input[type="checkbox"] {
@@ -364,8 +369,11 @@
             white-space: nowrap;
         }
 
-        .field-library-add-row button {
-            min-width: 112px;
+        .field-library-add-row > button,
+        .field-library-table .action-cell button {
+            width: 96px;
+            padding: 0 10px;
+            border-radius: 4px;
         }
 
         .field-library-add-row > button {
@@ -502,6 +510,10 @@
                 grid-template-columns: 1fr;
             }
 
+            .field-library-table {
+                min-width: 1080px;
+            }
+
             .mapping-inline-row button,
             .template-file-row button,
             .export-sync-row button,
@@ -590,22 +602,24 @@
         <button type="button" onclick="addLibraryField()">新增字段</button>
     </div>
 
-    <table class="field-library-table">
-        <thead>
-        <tr>
-            <th>使用</th>
-            <th>排序</th>
-            <th>中文名</th>
-            <th>Key</th>
-            <th>类型</th>
-            <th>说明</th>
-            <th>Excel单元格</th>
-            <th>默认值</th>
-            <th>操作</th>
-        </tr>
-        </thead>
-        <tbody id="fieldTable"></tbody>
-    </table>
+    <div class="field-library-table-wrap">
+        <table class="field-library-table">
+            <thead>
+            <tr>
+                <th>使用</th>
+                <th>排序</th>
+                <th>中文名</th>
+                <th>Key</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>Excel单元格</th>
+                <th>默认值</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="fieldTable"></tbody>
+        </table>
+    </div>
     <div id="fieldSettingsResult"></div>
 </div>
 
@@ -848,6 +862,120 @@
         document.getElementById("newFieldDescription").value = "";
         await reloadFieldsAndRefresh();
         resultDiv.innerHTML = `<p class="success">字段已新增</p>`;
+    }
+
+    function syncCurrentProfileFieldKey(oldKey, key) {
+        if (!currentProfile || !key || key === oldKey) {
+            return;
+        }
+
+        if (currentProfile.mappings && Object.prototype.hasOwnProperty.call(currentProfile.mappings, oldKey)) {
+            currentProfile.mappings[key] = currentProfile.mappings[oldKey];
+            delete currentProfile.mappings[oldKey];
+        }
+        if (currentProfile.mapping_defaults && Object.prototype.hasOwnProperty.call(currentProfile.mapping_defaults, oldKey)) {
+            currentProfile.mapping_defaults[key] = currentProfile.mapping_defaults[oldKey];
+            delete currentProfile.mapping_defaults[oldKey];
+        }
+        if (Array.isArray(currentProfile.mapping_order)) {
+            currentProfile.mapping_order = currentProfile.mapping_order.map(item => item === oldKey ? key : item);
+        }
+    }
+
+    function updateFieldRowKey(row, oldKey, key) {
+        if (!row || !key || key === oldKey) {
+            return;
+        }
+
+        row.dataset.fieldKey = key;
+        [
+            "use_",
+            "lib_label_",
+            "lib_key_",
+            "lib_type_",
+            "lib_desc_",
+            "mapping_",
+            "default_"
+        ].forEach(prefix => {
+            const element = document.getElementById(prefix + oldKey);
+            if (element && row.contains(element)) {
+                element.id = prefix + key;
+            }
+        });
+
+        const checkbox = document.getElementById("use_" + key);
+        if (checkbox) {
+            checkbox.onchange = () => toggleFieldUse(key);
+        }
+
+        const deleteButton = row.querySelector("button.delete");
+        if (deleteButton) {
+            deleteButton.onclick = () => deleteLibraryField(key);
+        }
+    }
+
+    async function saveAllLibraryFields() {
+        const resultDiv = document.getElementById("fieldSettingsResult");
+        const rows = Array.from(document.querySelectorAll("#fieldTable tr"));
+
+        if (resultDiv) {
+            resultDiv.innerHTML = "";
+        }
+        const showAndThrow = message => {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${escapeHtml(message)}</p>`;
+            }
+            throw new Error(message);
+        };
+
+        for (const row of rows) {
+            const oldKey = row.dataset.fieldKey;
+            if (!oldKey) {
+                continue;
+            }
+
+            const labelInput = document.getElementById("lib_label_" + oldKey);
+            const keyInput = document.getElementById("lib_key_" + oldKey);
+            const typeInput = document.getElementById("lib_type_" + oldKey);
+            const descInput = document.getElementById("lib_desc_" + oldKey);
+
+            if (!labelInput || !keyInput || !typeInput || !descInput) {
+                continue;
+            }
+
+            const label = labelInput.value.trim();
+            const key = keyInput.value.trim();
+            const type = typeInput.value;
+            const description = descInput.value.trim();
+
+            if (SYSTEM_FIELD_KEYS.has(oldKey) && key !== oldKey) {
+                showAndThrow("系统字段 key 不能修改");
+            }
+            if (!SYSTEM_FIELD_KEYS.has(oldKey) && SYSTEM_FIELD_KEYS.has(key)) {
+                showAndThrow("普通字段不能改成系统字段 key");
+            }
+
+            const response = await fetch(`/api/fields/${encodeURIComponent(oldKey)}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    label,
+                    key,
+                    type,
+                    description
+                })
+            });
+            const result = await response.json();
+
+            if (!result.success) {
+                showAndThrow(result.error || "字段库保存失败");
+            }
+
+            syncCurrentProfileFieldKey(oldKey, key);
+            updateFieldRowKey(row, oldKey, key);
+        }
     }
 
     async function saveLibraryField(oldKey) {
@@ -1424,8 +1552,7 @@
                     >
                 </td>
                 <td class="action-cell">
-                    <button type="button" onclick="saveLibraryField('${field.key}')">保存字段</button>
-                    <button class="delete" type="button" onclick="deleteLibraryField('${field.key}')" ${isSystemField ? "disabled" : ""}>删除字段</button>
+                    <button class="delete" type="button" onclick="deleteLibraryField('${field.key}')" ${isSystemField ? "disabled" : ""}>${isSystemField ? "系统字段" : "删除"}</button>
                 </td>
             `;
 
@@ -1811,6 +1938,9 @@
         }
 
         try {
+            await saveAllLibraryFields();
+            await loadFields();
+
             const mappings = {};
 
             fields.filter(field => !DOCUMENT_NO_RESERVED_KEYS.has(field.key)).forEach(field => {
@@ -1871,7 +2001,7 @@
             document.getElementById("profileSelect").value = result.profile.id;
             selectProfile();
 
-            resultDiv.innerHTML = `<p class="success">保存成功</p>`;
+            resultDiv.innerHTML = `<p class="success">字段库与当前映射已保存</p>`;
         } catch (error) {
             resultDiv.innerHTML = `<p class="error">${escapeHtml(error.message || "保存失败")}</p>`;
         } finally {
