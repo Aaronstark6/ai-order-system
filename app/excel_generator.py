@@ -172,7 +172,7 @@ def set_wrap_text(sheet, cell):
 
 
 def normalize_composite_values(composite_data=None, composite_values=None):
-    # 向后兼容：旧调用使用 composite_values，新调用使用 composite_data
+    # legacy composite mapping compatibility
     raw = composite_data if composite_data is not None else composite_values
 
     if raw is None:
@@ -266,6 +266,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
         }
 
     mappings = profile.get("mappings", {}) or {}
+    # legacy composite mapping compatibility
     composite_mappings = profile.get("composite_mappings", []) or {}
     description_settings = profile.get("description_settings", {}) or {}
 
@@ -318,7 +319,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
                 "error": f"普通字段 {field_key} → {cell} 写入失败：{str(e)}"
             }
 
-    # 组合单元格映射
+    # legacy composite mapping compatibility
     for item in composite_mappings:
         cell = str(item.get("cell", "")).strip().upper()
         template = item.get("template", "")

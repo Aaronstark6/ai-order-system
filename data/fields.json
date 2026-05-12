@@ -96,14 +96,6 @@
     "enabled": true
   },
   {
-    "key": "custom_product_initials",
-    "label": "订制品英文首字母",
-    "type": "text",
-    "required": false,
-    "description": "示例: CLB",
-    "enabled": true
-  },
-  {
     "key": "product_form",
     "label": "产品形式",
     "type": "text",

@@ -137,6 +137,7 @@ def normalize_profile(profile: dict):
     if "mappings" not in profile:
         profile["mappings"] = {}
 
+    # legacy composite mapping compatibility
     if "composite_mappings" not in profile:
         profile["composite_mappings"] = []
 
@@ -233,6 +234,7 @@ def create_profile(name: str):
         "mappings": {},
         "mapping_order": [],
         "mapping_defaults": {},
+        # legacy composite mapping compatibility
         "composite_mappings": [],
         "document_no_settings": document_no_settings,
         "description_settings": deepcopy(DEFAULT_DESCRIPTION_SETTINGS),
@@ -305,6 +307,7 @@ def update_profile_mappings(
                 if key not in clean_order:
                     clean_order.append(key)
             profile["mapping_order"] = clean_order
+            # legacy composite mapping compatibility
             if composite_mappings is not None:
                 clean_composite_mappings = []
 

@@ -4,11 +4,20 @@
     <meta charset="UTF-8">
     <title>外贸订单解析系统 V2</title>
     <style>
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: Arial, "Microsoft YaHei", sans-serif;
             background: #f5f6f8;
             padding: 30px;
             margin: 0;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
         }
 
         h1 {
@@ -25,6 +34,9 @@
             grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
             gap: 25px;
             align-items: start;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
         }
 
         .card {
@@ -36,6 +48,11 @@
             box-sizing: border-box;
         }
 
+        .layout > .card {
+            height: 100%;
+            min-height: 0;
+        }
+
         .left-panel {
             position: sticky;
             top: 20px;
@@ -44,7 +61,9 @@
         }
 
         .right-panel {
-            max-height: calc(100vh - 60px);
+            height: 100%;
+            min-height: 0;
+            max-height: none;
             overflow-y: auto;
         }
 
@@ -108,12 +127,6 @@
             margin-left: 6px;
         }
 
-        .tips {
-            color: #666;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
         .info-box {
             background: #f7f9fc;
             border: 1px solid #e6edf7;
@@ -144,19 +157,17 @@
         }
 
         #submitResult {
-            margin-top: 15px;
-            max-width: 100%;
+            flex: 1 1 auto;
+            min-width: 240px;
+            margin: 0;
+            max-width: none;
             word-break: break-word;
+            font-size: 14px;
+            line-height: 1.5;
         }
 
-        .download-link {
-            display: inline-block;
-            margin-top: 8px;
-            padding: 9px 14px;
-            background: #1677ff;
-            color: white;
-            border-radius: 5px;
-            text-decoration: none;
+        #submitResult p {
+            margin: 0;
         }
 
         .empty-form {
@@ -200,12 +211,6 @@
             color: #222;
             border-top: none;
             padding-top: 0;
-        }
-
-        .doc-no-card .tips {
-            margin-top: 0;
-            margin-bottom: 12px;
-            font-size: 13px;
         }
 
         .doc-no-grid {
@@ -317,7 +322,14 @@
             align-items: center;
             gap: 12px;
             margin-top: 12px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
+        }
+
+        .excel-action-buttons {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 0 0 auto;
         }
 
         .action-btn {
@@ -350,13 +362,19 @@
         }
 
         .excel-result-message {
+            color: green;
             margin: 0;
         }
 
         .sync-path {
-            margin: 6px 0 0;
+            margin: 3px 0 0;
             color: #555;
             word-break: break-all;
+        }
+
+        .sync-error {
+            color: #d46b08;
+            margin: 3px 0 0;
         }
 
         @media (max-width: 900px) {
@@ -374,7 +392,15 @@
 
             .right-panel {
                 max-height: none;
-                overflow-y: visible;
+                overflow-y: auto;
+            }
+
+            .excel-action-row {
+                flex-wrap: wrap;
+            }
+
+            .excel-action-buttons {
+                flex-wrap: wrap;
             }
 
             .doc-no-grid,
@@ -432,19 +458,20 @@
         <div id="descriptionConfirmArea"></div>
 
         <div class="excel-action-row">
-            <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
-                确认生成Excel
-            </button>
-            <button id="downloadExcelBtn" class="action-btn" onclick="downloadCurrentExcel()" type="button" disabled>
-                点击下载Excel
-            </button>
-            <button id="syncExcelBtn" class="action-btn" onclick="syncCurrentExcel()" type="button" disabled>
-                同步到指定文件夹
-            </button>
+            <div class="excel-action-buttons">
+                <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
+                    确认生成Excel
+                </button>
+                <button id="downloadExcelBtn" class="action-btn" onclick="downloadCurrentExcel()" type="button" disabled>
+                    点击下载Excel
+                </button>
+                <button id="syncExcelBtn" class="action-btn" onclick="syncCurrentExcel()" type="button" disabled>
+                    同步到指定文件夹
+                </button>
+            </div>
+            <div id="submitResult"></div>
         </div>
         <p class="generate-tip">部分字段为空时仍可导出，请人工确认内容完整性。</p>
-
-        <div id="submitResult"></div>
     </div>
 
 </div>
@@ -1060,19 +1087,6 @@
         }
     });
 
-    function renderTemplate(template, data) {
-        return String(template || "").replace(/\{([^{}]+)\}/g, function (match, key) {
-            key = key.trim();
-            const value = data[key];
-
-            if (value === null || value === undefined) {
-                return "";
-            }
-
-            return String(value);
-        });
-    }
-
     function getInputType(type) {
         if (type === "number") {
             return "number";
@@ -1271,7 +1285,7 @@
             ? `<p class="sync-path">已同步到：${escapeHtml(result.sync_path)}</p>`
             : "";
         const syncErrorHtml = result.sync_error
-            ? `<p class="error">Excel已生成，但同步到本地文件夹失败：${escapeHtml(result.sync_error)}</p>`
+            ? `<p class="sync-error">Excel已生成，但同步到本地文件夹失败：${escapeHtml(result.sync_error)}</p>`
             : "";
 
         submitResult.innerHTML = `
@@ -1319,7 +1333,7 @@
         }
 
         if (!result.success) {
-            submitResult.innerHTML = `<p class="error">${escapeHtml(result.error || "同步失败")}</p>`;
+            submitResult.innerHTML = `<p class="sync-error">${escapeHtml(result.error || "同步失败")}</p>`;
             return;
         }
 

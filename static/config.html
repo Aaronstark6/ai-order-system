@@ -239,7 +239,7 @@
 
         .export-sync-row {
             display: grid;
-            grid-template-columns: 1fr auto auto;
+            grid-template-columns: minmax(0, 1fr) 120px 110px;
             gap: 12px;
             align-items: end;
         }
@@ -261,9 +261,17 @@
 
         .ai-key-row {
             display: grid;
-            grid-template-columns: 1fr auto auto;
+            grid-template-columns: minmax(0, 1fr) 120px 110px;
             gap: 12px;
             align-items: end;
+        }
+
+        .export-sync-row button,
+        .ai-key-row button {
+            width: 100%;
+            white-space: nowrap;
+            padding-left: 0;
+            padding-right: 0;
         }
 
         .field-library-add-row {
@@ -338,13 +346,6 @@
 
         .full-row {
             grid-column: 1 / -1;
-        }
-
-        .compact-check {
-            display: flex;
-            align-items: center;
-            min-height: 38px;
-            font-weight: normal;
         }
 
         .checkbox-line {

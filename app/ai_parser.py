@@ -21,9 +21,6 @@ def build_prompt(message: str):
     field_keys = []
 
     for field in fields:
-        if field.get("enabled", True) is False:
-            continue
-
         key = field.get("key", "")
         label = field.get("label", key)
         description = field.get("description", "")

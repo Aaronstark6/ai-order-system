@@ -58,16 +58,6 @@ def config_page():
     return FileResponse(STATIC_DIR / "config.html")
 
 
-@app.get("/config/new-profile")
-def new_profile_page():
-    return FileResponse(STATIC_DIR / "new_profile.html")
-
-
-@app.get("/config/fields")
-def fields_page():
-    return FileResponse(STATIC_DIR / "fields.html")
-
-
 # ================= 字段库 =================
 
 @app.get("/api/fields")
@@ -146,6 +136,7 @@ def api_update_mappings(profile_id: str, data: dict):
             "profile": update_profile_mappings(
                 profile_id=profile_id,
                 mappings=data.get("mappings", {}),
+                # legacy composite mapping compatibility
                 composite_mappings=data.get("composite_mappings"),
                 document_no_settings=data.get("document_no_settings"),
                 mapping_defaults=data.get("mapping_defaults"),
@@ -316,7 +307,7 @@ def api_generate_excel(data: dict):
     try:
         profile_id = data.get("profile_id", "")
         order_data = data.get("data", {})
-        # 兼容新旧字段名：优先 composite_data，其次 composite_values
+        # legacy composite mapping compatibility
         composite_data = data.get("composite_data")
         if composite_data is None:
             composite_data = data.get("composite_values", [])
