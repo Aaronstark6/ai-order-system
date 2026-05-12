@@ -347,6 +347,26 @@
             font-weight: normal;
         }
 
+        .checkbox-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            line-height: 1.4;
+        }
+
+        .checkbox-line input[type="checkbox"] {
+            margin: 0;
+            width: 16px;
+            height: 16px;
+            flex: 0 0 auto;
+        }
+
+        .checkbox-line span,
+        .checkbox-line label {
+            display: inline-flex;
+            align-items: center;
+        }
+
         .button-row {
             display: flex;
             flex-wrap: wrap;
@@ -548,7 +568,10 @@
 <div class="card">
     <h2>文档编号设置</h2>
 
-    <label class="compact-check"><input type="checkbox" id="dns_enabled"> 启用文档编号写入 Excel</label>
+    <label class="checkbox-line">
+        <input type="checkbox" id="dns_enabled">
+        <span>启用文档编号写入 Excel</span>
+    </label>
 
     <div class="doc-no-settings-grid">
         <div>
@@ -598,7 +621,10 @@
     <h2>产品描述设置</h2>
 
     <div class="mapping-section">
-        <label class="compact-check"><input type="checkbox" id="ds_enabled"> 启用产品描述模板</label>
+        <label class="checkbox-line">
+            <input type="checkbox" id="ds_enabled">
+            <span>启用产品描述模板</span>
+        </label>
     </div>
 
     <div class="product-description-config-row">
@@ -637,7 +663,10 @@
         <button type="button" onclick="testExportSyncDir()">测试路径</button>
     </div>
 
-    <label class="compact-check"><input type="checkbox" id="dns_use_filename"> 使用文档编号作为Excel文件名</label>
+    <label class="checkbox-line">
+        <input type="checkbox" id="dns_use_filename">
+        <span>使用文档编号作为Excel文件名</span>
+    </label>
 
     <div id="appSettingsResult"></div>
 </div>
