@@ -134,6 +134,9 @@ def normalize_profile(profile: dict):
     if "template_file" not in profile:
         profile["template_file"] = ""
 
+    if "template_display_name" not in profile:
+        profile["template_display_name"] = ""
+
     if "mappings" not in profile:
         profile["mappings"] = {}
 
@@ -231,6 +234,7 @@ def create_profile(name: str):
         "id": str(uuid4()),
         "name": name,
         "template_file": "",
+        "template_display_name": "",
         "mappings": {},
         "mapping_order": [],
         "mapping_defaults": {},
@@ -384,6 +388,7 @@ def upload_template_file(profile_id: str, uploaded_file):
                 shutil.copyfileobj(uploaded_file.file, buffer)
 
             profile["template_file"] = filename
+            profile["template_display_name"] = original_name
 
             save_profiles(profiles)
 
@@ -405,6 +410,7 @@ def delete_template_file(profile_id: str):
                     file_path.unlink()
 
             profile["template_file"] = ""
+            profile["template_display_name"] = ""
             save_profiles(profiles)
 
             return normalize_profile(profile)

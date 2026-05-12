@@ -1,23 +1,33 @@
 [
   {
-    "id": "7049880a-abd8-4f7d-a525-1784f8d5882f",
-    "name": "液体饮料",
-    "template_file": "7049880a-abd8-4f7d-a525-1784f8d5882f.xlsx",
+    "id": "e773641f-a5e9-465f-8a6b-651ac0a773fa",
+    "name": "固体饮料",
+    "template_file": "e773641f-a5e9-465f-8a6b-651ac0a773fa.xlsx",
     "mappings": {
-      "customer_name": "D3",
-      "product_name": "D4",
-      "quantity": "D5",
-      "specification": "D6"
+      "customer_name": "C5",
+      "product_name": "F4",
+      "quantity": "C6",
+      "specification": "F5",
+      "customer phone": "F6"
     },
-    "composite_mappings": [
-      {
-        "cell": "D8",
-        "template": "客户名称：{customer_name}\n产品名称：{product_name}\n数量：{quantity}\n规格：{specification}"
-      }
+    "mapping_order": [
+      "customer_name",
+      "quantity",
+      "product_name",
+      "specification",
+      "customer phone"
     ],
+    "mapping_defaults": {
+      "customer_name": "",
+      "product_name": "",
+      "quantity": "",
+      "specification": "",
+      "customer phone": ""
+    },
+    "composite_mappings": [],
     "document_no_settings": {
       "enabled": true,
-      "document_no_cell": "",
+      "document_no_cell": "C4",
       "use_document_no_as_filename": true,
       "default_sales_name": "Anna",
       "default_salesperson_code": "AN",
@@ -26,33 +36,42 @@
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
       "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
     },
-    "mapping_defaults": {
-      "customer_name": "",
-      "product_name": "",
-      "quantity": "",
-      "specification": ""
-    },
     "description_settings": {
       "enabled": true,
-      "template_name": "滴剂和液体饮料.txt",
-      "target_cell": ""
+      "template_name": "固体饮料.txt",
+      "target_cell": "B8"
+    },
+    "template_display_name": "固体饮料模板.xlsx"
+  },
+  {
+    "id": "0903f64e-fc36-419c-9ea2-2dee5d5f5551",
+    "name": "滴剂和液体饮料模板",
+    "template_file": "0903f64e-fc36-419c-9ea2-2dee5d5f5551.xlsx",
+    "mappings": {
+      "customer_name": "C5",
+      "product_name": "F4",
+      "quantity": "C6",
+      "specification": "F5",
+      "customer phone": "F6"
     },
     "mapping_order": [
       "customer_name",
       "product_name",
       "quantity",
-      "specification"
-    ]
-  },
-  {
-    "id": "28ddc16f-bee5-4b2d-a55a-bd05b2cdbd88",
-    "name": "液体饮料模板",
-    "template_file": "28ddc16f-bee5-4b2d-a55a-bd05b2cdbd88.xlsx",
-    "mappings": {},
+      "specification",
+      "customer phone"
+    ],
+    "mapping_defaults": {
+      "customer_name": "",
+      "product_name": "",
+      "quantity": "",
+      "specification": "",
+      "customer phone": ""
+    },
     "composite_mappings": [],
     "document_no_settings": {
       "enabled": true,
-      "document_no_cell": "",
+      "document_no_cell": "C4",
       "use_document_no_as_filename": true,
       "default_sales_name": "Anna",
       "default_salesperson_code": "AN",
@@ -61,12 +80,11 @@
       "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
       "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
     },
-    "mapping_defaults": {},
     "description_settings": {
-      "enabled": false,
-      "template_name": "",
-      "target_cell": ""
+      "enabled": true,
+      "template_name": "滴剂和液体饮料.txt",
+      "target_cell": "B8"
     },
-    "mapping_order": []
+    "template_display_name": "滴剂和液体饮料模板.xlsx"
   }
 ]

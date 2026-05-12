@@ -1233,9 +1233,10 @@
             return;
         }
 
+        const templateName = currentProfile.template_display_name || "未上传";
         div.innerHTML = `
             <p><strong>当前映射：</strong>${escapeHtml(currentProfile.name)}</p>
-            <p><strong>模板文件：</strong>${escapeHtml(currentProfile.template_file || "未上传")}</p>
+            <p><strong>模板文件：</strong>${escapeHtml(templateName)}</p>
         `;
     }
 
@@ -1290,8 +1291,9 @@
 
         const formData = new FormData();
         formData.append("file", input.files[0]);
+        const profileId = currentProfile.id;
 
-        const response = await fetch(`/api/template-profiles/${currentProfile.id}/upload-template`, {
+        const response = await fetch(`/api/template-profiles/${profileId}/upload-template`, {
             method: "POST",
             body: formData
         });
@@ -1305,9 +1307,10 @@
         input.value = "";
         await loadProfiles();
         renderProfileSelect();
-        document.getElementById("profileSelect").value = result.profile.id;
+        document.getElementById("profileSelect").value = profileId;
         selectProfile();
-        resultDiv.innerHTML = `<p class="success">模板上传成功：${escapeHtml(result.profile.template_file || "")}</p>`;
+        const templateName = currentProfile ? (currentProfile.template_display_name || result.template_display_name || "") : "";
+        resultDiv.innerHTML = `<p class="success">模板上传成功：${escapeHtml(templateName)}</p>`;
     }
 
     async function deleteCurrentTemplate() {
@@ -1326,7 +1329,8 @@
             return;
         }
 
-        const response = await fetch(`/api/template-profiles/${currentProfile.id}/template`, {
+        const profileId = currentProfile.id;
+        const response = await fetch(`/api/template-profiles/${profileId}/template`, {
             method: "DELETE"
         });
         const result = await response.json();
@@ -1338,7 +1342,7 @@
 
         await loadProfiles();
         renderProfileSelect();
-        document.getElementById("profileSelect").value = result.profile.id;
+        document.getElementById("profileSelect").value = profileId;
         selectProfile();
         resultDiv.innerHTML = `<p class="success">模板文件已删除</p>`;
     }

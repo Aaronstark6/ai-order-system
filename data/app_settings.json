@@ -3,5 +3,6 @@
   "default_salesperson_code": "AN",
   "default_company_code": "GS",
   "default_sequence": "A01",
-  "export_sync_dir": "D:/订单"
+  "export_sync_dir": "D:/订单",
+  "deepseek_api_key": ""
 }

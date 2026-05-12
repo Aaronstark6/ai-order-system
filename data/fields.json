@@ -9,7 +9,7 @@
   },
   {
     "key": "product_name",
-    "label": "产品名称",
+    "label": "日期",
     "type": "text",
     "required": true,
     "description": "客户要采购的产品名称",
@@ -25,7 +25,7 @@
   },
   {
     "key": "specification",
-    "label": "规格",
+    "label": "客户性质",
     "type": "text",
     "required": false,
     "description": "产品规格、包装规格、型号等",
@@ -33,19 +33,11 @@
   },
   {
     "key": "customer phone",
-    "label": "客户电话",
+    "label": "负责人",
     "type": "number",
     "required": false,
     "description": "客户联系手机号",
     "enabled": false
-  },
-  {
-    "key": "formula_requirement",
-    "label": "配方要求",
-    "type": "text",
-    "required": false,
-    "description": "产品配方",
-    "enabled": true
   },
   {
     "key": "document_no",
@@ -77,22 +69,6 @@
     "type": "text",
     "required": false,
     "description": "示例: A01",
-    "enabled": true
-  },
-  {
-    "key": "salesperson_initials",
-    "label": "业务员英文名简拼",
-    "type": "text",
-    "required": false,
-    "description": "示例: AN",
-    "enabled": true
-  },
-  {
-    "key": "product_number",
-    "label": "产品编号",
-    "type": "text",
-    "required": false,
-    "description": "示例: 211",
     "enabled": true
   },
   {

@@ -115,7 +115,13 @@ def api_delete_profile(profile_id: str):
 @app.post("/api/template-profiles/{profile_id}/upload-template")
 def api_upload_template(profile_id: str, file: UploadFile = File(...)):
     try:
-        return {"success": True, "profile": upload_template_file(profile_id, file)}
+        profile = upload_template_file(profile_id, file)
+        return {
+            "success": True,
+            "template_file": profile.get("template_file", ""),
+            "template_display_name": profile.get("template_display_name", ""),
+            "profile": profile,
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 
