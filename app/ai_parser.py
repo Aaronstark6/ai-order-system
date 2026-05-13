@@ -12,6 +12,61 @@ from app.field_library import load_fields
 load_dotenv()
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
+SOURCE_MARK_RE = re.compile(r"\[(模板|AI|系统|人工)\]")
+
+
+def format_compact_date(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+
+    digits = re.sub(r"\D", "", text)
+    if len(digits) == 8:
+        return digits
+    return ""
+
+
+def _normalize_date_fields(data: dict):
+    if not isinstance(data, dict):
+        return
+
+    for key, value in list(data.items()):
+        key_text = str(key or "").lower()
+        if key_text.endswith("_date") or key_text in {"date", "order_date"}:
+            compact = format_compact_date(value)
+            if compact:
+                data[key] = compact
+
+
+def _line_without_source_mark(line: str):
+    return SOURCE_MARK_RE.sub("", str(line or "")).strip()
+
+
+def _insert_source_mark(line: str, source: str):
+    text = SOURCE_MARK_RE.sub("", str(line or ""))
+    marker = f"[{source}]"
+    for sep in ("：", ":"):
+        if sep in text:
+            prefix, value = text.split(sep, 1)
+            return f"{prefix}{sep}{marker} {value.strip()}"
+    return f"{marker} {text.strip()}" if text.strip() else ""
+
+
+def annotate_description_sources(template_text: str, description_text: str):
+    template_lines = str(template_text or "").splitlines()
+    description_lines = str(description_text or "").splitlines()
+    result = []
+
+    for index, line in enumerate(description_lines):
+        if not str(line or "").strip():
+            result.append(line)
+            continue
+
+        template_line = template_lines[index] if index < len(template_lines) else ""
+        source = "模板" if _line_without_source_mark(line) == _line_without_source_mark(template_line) else "AI"
+        result.append(_insert_source_mark(line, source))
+
+    return "\n".join(result)
 
 
 def build_prompt(message: str):
@@ -107,6 +162,8 @@ def parse_message(message: str):
     for key in field_keys:
         if key not in parsed:
             parsed[key] = None
+
+    _normalize_date_fields(parsed)
 
     return parsed
 
@@ -352,7 +409,8 @@ def generate_description_from_message(message: str, description_template: str, o
             lines = lines[:-1]
         content = "\n".join(lines).strip()
 
-    return constrain_description_to_template(rendered_template, content)
+    constrained = constrain_description_to_template(rendered_template, content)
+    return annotate_description_sources(rendered_template, constrained)
 
 
 def fill_description_from_message(message: str, template: str, data=None):

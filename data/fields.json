@@ -4,15 +4,15 @@
     "label": "客户名称",
     "type": "text",
     "required": true,
-    "description": "客户名称、公司名称、下单人名称",
+    "description": "客户名称、公司名称、买方名称、客户公司、下单客户、buyer、client、company name",
     "enabled": true
   },
   {
-    "key": "product_name",
+    "key": "order_date",
     "label": "日期",
-    "type": "text",
+    "type": "date",
     "required": true,
-    "description": "客户要采购的产品名称",
+    "description": "订单日期、下单日期、采购日期、成交日期、order date、purchase date",
     "enabled": true
   },
   {
@@ -20,23 +20,23 @@
     "label": "数量",
     "type": "number",
     "required": false,
-    "description": "订单数量、采购数量",
+    "description": "订单数量、采购数量、下单数量、购买数量、pcs、bottles、units、qty、quantity",
     "enabled": true
   },
   {
-    "key": "specification",
+    "key": "customer_type",
     "label": "客户性质",
     "type": "text",
     "required": false,
-    "description": "产品规格、包装规格、型号等",
+    "description": "客户类型、客户性质、渠道类型、网购、复购、批发、经销商、代理、终端客户、独立站",
     "enabled": true
   },
   {
-    "key": "customer phone",
+    "key": "sales_owner",
     "label": "负责人",
-    "type": "number",
+    "type": "text",
     "required": false,
-    "description": "客户联系手机号",
+    "description": "我方内部业务负责人，通常使用默认值，不从客户聊天中提取、客户联系人、负责人、对接人、客服、销售、联系人姓名、contact person、sales",
     "enabled": false
   },
   {

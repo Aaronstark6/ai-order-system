@@ -5,24 +5,24 @@
     "template_file": "e773641f-a5e9-465f-8a6b-651ac0a773fa.xlsx",
     "mappings": {
       "customer_name": "C5",
-      "product_name": "F4",
+      "order_date": "F4",
       "quantity": "C6",
-      "specification": "F5",
-      "customer phone": "F6"
+      "customer_type": "F5",
+      "sales_owner": "F6"
     },
     "mapping_order": [
       "customer_name",
       "quantity",
-      "product_name",
-      "specification",
-      "customer phone"
+      "order_date",
+      "customer_type",
+      "sales_owner"
     ],
     "mapping_defaults": {
       "customer_name": "",
-      "product_name": "",
+      "order_date": "",
       "quantity": "",
-      "specification": "",
-      "customer phone": ""
+      "customer_type": "",
+      "sales_owner": "Anna"
     },
     "composite_mappings": [],
     "document_no_settings": {
@@ -49,24 +49,24 @@
     "template_file": "0903f64e-fc36-419c-9ea2-2dee5d5f5551.xlsx",
     "mappings": {
       "customer_name": "C5",
-      "product_name": "F4",
+      "order_date": "F4",
       "quantity": "C6",
-      "specification": "F5",
-      "customer phone": "F6"
+      "customer_type": "F5",
+      "sales_owner": "F6"
     },
     "mapping_order": [
       "customer_name",
-      "product_name",
       "quantity",
-      "specification",
-      "customer phone"
+      "order_date",
+      "customer_type",
+      "sales_owner"
     ],
     "mapping_defaults": {
       "customer_name": "",
-      "product_name": "",
+      "order_date": "",
       "quantity": "",
-      "specification": "",
-      "customer phone": ""
+      "customer_type": "",
+      "sales_owner": "Anna"
     },
     "composite_mappings": [],
     "document_no_settings": {
@@ -86,5 +86,269 @@
       "target_cell": "B8"
     },
     "template_display_name": "滴剂和液体饮料模板.xlsx"
+  },
+  {
+    "id": "7bc169b4-bfd0-4dd5-a24f-36bce50e5d19",
+    "name": "果冻和凝胶模板",
+    "template_file": "7bc169b4-bfd0-4dd5-a24f-36bce50e5d19.xlsx",
+    "template_display_name": "果冻和凝胶模板.xlsx",
+    "mappings": {
+      "customer_name": "C5",
+      "order_date": "F4",
+      "quantity": "C6",
+      "customer_type": "F5",
+      "sales_owner": "F6"
+    },
+    "mapping_order": [
+      "customer_name",
+      "quantity",
+      "order_date",
+      "customer_type",
+      "sales_owner"
+    ],
+    "mapping_defaults": {
+      "customer_name": "",
+      "order_date": "",
+      "quantity": "",
+      "customer_type": "",
+      "sales_owner": "Anna"
+    },
+    "composite_mappings": [],
+    "document_no_settings": {
+      "enabled": true,
+      "document_no_cell": "C4",
+      "use_document_no_as_filename": true,
+      "default_sales_name": "Anna",
+      "default_salesperson_code": "AN",
+      "default_company_code": "GS",
+      "default_sequence": "A01",
+      "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
+    },
+    "description_settings": {
+      "enabled": true,
+      "template_name": "果冻和凝胶.txt",
+      "target_cell": "B8"
+    }
+  },
+  {
+    "id": "0a5598bc-7d41-48c1-9ce0-15e9f1b9226b",
+    "name": "泡腾片模板",
+    "template_file": "0a5598bc-7d41-48c1-9ce0-15e9f1b9226b.xlsx",
+    "template_display_name": "泡腾片模板.xlsx",
+    "mappings": {
+      "customer_name": "C5",
+      "order_date": "F4",
+      "quantity": "C6",
+      "customer_type": "F5",
+      "sales_owner": "F6"
+    },
+    "mapping_order": [
+      "customer_name",
+      "quantity",
+      "order_date",
+      "customer_type",
+      "sales_owner"
+    ],
+    "mapping_defaults": {
+      "customer_name": "",
+      "order_date": "",
+      "quantity": "",
+      "customer_type": "",
+      "sales_owner": "Anna"
+    },
+    "composite_mappings": [],
+    "document_no_settings": {
+      "enabled": true,
+      "document_no_cell": "C4",
+      "use_document_no_as_filename": true,
+      "default_sales_name": "Anna",
+      "default_salesperson_code": "AN",
+      "default_company_code": "GS",
+      "default_sequence": "A01",
+      "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
+    },
+    "description_settings": {
+      "enabled": true,
+      "template_name": "泡腾片.txt",
+      "target_cell": "B8"
+    }
+  },
+  {
+    "id": "694ea7e9-fac2-45ae-b5e4-d943622c0884",
+    "name": "片剂模板",
+    "template_file": "694ea7e9-fac2-45ae-b5e4-d943622c0884.xlsx",
+    "template_display_name": "片剂模板.xlsx",
+    "mappings": {
+      "customer_name": "C5",
+      "order_date": "F4",
+      "quantity": "C6",
+      "customer_type": "F5",
+      "sales_owner": "F6"
+    },
+    "mapping_order": [
+      "customer_name",
+      "quantity",
+      "order_date",
+      "customer_type",
+      "sales_owner"
+    ],
+    "mapping_defaults": {
+      "customer_name": "",
+      "order_date": "",
+      "quantity": "",
+      "customer_type": "",
+      "sales_owner": "Anna"
+    },
+    "composite_mappings": [],
+    "document_no_settings": {
+      "enabled": true,
+      "document_no_cell": "C4",
+      "use_document_no_as_filename": true,
+      "default_sales_name": "Anna",
+      "default_salesperson_code": "AN",
+      "default_company_code": "GS",
+      "default_sequence": "A01",
+      "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
+    },
+    "description_settings": {
+      "enabled": true,
+      "template_name": "片剂.txt",
+      "target_cell": "B8"
+    }
+  },
+  {
+    "id": "c71a0eaf-51a9-45a4-bbec-834e1b3a2211",
+    "name": "软胶囊爆珠模板",
+    "template_file": "c71a0eaf-51a9-45a4-bbec-834e1b3a2211.xlsx",
+    "template_display_name": "软胶囊爆珠模板.xlsx",
+    "mappings": {
+      "customer_name": "C5",
+      "order_date": "F4",
+      "quantity": "C6",
+      "customer_type": "F5",
+      "sales_owner": "F6"
+    },
+    "mapping_order": [
+      "customer_name",
+      "quantity",
+      "order_date",
+      "customer_type",
+      "sales_owner"
+    ],
+    "mapping_defaults": {
+      "customer_name": "",
+      "order_date": "",
+      "quantity": "",
+      "customer_type": "",
+      "sales_owner": "Anna"
+    },
+    "composite_mappings": [],
+    "document_no_settings": {
+      "enabled": true,
+      "document_no_cell": "C4",
+      "use_document_no_as_filename": true,
+      "default_sales_name": "Anna",
+      "default_salesperson_code": "AN",
+      "default_company_code": "GS",
+      "default_sequence": "A01",
+      "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
+    },
+    "description_settings": {
+      "enabled": true,
+      "template_name": "软胶囊爆珠.txt",
+      "target_cell": "B8"
+    }
+  },
+  {
+    "id": "81c239e1-07ae-41af-8adf-ef4efa2dcf1a",
+    "name": "软糖模板",
+    "template_file": "81c239e1-07ae-41af-8adf-ef4efa2dcf1a.xlsx",
+    "template_display_name": "软糖模板.xlsx",
+    "mappings": {
+      "customer_name": "C5",
+      "order_date": "F4",
+      "quantity": "C6",
+      "customer_type": "F5",
+      "sales_owner": "F6"
+    },
+    "mapping_order": [
+      "customer_name",
+      "quantity",
+      "order_date",
+      "customer_type",
+      "sales_owner"
+    ],
+    "mapping_defaults": {
+      "customer_name": "",
+      "order_date": "",
+      "quantity": "",
+      "customer_type": "",
+      "sales_owner": "Anna"
+    },
+    "composite_mappings": [],
+    "document_no_settings": {
+      "enabled": true,
+      "document_no_cell": "",
+      "use_document_no_as_filename": true,
+      "default_sales_name": "Anna",
+      "default_salesperson_code": "AN",
+      "default_company_code": "GS",
+      "default_sequence": "A01",
+      "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
+    },
+    "description_settings": {
+      "enabled": true,
+      "template_name": "软糖.txt",
+      "target_cell": "B8"
+    }
+  },
+  {
+    "id": "875e86f4-8ca8-477c-8d2f-4a8745d749ad",
+    "name": "硬胶囊模板",
+    "template_file": "875e86f4-8ca8-477c-8d2f-4a8745d749ad.xlsx",
+    "template_display_name": "硬胶囊模板.xlsx",
+    "mappings": {
+      "customer_name": "C5",
+      "order_date": "F4",
+      "quantity": "C6",
+      "customer_type": "F5",
+      "sales_owner": "F6"
+    },
+    "mapping_order": [
+      "customer_name",
+      "quantity",
+      "order_date",
+      "customer_type",
+      "sales_owner"
+    ],
+    "mapping_defaults": {
+      "customer_name": "",
+      "order_date": "",
+      "quantity": "",
+      "customer_type": "",
+      "sales_owner": "Anna"
+    },
+    "composite_mappings": [],
+    "document_no_settings": {
+      "enabled": true,
+      "document_no_cell": "C4",
+      "use_document_no_as_filename": true,
+      "default_sales_name": "Anna",
+      "default_salesperson_code": "AN",
+      "default_company_code": "GS",
+      "default_sequence": "A01",
+      "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
+      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
+    },
+    "description_settings": {
+      "enabled": true,
+      "template_name": "硬胶囊.txt",
+      "target_cell": "B8"
+    }
   }
 ]

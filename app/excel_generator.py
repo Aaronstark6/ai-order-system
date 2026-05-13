@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.text import InlineFont
 from openpyxl.styles import Alignment
 
 from app.app_settings import get_export_sync_dir
@@ -21,6 +23,8 @@ from app.description_template_manager import (
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_UPLOAD_DIR = BASE_DIR / "templates" / "uploads"
 OUTPUT_DIR = BASE_DIR / "output"
+SOURCE_MARK_RE = re.compile(r"\[(模板|AI|系统|人工)\]")
+RED_DESCRIPTION_SOURCES = {"AI", "人工"}
 
 
 def safe_filename_text(text):
@@ -50,18 +54,21 @@ def render_composite_template(template: str, data: dict):
     return re.sub(r"\{([^{}]+)\}", replace_placeholder, template)
 
 
-def format_deal_date_yyyymmdd(value):
+def format_compact_date(value):
     text = str(value or "").strip()
     if not text:
         return ""
 
-    text = text.replace("/", "-")
     digits = re.sub(r"\D", "", text)
 
     if len(digits) == 8:
         return digits
 
     return ""
+
+
+def format_deal_date_yyyymmdd(value):
+    return format_compact_date(value)
 
 
 def format_deal_date_month_day(value):
@@ -146,7 +153,105 @@ def _apply_document_no_defaults(data: dict, settings: dict):
     if not str(data.get("sequence") or "").strip():
         data["sequence"] = str(settings.get("default_sequence") or "").strip()
     if not str(data.get("deal_date") or "").strip():
-        data["deal_date"] = datetime.now().strftime("%Y-%m-%d")
+        data["deal_date"] = datetime.now().strftime("%Y%m%d")
+    else:
+        compact = format_compact_date(data.get("deal_date"))
+        if compact:
+            data["deal_date"] = compact
+
+
+def _normalize_date_fields(data: dict):
+    for key, value in list(data.items()):
+        key_text = str(key or "").lower()
+        if key_text.endswith("_date") or key_text in {"date", "order_date"}:
+            compact = format_compact_date(value)
+            if compact:
+                data[key] = compact
+
+
+def _extract_document_product_code(document_no):
+    parts = str(document_no or "").strip().split("-")
+    if len(parts) >= 3:
+        return parts[2].strip()
+    return ""
+
+
+def _sync_description_product_code(text, product_code):
+    code = str(product_code or "").strip()
+    source = "" if text is None else str(text)
+    if not code:
+        return source
+
+    replacement = f"代号：[系统] {code}"
+    lines = source.splitlines()
+
+    for index, line in enumerate(lines):
+        if "代号" not in line:
+            continue
+        if "：" in line:
+            prefix = line.split("：", 1)[0]
+            lines[index] = f"{prefix}：[系统] {code}"
+        elif ":" in line:
+            prefix = line.split(":", 1)[0]
+            lines[index] = f"{prefix}:[系统] {code}"
+        else:
+            lines[index] = replacement
+        return "\n".join(lines)
+
+    if not source.strip():
+        return replacement
+    return f"{replacement}\n{source}"
+
+
+def _clean_description_source_line(line):
+    text = str(line or "")
+    match = SOURCE_MARK_RE.search(text)
+    if not match:
+        return None, SOURCE_MARK_RE.sub("", text)
+
+    source = match.group(1)
+    prefix = text[:match.start()]
+    suffix = SOURCE_MARK_RE.sub("", text[match.end():])
+    if prefix.endswith((":", "：")):
+        suffix = suffix.lstrip()
+    return source, f"{prefix}{suffix}"
+
+
+def strip_description_source_marks(text):
+    lines = str(text or "").split("\n")
+    return "\n".join(_clean_description_source_line(line)[1] for line in lines)
+
+
+def description_to_rich_text(text):
+    rich_text = CellRichText()
+    red_font = InlineFont(color="FF0000")
+
+    lines = str(text or "").split("\n")
+    if not lines:
+        return ""
+
+    for index, line in enumerate(lines):
+        source, clean_line = _clean_description_source_line(line)
+        if source in RED_DESCRIPTION_SOURCES:
+            match = SOURCE_MARK_RE.search(str(line or ""))
+            if match:
+                prefix = line[:match.start()]
+                suffix = SOURCE_MARK_RE.sub("", line[match.end():])
+                if prefix.endswith((":", "：")):
+                    suffix = suffix.lstrip()
+                if prefix:
+                    rich_text.append(prefix)
+                if suffix:
+                    rich_text.append(TextBlock(red_font, suffix))
+            elif clean_line:
+                rich_text.append(TextBlock(red_font, clean_line))
+        else:
+            rich_text.append(clean_line)
+
+        if index < len(lines) - 1:
+            rich_text.append("\n")
+
+    return rich_text
 
 
 def write_cell(sheet, cell, value):
@@ -156,6 +261,19 @@ def write_cell(sheet, cell, value):
         return
 
     sheet[cell] = value
+
+
+def write_description_cell(sheet, cell, value):
+    cell = str(cell or "").strip().upper()
+
+    if not cell:
+        return
+
+    text = "" if value is None else str(value)
+    if SOURCE_MARK_RE.search(text):
+        sheet[cell].value = description_to_rich_text(text)
+    else:
+        sheet[cell].value = strip_description_source_marks(text)
 
 
 def set_wrap_text(sheet, cell):
@@ -271,6 +389,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
     description_settings = profile.get("description_settings", {}) or {}
 
     _apply_mapping_defaults(data, profile)
+    _normalize_date_fields(data)
 
     settings = dict(DEFAULT_DOCUMENT_NO_SETTINGS)
     raw_settings = profile.get("document_no_settings")
@@ -278,6 +397,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
         settings.update(raw_settings)
 
     _apply_document_no_defaults(data, settings)
+    _normalize_date_fields(data)
 
     product_code = build_product_code(data)
     data["product_code"] = product_code
@@ -288,6 +408,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
     else:
         document_no = build_document_no(data)
     data["document_no"] = document_no
+    data["product_code"] = _extract_document_product_code(document_no) or data.get("product_code", "")
 
     if not mappings and not composite_mappings and not description_settings.get("enabled"):
         return {
@@ -358,7 +479,8 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
                     else:
                         final_description = ""
 
-                write_cell(sheet, target_cell, final_description)
+                final_description = _sync_description_product_code(final_description, data.get("product_code"))
+                write_description_cell(sheet, target_cell, final_description)
                 set_wrap_text(sheet, target_cell)
             except Exception as e:
                 return {

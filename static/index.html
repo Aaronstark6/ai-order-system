@@ -656,13 +656,21 @@
         return `${d.getFullYear()}-${m}-${day}`;
     }
 
-    function formatDealDateYyyymmdd(value) {
-        let text = String(value || "").trim().replace(/\//g, "-");
-        const digits = text.replace(/\D/g, "");
-        if (digits.length === 8) {
-            return digits;
+    function formatCompactDate(value) {
+        const digits = String(value || "").trim().replace(/\D/g, "");
+        return digits.length === 8 ? digits : "";
+    }
+
+    function formatDateInputValue(value) {
+        const compact = formatCompactDate(value);
+        if (!compact) {
+            return "";
         }
-        return "";
+        return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
+    }
+
+    function formatDealDateYyyymmdd(value) {
+        return formatCompactDate(value);
     }
 
     function getDosageFormCode(productForm) {
@@ -792,6 +800,7 @@
             dnInput.value = c.ruleDocNo || "";
         }
 
+        syncDescriptionProductCodeFromDocumentNo();
         refreshDescriptionFromCurrentFields();
     }
 
@@ -853,6 +862,8 @@
         let initDeal = d.deal_date != null && String(d.deal_date).trim() !== "" ? String(d.deal_date).trim() : "";
         if (!initDeal) {
             initDeal = today;
+        } else {
+            initDeal = formatDateInputValue(initDeal) || initDeal;
         }
 
         const initIngredientInitials = d.ingredient_initials != null ? String(d.ingredient_initials) : "";
@@ -934,6 +945,7 @@
         const dnInput = document.getElementById("doc_field_document_no");
         if (dnInput) {
             dnInput.addEventListener("input", function () {
+                syncDescriptionProductCodeFromDocumentNo();
                 refreshDescriptionFromCurrentFields();
             });
         }
@@ -998,7 +1010,11 @@
                     raw = "";
                 }
             }
-            input.value = raw !== null && raw !== undefined ? String(raw) : "";
+            if (input.type === "date") {
+                input.value = formatDateInputValue(raw);
+            } else {
+                input.value = raw !== null && raw !== undefined ? String(raw) : "";
+            }
 
             input.oninput = function () {
                 refreshDescriptionFromCurrentFields();
@@ -1008,6 +1024,119 @@
             item.appendChild(input);
             grid.appendChild(item);
         });
+    }
+
+    const DESCRIPTION_SOURCE_MARK_RE = /\[(模板|AI|系统|人工)\]/g;
+
+    function stripDescriptionSourceMarks(text) {
+        return String(text || "").replace(DESCRIPTION_SOURCE_MARK_RE, "");
+    }
+
+    function replaceDescriptionLineSource(line, source) {
+        const marker = `[${source}]`;
+        const cleanLine = stripDescriptionSourceMarks(line);
+        const chineseColonIndex = cleanLine.indexOf("：");
+        const asciiColonIndex = cleanLine.indexOf(":");
+        let colonIndex = -1;
+        if (chineseColonIndex >= 0 && asciiColonIndex >= 0) {
+            colonIndex = Math.min(chineseColonIndex, asciiColonIndex);
+        } else {
+            colonIndex = Math.max(chineseColonIndex, asciiColonIndex);
+        }
+        if (colonIndex >= 0) {
+            const sep = cleanLine.charAt(colonIndex);
+            const prefix = cleanLine.slice(0, colonIndex);
+            const value = cleanLine.slice(colonIndex + 1).trim();
+            return `${prefix}${sep}${marker}${value ? " " + value : ""}`;
+        }
+        return cleanLine.trim() ? `${marker} ${cleanLine.trim()}` : cleanLine;
+    }
+
+    function setDescriptionValue(textarea, value) {
+        if (!textarea) {
+            return;
+        }
+        textarea.dataset.internalUpdate = "true";
+        textarea.value = value || "";
+        textarea.dataset.lastValue = textarea.value;
+        delete textarea.dataset.internalUpdate;
+    }
+
+    function extractDocumentProductCode() {
+        const dnInput = document.getElementById("doc_field_document_no");
+        const documentNo = dnInput ? String(dnInput.value || "").trim() : "";
+        const parts = documentNo.split("-");
+        return parts.length >= 3 ? parts[2].trim() : "";
+    }
+
+    function syncDescriptionProductCodeFromDocumentNo() {
+        const textarea = document.getElementById("description_text");
+        if (!textarea) {
+            return;
+        }
+
+        const productCode = extractDocumentProductCode();
+        if (!productCode) {
+            return;
+        }
+
+        const replacement = `代号：[系统] ${productCode}`;
+        const lines = String(textarea.value || "").split("\n");
+        let changed = false;
+        let found = false;
+
+        for (let i = 0; i < lines.length; i += 1) {
+            if (!lines[i].includes("代号")) {
+                continue;
+            }
+
+            found = true;
+            let nextLine = replacement;
+            if (lines[i].includes("：")) {
+                nextLine = `${lines[i].split("：", 1)[0]}：[系统] ${productCode}`;
+            } else if (lines[i].includes(":")) {
+                nextLine = `${lines[i].split(":", 1)[0]}:[系统] ${productCode}`;
+            }
+            if (lines[i] !== nextLine) {
+                lines[i] = nextLine;
+                changed = true;
+            }
+            break;
+        }
+
+        if (!found) {
+            lines.unshift(replacement);
+            changed = true;
+        }
+
+        if (changed) {
+            setDescriptionValue(textarea, lines.join("\n"));
+        }
+    }
+
+    function markEditedDescriptionLine(textarea) {
+        if (!textarea || textarea.dataset.internalUpdate === "true") {
+            return;
+        }
+
+        const oldValue = textarea.dataset.lastValue || "";
+        const newValue = textarea.value || "";
+        const oldLines = oldValue.split("\n");
+        const newLines = newValue.split("\n");
+        const cursor = textarea.selectionStart == null ? newValue.length : textarea.selectionStart;
+        const lineIndex = newValue.slice(0, cursor).split("\n").length - 1;
+
+        if (oldLines[lineIndex] === newLines[lineIndex]) {
+            textarea.dataset.lastValue = newValue;
+            return;
+        }
+
+        newLines[lineIndex] = replaceDescriptionLineSource(newLines[lineIndex], "人工");
+        setDescriptionValue(textarea, newLines.join("\n"));
+
+        const linesBefore = newLines.slice(0, lineIndex).join("\n");
+        const newCursor = (linesBefore ? linesBefore.length + 1 : 0) + newLines[lineIndex].length;
+        textarea.setSelectionRange(newCursor, newCursor);
     }
 
     async function renderDescriptionArea(data, options) {
@@ -1037,6 +1166,7 @@
         const textarea = document.createElement("textarea");
         textarea.id = "description_text";
         textarea.className = "description-textarea";
+        textarea.dataset.lastValue = "";
         textarea.placeholder = "产品描述生成中...";
         area.appendChild(textarea);
 
@@ -1069,7 +1199,8 @@
             return;
         }
 
-        textarea.value = result.description_text || "";
+        setDescriptionValue(textarea, result.description_text || "");
+        syncDescriptionProductCodeFromDocumentNo();
         textarea.dataset.generatedByAi = "true";
     }
 
@@ -1084,6 +1215,7 @@
     document.addEventListener("input", function (event) {
         if (event.target && event.target.id === "description_text") {
             event.target.dataset.manuallyEdited = "true";
+            markEditedDescriptionLine(event.target);
         }
     });
 
@@ -1158,7 +1290,11 @@
 
         DOC_SECTION_KEYS.forEach(key => {
             const input = document.getElementById("doc_field_" + key);
-            data[key] = input ? input.value : "";
+            if (input && input.type === "date") {
+                data[key] = formatCompactDate(input.value);
+            } else {
+                data[key] = input ? input.value : "";
+            }
         });
 
         return data;
@@ -1169,7 +1305,11 @@
 
         visibleFields.forEach(field => {
             const input = document.getElementById("field_" + field.key);
-            data[field.key] = input ? input.value : null;
+            if (input && input.type === "date") {
+                data[field.key] = formatCompactDate(input.value);
+            } else {
+                data[field.key] = input ? input.value : null;
+            }
         });
 
         return data;
