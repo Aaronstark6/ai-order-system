@@ -465,9 +465,6 @@
                 <button id="downloadExcelBtn" class="action-btn" onclick="openOutputFolder()" type="button" disabled>
                     打开订单目录
                 </button>
-                <button id="syncExcelBtn" class="action-btn" onclick="syncCurrentExcel()" type="button" disabled>
-                    同步到指定文件夹
-                </button>
             </div>
             <div id="submitResult"></div>
         </div>
@@ -601,6 +598,71 @@
             }
         });
         return syncOrderAndDealDates(out);
+    }
+
+    function extractParsedProductForm(data) {
+        const source = data || {};
+        const keys = ["product_form", "产品形式", "dosage form", "dosage_form"];
+
+        for (const key of keys) {
+            const value = source[key];
+            if (value != null && String(value).trim() !== "") {
+                return String(value).trim();
+            }
+        }
+
+        return "";
+    }
+
+    async function autoSelectProfileByProductForm(productForm) {
+        const text = String(productForm || "").trim();
+        const select = document.getElementById("profileSelect");
+
+        if (!text || !select || !Array.isArray(profiles) || profiles.length === 0) {
+            return false;
+        }
+
+        const rules = [
+            { formKeywords: ["软胶囊"], profileKeywords: ["软胶囊"] },
+            { formKeywords: ["爆珠"], profileKeywords: ["爆珠"] },
+            { formKeywords: ["软糖"], profileKeywords: ["软糖"] },
+            { formKeywords: ["固体饮料", "粉末"], profileKeywords: ["固体饮料", "粉末"] },
+            { formKeywords: ["片剂", "压片"], profileKeywords: ["片剂", "压片"] },
+            { formKeywords: ["泡腾片"], profileKeywords: ["泡腾片"] },
+            { formKeywords: ["滴剂"], profileKeywords: ["滴剂"] },
+            { formKeywords: ["凝胶", "果冻"], profileKeywords: ["凝胶", "果冻"] }
+        ];
+
+        const matchedRule = rules.find(rule =>
+            rule.formKeywords.some(keyword => text.includes(keyword))
+        );
+
+        if (!matchedRule) {
+            return false;
+        }
+
+        const matchedProfile = profiles.find(profile => {
+            const name = String(profile.name || "");
+            return matchedRule.profileKeywords.some(keyword => name.includes(keyword));
+        });
+
+        if (!matchedProfile) {
+            return false;
+        }
+
+        select.value = matchedProfile.id;
+        updateProfileTips();
+
+        const tips = document.getElementById("profileTips");
+        if (tips) {
+            tips.innerText = `已根据产品形式自动选择模板：${matchedProfile.name}`;
+        }
+
+        updateVisibleFields();
+        renderDocumentNoSection(parsedData);
+        renderForm(parsedData);
+        await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
+        return true;
     }
 
     function updateVisibleFields() {
@@ -1430,8 +1492,8 @@
         submitResult.innerHTML = "";
         resetExcelActions();
 
-        if (!getSelectedProfile()) {
-            errorDiv.innerText = "请先选择模板映射";
+        if (!profiles.length) {
+            errorDiv.innerText = "请先在配置中心创建模板映射";
             return;
         }
 
@@ -1471,10 +1533,22 @@
         ingredientInitialsManuallyEdited = false;
         currentDescriptionFields = {};
         parsedData = syncOrderAndDealDates(result.data);
-        updateVisibleFields();
-        renderDocumentNoSection(parsedData);
-        renderForm(parsedData);
-        await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
+
+        const productForm = extractParsedProductForm(parsedData);
+        if (productForm && !String(parsedData.product_form || "").trim()) {
+            parsedData.product_form = productForm;
+        }
+
+        const autoSelected = productForm
+            ? await autoSelectProfileByProductForm(productForm)
+            : false;
+
+        if (!autoSelected) {
+            updateVisibleFields();
+            renderDocumentNoSection(parsedData);
+            renderForm(parsedData);
+            await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
+        }
     }
 
     function collectDocNoFormData() {
@@ -1516,15 +1590,11 @@
         currentDownloadUrl = "";
 
         const downloadBtn = document.getElementById("downloadExcelBtn");
-        const syncBtn = document.getElementById("syncExcelBtn");
 
         if (downloadBtn) {
             downloadBtn.disabled = true;
             downloadBtn.classList.add("disabled");
             downloadBtn.setAttribute("aria-disabled", "true");
-        }
-        if (syncBtn) {
-            syncBtn.disabled = true;
         }
     }
 
@@ -1533,15 +1603,11 @@
         currentDownloadUrl = result.download_url || "";
 
         const downloadBtn = document.getElementById("downloadExcelBtn");
-        const syncBtn = document.getElementById("syncExcelBtn");
 
         if (downloadBtn && currentGeneratedFilename) {
             downloadBtn.disabled = false;
             downloadBtn.classList.remove("disabled");
             downloadBtn.setAttribute("aria-disabled", "false");
-        }
-        if (syncBtn && currentGeneratedFilename) {
-            syncBtn.disabled = false;
         }
     }
 
@@ -1645,23 +1711,17 @@
         const filenameHtml = result.filename
             ? `<p class="sync-path">文件名：${escapeHtml(result.filename)}</p>`
             : "";
-        const syncStatusHtml = result.synced
-            ? `<p class="sync-path">同步状态：已同步</p>`
-            : `<p class="sync-path">同步状态：未同步到指定文件夹</p>`;
-        const syncPathHtml = result.synced && result.sync_path
-            ? `<p class="sync-path">同步路径：${escapeHtml(result.sync_path)}</p>`
-            : "";
-        const syncErrorHtml = result.sync_error
-            ? `<p class="sync-error">Excel已生成，但同步到本地文件夹失败：${escapeHtml(result.sync_error)}</p>`
-            : "";
+        const syncStatusHtml = result.synced && result.sync_path
+            ? `<p class="sync-path">已同步到：${escapeHtml(result.sync_path)}</p>`
+            : result.sync_error
+                ? `<p class="sync-error">同步失败：${escapeHtml(result.sync_error)}</p>`
+                : `<p class="sync-path">未配置同步目录</p>`;
 
         submitResult.innerHTML = `
             <p class="success excel-result-message">Excel生成成功！</p>
             ${filenameHtml}
             ${descriptionWarning}
             ${syncStatusHtml}
-            ${syncPathHtml}
-            ${syncErrorHtml}
         `;
     }
 
@@ -1694,7 +1754,7 @@
 
         if (syncBtn) {
             syncBtn.disabled = false;
-            syncBtn.innerText = "同步到指定文件夹";
+            syncBtn.innerText = "同步";
         }
 
         if (!submitResult) {
