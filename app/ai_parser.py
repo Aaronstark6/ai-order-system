@@ -284,6 +284,78 @@ def _render_description_placeholders(description_template: str, order_data: dict
     return re.sub(r"\{([^{}]+)\}", replace_placeholder, source)
 
 
+DESCRIPTION_FIELDS_MARKER = "===DESCRIPTION_FIELDS==="
+
+
+def parse_description_fields(ai_output):
+    text = str(ai_output or "")
+    if DESCRIPTION_FIELDS_MARKER not in text:
+        return {}
+
+    json_text = text.split(DESCRIPTION_FIELDS_MARKER, 1)[1].strip()
+    if json_text.startswith("```"):
+        lines = json_text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        json_text = "\n".join(lines).strip()
+
+    start = json_text.find("{")
+    if start < 0:
+        return {}
+
+    try:
+        parsed, _ = json.JSONDecoder().raw_decode(json_text[start:])
+    except Exception:
+        return {}
+
+    if not isinstance(parsed, dict):
+        return {}
+
+    cleaned = {}
+    for key, value in parsed.items():
+        if value is None:
+            continue
+        key_text = str(key or "").strip()
+        if not key_text:
+            continue
+        if isinstance(value, str):
+            value_text = value.strip()
+        else:
+            value_text = json.dumps(value, ensure_ascii=False).strip()
+        if value_text:
+            cleaned[key_text] = value_text
+    return cleaned
+
+
+def _split_description_output(ai_output):
+    text = str(ai_output or "").strip()
+    if DESCRIPTION_FIELDS_MARKER not in text:
+        return text, {}
+    description_text = text.split(DESCRIPTION_FIELDS_MARKER, 1)[0].rstrip()
+    return description_text, parse_description_fields(text)
+
+
+def _filter_description_fields_to_template(description_template: str, description_fields: dict):
+    if not isinstance(description_fields, dict):
+        return {}
+
+    template_keys = {
+        _line_key(line)
+        for line in str(description_template or "").splitlines()
+        if _line_key(line)
+    }
+    if not template_keys:
+        return {}
+
+    return {
+        key: value
+        for key, value in description_fields.items()
+        if key in template_keys
+    }
+
+
 def generate_description_from_message(message: str, description_template: str, order_data: dict):
     api_key = get_deepseek_api_key()
     if not api_key:
@@ -372,6 +444,20 @@ def generate_description_from_message(message: str, description_template: str, o
 【客户聊天内容】
 {message}
 
+Additional structured output requirement:
+The earlier plain-text-only rule applies to the product description section only.
+After the complete product description text, append this marker and one JSON object:
+===DESCRIPTION_FIELDS===
+{{
+  "template field title": "recognized value"
+}}
+Rules for DESCRIPTION_FIELDS:
+1. JSON keys must be exact field titles from the product description template below.
+2. Do not return fields that were not recognized.
+3. Do not return null values.
+4. Do not add fields that are not in the template.
+5. Do not wrap the JSON in markdown fences.
+
 【产品描述模板】
 {rendered_template}
 """
@@ -409,15 +495,17 @@ def generate_description_from_message(message: str, description_template: str, o
             lines = lines[:-1]
         content = "\n".join(lines).strip()
 
-    constrained = constrain_description_to_template(rendered_template, content)
-    return annotate_description_sources(rendered_template, constrained)
+    description_text, description_fields = _split_description_output(content)
+    constrained = constrain_description_to_template(rendered_template, description_text)
+    return {
+        "description_text": annotate_description_sources(rendered_template, constrained),
+        "description_fields": _filter_description_fields_to_template(rendered_template, description_fields),
+    }
 
 
 def fill_description_from_message(message: str, template: str, data=None):
     try:
-        return {
-            "description_text": generate_description_from_message(message, template, data)
-        }
+        return generate_description_from_message(message, template, data)
     except Exception as e:
         return {
             "error": str(e)

@@ -1228,6 +1228,7 @@
             return;
         }
 
+        console.log("description_fields", result.description_fields || {});
         setDescriptionValue(textarea, result.description_text || "");
         syncDescriptionProductCodeFromDocumentNo();
         textarea.dataset.generatedByAi = "true";

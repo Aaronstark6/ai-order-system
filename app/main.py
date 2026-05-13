@@ -276,13 +276,14 @@ def api_generate_description(data: dict):
         if not message:
             return {"success": False, "error": "message不能为空，产品描述需要客户聊天内容才能 AI 生成"}
 
-        description_text = generate_description_from_message(message, template, order_data)
+        description_result = generate_description_from_message(message, template, order_data)
 
         return {
             "success": True,
             "template_name": template_name,
             "used_ai": True,
-            "description_text": description_text,
+            "description_text": description_result.get("description_text", ""),
+            "description_fields": description_result.get("description_fields", {}),
             "debug_message_length": len(message),
             "debug_template_length": len(template),
         }
