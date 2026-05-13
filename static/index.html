@@ -588,7 +588,7 @@
     function mergeDataWithMappingDefaults(data) {
         const profile = getSelectedProfile();
         const defs = profile && profile.mapping_defaults ? profile.mapping_defaults : {};
-        const out = Object.assign({}, data || {});
+        const out = syncOrderAndDealDates(data);
         Object.keys(defs).forEach(k => {
             const v = out[k];
             if (v === null || v === undefined || String(v).trim() === "") {
@@ -598,7 +598,7 @@
                 }
             }
         });
-        return out;
+        return syncOrderAndDealDates(out);
     }
 
     function updateVisibleFields() {
@@ -671,6 +671,34 @@
 
     function formatDealDateYyyymmdd(value) {
         return formatCompactDate(value);
+    }
+
+    function isCompactDateFieldKey(key) {
+        const text = String(key || "").trim().toLowerCase();
+        return text === "date" || text === "order_date" || text === "deal_date" || text.endsWith("_date");
+    }
+
+    function syncOrderAndDealDates(data) {
+        const out = Object.assign({}, data || {});
+        const orderDate = formatCompactDate(out.order_date);
+        const dealDate = formatCompactDate(out.deal_date);
+
+        if (orderDate && !dealDate) {
+            out.order_date = orderDate;
+            out.deal_date = orderDate;
+        } else if (dealDate && !orderDate) {
+            out.deal_date = dealDate;
+            out.order_date = dealDate;
+        } else {
+            if (orderDate) {
+                out.order_date = orderDate;
+            }
+            if (dealDate) {
+                out.deal_date = dealDate;
+            }
+        }
+
+        return out;
     }
 
     function getDosageFormCode(productForm) {
@@ -839,7 +867,7 @@
 
         const s = profile.document_no_settings || {};
         const today = getTodayISODate();
-        const d = data || {};
+        const d = syncOrderAndDealDates(data);
 
         const v = function (key, fallbackSetting, fallbackLiteral) {
             let raw = d[key] != null && String(d[key]).trim() !== "" ? String(d[key]).trim() : "";
@@ -962,6 +990,7 @@
     function renderForm(data) {
         const form = document.getElementById("confirmForm");
         form.innerHTML = "";
+        data = syncOrderAndDealDates(data);
 
         if (!getSelectedProfile()) {
             form.innerHTML = `<div class="empty-form">请先选择模板映射。</div>`;
@@ -1010,7 +1039,7 @@
                     raw = "";
                 }
             }
-            if (input.type === "date") {
+            if (input.type === "date" || isCompactDateFieldKey(field.key)) {
                 input.value = formatDateInputValue(raw);
             } else {
                 input.value = raw !== null && raw !== undefined ? String(raw) : "";
@@ -1278,7 +1307,7 @@
             return;
         }
 
-        parsedData = result.data;
+        parsedData = syncOrderAndDealDates(result.data);
         updateVisibleFields();
         renderDocumentNoSection(parsedData);
         renderForm(parsedData);
@@ -1290,7 +1319,7 @@
 
         DOC_SECTION_KEYS.forEach(key => {
             const input = document.getElementById("doc_field_" + key);
-            if (input && input.type === "date") {
+            if (input && (input.type === "date" || isCompactDateFieldKey(key))) {
                 data[key] = formatCompactDate(input.value);
             } else {
                 data[key] = input ? input.value : "";
@@ -1305,7 +1334,7 @@
 
         visibleFields.forEach(field => {
             const input = document.getElementById("field_" + field.key);
-            if (input && input.type === "date") {
+            if (input && (input.type === "date" || isCompactDateFieldKey(field.key))) {
                 data[field.key] = formatCompactDate(input.value);
             } else {
                 data[field.key] = input ? input.value : null;
@@ -1316,7 +1345,7 @@
     }
 
     function collectAllOrderData() {
-        return Object.assign({}, collectDocNoFormData(), collectFormData());
+        return syncOrderAndDealDates(Object.assign({}, collectDocNoFormData(), collectFormData()));
     }
 
     function resetExcelActions() {
