@@ -4,8 +4,6 @@ from datetime import datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
-from openpyxl.cell.rich_text import CellRichText, TextBlock
-from openpyxl.cell.text import InlineFont
 from openpyxl.styles import Alignment
 
 from app.app_settings import get_export_sync_dir
@@ -24,7 +22,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_UPLOAD_DIR = BASE_DIR / "templates" / "uploads"
 OUTPUT_DIR = BASE_DIR / "output"
 SOURCE_MARK_RE = re.compile(r"\[(模板|AI|系统|人工)\]")
-RED_DESCRIPTION_SOURCES = {"AI", "人工"}
 
 
 def safe_filename_text(text):
@@ -205,53 +202,19 @@ def _sync_description_product_code(text, product_code):
 
 def _clean_description_source_line(line):
     text = str(line or "")
-    match = SOURCE_MARK_RE.search(text)
-    if not match:
-        return None, SOURCE_MARK_RE.sub("", text)
+    if not SOURCE_MARK_RE.search(text):
+        return text
 
-    source = match.group(1)
-    prefix = text[:match.start()]
-    suffix = SOURCE_MARK_RE.sub("", text[match.end():])
-    if prefix.endswith((":", "：")):
-        suffix = suffix.lstrip()
-    return source, f"{prefix}{suffix}"
+    cleaned = SOURCE_MARK_RE.sub("", text)
+    cleaned = re.sub(r"^\s+", "", cleaned)
+    cleaned = re.sub(r"([:：])\s+", r"\1", cleaned)
+    return cleaned
 
 
 def strip_description_source_marks(text):
-    lines = str(text or "").split("\n")
-    return "\n".join(_clean_description_source_line(line)[1] for line in lines)
-
-
-def description_to_rich_text(text):
-    rich_text = CellRichText()
-    red_font = InlineFont(color="FF0000")
-
-    lines = str(text or "").split("\n")
-    if not lines:
-        return ""
-
-    for index, line in enumerate(lines):
-        source, clean_line = _clean_description_source_line(line)
-        if source in RED_DESCRIPTION_SOURCES:
-            match = SOURCE_MARK_RE.search(str(line or ""))
-            if match:
-                prefix = line[:match.start()]
-                suffix = SOURCE_MARK_RE.sub("", line[match.end():])
-                if prefix.endswith((":", "：")):
-                    suffix = suffix.lstrip()
-                if prefix:
-                    rich_text.append(prefix)
-                if suffix:
-                    rich_text.append(TextBlock(red_font, suffix))
-            elif clean_line:
-                rich_text.append(TextBlock(red_font, clean_line))
-        else:
-            rich_text.append(clean_line)
-
-        if index < len(lines) - 1:
-            rich_text.append("\n")
-
-    return rich_text
+    normalized = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    return "\n".join(_clean_description_source_line(line) for line in lines)
 
 
 def write_cell(sheet, cell, value):
@@ -269,11 +232,7 @@ def write_description_cell(sheet, cell, value):
     if not cell:
         return
 
-    text = "" if value is None else str(value)
-    if SOURCE_MARK_RE.search(text):
-        sheet[cell].value = description_to_rich_text(text)
-    else:
-        sheet[cell].value = strip_description_source_marks(text)
+    sheet[cell] = strip_description_source_marks(value)
 
 
 def set_wrap_text(sheet, cell):
