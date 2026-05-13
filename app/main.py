@@ -21,6 +21,7 @@ from app.field_library import (
     delete_field
 )
 from app.ai_parser import parse_message, generate_description_from_message
+from app.ingredient_parser import extract_ingredient_initials_from_description_fields
 from app.excel_generator import generate_excel
 from app.description_template_manager import (
     list_description_templates,
@@ -284,6 +285,7 @@ def api_generate_description(data: dict):
             "used_ai": True,
             "description_text": description_result.get("description_text", ""),
             "description_fields": description_result.get("description_fields", {}),
+            "ingredient_initials": description_result.get("ingredient_initials", ""),
             "debug_message_length": len(message),
             "debug_template_length": len(template),
         }
@@ -314,6 +316,13 @@ def api_generate_excel(data: dict):
     try:
         profile_id = data.get("profile_id", "")
         order_data = data.get("data", {})
+        description_fields = data.get("description_fields", {})
+        if isinstance(order_data, dict) and not str(order_data.get("ingredient_initials") or "").strip():
+            ingredient_initials = extract_ingredient_initials_from_description_fields(description_fields)
+            if ingredient_initials:
+                order_data["ingredient_initials"] = ingredient_initials
+                order_data.pop("document_no", None)
+                order_data.pop("product_code", None)
         # legacy composite mapping compatibility
         composite_data = data.get("composite_data")
         if composite_data is None:

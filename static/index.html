@@ -504,6 +504,8 @@
     };
     let currentGeneratedFilename = "";
     let currentDownloadUrl = "";
+    let currentDescriptionFields = {};
+    let ingredientInitialsManuallyEdited = false;
 
     async function loadInitialData() {
         await loadFields();
@@ -701,6 +703,132 @@
         return out;
     }
 
+    const FORMULA_FIELD_PRIORITY = ["配方要求", "配方", "Formula", "Ingredients"];
+    const IGNORED_INGREDIENT_LINE_RE = /(serving size|servings per container|other ingredients|suggested use|warning)/i;
+    const AMOUNT_RE = /(\d+(?:\.\d+)?)\s*(mg|mcg|μg|ug|g|ml|iu)\b/ig;
+    const IGNORED_INGREDIENT_PREFIXES = new Set([
+        "organic",
+        "pure",
+        "natural",
+        "extract",
+        "standardized",
+        "standardised",
+        "total"
+    ]);
+
+    function getFormulaTextFromDescriptionFields(descriptionFields) {
+        const fields = descriptionFields || {};
+        for (const key of FORMULA_FIELD_PRIORITY) {
+            const value = fields[key];
+            if (value !== null && value !== undefined && String(value).trim()) {
+                return String(value).trim();
+            }
+        }
+        return "";
+    }
+
+    function normalizeIngredientAmount(value, unit) {
+        const amount = Number(value);
+        const unitText = String(unit || "").toLowerCase();
+        if (!Number.isFinite(amount)) {
+            return 0;
+        }
+        if (unitText === "g") {
+            return amount * 1000;
+        }
+        if (unitText === "mg") {
+            return amount;
+        }
+        if (unitText === "mcg" || unitText === "μg" || unitText === "ug") {
+            return amount / 1000;
+        }
+        return amount;
+    }
+
+    function stripFormulaFieldPrefix(line) {
+        let text = stripDescriptionSourceMarks(line).trim();
+        for (const sep of ["：", ":"]) {
+            const index = text.indexOf(sep);
+            if (index < 0) {
+                continue;
+            }
+            const prefix = text.slice(0, index).trim();
+            if (FORMULA_FIELD_PRIORITY.includes(prefix)) {
+                return text.slice(index + 1).trim();
+            }
+        }
+        return text;
+    }
+
+    function isNonIngredientLine(line) {
+        const text = String(line || "").trim().toLowerCase();
+        return !text || IGNORED_INGREDIENT_LINE_RE.test(text) || text.startsWith("total ") || text.startsWith("total:");
+    }
+
+    function ingredientInitialFromName(name) {
+        let text = String(name || "").trim();
+        while (text) {
+            const match = text.match(/^([A-Za-z][A-Za-z'-]*)\b/);
+            if (!match) {
+                return "";
+            }
+            const word = match[1].replace(/^[-']+|[-']+$/g, "").toLowerCase();
+            if (!IGNORED_INGREDIENT_PREFIXES.has(word)) {
+                return word.charAt(0).toUpperCase();
+            }
+            text = text.slice(match[0].length).trim();
+        }
+        return "";
+    }
+
+    function extractIngredientInitialsFromFormulaText(formulaText) {
+        const ingredients = [];
+        String(formulaText || "").split(/\r?\n/).forEach((rawLine, index) => {
+            const line = stripFormulaFieldPrefix(rawLine);
+            if (/[\u4e00-\u9fff]/.test(line) || isNonIngredientLine(line)) {
+                return;
+            }
+
+            AMOUNT_RE.lastIndex = 0;
+            const matches = Array.from(line.matchAll(AMOUNT_RE));
+            AMOUNT_RE.lastIndex = 0;
+            if (matches.length === 0) {
+                return;
+            }
+
+            const amountMatch = matches[matches.length - 1];
+            const amountStart = amountMatch.index || 0;
+            const amountEnd = amountStart + amountMatch[0].length;
+            const name = (amountStart <= 1 ? line.slice(amountEnd) : line.slice(0, amountStart))
+                .replace(/^[\s,;:/\-–—]+|[\s,;:/\-–—]+$/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+            const initial = ingredientInitialFromName(name);
+            if (!initial) {
+                return;
+            }
+
+            ingredients.push({
+                amount: normalizeIngredientAmount(amountMatch[1], amountMatch[2]),
+                index,
+                initial
+            });
+        });
+
+        return ingredients
+            .sort((a, b) => b.amount - a.amount || a.index - b.index)
+            .slice(0, 3)
+            .map(item => item.initial)
+            .sort()
+            .join("");
+    }
+
+    function extractIngredientInitialsFromDescriptionFields(descriptionFields) {
+        return extractIngredientInitialsFromFormulaText(
+            getFormulaTextFromDescriptionFields(descriptionFields)
+        );
+    }
+
     function getDosageFormCode(productForm) {
         const map = {
             "硬胶囊": "C",
@@ -832,9 +960,37 @@
         refreshDescriptionFromCurrentFields();
     }
 
+    function applyIngredientInitialsFromDescriptionFields(descriptionFields, backendInitials) {
+        currentDescriptionFields = descriptionFields || {};
+        if (ingredientInitialsManuallyEdited) {
+            return;
+        }
+
+        const initials = String(backendInitials || extractIngredientInitialsFromDescriptionFields(currentDescriptionFields) || "")
+            .trim()
+            .toUpperCase();
+        if (!initials) {
+            return;
+        }
+
+        const input = document.getElementById("doc_field_ingredient_initials");
+        if (!input || String(input.value || "").trim().toUpperCase() === initials) {
+            return;
+        }
+
+        input.dataset.internalUpdate = "true";
+        input.value = initials;
+        delete input.dataset.internalUpdate;
+        parsedData.ingredient_initials = initials;
+        updateDocNoPreviews();
+    }
+
     function bindDocNoSyncInputs() {
         document.querySelectorAll(".doc-no-sync").forEach(el => {
             el.addEventListener("input", function () {
+                if (el.id === "doc_field_ingredient_initials" && el.dataset.internalUpdate !== "true") {
+                    ingredientInitialsManuallyEdited = true;
+                }
                 updateDocNoPreviews();
             });
             el.addEventListener("change", function () {
@@ -1200,11 +1356,13 @@
         area.appendChild(textarea);
 
         if (!settings.template_name) {
+            currentDescriptionFields = {};
             textarea.placeholder = "当前模板映射未选择产品描述模板";
             return;
         }
 
         if (!options.useAi) {
+            currentDescriptionFields = {};
             textarea.placeholder = "点击 AI解析 后自动生成产品描述";
             return;
         }
@@ -1229,9 +1387,11 @@
         }
 
         console.log("description_fields", result.description_fields || {});
+        currentDescriptionFields = result.description_fields || {};
         setDescriptionValue(textarea, result.description_text || "");
-        syncDescriptionProductCodeFromDocumentNo();
         textarea.dataset.generatedByAi = "true";
+        applyIngredientInitialsFromDescriptionFields(currentDescriptionFields, result.ingredient_initials || "");
+        syncDescriptionProductCodeFromDocumentNo();
     }
 
     async function refreshDescriptionFromCurrentFields() {
@@ -1308,6 +1468,8 @@
             return;
         }
 
+        ingredientInitialsManuallyEdited = false;
+        currentDescriptionFields = {};
         parsedData = syncOrderAndDealDates(result.data);
         updateVisibleFields();
         renderDocumentNoSection(parsedData);
@@ -1433,6 +1595,7 @@
             body: JSON.stringify({
                 profile_id: profileId,
                 data: data,
+                description_fields: currentDescriptionFields || {},
                 description_text: descriptionText
             })
         });
