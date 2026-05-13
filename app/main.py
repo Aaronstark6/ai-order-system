@@ -1,5 +1,7 @@
 from pathlib import Path
+import os
 import shutil
+import subprocess
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
@@ -47,6 +49,33 @@ STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+def _path_is_inside(child: Path, parent: Path):
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _find_allowed_output_file(filename: str):
+    safe_filename = Path(str(filename or "")).name
+    if not safe_filename:
+        return None
+
+    output_file = OUTPUT_DIR / safe_filename
+    if output_file.exists() and _path_is_inside(output_file, OUTPUT_DIR):
+        return output_file
+
+    export_sync_dir = str(get_export_sync_dir() or "").strip()
+    if export_sync_dir:
+        sync_dir = Path(export_sync_dir).expanduser()
+        sync_file = sync_dir / safe_filename
+        if sync_file.exists() and _path_is_inside(sync_file, sync_dir):
+            return sync_file
+
+    return None
 
 
 @app.get("/")
@@ -364,6 +393,26 @@ def api_sync_output(data: dict):
             "synced": True,
             "sync_path": str(target_file)
         }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/open-output-folder")
+def api_open_output_folder(data: dict):
+    try:
+        filename = Path(str(data.get("filename") or "")).name
+        if not filename:
+            return {"success": False, "error": "filename不能为空"}
+
+        target_file = _find_allowed_output_file(filename)
+        if not target_file:
+            return {"success": False, "error": "找不到订单文件，请先生成 Excel 或检查同步目录"}
+
+        if os.name != "nt":
+            return {"success": False, "error": "当前系统暂不支持自动打开文件夹，请手动打开输出目录"}
+
+        subprocess.Popen(f'explorer /select,"{str(target_file.resolve())}"')
+        return {"success": True, "path": str(target_file)}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

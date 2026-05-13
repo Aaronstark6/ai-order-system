@@ -462,8 +462,8 @@
                 <button id="generateBtn" class="secondary" onclick="submitOrder()" type="button">
                     确认生成Excel
                 </button>
-                <button id="downloadExcelBtn" class="action-btn" onclick="downloadCurrentExcel()" type="button" disabled>
-                    点击下载Excel
+                <button id="downloadExcelBtn" class="action-btn" onclick="openOutputFolder()" type="button" disabled>
+                    打开订单目录
                 </button>
                 <button id="syncExcelBtn" class="action-btn" onclick="syncCurrentExcel()" type="button" disabled>
                     同步到指定文件夹
@@ -1535,7 +1535,7 @@
         const downloadBtn = document.getElementById("downloadExcelBtn");
         const syncBtn = document.getElementById("syncExcelBtn");
 
-        if (downloadBtn && currentDownloadUrl) {
+        if (downloadBtn && currentGeneratedFilename) {
             downloadBtn.disabled = false;
             downloadBtn.classList.remove("disabled");
             downloadBtn.setAttribute("aria-disabled", "false");
@@ -1545,12 +1545,40 @@
         }
     }
 
-    function downloadCurrentExcel() {
-        if (!currentDownloadUrl) {
+    async function openOutputFolder() {
+        const submitResult = document.getElementById("submitResult");
+
+        if (!currentGeneratedFilename) {
+            if (submitResult) {
+                submitResult.innerHTML = `<p class="error">请先生成Excel</p>`;
+            }
             return;
         }
 
-        window.open(currentDownloadUrl, "_blank");
+        const response = await fetch("/api/open-output-folder", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                filename: currentGeneratedFilename
+            })
+        });
+        const result = await response.json();
+
+        if (!submitResult) {
+            return;
+        }
+
+        if (!result.success) {
+            submitResult.innerHTML = `<p class="sync-error">${escapeHtml(result.error || "打开订单目录失败")}</p>`;
+            return;
+        }
+
+        submitResult.innerHTML = `
+            <p class="success excel-result-message">已打开订单目录</p>
+            <p class="sync-path">文件名：${escapeHtml(currentGeneratedFilename)}</p>
+        `;
     }
 
     function collectDescriptionText() {
@@ -1614,8 +1642,14 @@
 
         enableExcelActions(result);
 
+        const filenameHtml = result.filename
+            ? `<p class="sync-path">文件名：${escapeHtml(result.filename)}</p>`
+            : "";
+        const syncStatusHtml = result.synced
+            ? `<p class="sync-path">同步状态：已同步</p>`
+            : `<p class="sync-path">同步状态：未同步到指定文件夹</p>`;
         const syncPathHtml = result.synced && result.sync_path
-            ? `<p class="sync-path">已同步到：${escapeHtml(result.sync_path)}</p>`
+            ? `<p class="sync-path">同步路径：${escapeHtml(result.sync_path)}</p>`
             : "";
         const syncErrorHtml = result.sync_error
             ? `<p class="sync-error">Excel已生成，但同步到本地文件夹失败：${escapeHtml(result.sync_error)}</p>`
@@ -1623,7 +1657,9 @@
 
         submitResult.innerHTML = `
             <p class="success excel-result-message">Excel生成成功！</p>
+            ${filenameHtml}
             ${descriptionWarning}
+            ${syncStatusHtml}
             ${syncPathHtml}
             ${syncErrorHtml}
         `;
