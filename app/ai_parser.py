@@ -176,8 +176,12 @@ def _line_key(line: str):
     return ""
 
 
+FORMULA_FIELD_KEYS = ("配方", "配方要求", "Formula", "Ingredients")
+
+
 def _is_formula_key(key: str):
-    return key in ("配方", "配方要求")
+    key_text = str(key or "").strip()
+    return key_text in FORMULA_FIELD_KEYS or key_text.lower() in {"formula", "ingredients"}
 
 
 def _looks_like_extra_chinese_field(line: str, key: str):
@@ -188,8 +192,9 @@ def _looks_like_extra_chinese_field(line: str, key: str):
 
 
 def _formula_alias_block(ai_by_key: dict):
-    for formula_key in ("配方", "配方要求"):
-        block = ai_by_key.get(formula_key)
+    for formula_key, block in ai_by_key.items():
+        if not _is_formula_key(formula_key):
+            continue
         if block:
             return block
     return ""
@@ -394,20 +399,24 @@ def generate_description_from_message(message: str, description_template: str, o
 - capsule、softgel、gummy、powder、drop、tablet、effervescent tablet 等英文产品形式也要识别，并填入剂型、形状或相关描述词条。
 - 如果聊天内容和已解析订单字段都提供了同一信息，优先使用更具体、更完整的内容。
 
-【配方/配方要求格式】
-当模板中出现“配方”或“配方要求”时，必须按下面格式输出：
+【配方/配方要求/Formula/Ingredients 双语格式】
+当模板中出现“配方”“配方要求”“Formula”或“Ingredients”时，必须按下面格式输出：
 1. 不要使用项目符号。
 2. 不要使用表格。
 3. 不要使用 markdown。
 4. 不要输出“中文：”或“English：”。
 5. 每个成分输出两行：第一行英文，保留 mg、g、ml 等英文单位格式；第二行中文，使用“毫克”“克”“毫升”等中文单位。
 6. 每个成分之间空一行。
-7. 如果聊天记录只提供英文配方，则翻译中文行。
-8. 如果聊天记录只提供中文配方，则翻译英文行。
+7. 如果聊天记录只提供英文配方，必须保留英文原文，并补充中文翻译行。
+8. 如果聊天记录只提供中文配方，必须补充英文翻译行。
 9. 如果聊天记录已经包含中英文，则整理成英文一行、中文一行的上下对应格式。
 10. 剂量、单位、括号内容必须尽量保留。
 11. 不允许编造聊天记录中没有的成分。
-12. 如果有总含量说明，也按英文一行、中文一行输出在配方末尾。
+12. 不允许只输出英文，也不允许只输出中文。
+13. 不允许遗漏聊天记录中明确出现的配方成分。
+14. Serving Size、serving size、每份用量、建议食用量不是配方成分，不能混入配方成分列表；如果模板中有对应字段，可以写入对应字段。
+15. 如果有总含量说明，也按英文一行、中文一行输出在配方末尾。
+16. description_fields 中如果返回“配方”“配方要求”“Formula”或“Ingredients”，字段值也必须使用同样的中英双语格式，并用换行保留“英文行/中文行/空行”的结构。
 
 配方格式示例：
 配方要求：
@@ -422,6 +431,16 @@ def generate_description_from_message(message: str, description_template: str, o
 
 (Total content per softgel capsule: 500 mg liquid)
 （每粒软胶囊总含量：500毫克；毛重需要做到700mg）
+
+英文配方输入时的输出示例：
+Magnesium (as magnesium bisglycinate chelate 500 mg) 70mg
+镁（双甘氨酸镁螯合物500毫克）70毫克
+
+L-Theanine 200mg
+L-茶氨酸200毫克
+
+Ashwagandha (Withaniasomnifera) Extract (root) 300mg
+南非醉茄（Withania somnifera）提取物（根）300毫克
 
 【示例】
 聊天：客户要草莓味软糖，小熊形状，60粒/瓶，1000瓶，客户自己设计标签。
@@ -457,6 +476,7 @@ Rules for DESCRIPTION_FIELDS:
 3. Do not return null values.
 4. Do not add fields that are not in the template.
 5. Do not wrap the JSON in markdown fences.
+6. If a returned field is 配方, 配方要求, Formula, or Ingredients, its JSON string value must keep the same bilingual formula format: English line, Chinese line, blank line between ingredients.
 
 【产品描述模板】
 {rendered_template}
