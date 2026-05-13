@@ -275,6 +275,70 @@ def constrain_description_to_template(template: str, ai_text: str):
     return "\n".join(result)
 
 
+def _line_separator(line: str):
+    text = str(line or "")
+    for sep in ("：", ":"):
+        if sep in text:
+            return sep
+    return ""
+
+
+def _line_value(line: str):
+    text = str(line or "")
+    sep = _line_separator(text)
+    if not sep:
+        return ""
+    return text.split(sep, 1)[1].strip()
+
+
+def _render_description_line(field_title: str, separator: str, source: str, value: str = ""):
+    marker = f"[{source}]"
+    value_text = str(value or "").strip()
+    if value_text:
+        return f"{field_title}{separator}{marker} {value_text}"
+    return f"{field_title}{separator}{marker}"
+
+
+def render_description_from_fields(template_text, description_fields):
+    if not isinstance(description_fields, dict) or not description_fields:
+        return ""
+
+    rendered_lines = []
+    has_ai_value = False
+
+    for template_line in str(template_text or "").splitlines():
+        if not str(template_line or "").strip():
+            rendered_lines.append(template_line)
+            continue
+
+        field_title = _line_key(template_line)
+        separator = _line_separator(template_line)
+        if not field_title or not separator:
+            rendered_lines.append(template_line)
+            continue
+
+        raw_value = description_fields.get(field_title)
+        value = "" if raw_value is None else str(raw_value).strip()
+
+        if value:
+            has_ai_value = True
+            if _is_formula_key(field_title) and "\n" in value:
+                rendered_lines.append(_render_description_line(field_title, separator, "AI"))
+                rendered_lines.extend(value.splitlines())
+            else:
+                rendered_lines.append(_render_description_line(field_title, separator, "AI", value))
+            continue
+
+        rendered_lines.append(
+            _render_description_line(field_title, separator, "模板", _line_value(template_line))
+        )
+
+    if not has_ai_value:
+        return ""
+
+    return "\n".join(rendered_lines)
+
+
 def _render_description_placeholders(description_template: str, order_data: dict):
     source = "" if description_template is None else str(description_template)
     values = order_data if isinstance(order_data, dict) else {}
@@ -516,10 +580,24 @@ Rules for DESCRIPTION_FIELDS:
         content = "\n".join(lines).strip()
 
     description_text, description_fields = _split_description_output(content)
-    constrained = constrain_description_to_template(rendered_template, description_text)
+    description_fields = _filter_description_fields_to_template(rendered_template, description_fields)
+
+    rendered_from_fields = ""
+    if description_fields:
+        try:
+            rendered_from_fields = render_description_from_fields(rendered_template, description_fields)
+        except Exception:
+            rendered_from_fields = ""
+
+    if rendered_from_fields.strip():
+        final_description_text = rendered_from_fields
+    else:
+        constrained = constrain_description_to_template(rendered_template, description_text)
+        final_description_text = annotate_description_sources(rendered_template, constrained)
+
     return {
-        "description_text": annotate_description_sources(rendered_template, constrained),
-        "description_fields": _filter_description_fields_to_template(rendered_template, description_fields),
+        "description_text": final_description_text,
+        "description_fields": description_fields,
     }
 
 
