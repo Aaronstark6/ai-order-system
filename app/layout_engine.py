@@ -63,10 +63,11 @@ def _offset_cell(cell_ref, row_offset=0, col_offset=0):
 
 
 def pixels_to_emu(px):
-    number = _to_positive_number(px)
-    if not number:
-        return 0
-    return int(round(number * EMU_PER_PIXEL))
+    try:
+        number = float(px or 0)
+    except (TypeError, ValueError):
+        number = 0
+    return int(round(max(0, number) * EMU_PER_PIXEL))
 
 
 def add_image_with_offset(sheet, img, cell, offset_x_px=0, offset_y_px=0):
@@ -80,14 +81,15 @@ def add_image_with_offset(sheet, img, cell, offset_x_px=0, offset_y_px=0):
         colOff=pixels_to_emu(offset_x_px),
         rowOff=pixels_to_emu(offset_y_px),
     )
-    img.anchor = OneCellAnchor(
+    anchor = OneCellAnchor(
         _from=marker,
         ext=XDRPositiveSize2D(
             cx=pixels_to_emu(getattr(img, "width", 0)),
             cy=pixels_to_emu(getattr(img, "height", 0)),
         ),
     )
-    sheet.add_image(img)
+    img.anchor = anchor
+    sheet._images.append(img)
 
 
 def _render_description_fields(description_fields):
@@ -447,12 +449,17 @@ def _render_image_stack_row_step(sheet, source_keys, image_data, target_cell, ma
         sheet.add_image(img, cell)
         written_cells.append(cell)
 
-    return {"written_cells": written_cells, "skipped_keys": skipped_keys}
+    return {
+        "written_cells": written_cells,
+        "skipped_keys": skipped_keys,
+        "written_images_detail": [],
+    }
 
 
 def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_options, gap_px, region_height_px):
     written_cells = []
     skipped_keys = []
+    written_images_detail = []
     current_y = 0
 
     for key in source_keys:
@@ -466,25 +473,38 @@ def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_o
             continue
 
         _apply_image_size(img, size_options)
+        display_width = _non_negative_number(getattr(img, "width", 0), 0)
+        display_height = _non_negative_number(getattr(img, "height", 0), 0)
         add_image_with_offset(sheet, img, anchor_cell, offset_y_px=current_y)
         written_cells.append(anchor_cell)
-        current_y += _non_negative_number(getattr(img, "height", 0), 0) + gap_px
+        written_images_detail.append({
+            "key": key,
+            "cell": anchor_cell,
+            "offset_y": current_y,
+            "width": display_width,
+            "height": display_height,
+        })
+        current_y += display_height + gap_px
 
-    return {"written_cells": written_cells, "skipped_keys": skipped_keys}
+    return {
+        "written_cells": written_cells,
+        "skipped_keys": skipped_keys,
+        "written_images_detail": written_images_detail,
+    }
 
 
 def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=None, region_range=None):
     options = block.get("options") if isinstance(block.get("options"), dict) else {}
     source_keys = _source_keys_from_options(options)
     if not source_keys:
-        return {"written_cells": [], "skipped_keys": []}
+        return {"written_cells": [], "skipped_keys": [], "written_images_detail": []}
 
     layout_mode = str(options.get("layout_mode") or "row_step").strip().lower()
     if layout_mode == "auto_stack":
         anchor_text = str(options.get("anchor_cell") or "").strip()
         anchor_cell = _left_top_cell(anchor_text) if anchor_text else target_cell
         if not anchor_cell:
-            return {"written_cells": [], "skipped_keys": source_keys}
+            return {"written_cells": [], "skipped_keys": source_keys, "written_images_detail": []}
 
         return _render_image_stack_auto(
             sheet,
@@ -497,7 +517,7 @@ def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=Non
         )
 
     if not target_cell:
-        return {"written_cells": [], "skipped_keys": source_keys}
+        return {"written_cells": [], "skipped_keys": source_keys, "written_images_detail": []}
 
     return _render_image_stack_row_step(
         sheet,
@@ -567,6 +587,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                 "written_cells": [],
                 "written_images": [],
                 "skipped_images": [],
+                "written_images_detail": [],
             }
         if not isinstance(raw_config, dict):
             return {"success": False, "error": "layout_config 格式异常"}
@@ -581,6 +602,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                 "written_cells": [],
                 "written_images": [],
                 "skipped_images": [],
+                "written_images_detail": [],
             }
 
         regions_count = 0
@@ -588,6 +610,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
         written_cells = []
         written_images = []
         skipped_images = []
+        written_images_detail = []
 
         for region in layout_config.get("regions", []):
             if not isinstance(region, dict):
@@ -681,6 +704,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
 
                     stack_cells = stack_result.get("written_cells") or []
                     skipped_images.extend(stack_result.get("skipped_keys") or [])
+                    written_images_detail.extend(stack_result.get("written_images_detail") or [])
                     if not stack_cells:
                         continue
 
@@ -709,6 +733,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
             "written_cells": written_cells,
             "written_images": written_images,
             "skipped_images": skipped_images,
+            "written_images_detail": written_images_detail,
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
