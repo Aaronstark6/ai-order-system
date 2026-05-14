@@ -912,7 +912,7 @@
 <div class="card">
     <h2>缓存管理</h2>
 
-    <p class="tips">清空 output 和上传图片缓存，不影响模板、字段、映射和正式订单目录。</p>
+    <p class="tips">清空 output、上传图片缓存和 Layout 临时图片，不影响模板、字段、映射和正式订单目录。</p>
 
     <div class="button-row">
         <button class="delete" type="button" onclick="clearCache()">清空缓存</button>
@@ -1556,6 +1556,29 @@
         }
     }
 
+    function renderCacheResult(result) {
+        const details = Array.isArray(result.details) ? result.details : [];
+        const detailLines = details.map(item => `
+            <p>${escapeHtml(item.name || "目录")}：${Number(item.deleted_files || 0)} 个</p>
+        `).join("");
+        const errors = Array.isArray(result.errors) && result.errors.length
+            ? `
+                <p class="error">错误：</p>
+                <ul>${result.errors.map(error => `<li>${escapeHtml(error)}</li>`).join("")}</ul>
+            `
+            : "";
+        const statusClass = result.success ? "success" : "error";
+        const message = result.message || (result.success ? "缓存已清空" : "缓存清理失败");
+
+        return `
+            <p class="${statusClass}">${escapeHtml(message)}</p>
+            <p>总删除：${Number(result.deleted_files || 0)} 个文件</p>
+            <p>失败：${Number(result.failed_files || 0)} 个文件</p>
+            ${detailLines}
+            ${errors}
+        `;
+    }
+
     async function clearCache() {
         const resultDiv = document.getElementById("cacheResult");
         if (!confirm("确定清空缓存吗？这会删除 output 和临时上传图片，不影响正式同步目录。")) {
@@ -1567,19 +1590,7 @@
             method: "POST"
         });
         const result = await response.json();
-
-        if (!result.success) {
-            const details = Array.isArray(result.errors) && result.errors.length
-                ? `<p class="error">${escapeHtml(result.errors.join("；"))}</p>`
-                : "";
-            resultDiv.innerHTML = `
-                <p class="error">${escapeHtml(result.message || "缓存清理失败")}，删除 ${Number(result.deleted_files || 0)} 个文件，失败 ${Number(result.failed_files || 0)} 个文件</p>
-                ${details}
-            `;
-            return;
-        }
-
-        resultDiv.innerHTML = `<p class="success">已清空缓存，删除 ${Number(result.deleted_files || 0)} 个文件</p>`;
+        resultDiv.innerHTML = renderCacheResult(result);
     }
 
     async function unlockAiSettings() {

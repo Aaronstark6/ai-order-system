@@ -56,6 +56,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
+LAYOUT_CACHE_DIR = OUTPUT_DIR / "layout_cache"
 LAST_GENERATED_FILE_PATH = ""
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -106,6 +107,115 @@ def _clear_files_under_dir(target_dir: Path):
 
 
 # ================= 字段库 =================
+
+def _is_path_under(path: Path, root: Path):
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _export_sync_exclude_roots():
+    export_sync_dir = str(get_export_sync_dir() or "").strip()
+    if not export_sync_dir:
+        return []
+
+    try:
+        target = Path(export_sync_dir).expanduser()
+        if not target.is_absolute():
+            target = BASE_DIR / target
+        return [target.resolve()]
+    except Exception:
+        return []
+
+
+def _clear_files_under_dir_safe(target_dir: Path, exclude_roots=None, skip_dirs=None):
+    deleted_files = 0
+    failed_files = 0
+    errors = []
+    exclude_roots = [root.resolve() for root in (exclude_roots or [])]
+    skip_dirs = [root.resolve() for root in (skip_dirs or [])]
+
+    root = target_dir.resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    if not _is_path_under(root, BASE_DIR):
+        return deleted_files, 1, [f"{root} is outside the project directory"]
+    if not root.is_dir():
+        return deleted_files, failed_files, [f"{root} is not a directory"]
+
+    for path in root.rglob("*"):
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(root)
+        except ValueError:
+            failed_files += 1
+            errors.append(f"跳过非法路径：{path}")
+            continue
+
+        if not path.is_file():
+            continue
+        if any(_is_path_under(resolved, skip_root) for skip_root in skip_dirs):
+            continue
+        if any(_is_path_under(resolved, exclude_root) for exclude_root in exclude_roots):
+            continue
+
+        try:
+            path.unlink()
+            deleted_files += 1
+        except Exception as e:
+            failed_files += 1
+            errors.append(f"{path}: {e}")
+
+    return deleted_files, failed_files, errors
+
+
+def _clear_cache_target(name: str, target_dir: Path, exclude_roots=None, skip_dirs=None):
+    deleted, failed, errors = _clear_files_under_dir_safe(
+        target_dir,
+        exclude_roots=exclude_roots,
+        skip_dirs=skip_dirs,
+    )
+    return {
+        "name": name,
+        "path": str(target_dir.resolve()),
+        "deleted_files": deleted,
+        "failed_files": failed,
+        "errors": errors,
+    }
+
+
+def _clear_cache_payload():
+    exclude_roots = _export_sync_exclude_roots()
+    targets = [
+        ("输出文件", OUTPUT_DIR, [LAYOUT_CACHE_DIR]),
+        ("上传图片", IMAGE_UPLOAD_DIR, []),
+        ("Layout临时图片", LAYOUT_CACHE_DIR, []),
+    ]
+    details = [
+        _clear_cache_target(
+            name,
+            target_dir,
+            exclude_roots=exclude_roots,
+            skip_dirs=skip_dirs,
+        )
+        for name, target_dir, skip_dirs in targets
+    ]
+    deleted_files = sum(item["deleted_files"] for item in details)
+    failed_files = sum(item["failed_files"] for item in details)
+    errors = []
+    for item in details:
+        errors.extend(item.get("errors") or [])
+
+    return {
+        "success": failed_files == 0,
+        "deleted_files": deleted_files,
+        "failed_files": failed_files,
+        "details": details,
+        "errors": errors,
+        "message": "缓存已清空" if failed_files == 0 else "缓存部分清理失败",
+    }
+
 
 @app.get("/api/fields")
 def api_get_fields():
@@ -306,29 +416,13 @@ def api_test_export_sync_dir(data: dict):
 @app.post("/api/clear-cache")
 def api_clear_cache():
     try:
-        deleted_files = 0
-        failed_files = 0
-        errors = []
-
-        for target_dir in [OUTPUT_DIR, IMAGE_UPLOAD_DIR]:
-            deleted, failed, dir_errors = _clear_files_under_dir(target_dir)
-            deleted_files += deleted
-            failed_files += failed
-            errors.extend(dir_errors)
-            target_dir.mkdir(parents=True, exist_ok=True)
-
-        return {
-            "success": failed_files == 0,
-            "deleted_files": deleted_files,
-            "failed_files": failed_files,
-            "errors": errors,
-            "message": "缓存已清空" if failed_files == 0 else "缓存部分清理失败",
-        }
+        return _clear_cache_payload()
     except Exception as e:
         return {
             "success": False,
             "deleted_files": 0,
             "failed_files": 1,
+            "details": [],
             "errors": [str(e)],
             "message": "缓存清理失败",
         }

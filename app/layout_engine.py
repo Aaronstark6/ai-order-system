@@ -23,6 +23,7 @@ from app.image_manager import resolve_uploaded_image_path
 from app.layout_schema import normalize_layout_config
 
 
+BASE_DIR = Path(__file__).resolve().parent.parent
 CELL_RANGE_RE = re.compile(r"^\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?$")
 EMU_PER_PIXEL = 9525
 
@@ -240,7 +241,7 @@ def create_vertical_stack_image(image_paths, image_width, image_height, keep_rat
             composite.paste(image, (0, current_y))
         current_y += image.height + gap
 
-    cache_dir = Path("output") / "layout_cache"
+    cache_dir = BASE_DIR / "output" / "layout_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     composite_path = cache_dir / f"stack_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.png"
     composite.save(composite_path)
