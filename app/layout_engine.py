@@ -3,8 +3,13 @@ from copy import copy
 
 try:
     from openpyxl.drawing.image import Image as ExcelImage
+    from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
+    from openpyxl.drawing.xdr import XDRPositiveSize2D
 except ImportError:
     ExcelImage = None
+    AnchorMarker = None
+    OneCellAnchor = None
+    XDRPositiveSize2D = None
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 from app.image_manager import resolve_uploaded_image_path
@@ -12,6 +17,7 @@ from app.layout_schema import normalize_layout_config
 
 
 CELL_RANGE_RE = re.compile(r"^\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?$")
+EMU_PER_PIXEL = 9525
 
 
 def _left_top_cell(range_text):
@@ -36,6 +42,14 @@ def _range_row_bounds(range_text):
     return min(start_row, end_row), max(start_row, end_row)
 
 
+def _cell_position(cell_ref):
+    match = CELL_RANGE_RE.match(str(cell_ref or "").strip().upper())
+    if not match:
+        raise ValueError(f"Invalid Excel cell: {cell_ref}")
+
+    return column_index_from_string(match.group(1)), int(match.group(2))
+
+
 def _offset_cell(cell_ref, row_offset=0, col_offset=0):
     match = CELL_RANGE_RE.match(str(cell_ref or "").strip().upper())
     if not match:
@@ -46,6 +60,34 @@ def _offset_cell(cell_ref, row_offset=0, col_offset=0):
     if col_index < 1 or row_index < 1:
         raise ValueError(f"Excel单元格格式非法：{cell_ref}")
     return f"{get_column_letter(col_index)}{row_index}"
+
+
+def pixels_to_emu(px):
+    number = _to_positive_number(px)
+    if not number:
+        return 0
+    return int(round(number * EMU_PER_PIXEL))
+
+
+def add_image_with_offset(sheet, img, cell, offset_x_px=0, offset_y_px=0):
+    if AnchorMarker is None or OneCellAnchor is None or XDRPositiveSize2D is None:
+        raise RuntimeError("图片渲染需要安装 pillow。")
+
+    col_index, row_index = _cell_position(cell)
+    marker = AnchorMarker(
+        col=col_index - 1,
+        row=row_index - 1,
+        colOff=pixels_to_emu(offset_x_px),
+        rowOff=pixels_to_emu(offset_y_px),
+    )
+    img.anchor = OneCellAnchor(
+        _from=marker,
+        ext=XDRPositiveSize2D(
+            cx=pixels_to_emu(getattr(img, "width", 0)),
+            cy=pixels_to_emu(getattr(img, "height", 0)),
+        ),
+    )
+    sheet.add_image(img)
 
 
 def _render_description_fields(description_fields):
@@ -199,6 +241,41 @@ def _positive_int(value, default):
     return max(1, int(round(number)))
 
 
+def _non_negative_number(value, default=0):
+    if value is None or value == "":
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0, number)
+
+
+def _row_height_to_px(height_points):
+    number = _to_positive_number(height_points)
+    if not number:
+        return None
+    return number * 96 / 72
+
+
+def estimate_region_height_px(sheet, range_ref):
+    text = str(range_ref or "").strip().upper()
+    if not text:
+        return None
+
+    try:
+        min_row, max_row = _range_row_bounds(text)
+    except ValueError:
+        return None
+
+    default_height = _row_height_to_px(getattr(sheet.sheet_format, "defaultRowHeight", None)) or 20
+    total = 0
+    for row_index in range(min_row, max_row + 1):
+        row_height = _row_height_to_px(sheet.row_dimensions[row_index].height)
+        total += row_height or default_height
+    return total
+
+
 def _gallery_image_options(options):
     if not isinstance(options, dict):
         options = {}
@@ -214,7 +291,7 @@ def _stack_image_options(options):
         options = {}
     return {
         "width": options.get("image_width") or 220,
-        "height": options.get("image_height") or 140,
+        "height": options.get("image_height") or 120,
         "keep_ratio": options.get("keep_ratio"),
     }
 
@@ -267,7 +344,7 @@ def _render_image_gallery_block(sheet, block, image_data, target_cell):
     return written_cells
 
 
-def _render_image_stack_block(sheet, block, image_data, target_cell, max_row):
+def _render_image_stack_row_step_legacy(sheet, block, image_data, target_cell, max_row):
     options = block.get("options") if isinstance(block.get("options"), dict) else {}
     source_keys = _source_keys_from_options(options)
     if not source_keys:
@@ -322,6 +399,117 @@ def _render_image_stack_block(sheet, block, image_data, target_cell, max_row):
     return {"written_cells": written_cells, "skipped_keys": skipped_keys}
 
 
+def _load_stack_image(image_data, key):
+    if not isinstance(image_data, dict):
+        return None
+
+    item = image_data.get(key)
+    if not isinstance(item, dict):
+        return None
+
+    image_path = resolve_uploaded_image_path(item.get("image_path"))
+    if not image_path:
+        return None
+
+    if ExcelImage is None:
+        raise RuntimeError("图片渲染需要安装 pillow。")
+
+    try:
+        return ExcelImage(str(image_path))
+    except ImportError as e:
+        raise RuntimeError("图片渲染需要安装 pillow。") from e
+    except Exception:
+        return None
+
+
+def _render_image_stack_row_step(sheet, source_keys, image_data, target_cell, max_row, size_options, gap_rows):
+    written_cells = []
+    skipped_keys = []
+
+    for index, key in enumerate(source_keys):
+        try:
+            cell = _offset_cell(target_cell, row_offset=gap_rows * index)
+        except ValueError:
+            skipped_keys.append(key)
+            continue
+
+        row_match = CELL_RANGE_RE.match(cell)
+        if max_row and (not row_match or int(row_match.group(2)) > max_row):
+            skipped_keys.append(key)
+            continue
+
+        img = _load_stack_image(image_data, key)
+        if img is None:
+            skipped_keys.append(key)
+            continue
+
+        _apply_image_size(img, size_options)
+        sheet.add_image(img, cell)
+        written_cells.append(cell)
+
+    return {"written_cells": written_cells, "skipped_keys": skipped_keys}
+
+
+def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_options, gap_px, region_height_px):
+    written_cells = []
+    skipped_keys = []
+    current_y = 0
+
+    for key in source_keys:
+        if region_height_px is not None and current_y > region_height_px:
+            skipped_keys.append(key)
+            continue
+
+        img = _load_stack_image(image_data, key)
+        if img is None:
+            skipped_keys.append(key)
+            continue
+
+        _apply_image_size(img, size_options)
+        add_image_with_offset(sheet, img, anchor_cell, offset_y_px=current_y)
+        written_cells.append(anchor_cell)
+        current_y += _non_negative_number(getattr(img, "height", 0), 0) + gap_px
+
+    return {"written_cells": written_cells, "skipped_keys": skipped_keys}
+
+
+def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=None, region_range=None):
+    options = block.get("options") if isinstance(block.get("options"), dict) else {}
+    source_keys = _source_keys_from_options(options)
+    if not source_keys:
+        return {"written_cells": [], "skipped_keys": []}
+
+    layout_mode = str(options.get("layout_mode") or "row_step").strip().lower()
+    if layout_mode == "auto_stack":
+        anchor_text = str(options.get("anchor_cell") or "").strip()
+        anchor_cell = _left_top_cell(anchor_text) if anchor_text else target_cell
+        if not anchor_cell:
+            return {"written_cells": [], "skipped_keys": source_keys}
+
+        return _render_image_stack_auto(
+            sheet,
+            source_keys,
+            image_data,
+            anchor_cell,
+            _stack_image_options(options),
+            _non_negative_number(options.get("gap_px"), 12),
+            estimate_region_height_px(sheet, region_range),
+        )
+
+    if not target_cell:
+        return {"written_cells": [], "skipped_keys": source_keys}
+
+    return _render_image_stack_row_step(
+        sheet,
+        source_keys,
+        image_data,
+        target_cell,
+        max_row,
+        _stack_image_options(options),
+        _positive_int(options.get("gap_rows"), 8),
+    )
+
+
 def collect_layout_image_keys(profile):
     if not isinstance(profile, dict):
         return set()
@@ -339,8 +527,6 @@ def collect_layout_image_keys(profile):
         if not isinstance(region, dict) or region.get("enabled") is False:
             continue
         if str(region.get("sheet") or "active").strip().lower() != "active":
-            continue
-        if not str(region.get("range") or "").strip():
             continue
 
         blocks = region.get("blocks")
@@ -414,17 +600,17 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                 continue
 
             range_text = str(region.get("range") or "").strip()
-            if not range_text:
-                continue
-
-            try:
-                target_cell = _left_top_cell(range_text)
-                _, max_row = _range_row_bounds(range_text)
-            except ValueError as e:
-                return {
-                    "success": False,
-                    "error": f"layout region {region.get('id') or region.get('name') or ''} {str(e)}".strip(),
-                }
+            target_cell = ""
+            max_row = None
+            if range_text:
+                try:
+                    target_cell = _left_top_cell(range_text)
+                    _, max_row = _range_row_bounds(range_text)
+                except ValueError as e:
+                    return {
+                        "success": False,
+                        "error": f"layout region {region.get('id') or region.get('name') or ''} {str(e)}".strip(),
+                    }
 
             blocks = region.get("blocks")
             if not isinstance(blocks, list):
@@ -440,6 +626,8 @@ def render_layout(workbook, data, profile, description_fields=None, description_
 
                 block_type = str(block.get("type") or "").strip()
                 if block_type == "description_fields":
+                    if not target_cell:
+                        continue
                     block_text = _render_block(block, description_fields=description_fields)
                     if not block_text:
                         continue
@@ -449,6 +637,8 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                     continue
 
                 if block_type == "image":
+                    if not target_cell:
+                        continue
                     try:
                         inserted = _render_image_block(workbook.active, block, image_data, target_cell)
                     except RuntimeError as e:
@@ -462,6 +652,8 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                     continue
 
                 if block_type == "image_gallery":
+                    if not target_cell:
+                        continue
                     try:
                         gallery_cells = _render_image_gallery_block(workbook.active, block, image_data, target_cell)
                     except RuntimeError as e:
@@ -482,6 +674,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                             image_data,
                             target_cell,
                             max_row,
+                            range_text,
                         )
                     except RuntimeError as e:
                         return {"success": False, "error": str(e)}

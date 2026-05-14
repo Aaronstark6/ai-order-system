@@ -1773,10 +1773,13 @@
         if (type === "image_stack") {
             return {
                 source_keys: parseLayoutSourceKeys(source.source_keys),
+                layout_mode: String(source.layout_mode || "auto_stack").trim() || "auto_stack",
+                anchor_cell: String(source.anchor_cell || "").trim().toUpperCase(),
                 image_width: parseLayoutNumber(source.image_width, 220),
-                image_height: parseLayoutNumber(source.image_height, 140),
+                image_height: parseLayoutNumber(source.image_height, 120),
                 keep_ratio: source.keep_ratio !== false,
-                gap_rows: parseLayoutNumber(source.gap_rows, 8)
+                gap_rows: parseLayoutNumber(source.gap_rows, 8),
+                gap_px: parseLayoutNumber(source.gap_px, 12)
             };
         }
         return source;
@@ -1930,6 +1933,9 @@
             const stepLabel = isStack ? "Gap Rows" : "Row Step";
             const stepValue = isGallery ? options.row_step : (isStack ? options.gap_rows : "");
             const stepEnabled = isGallery || isStack;
+            const layoutModeValue = isStack ? (options.layout_mode || "auto_stack") : "";
+            const anchorCellValue = isStack ? (options.anchor_cell || "") : "";
+            const gapPxValue = isStack ? options.gap_px : "";
             row.innerHTML = `
                 <div>
                     <label>Block ID</label>
@@ -1953,12 +1959,23 @@
                     <input id="layout_block_source_keys_${regionIndex}_${blockIndex}" value="${hasSourceKeys ? escapeHtml((options.source_keys || []).join(",")) : ""}" placeholder="front_label,back_label,product_image" ${hasSourceKeys ? "" : "disabled"}>
                 </div>
                 <div>
+                    <label>Layout Mode</label>
+                    <select id="layout_block_layout_mode_${regionIndex}_${blockIndex}" ${isStack ? "" : "disabled"}>
+                        <option value="row_step" ${layoutModeValue === "row_step" ? "selected" : ""}>row_step</option>
+                        <option value="auto_stack" ${layoutModeValue === "auto_stack" ? "selected" : ""}>auto_stack</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Anchor Cell</label>
+                    <input id="layout_block_anchor_cell_${regionIndex}_${blockIndex}" value="${escapeHtml(anchorCellValue)}" placeholder="G7" ${isStack ? "" : "disabled"}>
+                </div>
+                <div>
                     <label>Width</label>
                     <input id="layout_block_width_${regionIndex}_${blockIndex}" type="number" min="1" value="${escapeHtml(widthValue)}" placeholder="${isGallery ? "180" : "220"}" ${sizeOptionsDisabled}>
                 </div>
                 <div>
                     <label>Height</label>
-                    <input id="layout_block_height_${regionIndex}_${blockIndex}" type="number" min="1" value="${escapeHtml(heightValue)}" placeholder="${hasSourceKeys ? "140" : "160"}" ${sizeOptionsDisabled}>
+                    <input id="layout_block_height_${regionIndex}_${blockIndex}" type="number" min="1" value="${escapeHtml(heightValue)}" placeholder="${isStack ? "120" : (isGallery ? "140" : "160")}" ${sizeOptionsDisabled}>
                 </div>
                 <div>
                     <label>Columns</label>
@@ -1971,6 +1988,10 @@
                 <div>
                     <label>Col Step</label>
                     <input id="layout_block_col_step_${regionIndex}_${blockIndex}" type="number" min="1" value="${isGallery ? escapeHtml(options.col_step) : ""}" placeholder="4" ${isGallery ? "" : "disabled"}>
+                </div>
+                <div>
+                    <label>Gap PX</label>
+                    <input id="layout_block_gap_px_${regionIndex}_${blockIndex}" type="number" min="0" value="${isStack ? escapeHtml(gapPxValue) : ""}" placeholder="12" ${isStack ? "" : "disabled"}>
                 </div>
                 <label class="checkbox-line">
                     <input type="checkbox" id="layout_block_keep_ratio_${regionIndex}_${blockIndex}" ${options.keep_ratio !== false ? "checked" : ""} ${sizeOptionsDisabled}>
@@ -2013,10 +2034,13 @@
                 } else if (type === "image_stack") {
                     options = {
                         source_keys: parseLayoutSourceKeys(document.getElementById(`layout_block_source_keys_${regionIndex}_${blockIndex}`)?.value),
+                        layout_mode: (document.getElementById(`layout_block_layout_mode_${regionIndex}_${blockIndex}`)?.value || "auto_stack").trim() || "auto_stack",
+                        anchor_cell: (document.getElementById(`layout_block_anchor_cell_${regionIndex}_${blockIndex}`)?.value || "").trim().toUpperCase(),
                         image_width: parseLayoutNumber(document.getElementById(`layout_block_width_${regionIndex}_${blockIndex}`)?.value, 220),
-                        image_height: parseLayoutNumber(document.getElementById(`layout_block_height_${regionIndex}_${blockIndex}`)?.value, 140),
+                        image_height: parseLayoutNumber(document.getElementById(`layout_block_height_${regionIndex}_${blockIndex}`)?.value, 120),
                         keep_ratio: Boolean(document.getElementById(`layout_block_keep_ratio_${regionIndex}_${blockIndex}`)?.checked),
-                        gap_rows: parseLayoutNumber(document.getElementById(`layout_block_row_step_${regionIndex}_${blockIndex}`)?.value, 8)
+                        gap_rows: parseLayoutNumber(document.getElementById(`layout_block_row_step_${regionIndex}_${blockIndex}`)?.value, 8),
+                        gap_px: parseLayoutNumber(document.getElementById(`layout_block_gap_px_${regionIndex}_${blockIndex}`)?.value, 12)
                     };
                 }
                 return {
@@ -2128,10 +2152,13 @@
                     : type === "image_stack"
                         ? {
                             source_keys: [],
+                            layout_mode: "auto_stack",
+                            anchor_cell: "",
                             image_width: 220,
-                            image_height: 140,
+                            image_height: 120,
                             keep_ratio: true,
-                            gap_rows: 8
+                            gap_rows: 8,
+                            gap_px: 12
                         }
                 : {}
         });

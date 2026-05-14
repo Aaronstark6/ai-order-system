@@ -44,11 +44,6 @@
     "template_display_name": "固体饮料模板.xlsx",
     "image_fields": [
       {
-        "key": "product_image",
-        "enabled": true,
-        "cell": "G8"
-      },
-      {
         "key": "front_label",
         "enabled": true,
         "cell": "G9"
@@ -57,37 +52,17 @@
         "key": "back_label",
         "enabled": true,
         "cell": "G10"
+      },
+      {
+        "key": "product_image",
+        "enabled": true,
+        "cell": "G8"
       }
     ],
     "profile_version": "v2",
     "layout_config": {
       "enabled": true,
-      "regions": [
-        {
-          "id": "region_1778762427725",
-          "name": "纵向图片区",
-          "type": "image_stack",
-          "enabled": true,
-          "sheet": "active",
-          "range": "A16:H40",
-          "blocks": [
-            {
-              "id": "block_1778762517773",
-              "type": "image_stack",
-              "source": "image_data",
-              "enabled": true,
-              "options": {
-                "source_keys": [],
-                "image_width": 220,
-                "image_height": 140,
-                "keep_ratio": true,
-                "gap_rows": 8
-              }
-            }
-          ],
-          "options": {}
-        }
-      ]
+      "regions": []
     }
   },
   {
@@ -316,7 +291,7 @@
           "type": "image_stack",
           "enabled": true,
           "sheet": "active",
-          "range": "A16:H40",
+          "range": "G7:K40",
           "blocks": [
             {
               "id": "block_1778763060100",
@@ -329,10 +304,13 @@
                   "back_label",
                   "product_image"
                 ],
+                "layout_mode": "auto_stack",
+                "anchor_cell": "G7",
                 "image_width": 220,
                 "image_height": 140,
                 "keep_ratio": true,
-                "gap_rows": 8
+                "gap_rows": 8,
+                "gap_px": 12
               }
             }
           ],
