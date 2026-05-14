@@ -76,22 +76,45 @@ def format_deal_date_month_day(value):
     return yyyymmdd[4:].lstrip("0")
 
 
+def normalize_product_form(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+
+    alias_map = {
+        "硬胶囊": "硬胶囊",
+        "软胶囊": "软胶囊",
+        "爆珠": "软胶囊",
+        "软糖": "软糖",
+        "滴剂": "滴剂",
+        "液体饮料": "滴剂",
+        "液体": "滴剂",
+        "片剂": "片剂",
+        "压片": "片剂",
+        "泡腾片": "片剂",
+        "固体饮料": "固体饮料",
+        "粉末": "固体饮料",
+        "粉剂": "固体饮料",
+        "powder": "固体饮料",
+        "凝胶": "凝胶",
+        "果冻": "凝胶",
+        "果冻和凝胶": "凝胶",
+        "jelly": "凝胶",
+        "gel": "凝胶",
+    }
+    return alias_map.get(text) or alias_map.get(text.lower()) or text
+
+
 def get_dosage_form_code(product_form):
     text = str(product_form or "").strip()
     form_code_map = {
         "硬胶囊": "C",
-        "胶囊": "C",
         "软胶囊": "S",
         "软糖": "G",
         "滴剂": "D",
-        "压片": "T",
         "片剂": "T",
-        "泡腾片": "E",
-        "固体饮料": "B",
-        "粉末": "P",
-        "精油": "D",
+        "固体饮料": "P",
         "凝胶": "N",
-        "果冻和凝胶": "N",
     }
     return form_code_map.get(text, "")
 
@@ -100,8 +123,10 @@ def build_product_code(data: dict):
     salesperson_code = str(data.get("salesperson_code") or "").strip()
     month_day = format_deal_date_month_day(data.get("deal_date"))
     ingredient_initials = str(data.get("ingredient_initials") or "").strip().upper()
-    dosage_form_code = get_dosage_form_code(data.get("product_form"))
+    product_form = normalize_product_form(data.get("product_form"))
+    dosage_form_code = get_dosage_form_code(product_form)
 
+    data["product_form"] = product_form
     data["dosage_form_code"] = dosage_form_code
     return f"{salesperson_code}{month_day}{ingredient_initials}{dosage_form_code}"
 

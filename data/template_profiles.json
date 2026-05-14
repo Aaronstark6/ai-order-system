@@ -132,50 +132,6 @@
     }
   },
   {
-    "id": "0a5598bc-7d41-48c1-9ce0-15e9f1b9226b",
-    "name": "泡腾片模板",
-    "template_file": "0a5598bc-7d41-48c1-9ce0-15e9f1b9226b.xlsx",
-    "template_display_name": "泡腾片模板.xlsx",
-    "mappings": {
-      "customer_name": "C5",
-      "order_date": "F4",
-      "quantity": "C6",
-      "customer_type": "F5",
-      "sales_owner": "F6"
-    },
-    "mapping_order": [
-      "customer_name",
-      "quantity",
-      "order_date",
-      "customer_type",
-      "sales_owner"
-    ],
-    "mapping_defaults": {
-      "customer_name": "",
-      "order_date": "",
-      "quantity": "",
-      "customer_type": "",
-      "sales_owner": "Anna"
-    },
-    "composite_mappings": [],
-    "document_no_settings": {
-      "enabled": true,
-      "document_no_cell": "C4",
-      "use_document_no_as_filename": true,
-      "default_sales_name": "Anna",
-      "default_salesperson_code": "AN",
-      "default_company_code": "GS",
-      "default_sequence": "A01",
-      "document_no_rule": "{sales_name}-{company_code}{deal_date_yyyymmdd}{sequence}-{product_code}",
-      "product_code_rule": "{salesperson_code}{deal_date_mmdd_no_leading_zero}{ingredient_initials}{dosage_form_code}"
-    },
-    "description_settings": {
-      "enabled": true,
-      "template_name": "泡腾片.txt",
-      "target_cell": "B8"
-    }
-  },
-  {
     "id": "694ea7e9-fac2-45ae-b5e4-d943622c0884",
     "name": "片剂模板",
     "template_file": "694ea7e9-fac2-45ae-b5e4-d943622c0884.xlsx",

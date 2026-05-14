@@ -614,38 +614,98 @@
         return "";
     }
 
-    async function autoSelectProfileByProductForm(productForm) {
-        const text = String(productForm || "").trim();
-        const select = document.getElementById("profileSelect");
+    const STANDARD_PRODUCT_FORMS = ["硬胶囊", "软胶囊", "软糖", "滴剂", "片剂", "固体饮料", "凝胶"];
 
-        if (!text || !select || !Array.isArray(profiles) || profiles.length === 0) {
-            return false;
+    function normalizeProductForm(value) {
+        const text = String(value || "").trim();
+        const lowerText = text.toLowerCase();
+
+        if (!text) {
+            return "";
+        }
+
+        const aliasMap = {
+            "硬胶囊": "硬胶囊",
+            "软胶囊": "软胶囊",
+            "爆珠": "软胶囊",
+            "软糖": "软糖",
+            "滴剂": "滴剂",
+            "液体饮料": "滴剂",
+            "液体": "滴剂",
+            "片剂": "片剂",
+            "压片": "片剂",
+            "泡腾片": "片剂",
+            "固体饮料": "固体饮料",
+            "粉末": "固体饮料",
+            "粉剂": "固体饮料",
+            "powder": "固体饮料",
+            "凝胶": "凝胶",
+            "果冻": "凝胶",
+            "果冻和凝胶": "凝胶",
+            "jelly": "凝胶",
+            "gel": "凝胶"
+        };
+
+        return aliasMap[text] || aliasMap[lowerText] || text;
+    }
+
+    function getProductFormFromProfileName(profileName) {
+        const name = String(profileName || "").trim();
+        if (!name) {
+            return "";
         }
 
         const rules = [
-            { formKeywords: ["软胶囊"], profileKeywords: ["软胶囊"] },
-            { formKeywords: ["爆珠"], profileKeywords: ["爆珠"] },
-            { formKeywords: ["软糖"], profileKeywords: ["软糖"] },
-            { formKeywords: ["固体饮料", "粉末"], profileKeywords: ["固体饮料", "粉末"] },
-            { formKeywords: ["片剂", "压片"], profileKeywords: ["片剂", "压片"] },
-            { formKeywords: ["泡腾片"], profileKeywords: ["泡腾片"] },
-            { formKeywords: ["滴剂"], profileKeywords: ["滴剂"] },
-            { formKeywords: ["凝胶", "果冻"], profileKeywords: ["凝胶", "果冻"] }
+            { keywords: ["硬胶囊"], productForm: "硬胶囊" },
+            { keywords: ["软胶囊", "爆珠"], productForm: "软胶囊" },
+            { keywords: ["软糖"], productForm: "软糖" },
+            { keywords: ["滴剂", "液体饮料"], productForm: "滴剂" },
+            { keywords: ["片剂", "压片", "泡腾片"], productForm: "片剂" },
+            { keywords: ["固体饮料", "粉末"], productForm: "固体饮料" },
+            { keywords: ["凝胶", "果冻"], productForm: "凝胶" }
         ];
 
         const matchedRule = rules.find(rule =>
-            rule.formKeywords.some(keyword => text.includes(keyword))
+            rule.keywords.some(keyword => name.includes(keyword))
         );
+        return matchedRule ? matchedRule.productForm : "";
+    }
 
-        if (!matchedRule) {
+    function findProfileByProductForm(productForm) {
+        const normalizedForm = normalizeProductForm(productForm);
+        if (!normalizedForm || !Array.isArray(profiles) || profiles.length === 0) {
+            return null;
+        }
+
+        const rules = {
+            "硬胶囊": ["硬胶囊"],
+            "软胶囊": ["软胶囊", "爆珠"],
+            "软糖": ["软糖"],
+            "滴剂": ["滴剂", "液体饮料"],
+            "片剂": ["片剂", "压片", "泡腾片"],
+            "固体饮料": ["固体饮料", "粉末"],
+            "凝胶": ["凝胶", "果冻"]
+        };
+        const keywords = rules[normalizedForm];
+
+        if (!keywords) {
+            return null;
+        }
+
+        return profiles.find(profile => {
+            const name = String(profile.name || "");
+            return keywords.some(keyword => name.includes(keyword));
+        }) || null;
+    }
+
+    async function autoSelectProfileByProductForm(productForm) {
+        const select = document.getElementById("profileSelect");
+
+        if (!select || !Array.isArray(profiles) || profiles.length === 0) {
             return false;
         }
 
-        const matchedProfile = profiles.find(profile => {
-            const name = String(profile.name || "");
-            return matchedRule.profileKeywords.some(keyword => name.includes(keyword));
-        });
-
+        const matchedProfile = findProfileByProductForm(productForm);
         if (!matchedProfile) {
             return false;
         }
@@ -892,22 +952,17 @@
     }
 
     function getDosageFormCode(productForm) {
+        const standardForm = String(productForm || "").trim();
         const map = {
             "硬胶囊": "C",
-            "胶囊": "C",
             "软胶囊": "S",
             "软糖": "G",
             "滴剂": "D",
-            "压片": "T",
             "片剂": "T",
-            "泡腾片": "E",
-            "固体饮料": "B",
-            "粉末": "P",
-            "精油": "D",
-            "凝胶": "N",
-            "果冻和凝胶": "N"
+            "固体饮料": "P",
+            "凝胶": "N"
         };
-        return map[String(productForm || "").trim()] || "";
+        return map[standardForm] || "";
     }
 
     function formatDealDateMonthDay(value) {
@@ -948,7 +1003,7 @@
         const formEl = document.getElementById("doc_field_product_form");
         const monthDay = formatDealDateMonthDay(dealRaw);
         const ingredientInitials = initialsEl ? String(initialsEl.value || "").trim().toUpperCase() : "";
-        const productForm = formEl ? String(formEl.value || "").trim() : "";
+        const productForm = normalizeProductForm(formEl ? String(formEl.value || "").trim() : "");
 
         const dosageCode = getDosageFormCode(productForm);
         const dosageHidden = document.getElementById("doc_field_dosage_form_code");
@@ -980,7 +1035,7 @@
 
     function getDocNoPreviewComputations() {
         const formEl = document.getElementById("doc_field_product_form");
-        const productForm = formEl ? String(formEl.value || "").trim() : "";
+        const productForm = normalizeProductForm(formEl ? String(formEl.value || "").trim() : "");
         const dosageCode = getDosageFormCode(productForm);
         const dosageHidden = document.getElementById("doc_field_dosage_form_code");
         if (dosageHidden) {
@@ -1113,7 +1168,7 @@
         }
 
         const initIngredientInitials = d.ingredient_initials != null ? String(d.ingredient_initials) : "";
-        const initForm = d.product_form != null ? String(d.product_form) : "";
+        const initForm = normalizeProductForm(d.product_form != null ? String(d.product_form) : "");
         const initDn = d.document_no != null ? String(d.document_no) : "";
 
         const initDosage = getDosageFormCode(initForm);
@@ -1153,18 +1208,12 @@
                         <select class="doc-no-sync" id="doc_field_product_form">
                             <option value="">请选择产品形式</option>
                             <option value="硬胶囊">硬胶囊</option>
-                            <option value="胶囊">胶囊</option>
                             <option value="软胶囊">软胶囊</option>
                             <option value="软糖">软糖</option>
                             <option value="滴剂">滴剂</option>
-                            <option value="压片">压片</option>
-                            <option value="固体饮料">固体饮料</option>
-                            <option value="粉末">粉末</option>
-                            <option value="精油">精油</option>
-                            <option value="凝胶">凝胶</option>
                             <option value="片剂">片剂</option>
-                            <option value="泡腾片">泡腾片</option>
-                            <option value="果冻和凝胶">果冻和凝胶</option>
+                            <option value="固体饮料">固体饮料</option>
+                            <option value="凝胶">凝胶</option>
                         </select>
                     </div>
                 </div>
@@ -1534,8 +1583,8 @@
         currentDescriptionFields = {};
         parsedData = syncOrderAndDealDates(result.data);
 
-        const productForm = extractParsedProductForm(parsedData);
-        if (productForm && !String(parsedData.product_form || "").trim()) {
+        const productForm = normalizeProductForm(extractParsedProductForm(parsedData));
+        if (productForm) {
             parsedData.product_form = productForm;
         }
 
@@ -1563,6 +1612,7 @@
             }
         });
 
+        data.product_form = normalizeProductForm(data.product_form);
         return data;
     }
 
