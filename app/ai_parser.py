@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from app.app_settings import get_deepseek_api_key
 from app.field_library import load_fields
-from app.ingredient_parser import extract_ingredient_initials_from_description_fields
+from app.ingredient_parser import analyze_ingredient_initials_source
 
 
 load_dotenv()
@@ -596,10 +596,17 @@ Rules for DESCRIPTION_FIELDS:
         constrained = constrain_description_to_template(rendered_template, description_text)
         final_description_text = annotate_description_sources(rendered_template, constrained)
 
+    ingredient_analysis = analyze_ingredient_initials_source(
+        description_fields=description_fields,
+        text=final_description_text,
+    )
+
     return {
         "description_text": final_description_text,
         "description_fields": description_fields,
-        "ingredient_initials": extract_ingredient_initials_from_description_fields(description_fields),
+        "ingredient_initials": ingredient_analysis["initials"],
+        "ingredient_initials_status": ingredient_analysis["status"],
+        "ingredient_initials_message": ingredient_analysis["message"],
     }
 
 

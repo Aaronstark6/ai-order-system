@@ -299,6 +299,18 @@
             font-family: Consolas, "Courier New", monospace;
         }
 
+        .ingredient-initials-warning {
+            display: none;
+            margin: -2px 0 2px;
+            padding: 8px 10px;
+            border: 1px solid #ffe58f;
+            border-radius: 6px;
+            background: #fffbe6;
+            color: #8a6d1d;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
         .doc-preview-block {
             border-top: 1px dashed #dde1ea;
             padding-top: 12px;
@@ -544,6 +556,7 @@
     let currentDescriptionFields = {};
     let imageFields = [];
     let ingredientInitialsManuallyEdited = false;
+    let currentIngredientInitialsMessage = "";
     let descriptionIsComposing = false;
 
     async function loadInitialData() {
@@ -1132,9 +1145,35 @@
         refreshDescriptionFromCurrentFields();
     }
 
-    function applyIngredientInitialsFromDescriptionFields(descriptionFields, backendInitials) {
+    function setIngredientInitialsMessage(message) {
+        currentIngredientInitialsMessage = String(message || "").trim();
+        updateIngredientInitialsHint();
+    }
+
+    function updateIngredientInitialsHint() {
+        const hint = document.getElementById("ingredientInitialsHint");
+        if (!hint) {
+            return;
+        }
+
+        const input = document.getElementById("doc_field_ingredient_initials");
+        const hasManualValue = input && String(input.value || "").trim();
+        const shouldShow = Boolean(currentIngredientInitialsMessage) && !hasManualValue;
+
+        if (shouldShow) {
+            hint.innerText = currentIngredientInitialsMessage;
+            hint.style.display = "block";
+        } else {
+            hint.innerText = "";
+            hint.style.display = "none";
+        }
+    }
+
+    function applyIngredientInitialsFromDescriptionFields(descriptionFields, backendInitials, backendMessage) {
         currentDescriptionFields = descriptionFields || {};
+        setIngredientInitialsMessage(backendMessage || "");
         if (ingredientInitialsManuallyEdited) {
+            updateIngredientInitialsHint();
             return;
         }
 
@@ -1142,6 +1181,7 @@
             .trim()
             .toUpperCase();
         if (!initials) {
+            updateIngredientInitialsHint();
             return;
         }
 
@@ -1154,6 +1194,7 @@
         input.value = initials;
         delete input.dataset.internalUpdate;
         parsedData.ingredient_initials = initials;
+        setIngredientInitialsMessage("");
         updateDocNoPreviews();
     }
 
@@ -1162,10 +1203,14 @@
             el.addEventListener("input", function () {
                 if (el.id === "doc_field_ingredient_initials" && el.dataset.internalUpdate !== "true") {
                     ingredientInitialsManuallyEdited = true;
+                    updateIngredientInitialsHint();
                 }
                 updateDocNoPreviews();
             });
             el.addEventListener("change", function () {
+                if (el.id === "doc_field_ingredient_initials") {
+                    updateIngredientInitialsHint();
+                }
                 updateDocNoPreviews();
             });
         });
@@ -1257,6 +1302,7 @@
                     <div class="doc-no-cell">
                         <label for="doc_field_ingredient_initials">产品成分缩写</label>
                         <input class="doc-no-sync" id="doc_field_ingredient_initials" type="text" value="${escapeHtml(initIngredientInitials)}" placeholder="AOC" autocomplete="off">
+                        <div id="ingredientInitialsHint" class="ingredient-initials-warning"></div>
                     </div>
                     <div class="doc-no-cell">
                         <label for="doc_field_product_form">产品形式</label>
@@ -1307,6 +1353,7 @@
 
         bindDocNoSyncInputs();
         updateDocNoPreviews();
+        updateIngredientInitialsHint();
     }
 
     function renderForm(data) {
@@ -1654,7 +1701,11 @@
         currentDescriptionFields = result.description_fields || {};
         setDescriptionValue(textarea, result.description_text || "");
         textarea.dataset.generatedByAi = "true";
-        applyIngredientInitialsFromDescriptionFields(currentDescriptionFields, result.ingredient_initials || "");
+        applyIngredientInitialsFromDescriptionFields(
+            currentDescriptionFields,
+            result.ingredient_initials || "",
+            result.ingredient_initials_message || ""
+        );
         syncDescriptionProductCodeFromDocumentNo();
     }
 
@@ -1750,6 +1801,7 @@
         }
 
         ingredientInitialsManuallyEdited = false;
+        currentIngredientInitialsMessage = "";
         currentDescriptionFields = {};
         parsedData = syncOrderAndDealDates(result.data);
 

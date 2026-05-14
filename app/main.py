@@ -25,7 +25,7 @@ from app.field_library import (
     delete_field
 )
 from app.ai_parser import parse_message, generate_description_from_message
-from app.ingredient_parser import extract_ingredient_initials_from_description_fields
+from app.ingredient_parser import analyze_ingredient_initials_source
 from app.excel_generator import generate_excel
 from app.image_manager import (
     ensure_image_upload_dir,
@@ -431,6 +431,8 @@ def api_generate_description(data: dict):
             "description_text": description_result.get("description_text", ""),
             "description_fields": description_result.get("description_fields", {}),
             "ingredient_initials": description_result.get("ingredient_initials", ""),
+            "ingredient_initials_status": description_result.get("ingredient_initials_status", ""),
+            "ingredient_initials_message": description_result.get("ingredient_initials_message", ""),
             "debug_message_length": len(message),
             "debug_template_length": len(template),
         }
@@ -464,7 +466,11 @@ def api_generate_excel(data: dict):
         order_data = data.get("data", {})
         description_fields = data.get("description_fields", {})
         if isinstance(order_data, dict) and not str(order_data.get("ingredient_initials") or "").strip():
-            ingredient_initials = extract_ingredient_initials_from_description_fields(description_fields)
+            ingredient_analysis = analyze_ingredient_initials_source(
+                description_fields=description_fields,
+                text=data.get("description_text"),
+            )
+            ingredient_initials = str(ingredient_analysis.get("initials") or "").strip().upper()
             if ingredient_initials:
                 order_data["ingredient_initials"] = ingredient_initials
                 order_data.pop("document_no", None)

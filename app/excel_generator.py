@@ -22,6 +22,7 @@ from app.description_template_manager import (
     render_description_template,
 )
 from app.image_manager import load_image_fields, resolve_uploaded_image_path
+from app.ingredient_parser import analyze_ingredient_initials_source
 from app.layout_engine import render_layout
 
 
@@ -187,6 +188,22 @@ def _apply_document_no_defaults(data: dict, settings: dict):
         compact = format_compact_date(data.get("deal_date"))
         if compact:
             data["deal_date"] = compact
+
+
+def _ensure_ingredient_initials(data: dict, description_fields=None, description_text=None):
+    if not isinstance(data, dict):
+        return
+    if str(data.get("ingredient_initials") or "").strip():
+        data["ingredient_initials"] = str(data.get("ingredient_initials") or "").strip().upper()
+        return
+
+    analysis = analyze_ingredient_initials_source(
+        description_fields=description_fields,
+        text=description_text,
+    )
+    initials = str(analysis.get("initials") or "").strip().upper()
+    if initials:
+        data["ingredient_initials"] = initials
 
 
 def _normalize_date_fields(data: dict):
@@ -427,6 +444,11 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
 
     _apply_document_no_defaults(data, settings)
     _normalize_date_fields(data)
+    _ensure_ingredient_initials(
+        data,
+        description_fields=description_fields,
+        description_text=description_text,
+    )
 
     product_code = build_product_code(data)
     data["product_code"] = product_code
