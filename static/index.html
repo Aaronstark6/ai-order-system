@@ -503,6 +503,7 @@
     let currentDownloadUrl = "";
     let currentDescriptionFields = {};
     let ingredientInitialsManuallyEdited = false;
+    let descriptionIsComposing = false;
 
     async function loadInitialData() {
         await loadFields();
@@ -769,8 +770,7 @@
         }
 
         const templateText = profile.template_file ? "已上传" : "未上传模板";
-        const mappingCount = profile.mappings ? Object.keys(profile.mappings).length : 0;
-        tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}；普通字段：${mappingCount}`;
+        tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}`;
     }
 
     function getTodayISODate() {
@@ -1352,10 +1352,26 @@
         if (!textarea) {
             return;
         }
+        const nextValue = value || "";
+        if (textarea.value === nextValue) {
+            textarea.dataset.lastValue = textarea.value;
+            return;
+        }
+        const selectionStart = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
         textarea.dataset.internalUpdate = "true";
-        textarea.value = value || "";
+        textarea.value = nextValue;
         textarea.dataset.lastValue = textarea.value;
         delete textarea.dataset.internalUpdate;
+        if (
+            typeof selectionStart === "number" &&
+            typeof selectionEnd === "number" &&
+            document.activeElement === textarea
+        ) {
+            const start = Math.min(selectionStart, textarea.value.length);
+            const end = Math.min(selectionEnd, textarea.value.length);
+            textarea.setSelectionRange(start, end);
+        }
     }
 
     function extractDocumentProductCode() {
@@ -1414,12 +1430,17 @@
         if (!textarea || textarea.dataset.internalUpdate === "true") {
             return;
         }
+        if (descriptionIsComposing) {
+            return;
+        }
 
         const oldValue = textarea.dataset.lastValue || "";
         const newValue = textarea.value || "";
         const oldLines = oldValue.split("\n");
         const newLines = newValue.split("\n");
-        const cursor = textarea.selectionStart == null ? newValue.length : textarea.selectionStart;
+        const selectionStart = textarea.selectionStart == null ? newValue.length : textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd == null ? selectionStart : textarea.selectionEnd;
+        const cursor = selectionStart;
         const lineIndex = newValue.slice(0, cursor).split("\n").length - 1;
 
         if (oldLines[lineIndex] === newLines[lineIndex]) {
@@ -1427,12 +1448,27 @@
             return;
         }
 
-        newLines[lineIndex] = replaceDescriptionLineSource(newLines[lineIndex], "人工");
-        setDescriptionValue(textarea, newLines.join("\n"));
+        const originalLine = newLines[lineIndex] || "";
+        const markedLine = replaceDescriptionLineSource(originalLine, "人工");
+        if (markedLine === originalLine) {
+            textarea.dataset.lastValue = newValue;
+            return;
+        }
 
-        const linesBefore = newLines.slice(0, lineIndex).join("\n");
-        const newCursor = (linesBefore ? linesBefore.length + 1 : 0) + newLines[lineIndex].length;
-        textarea.setSelectionRange(newCursor, newCursor);
+        newLines[lineIndex] = markedLine;
+        const markedValue = newLines.join("\n");
+        if (markedValue === newValue) {
+            textarea.dataset.lastValue = newValue;
+            return;
+        }
+
+        const delta = markedValue.length - newValue.length;
+        setDescriptionValue(textarea, markedValue);
+        if (document.activeElement === textarea) {
+            const nextStart = Math.max(0, Math.min(selectionStart + delta, textarea.value.length));
+            const nextEnd = Math.max(0, Math.min(selectionEnd + delta, textarea.value.length));
+            textarea.setSelectionRange(nextStart, nextEnd);
+        }
     }
 
     async function renderDescriptionArea(data, options) {
@@ -1515,6 +1551,23 @@
 
     document.addEventListener("input", function (event) {
         if (event.target && event.target.id === "description_text") {
+            event.target.dataset.manuallyEdited = "true";
+            if (descriptionIsComposing) {
+                return;
+            }
+            markEditedDescriptionLine(event.target);
+        }
+    });
+
+    document.addEventListener("compositionstart", function (event) {
+        if (event.target && event.target.id === "description_text") {
+            descriptionIsComposing = true;
+        }
+    });
+
+    document.addEventListener("compositionend", function (event) {
+        if (event.target && event.target.id === "description_text") {
+            descriptionIsComposing = false;
             event.target.dataset.manuallyEdited = "true";
             markEditedDescriptionLine(event.target);
         }
