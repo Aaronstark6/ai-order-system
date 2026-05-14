@@ -357,6 +357,69 @@
             width: 96px;
         }
 
+        .image-field-add-row {
+            display: grid;
+            grid-template-columns: 1.2fr 1.2fr 0.8fr 0.75fr 0.75fr 96px;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 16px;
+        }
+
+        .image-field-table {
+            table-layout: fixed;
+            min-width: 900px;
+        }
+
+        .image-field-table input,
+        .image-field-table button,
+        .image-field-add-row input,
+        .image-field-add-row button {
+            height: 38px;
+            box-sizing: border-box;
+        }
+
+        .image-field-table input {
+            width: 100%;
+            margin: 0;
+            padding: 6px 7px;
+        }
+
+        .image-field-table input[type="checkbox"] {
+            width: auto;
+            height: auto;
+            margin: 0;
+        }
+
+        .image-field-table td,
+        .image-field-table th {
+            padding: 7px 8px;
+        }
+
+        .image-field-table-wrap {
+            overflow-x: auto;
+        }
+
+        .image-field-table th:nth-child(1),
+        .image-field-table td:nth-child(1) {
+            width: 64px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .image-field-table th:nth-child(4),
+        .image-field-table td:nth-child(4),
+        .image-field-table th:nth-child(5),
+        .image-field-table td:nth-child(5),
+        .image-field-table th:nth-child(6),
+        .image-field-table td:nth-child(6) {
+            width: 110px;
+        }
+
+        .image-field-table th:nth-child(7),
+        .image-field-table td:nth-child(7) {
+            width: 96px;
+        }
+
         .field-library-table input[type="checkbox"] {
             width: auto;
             height: auto;
@@ -504,6 +567,7 @@
             .export-sync-row,
             .ai-key-row,
             .field-library-add-row,
+            .image-field-add-row,
             .settings-grid,
             .grid-3,
             .grid-4 {
@@ -514,12 +578,21 @@
                 min-width: 1080px;
             }
 
+            .image-field-table {
+                min-width: 900px;
+            }
+
             .mapping-inline-row button,
             .template-file-row button,
             .export-sync-row button,
             .ai-key-row button,
             .field-library-add-row button {
                 width: 100%;
+            }
+
+            .image-field-add-row button {
+                width: 100%;
+                margin-bottom: 14px;
             }
 
             .danger-actions {
@@ -621,6 +694,58 @@
         </table>
     </div>
     <div id="fieldSettingsResult"></div>
+</div>
+
+<div class="card">
+    <h2>图片字段设置</h2>
+
+    <p class="tips">全局图片字段配置。启用后首页会显示上传框，生成 Excel 时插入到指定单元格。</p>
+
+    <div class="image-field-add-row">
+        <div>
+            <label for="newImageLabel">显示名称</label>
+            <input id="newImageLabel" placeholder="产品图片">
+        </div>
+        <div>
+            <label for="newImageKey">Key</label>
+            <input id="newImageKey" placeholder="product_image">
+        </div>
+        <div>
+            <label for="newImageCell">Excel单元格</label>
+            <input id="newImageCell" placeholder="H10">
+        </div>
+        <div>
+            <label for="newImageMaxWidth">最大宽度(px)</label>
+            <input id="newImageMaxWidth" type="number" min="1" value="200">
+        </div>
+        <div>
+            <label for="newImageMaxHeight">最大高度(px)</label>
+            <input id="newImageMaxHeight" type="number" min="1" value="150">
+        </div>
+        <button type="button" onclick="addImageField()">新增图片字段</button>
+    </div>
+
+    <div class="image-field-table-wrap">
+        <table class="image-field-table">
+            <thead>
+            <tr>
+                <th>启用</th>
+                <th>显示名称</th>
+                <th>Key</th>
+                <th>单元格</th>
+                <th>最大宽度</th>
+                <th>最大高度</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="imageFieldTable"></tbody>
+        </table>
+    </div>
+
+    <div class="button-row">
+        <button type="button" onclick="saveImageFields()">保存图片字段设置</button>
+    </div>
+    <div id="imageFieldResult"></div>
 </div>
 
 <div class="card">
@@ -782,6 +907,7 @@
     ]);
     let allFields = [];
     let fields = [];
+    let imageFields = [];
     let profiles = [];
     let currentProfile = null;
     let descriptionTemplateNames = [];
@@ -798,12 +924,14 @@
 
     async function loadAll() {
         await loadFields();
+        await loadImageFields();
         await loadAppSettings();
         await loadAiSettingsStatus();
         await loadDescriptionTemplates();
         await loadProfiles();
         renderProfileSelect();
         selectProfile();
+        renderImageFieldTable();
         renderAppSettings();
     }
 
@@ -1068,6 +1196,118 @@
 
         await reloadFieldsAndRefresh();
         resultDiv.innerHTML = `<p class="success">字段已删除</p>`;
+    }
+
+    async function loadImageFields() {
+        const response = await fetch("/api/image-fields");
+        const result = await response.json();
+
+        if (!result.success) {
+            imageFields = [];
+            return;
+        }
+
+        imageFields = result.fields || [];
+    }
+
+    function renderImageFieldTable() {
+        const tbody = document.getElementById("imageFieldTable");
+        if (!tbody) {
+            return;
+        }
+
+        tbody.innerHTML = "";
+        imageFields.forEach((field, index) => {
+            const tr = document.createElement("tr");
+            tr.dataset.index = String(index);
+            tr.innerHTML = `
+                <td><input type="checkbox" id="img_enabled_${index}" ${field.enabled !== false ? "checked" : ""}></td>
+                <td><input id="img_label_${index}" value="${escapeHtml(field.label || "")}"></td>
+                <td><input id="img_key_${index}" value="${escapeHtml(field.key || "")}"></td>
+                <td><input id="img_cell_${index}" value="${escapeHtml(field.cell || "")}" placeholder="H10"></td>
+                <td><input id="img_width_${index}" type="number" min="1" value="${escapeHtml(field.max_width || 200)}"></td>
+                <td><input id="img_height_${index}" type="number" min="1" value="${escapeHtml(field.max_height || 150)}"></td>
+                <td><button class="delete" type="button" onclick="deleteImageField(${index})">删除</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function collectImageFieldsFromTable() {
+        const rows = Array.from(document.querySelectorAll("#imageFieldTable tr"));
+        return rows.map(row => {
+            const index = row.dataset.index;
+            return {
+                enabled: Boolean(document.getElementById("img_enabled_" + index)?.checked),
+                label: (document.getElementById("img_label_" + index)?.value || "").trim(),
+                key: (document.getElementById("img_key_" + index)?.value || "").trim(),
+                cell: (document.getElementById("img_cell_" + index)?.value || "").trim().toUpperCase(),
+                max_width: Number(document.getElementById("img_width_" + index)?.value || 200),
+                max_height: Number(document.getElementById("img_height_" + index)?.value || 150)
+            };
+        });
+    }
+
+    function addImageField() {
+        const resultDiv = document.getElementById("imageFieldResult");
+        const field = {
+            enabled: true,
+            label: document.getElementById("newImageLabel").value.trim(),
+            key: document.getElementById("newImageKey").value.trim(),
+            cell: document.getElementById("newImageCell").value.trim().toUpperCase(),
+            max_width: Number(document.getElementById("newImageMaxWidth").value || 200),
+            max_height: Number(document.getElementById("newImageMaxHeight").value || 150)
+        };
+
+        if (!field.label || !field.key || !field.cell) {
+            resultDiv.innerHTML = `<p class="error">显示名称、Key、Excel单元格不能为空</p>`;
+            return;
+        }
+        if (imageFields.some(item => item.key === field.key)) {
+            resultDiv.innerHTML = `<p class="error">图片字段 key 已存在</p>`;
+            return;
+        }
+
+        imageFields = collectImageFieldsFromTable();
+        imageFields.push(field);
+        renderImageFieldTable();
+        document.getElementById("newImageLabel").value = "";
+        document.getElementById("newImageKey").value = "";
+        document.getElementById("newImageCell").value = "";
+        document.getElementById("newImageMaxWidth").value = "200";
+        document.getElementById("newImageMaxHeight").value = "150";
+        resultDiv.innerHTML = `<p class="success">图片字段已添加，请保存设置</p>`;
+    }
+
+    function deleteImageField(index) {
+        imageFields = collectImageFieldsFromTable().filter((_, i) => i !== index);
+        renderImageFieldTable();
+        const resultDiv = document.getElementById("imageFieldResult");
+        resultDiv.innerHTML = `<p class="success">图片字段已删除，请保存设置</p>`;
+    }
+
+    async function saveImageFields() {
+        const resultDiv = document.getElementById("imageFieldResult");
+        resultDiv.innerHTML = "";
+        const fieldsToSave = collectImageFieldsFromTable();
+
+        const response = await fetch("/api/image-fields", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ fields: fieldsToSave })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "保存失败")}</p>`;
+            return;
+        }
+
+        imageFields = result.fields || [];
+        renderImageFieldTable();
+        resultDiv.innerHTML = `<p class="success">图片字段设置已保存</p>`;
     }
 
     async function loadProfiles() {

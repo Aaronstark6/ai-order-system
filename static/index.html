@@ -197,6 +197,39 @@
             margin-bottom: 0;
         }
 
+        .image-upload-card {
+            border: 1px solid #e0e4ec;
+            border-radius: 10px;
+            padding: 14px 16px 16px;
+            margin-top: 20px;
+            background: #fafbfd;
+        }
+
+        .image-upload-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .image-upload-item {
+            min-width: 0;
+        }
+
+        .image-upload-item label {
+            margin-top: 0;
+        }
+
+        .image-upload-item input[type="file"] {
+            margin-bottom: 6px;
+        }
+
+        .image-file-name {
+            min-height: 18px;
+            color: #666;
+            font-size: 13px;
+            word-break: break-all;
+        }
+
         .doc-no-card {
             border: 1px solid #e0e4ec;
             border-radius: 10px;
@@ -416,6 +449,10 @@
             .normal-fields-grid {
                 grid-template-columns: 1fr;
             }
+
+            .image-upload-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -454,6 +491,8 @@
         <div id="documentNoConfirmArea"></div>
 
         <form id="confirmForm"></form>
+
+        <div id="imageUploadArea"></div>
 
         <div id="descriptionConfirmArea"></div>
 
@@ -502,16 +541,19 @@
     let currentGeneratedFilename = "";
     let currentDownloadUrl = "";
     let currentDescriptionFields = {};
+    let imageFields = [];
     let ingredientInitialsManuallyEdited = false;
     let descriptionIsComposing = false;
 
     async function loadInitialData() {
         await loadFields();
+        await loadImageFields();
         await loadAppSettings();
         await loadProfiles();
         updateVisibleFields();
         renderDocumentNoSection({});
         renderForm({});
+        renderImageUploadArea();
         renderDescriptionArea(mergeDataWithMappingDefaults({}));
         resetExcelActions();
     }
@@ -554,6 +596,7 @@
             updateVisibleFields();
             renderDocumentNoSection(parsedData);
             renderForm(parsedData);
+            renderImageUploadArea();
             renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), {
                 useAi: Boolean((document.getElementById("message").value || "").trim())
             });
@@ -566,6 +609,16 @@
         }
 
         updateProfileTips();
+    }
+
+    async function loadImageFields() {
+        try {
+            const response = await fetch("/api/image-fields");
+            const result = await response.json();
+            imageFields = result.success ? (result.fields || []) : [];
+        } catch (e) {
+            imageFields = [];
+        }
     }
 
     async function loadAppSettings() {
@@ -722,6 +775,7 @@
         updateVisibleFields();
         renderDocumentNoSection(parsedData);
         renderForm(parsedData);
+        renderImageUploadArea();
         await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
         return true;
     }
@@ -1322,6 +1376,62 @@
         });
     }
 
+    function renderImageUploadArea() {
+        const area = document.getElementById("imageUploadArea");
+        if (!area) {
+            return;
+        }
+
+        area.innerHTML = "";
+        if (!getSelectedProfile()) {
+            return;
+        }
+
+        const enabledFields = (imageFields || []).filter(field => field && field.enabled === true);
+        if (enabledFields.length === 0) {
+            return;
+        }
+
+        const card = document.createElement("div");
+        card.className = "image-upload-card";
+        card.innerHTML = `
+            <h3 class="section-title">图片上传</h3>
+            <div class="image-upload-grid"></div>
+        `;
+
+        const grid = card.querySelector(".image-upload-grid");
+        enabledFields.forEach(field => {
+            const key = String(field.key || "").trim();
+            if (!key) {
+                return;
+            }
+
+            const item = document.createElement("div");
+            item.className = "image-upload-item";
+            item.innerHTML = `
+                <label for="image_field_${escapeHtml(key)}">${escapeHtml(field.label || key)}</label>
+                <input
+                    id="image_field_${escapeHtml(key)}"
+                    class="image-upload-input"
+                    type="file"
+                    accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                    data-field-key="${escapeHtml(key)}"
+                >
+                <div class="image-file-name" id="image_file_name_${escapeHtml(key)}"></div>
+            `;
+            grid.appendChild(item);
+
+            const input = item.querySelector("input[type='file']");
+            const filenameEl = item.querySelector(".image-file-name");
+            input.addEventListener("change", function () {
+                const file = input.files && input.files[0] ? input.files[0] : null;
+                filenameEl.innerText = file ? `已选择：${file.name}` : "";
+            });
+        });
+
+        area.appendChild(card);
+    }
+
     const DESCRIPTION_SOURCE_MARK_RE = /\[(模板|AI|系统|人工)\]/g;
 
     function stripDescriptionSourceMarks(text) {
@@ -1755,6 +1865,47 @@
         return textarea ? textarea.value : "";
     }
 
+    function isAllowedImageFile(file) {
+        const name = file ? String(file.name || "").toLowerCase() : "";
+        return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg");
+    }
+
+    async function uploadSelectedImages() {
+        const imageData = {};
+        const inputs = Array.from(document.querySelectorAll(".image-upload-input"));
+
+        for (const input of inputs) {
+            const file = input.files && input.files[0] ? input.files[0] : null;
+            if (!file) {
+                continue;
+            }
+
+            if (!isAllowedImageFile(file)) {
+                throw new Error(`图片字段 ${input.dataset.fieldKey || ""} 仅支持 JPG、JPEG、PNG`);
+            }
+
+            const formData = new FormData();
+            formData.append("field_key", input.dataset.fieldKey || "");
+            formData.append("file", file);
+
+            const response = await fetch("/api/upload-image", {
+                method: "POST",
+                body: formData
+            });
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.error || `图片 ${file.name} 上传失败`);
+            }
+
+            imageData[input.dataset.fieldKey || result.field_key] = {
+                image_path: result.image_path
+            };
+        }
+
+        return imageData;
+    }
+
     async function submitOrder() {
         const profileId = document.getElementById("profileSelect").value;
         const data = collectAllOrderData();
@@ -1784,48 +1935,54 @@
         generateBtn.disabled = true;
         generateBtn.innerText = "生成中...";
 
-        const response = await fetch("/api/generate-excel", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                profile_id: profileId,
-                data: data,
-                description_fields: currentDescriptionFields || {},
-                description_text: descriptionText
-            })
-        });
+        try {
+            const imageData = await uploadSelectedImages();
+            const response = await fetch("/api/generate-excel", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    profile_id: profileId,
+                    data: data,
+                    description_fields: currentDescriptionFields || {},
+                    description_text: descriptionText,
+                    image_data: imageData
+                })
+            });
 
-        const result = await response.json();
+            const result = await response.json();
 
-        generateBtn.disabled = false;
-        generateBtn.innerText = "确认生成Excel";
+            if (!result.success) {
+                submitResult.innerHTML = `
+                    <p class="error">生成失败：${escapeHtml(result.error || "")}</p>
+                `;
+                return;
+            }
 
-        if (!result.success) {
+            enableExcelActions(result);
+
+            const filenameHtml = result.filename
+                ? `<p class="sync-path">文件名：${escapeHtml(result.filename)}</p>`
+                : "";
+            const syncStatusHtml = result.synced && result.sync_path
+                ? `<p class="sync-path">已同步到：${escapeHtml(result.sync_path)}</p>`
+                : result.sync_error
+                    ? `<p class="sync-error">同步失败：${escapeHtml(result.sync_error)}</p>`
+                    : `<p class="sync-path">未配置同步目录</p>`;
+
             submitResult.innerHTML = `
-                <p class="error">生成失败：${result.error}</p>
+                <p class="success excel-result-message">Excel生成成功！</p>
+                ${filenameHtml}
+                ${descriptionWarning}
+                ${syncStatusHtml}
             `;
-            return;
+        } catch (error) {
+            submitResult.innerHTML = `<p class="error">${escapeHtml(error.message || "生成失败")}</p>`;
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.innerText = "确认生成Excel";
         }
-
-        enableExcelActions(result);
-
-        const filenameHtml = result.filename
-            ? `<p class="sync-path">文件名：${escapeHtml(result.filename)}</p>`
-            : "";
-        const syncStatusHtml = result.synced && result.sync_path
-            ? `<p class="sync-path">已同步到：${escapeHtml(result.sync_path)}</p>`
-            : result.sync_error
-                ? `<p class="sync-error">同步失败：${escapeHtml(result.sync_error)}</p>`
-                : `<p class="sync-path">未配置同步目录</p>`;
-
-        submitResult.innerHTML = `
-            <p class="success excel-result-message">Excel生成成功！</p>
-            ${filenameHtml}
-            ${descriptionWarning}
-            ${syncStatusHtml}
-        `;
     }
 
     async function syncCurrentExcel() {

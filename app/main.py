@@ -1,9 +1,11 @@
 from pathlib import Path
+from datetime import datetime
 import os
+import re
 import shutil
 import subprocess
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form, Body
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -25,6 +27,12 @@ from app.field_library import (
 from app.ai_parser import parse_message, generate_description_from_message
 from app.ingredient_parser import extract_ingredient_initials_from_description_fields
 from app.excel_generator import generate_excel
+from app.image_manager import (
+    ensure_image_upload_dir,
+    load_image_fields,
+    safe_image_extension,
+    save_image_fields,
+)
 from app.description_template_manager import (
     list_description_templates,
     get_description_template,
@@ -115,6 +123,53 @@ def api_update_field(key: str, field: dict):
 def api_delete_field(key: str):
     try:
         return {"success": True, "result": delete_field(key)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ================= 图片字段 =================
+
+@app.get("/api/image-fields")
+def api_get_image_fields():
+    try:
+        return {"success": True, "fields": load_image_fields()}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/image-fields")
+def api_save_image_fields(data=Body(...)):
+    try:
+        fields = data.get("fields", data) if isinstance(data, dict) else data
+        if not isinstance(fields, list):
+            return {"success": False, "error": "图片字段配置必须是数组"}
+        return {"success": True, "fields": save_image_fields(fields)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/upload-image")
+def api_upload_image(field_key: str = Form(...), file: UploadFile = File(...)):
+    try:
+        original_key = str(field_key or "").strip()
+        safe_key = re.sub(r"[^A-Za-z0-9_-]+", "_", original_key).strip("_")
+        if not original_key or not safe_key:
+            return {"success": False, "error": "field_key 不能为空"}
+
+        ext = safe_image_extension(file.filename)
+        upload_dir = ensure_image_upload_dir()
+        filename = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{safe_key}{ext}"
+        image_file = upload_dir / filename
+
+        with open(image_file, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        return {
+            "success": True,
+            "field_key": original_key,
+            "image_path": str(Path("uploads") / "images" / filename),
+            "filename": filename,
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -361,7 +416,8 @@ def api_generate_excel(data: dict):
             data=order_data,
             profile_id=profile_id,
             composite_data=composite_data,
-            description_text=data.get("description_text")
+            description_text=data.get("description_text"),
+            image_data=data.get("image_data") or {},
         )
 
     except Exception as e:
