@@ -286,15 +286,15 @@
       "enabled": true,
       "regions": [
         {
-          "id": "region_1778763036947",
-          "name": "纵向图片区",
-          "type": "image_stack",
+          "id": "region_1778767510511",
+          "name": "新区域",
+          "type": "rich_text",
           "enabled": true,
           "sheet": "active",
-          "range": "G7:K40",
+          "range": "G8:K40",
           "blocks": [
             {
-              "id": "block_1778763060100",
+              "id": "block_1778767519655",
               "type": "image_stack",
               "source": "image_data",
               "enabled": true,
@@ -305,9 +305,9 @@
                   "product_image"
                 ],
                 "layout_mode": "auto_stack",
-                "anchor_cell": "G7",
-                "image_width": 220,
-                "image_height": 140,
+                "anchor_cell": "G8",
+                "image_width": 450,
+                "image_height": 450,
                 "keep_ratio": true,
                 "gap_rows": 8,
                 "gap_px": 12

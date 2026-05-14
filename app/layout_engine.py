@@ -1,5 +1,12 @@
 import re
 from copy import copy
+from datetime import datetime
+from pathlib import Path
+
+try:
+    from PIL import Image as PILImage
+except ImportError:
+    PILImage = None
 
 try:
     from openpyxl.drawing.image import Image as ExcelImage
@@ -185,6 +192,59 @@ def _apply_image_size(img, options):
 
     img.width = round(original_width * scale)
     img.height = round(original_height * scale)
+
+
+def create_vertical_stack_image(image_paths, image_width, image_height, keep_ratio=True, gap_px=12):
+    if PILImage is None:
+        raise RuntimeError("图片渲染需要安装 pillow。")
+
+    paths = [path for path in image_paths if path]
+    if not paths:
+        return None
+
+    max_width = _to_positive_number(image_width)
+    max_height = _to_positive_number(image_height)
+    gap = int(round(_non_negative_number(gap_px, 12)))
+    keep_ratio = _to_bool(keep_ratio, default=True)
+    resampling = getattr(getattr(PILImage, "Resampling", PILImage), "LANCZOS")
+    resized_images = []
+
+    for image_path in paths:
+        with PILImage.open(image_path) as source:
+            original_width, original_height = source.size
+            target_width = max_width or original_width
+            target_height = max_height or original_height
+
+            if keep_ratio:
+                scale = min(target_width / original_width, target_height / original_height)
+                width = max(1, int(round(original_width * scale)))
+                height = max(1, int(round(original_height * scale)))
+            else:
+                width = max(1, int(round(target_width)))
+                height = max(1, int(round(target_height)))
+
+            resized_images.append(source.convert("RGBA").resize((width, height), resampling))
+
+    if not resized_images:
+        return None
+
+    stack_width = max(image.width for image in resized_images)
+    stack_height = sum(image.height for image in resized_images) + gap * (len(resized_images) - 1)
+    composite = PILImage.new("RGB", (stack_width, stack_height), "white")
+
+    current_y = 0
+    for image in resized_images:
+        if image.mode == "RGBA":
+            composite.paste(image, (0, current_y), image)
+        else:
+            composite.paste(image, (0, current_y))
+        current_y += image.height + gap
+
+    cache_dir = Path("output") / "layout_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    composite_path = cache_dir / f"stack_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.png"
+    composite.save(composite_path)
+    return composite_path
 
 
 def _render_image_block(sheet, block, image_data, target_cell):
@@ -424,6 +484,29 @@ def _load_stack_image(image_data, key):
         return None
 
 
+def _resolve_stack_image_path(image_data, key):
+    if not isinstance(image_data, dict):
+        return None
+
+    item = image_data.get(key)
+    if not isinstance(item, dict):
+        return None
+
+    return resolve_uploaded_image_path(item.get("image_path"))
+
+
+def _is_readable_stack_image(image_path):
+    if PILImage is None:
+        return True
+
+    try:
+        with PILImage.open(image_path) as source:
+            source.verify()
+        return True
+    except Exception:
+        return False
+
+
 def _render_image_stack_row_step(sheet, source_keys, image_data, target_cell, max_row, size_options, gap_rows):
     written_cells = []
     skipped_keys = []
@@ -457,39 +540,61 @@ def _render_image_stack_row_step(sheet, source_keys, image_data, target_cell, ma
 
 
 def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_options, gap_px, region_height_px):
-    written_cells = []
     skipped_keys = []
-    written_images_detail = []
-    current_y = 0
+    valid_paths = []
+    valid_keys = []
 
     for key in source_keys:
-        if region_height_px is not None and current_y > region_height_px:
+        image_path = _resolve_stack_image_path(image_data, key)
+        if not image_path or not _is_readable_stack_image(image_path):
             skipped_keys.append(key)
             continue
+        valid_paths.append(image_path)
+        valid_keys.append(key)
 
-        img = _load_stack_image(image_data, key)
-        if img is None:
-            skipped_keys.append(key)
-            continue
+    if not valid_paths:
+        return {
+            "written_cells": [],
+            "skipped_keys": skipped_keys,
+            "written_images_detail": [],
+        }
 
-        _apply_image_size(img, size_options)
-        display_width = _non_negative_number(getattr(img, "width", 0), 0)
-        display_height = _non_negative_number(getattr(img, "height", 0), 0)
-        add_image_with_offset(sheet, img, anchor_cell, offset_y_px=current_y)
-        written_cells.append(anchor_cell)
-        written_images_detail.append({
-            "key": key,
-            "cell": anchor_cell,
-            "offset_y": current_y,
-            "width": display_width,
-            "height": display_height,
-        })
-        current_y += display_height + gap_px
+    if ExcelImage is None:
+        raise RuntimeError("图片渲染需要安装 pillow。")
+
+    composite_path = create_vertical_stack_image(
+        valid_paths,
+        size_options.get("width"),
+        size_options.get("height"),
+        _to_bool(size_options.get("keep_ratio"), default=True),
+        gap_px,
+    )
+    if not composite_path:
+        return {
+            "written_cells": [],
+            "skipped_keys": skipped_keys,
+            "written_images_detail": [],
+        }
+
+    try:
+        composite_img = ExcelImage(str(composite_path))
+    except ImportError as e:
+        raise RuntimeError("图片渲染需要安装 pillow。") from e
+
+    sheet.add_image(composite_img, anchor_cell)
 
     return {
-        "written_cells": written_cells,
+        "written_cells": [anchor_cell],
         "skipped_keys": skipped_keys,
-        "written_images_detail": written_images_detail,
+        "written_images_detail": [
+            {
+                "type": "composite_stack",
+                "cell": anchor_cell,
+                "source_keys": valid_keys,
+                "image_count": len(valid_paths),
+                "composite_path": str(composite_path),
+            }
+        ],
     }
 
 
