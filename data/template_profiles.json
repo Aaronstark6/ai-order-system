@@ -48,7 +48,30 @@
         "enabled": true,
         "cell": "G8"
       }
-    ]
+    ],
+    "profile_version": "v2",
+    "layout_config": {
+      "enabled": true,
+      "regions": [
+        {
+          "id": "region_1778737283119",
+          "name": "主描述区域",
+          "type": "rich_text",
+          "sheet": "active",
+          "range": "",
+          "blocks": [
+            {
+              "id": "block_1778737606845",
+              "type": "description_fields",
+              "source": "description_fields",
+              "enabled": true,
+              "options": {}
+            }
+          ],
+          "options": {}
+        }
+      ]
+    }
   },
   {
     "id": "0903f64e-fc36-419c-9ea2-2dee5d5f5551",
@@ -99,7 +122,12 @@
         "enabled": true,
         "cell": "G8"
       }
-    ]
+    ],
+    "profile_version": "v2",
+    "layout_config": {
+      "enabled": false,
+      "regions": []
+    }
   },
   {
     "id": "7bc169b4-bfd0-4dd5-a24f-36bce50e5d19",
@@ -144,7 +172,12 @@
       "template_name": "果冻和凝胶.txt",
       "target_cell": "B8"
     },
-    "image_fields": []
+    "image_fields": [],
+    "profile_version": "v2",
+    "layout_config": {
+      "enabled": false,
+      "regions": []
+    }
   },
   {
     "id": "694ea7e9-fac2-45ae-b5e4-d943622c0884",
@@ -189,7 +222,12 @@
       "template_name": "片剂.txt",
       "target_cell": "B8"
     },
-    "image_fields": []
+    "image_fields": [],
+    "profile_version": "v2",
+    "layout_config": {
+      "enabled": false,
+      "regions": []
+    }
   },
   {
     "id": "c71a0eaf-51a9-45a4-bbec-834e1b3a2211",
@@ -234,7 +272,12 @@
       "template_name": "软胶囊爆珠.txt",
       "target_cell": "B8"
     },
-    "image_fields": []
+    "image_fields": [],
+    "profile_version": "v2",
+    "layout_config": {
+      "enabled": false,
+      "regions": []
+    }
   },
   {
     "id": "81c239e1-07ae-41af-8adf-ef4efa2dcf1a",
@@ -279,7 +322,12 @@
       "template_name": "软糖.txt",
       "target_cell": "B8"
     },
-    "image_fields": []
+    "image_fields": [],
+    "profile_version": "v2",
+    "layout_config": {
+      "enabled": false,
+      "regions": []
+    }
   },
   {
     "id": "875e86f4-8ca8-477c-8d2f-4a8745d749ad",
@@ -324,6 +372,11 @@
       "template_name": "硬胶囊.txt",
       "target_cell": "B8"
     },
-    "image_fields": []
+    "image_fields": [],
+    "profile_version": "v2",
+    "layout_config": {
+      "enabled": false,
+      "regions": []
+    }
   }
 ]

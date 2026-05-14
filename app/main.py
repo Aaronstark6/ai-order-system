@@ -242,7 +242,27 @@ def api_update_mappings(profile_id: str, data: dict):
                 mapping_defaults=data.get("mapping_defaults"),
                 description_settings=data.get("description_settings"),
                 image_fields=data.get("image_fields"),
+                layout_config=data.get("layout_config"),
                 mapping_order=data.get("mapping_order"),
+            )
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/template-profiles/{profile_id}/layout-config")
+def api_update_layout_config(profile_id: str, data: dict):
+    try:
+        profile = get_profile(profile_id)
+        if not profile:
+            return {"success": False, "error": "映射不存在"}
+
+        return {
+            "success": True,
+            "profile": update_profile_mappings(
+                profile_id=profile_id,
+                mappings=None,
+                layout_config=data.get("layout_config"),
             )
         }
     except Exception as e:
@@ -460,6 +480,7 @@ def api_generate_excel(data: dict):
             composite_data=composite_data,
             description_text=data.get("description_text"),
             image_data=data.get("image_data") or {},
+            description_fields=description_fields,
         )
         if result.get("success") and str(result.get("lastGeneratedFilePath") or result.get("output_path") or "").strip():
             LAST_GENERATED_FILE_PATH = str(result.get("lastGeneratedFilePath") or result.get("output_path") or "").strip()

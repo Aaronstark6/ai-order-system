@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from app.app_settings import DEFAULT_APP_SETTINGS, load_app_settings
 from app.image_manager import normalize_image_mappings
+from app.layout_schema import default_layout_config, normalize_layout_config
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -132,6 +133,11 @@ def normalize_profile(profile: dict):
     if "name" not in profile:
         profile["name"] = "未命名映射"
 
+    if "profile_version" not in profile:
+        profile["profile_version"] = "v2"
+    else:
+        profile["profile_version"] = str(profile.get("profile_version") or "v2").strip() or "v2"
+
     if "template_file" not in profile:
         profile["template_file"] = ""
 
@@ -159,6 +165,9 @@ def normalize_profile(profile: dict):
 
     profile["image_fields"] = normalize_image_mappings(
         profile.get("image_fields") if isinstance(profile.get("image_fields"), list) else []
+    )
+    profile["layout_config"] = normalize_layout_config(
+        profile.get("layout_config") if isinstance(profile.get("layout_config"), dict) else default_layout_config()
     )
 
     if "document_no_rule" in profile:
@@ -240,6 +249,7 @@ def create_profile(name: str):
         "name": name,
         "template_file": "",
         "template_display_name": "",
+        "profile_version": "v3",
         "mappings": {},
         "mapping_order": [],
         "mapping_defaults": {},
@@ -288,36 +298,38 @@ def update_profile_mappings(
     composite_mappings=None,
     document_no_settings=None,
     mapping_defaults=None,
-    description_settings=None,
-    image_fields=None,
-    mapping_order=None,
+        description_settings=None,
+        image_fields=None,
+        layout_config=None,
+        mapping_order=None,
 ):
     profiles = load_profiles()
 
     for profile in profiles:
         if profile.get("id") == profile_id:
-            clean_mappings = {}
+            if mappings is not None:
+                clean_mappings = {}
 
-            for key, cell in (mappings or {}).items():
-                key = str(key or "").strip()
-                if key in RESERVED_DOCUMENT_MAPPING_KEYS:
-                    continue
-                cell = str(cell or "").strip().upper()
-
-                if key and cell:
-                    clean_mappings[key] = cell
-
-            profile["mappings"] = clean_mappings
-            clean_order = []
-            if isinstance(mapping_order, list):
-                for key in mapping_order:
+                for key, cell in (mappings or {}).items():
                     key = str(key or "").strip()
-                    if key in clean_mappings and key not in clean_order:
+                    if key in RESERVED_DOCUMENT_MAPPING_KEYS:
+                        continue
+                    cell = str(cell or "").strip().upper()
+
+                    if key and cell:
+                        clean_mappings[key] = cell
+
+                profile["mappings"] = clean_mappings
+                clean_order = []
+                if isinstance(mapping_order, list):
+                    for key in mapping_order:
+                        key = str(key or "").strip()
+                        if key in clean_mappings and key not in clean_order:
+                            clean_order.append(key)
+                for key in clean_mappings.keys():
+                    if key not in clean_order:
                         clean_order.append(key)
-            for key in clean_mappings.keys():
-                if key not in clean_order:
-                    clean_order.append(key)
-            profile["mapping_order"] = clean_order
+                profile["mapping_order"] = clean_order
             # legacy composite mapping compatibility
             if composite_mappings is not None:
                 clean_composite_mappings = []
@@ -335,12 +347,13 @@ def update_profile_mappings(
                 profile["composite_mappings"] = clean_composite_mappings
 
             if mapping_defaults is not None:
+                current_mappings = _strip_reserved_from_mappings(profile.get("mappings") or {})
                 clean_defaults = {}
                 for key, val in (mapping_defaults or {}).items():
                     key = str(key or "").strip()
                     if not key or key in RESERVED_DOCUMENT_MAPPING_KEYS:
                         continue
-                    if key not in clean_mappings:
+                    if key not in current_mappings:
                         continue
                     clean_defaults[key] = str(val) if val is not None else ""
                 profile["mapping_defaults"] = clean_defaults
@@ -365,6 +378,9 @@ def update_profile_mappings(
 
             if image_fields is not None:
                 profile["image_fields"] = normalize_image_mappings(image_fields, validate=True)
+
+            if layout_config is not None:
+                profile["layout_config"] = normalize_layout_config(layout_config)
 
             save_profiles(profiles)
 

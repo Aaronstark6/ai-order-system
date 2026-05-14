@@ -22,6 +22,7 @@ from app.description_template_manager import (
     render_description_template,
 )
 from app.image_manager import load_image_fields, resolve_uploaded_image_path
+from app.layout_engine import render_layout
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -376,7 +377,7 @@ def _insert_configured_images(sheet, image_fields, image_data):
         sheet.add_image(img, cell)
 
 
-def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None, description_text=None, image_data=None):
+def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None, description_text=None, image_data=None, description_fields=None):
     if composite_values is None:
         composite_values = {}
     composite_values = normalize_composite_values(
@@ -535,6 +536,22 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
             "success": False,
             "error": f"图片插入失败：{str(e)}"
         }
+
+    layout_config = profile.get("layout_config") if isinstance(profile.get("layout_config"), dict) else {}
+    if layout_config.get("enabled") is True:
+        layout_result = render_layout(
+            workbook=workbook,
+            data=data,
+            profile=profile,
+            description_fields=description_fields,
+            description_text=description_text,
+            image_data=image_data,
+        )
+        if not layout_result.get("success"):
+            return {
+                "success": False,
+                "error": f"Layout Engine 渲染失败：{layout_result.get('error') or '未知错误'}"
+            }
 
     customer_name = safe_filename_text(data.get("customer_name") or "客户")
     product_name = safe_filename_text(data.get("product_name") or "订单")

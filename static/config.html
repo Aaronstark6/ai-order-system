@@ -524,6 +524,66 @@
             overflow-y: auto;
         }
 
+        .layout-engine-tip {
+            background: #fff7e6;
+            border: 1px solid #ffd591;
+            color: #8a5a00;
+            padding: 10px 12px;
+            border-radius: 6px;
+            line-height: 1.6;
+            margin-bottom: 14px;
+        }
+
+        .layout-region-card {
+            border: 1px solid #e5e7eb;
+            background: #fafbfd;
+            border-radius: 8px;
+            padding: 14px;
+            margin-top: 14px;
+        }
+
+        .layout-region-header,
+        .layout-block-row {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) 86px 96px;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .layout-block-row {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 86px 96px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #e5e7eb;
+        }
+
+        .layout-blocks-title {
+            margin: 14px 0 4px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+        }
+
+        .layout-region-header input,
+        .layout-block-row input,
+        .layout-block-row button,
+        .layout-region-header button {
+            height: 38px;
+            box-sizing: border-box;
+        }
+
+        .layout-region-header button,
+        .layout-block-row button {
+            width: 96px;
+            padding: 0 10px;
+        }
+
+        .layout-count {
+            color: #666;
+            font-size: 13px;
+            padding-bottom: 11px;
+        }
+
         .drag-handle {
             cursor: grab;
             color: #666;
@@ -569,6 +629,8 @@
             .ai-key-row,
             .field-library-add-row,
             .image-field-add-row,
+            .layout-region-header,
+            .layout-block-row,
             .settings-grid,
             .grid-3,
             .grid-4 {
@@ -588,7 +650,9 @@
             .export-sync-row button,
             .ai-key-row button,
             .field-library-add-row button,
-            .image-field-add-row button {
+            .image-field-add-row button,
+            .layout-region-header button,
+            .layout-block-row button {
                 width: 100%;
             }
 
@@ -640,6 +704,17 @@
         </div>
     </div>
     <div id="profileResult"></div>
+</div>
+
+<div class="card">
+    <h2>V3 Layout Engine（实验）</h2>
+
+    <div class="layout-engine-tip">
+        当前为 V3 版式引擎配置入口，暂时只保存结构，不影响现有 Excel 输出。
+    </div>
+
+    <div id="layoutConfigArea"></div>
+    <div id="layoutConfigResult"></div>
 </div>
 
 <div class="card">
@@ -1626,6 +1701,7 @@
         currentProfile = profiles.find(p => p.id === profileId) || null;
 
         renderProfileInfo();
+        renderLayoutConfig();
         renderFieldTable();
         renderImageFieldTable();
         renderDescriptionSettings();
@@ -1645,6 +1721,293 @@
             <p><strong>当前映射：</strong>${escapeHtml(currentProfile.name)}</p>
             <p><strong>模板文件：</strong>${escapeHtml(templateName)}</p>
         `;
+    }
+
+    function defaultLayoutConfig() {
+        return {
+            enabled: false,
+            regions: []
+        };
+    }
+
+    function normalizeLayoutConfig(raw) {
+        const config = raw && typeof raw === "object" ? raw : {};
+        const regions = Array.isArray(config.regions) ? config.regions : [];
+        return {
+            enabled: config.enabled === true,
+            regions: regions.map(region => ({
+                id: String(region && region.id || "").trim(),
+                name: String(region && region.name || "").trim(),
+                type: String(region && region.type || "").trim(),
+                sheet: String(region && region.sheet || "active").trim() || "active",
+                range: String(region && region.range || "").trim().toUpperCase(),
+                blocks: Array.isArray(region && region.blocks)
+                    ? region.blocks.map(block => ({
+                        id: String(block && block.id || "").trim(),
+                        type: String(block && block.type || "").trim(),
+                        source: String(block && block.source || "").trim(),
+                        enabled: !block || block.enabled !== false,
+                        options: block && typeof block.options === "object" && !Array.isArray(block.options) ? block.options : {}
+                    }))
+                    : [],
+                options: region && typeof region.options === "object" && !Array.isArray(region.options) ? region.options : {}
+            }))
+        };
+    }
+
+    function renderLayoutConfig() {
+        const area = document.getElementById("layoutConfigArea");
+        const resultDiv = document.getElementById("layoutConfigResult");
+        if (!area) {
+            return;
+        }
+        if (resultDiv) {
+            resultDiv.innerHTML = "";
+        }
+
+        if (!currentProfile) {
+            area.innerHTML = `<div class="empty-form">请先选择模板映射</div>`;
+            return;
+        }
+
+        const config = normalizeLayoutConfig(currentProfile.layout_config || defaultLayoutConfig());
+        currentProfile.layout_config = config;
+
+        area.innerHTML = `
+            <label class="checkbox-line">
+                <input type="checkbox" id="layout_enabled" ${config.enabled ? "checked" : ""}>
+                <span>启用 Layout Engine</span>
+            </label>
+            <div class="button-row">
+                <button type="button" onclick="addLayoutRegion()">新增区域</button>
+                <button type="button" class="save" onclick="saveLayoutConfig()">保存 Layout 配置</button>
+            </div>
+            <div id="layoutRegionList"></div>
+        `;
+
+        renderLayoutRegions(config.regions);
+    }
+
+    function renderLayoutRegions(regions) {
+        const list = document.getElementById("layoutRegionList");
+        if (!list) {
+            return;
+        }
+
+        if (!regions || regions.length === 0) {
+            list.innerHTML = `<div class="empty-form">暂无 Layout Region，请点击“新增区域”。</div>`;
+            return;
+        }
+
+        list.innerHTML = "";
+        regions.forEach((region, index) => {
+            const card = document.createElement("div");
+            card.className = "layout-region-card";
+            card.dataset.regionIndex = String(index);
+            const blocks = Array.isArray(region.blocks) ? region.blocks : [];
+            card.innerHTML = `
+                <div class="layout-region-header">
+                    <div>
+                        <label>区域ID</label>
+                        <input id="layout_region_id_${index}" value="${escapeHtml(region.id || "")}" placeholder="main_description">
+                    </div>
+                    <div>
+                        <label>区域名称</label>
+                        <input id="layout_region_name_${index}" value="${escapeHtml(region.name || "")}" placeholder="主产品描述区域">
+                    </div>
+                    <div>
+                        <label>区域类型</label>
+                        <input id="layout_region_type_${index}" value="${escapeHtml(region.type || "")}" placeholder="rich_text">
+                    </div>
+                    <div>
+                        <label>工作表</label>
+                        <input id="layout_region_sheet_${index}" value="${escapeHtml(region.sheet || "active")}" placeholder="active">
+                    </div>
+                    <div>
+                        <label>Excel区域</label>
+                        <input id="layout_region_range_${index}" value="${escapeHtml(region.range || "")}" placeholder="A10:H20">
+                    </div>
+                    <div class="layout-count">Block数量：${blocks.length}</div>
+                    <button class="delete" type="button" onclick="deleteLayoutRegion(${index})">删除区域</button>
+                </div>
+                <div class="layout-blocks-title">Blocks</div>
+                <div id="layout_blocks_${index}"></div>
+                <div class="button-row">
+                    <button type="button" onclick="addLayoutBlock(${index})">新增 Block</button>
+                </div>
+            `;
+            list.appendChild(card);
+            renderLayoutBlocks(index, blocks);
+        });
+    }
+
+    function renderLayoutBlocks(regionIndex, blocks) {
+        const container = document.getElementById("layout_blocks_" + regionIndex);
+        if (!container) {
+            return;
+        }
+
+        if (!blocks || blocks.length === 0) {
+            container.innerHTML = `<div class="tips">暂无 Block。</div>`;
+            return;
+        }
+
+        container.innerHTML = "";
+        blocks.forEach((block, blockIndex) => {
+            const row = document.createElement("div");
+            row.className = "layout-block-row";
+            row.dataset.blockIndex = String(blockIndex);
+            row.innerHTML = `
+                <div>
+                    <label>Block ID</label>
+                    <input id="layout_block_id_${regionIndex}_${blockIndex}" value="${escapeHtml(block.id || "")}" placeholder="description">
+                </div>
+                <div>
+                    <label>Block Type</label>
+                    <input id="layout_block_type_${regionIndex}_${blockIndex}" value="${escapeHtml(block.type || "")}" placeholder="description_fields">
+                </div>
+                <div>
+                    <label>Source</label>
+                    <input id="layout_block_source_${regionIndex}_${blockIndex}" value="${escapeHtml(block.source || "")}" placeholder="description_fields">
+                </div>
+                <label class="checkbox-line">
+                    <input type="checkbox" id="layout_block_enabled_${regionIndex}_${blockIndex}" ${block.enabled !== false ? "checked" : ""}>
+                    <span>启用</span>
+                </label>
+                <button class="delete" type="button" onclick="deleteLayoutBlock(${regionIndex}, ${blockIndex})">删除</button>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    function collectLayoutConfig() {
+        const enabled = document.getElementById("layout_enabled");
+        const regions = Array.from(document.querySelectorAll(".layout-region-card")).map(card => {
+            const regionIndex = card.dataset.regionIndex;
+            const blocks = Array.from(card.querySelectorAll(".layout-block-row")).map(row => {
+                const blockIndex = row.dataset.blockIndex;
+                return {
+                    id: (document.getElementById(`layout_block_id_${regionIndex}_${blockIndex}`)?.value || "").trim(),
+                    type: (document.getElementById(`layout_block_type_${regionIndex}_${blockIndex}`)?.value || "").trim(),
+                    source: (document.getElementById(`layout_block_source_${regionIndex}_${blockIndex}`)?.value || "").trim(),
+                    enabled: Boolean(document.getElementById(`layout_block_enabled_${regionIndex}_${blockIndex}`)?.checked),
+                    options: {}
+                };
+            });
+
+            return {
+                id: (document.getElementById("layout_region_id_" + regionIndex)?.value || "").trim(),
+                name: (document.getElementById("layout_region_name_" + regionIndex)?.value || "").trim(),
+                type: (document.getElementById("layout_region_type_" + regionIndex)?.value || "").trim(),
+                sheet: (document.getElementById("layout_region_sheet_" + regionIndex)?.value || "active").trim() || "active",
+                range: (document.getElementById("layout_region_range_" + regionIndex)?.value || "").trim().toUpperCase(),
+                blocks: blocks,
+                options: {}
+            };
+        });
+
+        return {
+            enabled: Boolean(enabled && enabled.checked),
+            regions: regions
+        };
+    }
+
+    function addLayoutRegion() {
+        if (!currentProfile) {
+            return;
+        }
+        const config = collectLayoutConfig();
+        const ts = Date.now();
+        config.regions.push({
+            id: `region_${ts}`,
+            name: "新区域",
+            type: "rich_text",
+            sheet: "active",
+            range: "",
+            blocks: [],
+            options: {}
+        });
+        currentProfile.layout_config = config;
+        renderLayoutConfig();
+    }
+
+    function deleteLayoutRegion(index) {
+        if (!currentProfile) {
+            return;
+        }
+        const config = collectLayoutConfig();
+        config.regions.splice(index, 1);
+        currentProfile.layout_config = config;
+        renderLayoutConfig();
+    }
+
+    function addLayoutBlock(regionIndex) {
+        if (!currentProfile) {
+            return;
+        }
+        const config = collectLayoutConfig();
+        if (!config.regions[regionIndex]) {
+            return;
+        }
+        const ts = Date.now();
+        config.regions[regionIndex].blocks.push({
+            id: `block_${ts}`,
+            type: "description_fields",
+            source: "description_fields",
+            enabled: true,
+            options: {}
+        });
+        currentProfile.layout_config = config;
+        renderLayoutConfig();
+    }
+
+    function deleteLayoutBlock(regionIndex, blockIndex) {
+        if (!currentProfile) {
+            return;
+        }
+        const config = collectLayoutConfig();
+        if (!config.regions[regionIndex]) {
+            return;
+        }
+        config.regions[regionIndex].blocks.splice(blockIndex, 1);
+        currentProfile.layout_config = config;
+        renderLayoutConfig();
+    }
+
+    async function saveLayoutConfig() {
+        const resultDiv = document.getElementById("layoutConfigResult");
+        if (!currentProfile) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">请先选择模板映射</p>`;
+            }
+            return;
+        }
+
+        const layoutConfig = collectLayoutConfig();
+        const response = await fetch(`/api/template-profiles/${currentProfile.id}/layout-config`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                layout_config: layoutConfig
+            })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "Layout配置保存失败")}</p>`;
+            }
+            return;
+        }
+
+        currentProfile = result.profile;
+        profiles = profiles.map(profile => profile.id === currentProfile.id ? currentProfile : profile);
+        renderLayoutConfig();
+        if (resultDiv) {
+            resultDiv.innerHTML = `<p class="success">Layout配置已保存</p>`;
+        }
     }
 
     async function createProfileInline() {
