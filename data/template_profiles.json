@@ -69,17 +69,17 @@
           "type": "rich_text",
           "enabled": true,
           "sheet": "active",
-          "range": "F4:J37",
+          "range": "G8:K11",
           "blocks": [],
           "options": {}
         }
       ]
     },
     "layout_preview": {
-      "enabled": true,
-      "image_path": "static/layout_previews/preview_20260515001008471535.png",
-      "image_width": 2240,
-      "image_height": 1119
+      "enabled": false,
+      "image_path": "",
+      "image_width": 0,
+      "image_height": 0
     }
   },
   {
@@ -326,7 +326,7 @@
           "type": "rich_text",
           "enabled": true,
           "sheet": "active",
-          "range": "G8:K40",
+          "range": "G8:K10",
           "blocks": [
             {
               "id": "block_1778767519655",

@@ -32,6 +32,7 @@ from app.field_library import (
 from app.ai_parser import parse_message, generate_description_from_message
 from app.ingredient_parser import analyze_ingredient_initials_source
 from app.excel_generator import generate_excel
+from app.excel_geometry import get_template_geometry
 from app.image_manager import (
     ensure_image_upload_dir,
     load_image_fields,
@@ -380,6 +381,11 @@ def api_upload_layout_preview(profile_id: str, file: UploadFile = File(...)):
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+@app.get("/api/template-profiles/{profile_id}/geometry")
+def api_get_template_geometry(profile_id: str):
+    return get_template_geometry(profile_id)
 
 
 @app.delete("/api/template-profiles/{profile_id}/template")

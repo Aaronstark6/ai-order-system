@@ -634,10 +634,32 @@
             width: 840px;
             height: 960px;
             background-color: #ffffff;
-            background-image:
-                linear-gradient(to right, #e5e7eb 1px, transparent 1px),
-                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
-            background-size: 70px 24px;
+        }
+
+        .layout-designer-grid-line {
+            position: absolute;
+            background: rgba(209, 213, 219, 0.82);
+            pointer-events: none;
+        }
+
+        .layout-designer-grid-line.vertical {
+            top: 0;
+            width: 1px;
+            height: 100%;
+        }
+
+        .layout-designer-grid-line.horizontal {
+            left: 0;
+            width: 100%;
+            height: 1px;
+        }
+
+        .layout-designer-merged-cell {
+            position: absolute;
+            box-sizing: border-box;
+            border: 2px solid rgba(59, 130, 246, 0.45);
+            background: rgba(59, 130, 246, 0.06);
+            pointer-events: none;
         }
 
         .layout-background-panel {
@@ -1112,6 +1134,8 @@
     let imageFields = [];
     let profiles = [];
     let currentProfile = null;
+    let currentGeometry = null;
+    let currentGeometryError = "";
     let descriptionTemplateNames = [];
     let appSettings = {
         default_sales_name: "Anna",
@@ -1140,7 +1164,7 @@
         await loadDescriptionTemplates();
         await loadProfiles();
         renderProfileSelect();
-        selectProfile();
+        await selectProfile();
         renderAppSettings();
     }
 
@@ -1852,9 +1876,10 @@
         }
     }
 
-    function selectProfile() {
+    async function selectProfile() {
         const profileId = document.getElementById("profileSelect").value;
         currentProfile = profiles.find(p => p.id === profileId) || null;
+        await loadCurrentGeometry();
 
         renderProfileInfo();
         renderLayoutConfig();
@@ -1862,6 +1887,28 @@
         renderImageFieldTable();
         renderDescriptionSettings();
         renderDocumentNoSettings();
+    }
+
+    async function loadCurrentGeometry() {
+        currentGeometry = null;
+        currentGeometryError = "";
+        if (!currentProfile || !currentProfile.template_file) {
+            currentGeometryError = "未读取到真实 Excel 几何，当前使用简化网格。";
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/template-profiles/${currentProfile.id}/geometry`);
+            const result = await response.json();
+            if (result.success) {
+                currentGeometry = result;
+                currentGeometryError = "";
+            } else {
+                currentGeometryError = result.error || "未读取到真实 Excel 几何，当前使用简化网格。";
+            }
+        } catch (error) {
+            currentGeometryError = "未读取到真实 Excel 几何，当前使用简化网格。";
+        }
     }
 
     function renderProfileInfo() {
@@ -2033,14 +2080,90 @@
         return { col, row };
     }
 
+    function hasCurrentGeometry() {
+        return Boolean(
+            currentGeometry
+            && Array.isArray(currentGeometry.columns)
+            && currentGeometry.columns.length
+            && Array.isArray(currentGeometry.rows)
+            && currentGeometry.rows.length
+        );
+    }
+
+    function getDesignerColumns() {
+        if (hasCurrentGeometry()) {
+            return currentGeometry.columns.map(column => ({
+                index: Number(column.index) || 1,
+                letter: String(column.letter || numberToExcelColumn(column.index)).toUpperCase(),
+                width: Math.max(1, Math.round(Number(column.width) || LAYOUT_DESIGNER_COL_WIDTH))
+            }));
+        }
+        return Array.from({ length: LAYOUT_DESIGNER_COLUMNS }, (_, index) => ({
+            index: index + 1,
+            letter: numberToExcelColumn(index + 1),
+            width: LAYOUT_DESIGNER_COL_WIDTH
+        }));
+    }
+
+    function getDesignerRows() {
+        if (hasCurrentGeometry()) {
+            return currentGeometry.rows.map(row => ({
+                index: Number(row.index) || 1,
+                height: Math.max(1, Math.round(Number(row.height) || LAYOUT_DESIGNER_ROW_HEIGHT))
+            }));
+        }
+        return Array.from({ length: LAYOUT_DESIGNER_ROWS }, (_, index) => ({
+            index: index + 1,
+            height: LAYOUT_DESIGNER_ROW_HEIGHT
+        }));
+    }
+
+    function getLayoutDesignerMetrics() {
+        const columns = getDesignerColumns();
+        const rows = getDesignerRows();
+        const columnBoundaries = [0];
+        const rowBoundaries = [0];
+        columns.forEach(column => {
+            columnBoundaries.push(columnBoundaries[columnBoundaries.length - 1] + column.width);
+        });
+        rows.forEach(row => {
+            rowBoundaries.push(rowBoundaries[rowBoundaries.length - 1] + row.height);
+        });
+        return {
+            columns,
+            rows,
+            columnBoundaries,
+            rowBoundaries,
+            width: columnBoundaries[columnBoundaries.length - 1],
+            height: rowBoundaries[rowBoundaries.length - 1]
+        };
+    }
+
+    function nearestBoundaryIndex(value, boundaries) {
+        const number = Math.max(0, Number(value) || 0);
+        let bestIndex = 0;
+        let bestDistance = Infinity;
+        boundaries.forEach((boundary, index) => {
+            const distance = Math.abs(boundary - number);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = index;
+            }
+        });
+        return bestIndex;
+    }
+
     function cellToCanvasPosition(cell) {
         const parsed = parseExcelCell(cell);
         if (!parsed) {
             return null;
         }
+        const metrics = getLayoutDesignerMetrics();
+        const col = clampLayoutDesignerValue(parsed.col, 1, metrics.columns.length);
+        const row = clampLayoutDesignerValue(parsed.row, 1, metrics.rows.length);
         return {
-            x: (parsed.col - 1) * LAYOUT_DESIGNER_COL_WIDTH,
-            y: (parsed.row - 1) * LAYOUT_DESIGNER_ROW_HEIGHT
+            x: metrics.columnBoundaries[col - 1],
+            y: metrics.rowBoundaries[row - 1]
         };
     }
 
@@ -2054,58 +2177,65 @@
         if (!start || !end) {
             return null;
         }
-        const startCol = clampLayoutDesignerValue(Math.min(start.col, end.col), 1, LAYOUT_DESIGNER_COLUMNS);
-        const endCol = clampLayoutDesignerValue(Math.max(start.col, end.col), 1, LAYOUT_DESIGNER_COLUMNS);
-        const startRow = clampLayoutDesignerValue(Math.min(start.row, end.row), 1, LAYOUT_DESIGNER_ROWS);
-        const endRow = clampLayoutDesignerValue(Math.max(start.row, end.row), 1, LAYOUT_DESIGNER_ROWS);
+        const metrics = getLayoutDesignerMetrics();
+        const startCol = clampLayoutDesignerValue(Math.min(start.col, end.col), 1, metrics.columns.length);
+        const endCol = clampLayoutDesignerValue(Math.max(start.col, end.col), 1, metrics.columns.length);
+        const startRow = clampLayoutDesignerValue(Math.min(start.row, end.row), 1, metrics.rows.length);
+        const endRow = clampLayoutDesignerValue(Math.max(start.row, end.row), 1, metrics.rows.length);
+        const left = metrics.columnBoundaries[startCol - 1];
+        const top = metrics.rowBoundaries[startRow - 1];
         return {
-            x: (startCol - 1) * LAYOUT_DESIGNER_COL_WIDTH,
-            y: (startRow - 1) * LAYOUT_DESIGNER_ROW_HEIGHT,
-            width: (endCol - startCol + 1) * LAYOUT_DESIGNER_COL_WIDTH,
-            height: (endRow - startRow + 1) * LAYOUT_DESIGNER_ROW_HEIGHT
+            x: left,
+            y: top,
+            width: metrics.columnBoundaries[endCol] - left,
+            height: metrics.rowBoundaries[endRow] - top
         };
     }
 
     function rectToRange(x, y, width, height) {
-        const maxWidth = LAYOUT_DESIGNER_COLUMNS * LAYOUT_DESIGNER_COL_WIDTH;
-        const maxHeight = LAYOUT_DESIGNER_ROWS * LAYOUT_DESIGNER_ROW_HEIGHT;
-        const snappedX = clampLayoutDesignerValue(
-            Math.round((Number(x) || 0) / LAYOUT_DESIGNER_COL_WIDTH) * LAYOUT_DESIGNER_COL_WIDTH,
-            0,
-            maxWidth - LAYOUT_DESIGNER_COL_WIDTH
-        );
-        const snappedY = clampLayoutDesignerValue(
-            Math.round((Number(y) || 0) / LAYOUT_DESIGNER_ROW_HEIGHT) * LAYOUT_DESIGNER_ROW_HEIGHT,
-            0,
-            maxHeight - LAYOUT_DESIGNER_ROW_HEIGHT
-        );
-        const snappedWidth = clampLayoutDesignerValue(
-            Math.round((Number(width) || LAYOUT_DESIGNER_COL_WIDTH) / LAYOUT_DESIGNER_COL_WIDTH) * LAYOUT_DESIGNER_COL_WIDTH,
-            LAYOUT_DESIGNER_COL_WIDTH,
-            maxWidth - snappedX
-        );
-        const snappedHeight = clampLayoutDesignerValue(
-            Math.round((Number(height) || LAYOUT_DESIGNER_ROW_HEIGHT) / LAYOUT_DESIGNER_ROW_HEIGHT) * LAYOUT_DESIGNER_ROW_HEIGHT,
-            LAYOUT_DESIGNER_ROW_HEIGHT,
-            maxHeight - snappedY
-        );
-        const startCol = Math.floor(snappedX / LAYOUT_DESIGNER_COL_WIDTH) + 1;
-        const startRow = Math.floor(snappedY / LAYOUT_DESIGNER_ROW_HEIGHT) + 1;
-        const colSpan = Math.max(1, Math.round(snappedWidth / LAYOUT_DESIGNER_COL_WIDTH));
-        const rowSpan = Math.max(1, Math.round(snappedHeight / LAYOUT_DESIGNER_ROW_HEIGHT));
-        const endCol = clampLayoutDesignerValue(startCol + colSpan - 1, 1, LAYOUT_DESIGNER_COLUMNS);
-        const endRow = clampLayoutDesignerValue(startRow + rowSpan - 1, 1, LAYOUT_DESIGNER_ROWS);
+        const metrics = getLayoutDesignerMetrics();
+        const maxWidth = metrics.width;
+        const maxHeight = metrics.height;
+        const left = clampLayoutDesignerValue(Number(x) || 0, 0, Math.max(0, maxWidth - 1));
+        const top = clampLayoutDesignerValue(Number(y) || 0, 0, Math.max(0, maxHeight - 1));
+        const right = clampLayoutDesignerValue(left + Math.max(1, Number(width) || 1), 1, maxWidth);
+        const bottom = clampLayoutDesignerValue(top + Math.max(1, Number(height) || 1), 1, maxHeight);
+
+        let startBoundary = nearestBoundaryIndex(left, metrics.columnBoundaries);
+        let endBoundary = nearestBoundaryIndex(right, metrics.columnBoundaries);
+        let startRowBoundary = nearestBoundaryIndex(top, metrics.rowBoundaries);
+        let endRowBoundary = nearestBoundaryIndex(bottom, metrics.rowBoundaries);
+
+        startBoundary = clampLayoutDesignerValue(startBoundary, 0, metrics.columns.length - 1);
+        endBoundary = clampLayoutDesignerValue(endBoundary, 1, metrics.columns.length);
+        startRowBoundary = clampLayoutDesignerValue(startRowBoundary, 0, metrics.rows.length - 1);
+        endRowBoundary = clampLayoutDesignerValue(endRowBoundary, 1, metrics.rows.length);
+
+        if (endBoundary <= startBoundary) {
+            endBoundary = Math.min(metrics.columns.length, startBoundary + 1);
+        }
+        if (endRowBoundary <= startRowBoundary) {
+            endRowBoundary = Math.min(metrics.rows.length, startRowBoundary + 1);
+        }
+
+        const startCol = startBoundary + 1;
+        const startRow = startRowBoundary + 1;
+        const endCol = endBoundary;
+        const endRow = endRowBoundary;
         return `${numberToExcelColumn(startCol)}${startRow}:${numberToExcelColumn(endCol)}${endRow}`;
     }
 
     function defaultLayoutDesignerRect(index) {
-        const col = (index % 3) * 3;
-        const row = Math.floor(index / 3) * 5;
-        return {
-            x: col * LAYOUT_DESIGNER_COL_WIDTH,
-            y: row * LAYOUT_DESIGNER_ROW_HEIGHT,
-            width: 3 * LAYOUT_DESIGNER_COL_WIDTH,
-            height: 4 * LAYOUT_DESIGNER_ROW_HEIGHT
+        const metrics = getLayoutDesignerMetrics();
+        const startCol = Math.min(metrics.columns.length, (index % 3) * 3 + 1);
+        const startRow = Math.min(metrics.rows.length, Math.floor(index / 3) * 5 + 1);
+        const endCol = Math.min(metrics.columns.length, startCol + 2);
+        const endRow = Math.min(metrics.rows.length, startRow + 3);
+        return rangeToRect(`${numberToExcelColumn(startCol)}${startRow}:${numberToExcelColumn(endCol)}${endRow}`) || {
+            x: 0,
+            y: 0,
+            width: LAYOUT_DESIGNER_COL_WIDTH,
+            height: LAYOUT_DESIGNER_ROW_HEIGHT
         };
     }
 
@@ -2158,46 +2288,82 @@
             return;
         }
         const preview = normalizeLayoutPreview(currentProfile?.layout_preview || defaultLayoutPreview());
+        const metrics = getLayoutDesignerMetrics();
 
         const stage = document.createElement("div");
         stage.className = "layout-designer-stage";
+        stage.style.width = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH + metrics.width}px`;
+        stage.style.height = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT + metrics.height}px`;
 
         const corner = document.createElement("div");
         corner.className = "layout-designer-corner";
         stage.appendChild(corner);
 
-        for (let col = 1; col <= LAYOUT_DESIGNER_COLUMNS; col += 1) {
+        metrics.columns.forEach((column, index) => {
             const label = document.createElement("div");
             label.className = "layout-designer-col";
-            label.textContent = numberToExcelColumn(col);
-            label.style.left = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH + (col - 1) * LAYOUT_DESIGNER_COL_WIDTH}px`;
+            label.textContent = column.letter;
+            label.title = `${column.letter}: ${column.width}px`;
+            label.style.left = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH + metrics.columnBoundaries[index]}px`;
             label.style.top = "0";
-            label.style.width = `${LAYOUT_DESIGNER_COL_WIDTH}px`;
+            label.style.width = `${column.width}px`;
             label.style.height = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT}px`;
             stage.appendChild(label);
-        }
+        });
 
-        for (let row = 1; row <= LAYOUT_DESIGNER_ROWS; row += 1) {
+        metrics.rows.forEach((row, index) => {
             const label = document.createElement("div");
             label.className = "layout-designer-row";
-            label.textContent = String(row);
+            label.textContent = String(row.index);
+            label.title = `${row.index}: ${row.height}px`;
             label.style.left = "0";
-            label.style.top = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT + (row - 1) * LAYOUT_DESIGNER_ROW_HEIGHT}px`;
+            label.style.top = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT + metrics.rowBoundaries[index]}px`;
             label.style.width = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH}px`;
-            label.style.height = `${LAYOUT_DESIGNER_ROW_HEIGHT}px`;
+            label.style.height = `${row.height}px`;
             stage.appendChild(label);
-        }
+        });
 
         const grid = document.createElement("div");
         grid.className = "layout-designer-grid";
+        grid.style.width = `${metrics.width}px`;
+        grid.style.height = `${metrics.height}px`;
         if (preview.enabled && preview.image_path) {
             const imageUrl = preview.image_path.startsWith("/")
                 ? preview.image_path
                 : `/${preview.image_path}`;
-            grid.style.backgroundImage = `linear-gradient(to right, rgba(229, 231, 235, 0.42) 1px, transparent 1px), linear-gradient(to bottom, rgba(229, 231, 235, 0.42) 1px, transparent 1px), url("${imageUrl}")`;
-            grid.style.backgroundSize = `${LAYOUT_DESIGNER_COL_WIDTH}px ${LAYOUT_DESIGNER_ROW_HEIGHT}px, ${LAYOUT_DESIGNER_COL_WIDTH}px ${LAYOUT_DESIGNER_ROW_HEIGHT}px, contain`;
-            grid.style.backgroundRepeat = "repeat, repeat, no-repeat";
-            grid.style.backgroundPosition = "top left, top left, top left";
+            grid.style.backgroundImage = `url("${imageUrl}")`;
+            grid.style.backgroundSize = "contain";
+            grid.style.backgroundRepeat = "no-repeat";
+            grid.style.backgroundPosition = "top left";
+        }
+
+        metrics.columnBoundaries.forEach(boundary => {
+            const line = document.createElement("div");
+            line.className = "layout-designer-grid-line vertical";
+            line.style.left = `${boundary}px`;
+            grid.appendChild(line);
+        });
+        metrics.rowBoundaries.forEach(boundary => {
+            const line = document.createElement("div");
+            line.className = "layout-designer-grid-line horizontal";
+            line.style.top = `${boundary}px`;
+            grid.appendChild(line);
+        });
+        if (hasCurrentGeometry() && Array.isArray(currentGeometry.merged_cells)) {
+            currentGeometry.merged_cells.forEach(item => {
+                const mergedRect = rangeToRect(item.range);
+                if (!mergedRect) {
+                    return;
+                }
+                const merged = document.createElement("div");
+                merged.className = "layout-designer-merged-cell";
+                merged.title = item.range;
+                merged.style.left = `${mergedRect.x}px`;
+                merged.style.top = `${mergedRect.y}px`;
+                merged.style.width = `${mergedRect.width}px`;
+                merged.style.height = `${mergedRect.height}px`;
+                grid.appendChild(merged);
+            });
         }
         stage.appendChild(grid);
 
@@ -2327,6 +2493,9 @@
         const previewSrc = preview.image_path
             ? (preview.image_path.startsWith("/") ? preview.image_path : `/${preview.image_path}`)
             : "";
+        const geometryNotice = hasCurrentGeometry()
+            ? `已读取真实 Excel 几何：${escapeHtml(currentGeometry.sheet_name || "Active Sheet")}，${currentGeometry.max_column || currentGeometry.columns.length} 列 × ${currentGeometry.max_row || currentGeometry.rows.length} 行`
+            : escapeHtml(currentGeometryError || "未读取到真实 Excel 几何，当前使用简化网格。");
 
         area.innerHTML = `
             <label class="checkbox-line">
@@ -2355,6 +2524,7 @@
             <div class="layout-designer-section">
                 <h3>Layout Designer（实验）</h3>
                 <p class="tips">当前为简化版 Excel 区域设计器，用于快速调整 Region 的大致位置和大小。保存后会同步到 Excel区域。</p>
+                <p class="tips">${geometryNotice}</p>
                 <div id="layoutDesignerCanvas" class="layout-designer"></div>
             </div>
             <div id="layoutRegionList"></div>
