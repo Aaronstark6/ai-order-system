@@ -64,19 +64,25 @@
       "enabled": true,
       "regions": [
         {
-          "id": "region_1778737283119",
-          "name": "主描述区域",
-          "type": "rich_text",
+          "id": "region_1778762427725",
+          "name": "纵向图片区",
+          "type": "image_stack",
           "enabled": true,
           "sheet": "active",
-          "range": "A16:H20",
+          "range": "A16:H40",
           "blocks": [
             {
-              "id": "block_1778742141351",
-              "type": "description_fields",
-              "source": "description_fields",
+              "id": "block_1778762517773",
+              "type": "image_stack",
+              "source": "image_data",
               "enabled": true,
-              "options": {}
+              "options": {
+                "source_keys": [],
+                "image_width": 220,
+                "image_height": 140,
+                "keep_ratio": true,
+                "gap_rows": 8
+              }
             }
           ],
           "options": {}
@@ -285,50 +291,48 @@
     },
     "image_fields": [
       {
-        "key": "product_image",
+        "key": "front_label",
         "enabled": true,
         "cell": "G8"
       },
       {
-        "key": "front_label",
+        "key": "back_label",
         "enabled": true,
         "cell": "G9"
       },
       {
-        "key": "back_label",
+        "key": "product_image",
         "enabled": true,
         "cell": "G10"
       }
     ],
     "profile_version": "v2",
     "layout_config": {
-      "enabled": false,
+      "enabled": true,
       "regions": [
         {
-          "id": "region_1778744284408",
-          "name": "图片画廊区域",
-          "type": "image_gallery",
+          "id": "region_1778763036947",
+          "name": "纵向图片区",
+          "type": "image_stack",
           "enabled": true,
           "sheet": "active",
-          "range": "A16:H26",
+          "range": "A16:H40",
           "blocks": [
             {
-              "id": "block_1778744315136",
-              "type": "image_gallery",
+              "id": "block_1778763060100",
+              "type": "image_stack",
               "source": "image_data",
-              "enabled": false,
+              "enabled": true,
               "options": {
                 "source_keys": [
                   "front_label",
                   "back_label",
                   "product_image"
                 ],
-                "columns": 3,
-                "image_width": 180,
+                "image_width": 220,
                 "image_height": 140,
                 "keep_ratio": true,
-                "row_step": 8,
-                "col_step": 4
+                "gap_rows": 8
               }
             }
           ],

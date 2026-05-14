@@ -11,7 +11,7 @@ from app.image_manager import resolve_uploaded_image_path
 from app.layout_schema import normalize_layout_config
 
 
-CELL_RANGE_RE = re.compile(r"^\$?([A-Z]{1,3})\$?(\d+)(?::\$?[A-Z]{1,3}\$?\d+)?$")
+CELL_RANGE_RE = re.compile(r"^\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?$")
 
 
 def _left_top_cell(range_text):
@@ -23,6 +23,17 @@ def _left_top_cell(range_text):
     if not match:
         raise ValueError(f"Excel区域格式非法：{text}")
     return f"{match.group(1)}{match.group(2)}"
+
+
+def _range_row_bounds(range_text):
+    text = str(range_text or "").strip().upper()
+    match = CELL_RANGE_RE.match(text)
+    if not match:
+        raise ValueError(f"Invalid Excel range: {text}")
+
+    start_row = int(match.group(2))
+    end_row = int(match.group(4) or start_row)
+    return min(start_row, end_row), max(start_row, end_row)
 
 
 def _offset_cell(cell_ref, row_offset=0, col_offset=0):
@@ -198,6 +209,16 @@ def _gallery_image_options(options):
     }
 
 
+def _stack_image_options(options):
+    if not isinstance(options, dict):
+        options = {}
+    return {
+        "width": options.get("image_width") or 220,
+        "height": options.get("image_height") or 140,
+        "keep_ratio": options.get("keep_ratio"),
+    }
+
+
 def _render_image_gallery_block(sheet, block, image_data, target_cell):
     if not isinstance(image_data, dict):
         return []
@@ -246,6 +267,61 @@ def _render_image_gallery_block(sheet, block, image_data, target_cell):
     return written_cells
 
 
+def _render_image_stack_block(sheet, block, image_data, target_cell, max_row):
+    options = block.get("options") if isinstance(block.get("options"), dict) else {}
+    source_keys = _source_keys_from_options(options)
+    if not source_keys:
+        return {"written_cells": [], "skipped_keys": []}
+
+    gap_rows = _positive_int(options.get("gap_rows"), 8)
+    size_options = _stack_image_options(options)
+    written_cells = []
+    skipped_keys = []
+
+    for index, key in enumerate(source_keys):
+        try:
+            cell = _offset_cell(target_cell, row_offset=gap_rows * index)
+        except ValueError:
+            skipped_keys.append(key)
+            continue
+
+        row_match = CELL_RANGE_RE.match(cell)
+        if not row_match or int(row_match.group(2)) > max_row:
+            skipped_keys.append(key)
+            continue
+
+        if not isinstance(image_data, dict):
+            skipped_keys.append(key)
+            continue
+
+        item = image_data.get(key)
+        if not isinstance(item, dict):
+            skipped_keys.append(key)
+            continue
+
+        image_path = resolve_uploaded_image_path(item.get("image_path"))
+        if not image_path:
+            skipped_keys.append(key)
+            continue
+
+        if ExcelImage is None:
+            raise RuntimeError("图片渲染需要安装 pillow。")
+
+        try:
+            img = ExcelImage(str(image_path))
+        except ImportError as e:
+            raise RuntimeError("图片渲染需要安装 pillow。") from e
+        except Exception:
+            skipped_keys.append(key)
+            continue
+
+        _apply_image_size(img, size_options)
+        sheet.add_image(img, cell)
+        written_cells.append(cell)
+
+    return {"written_cells": written_cells, "skipped_keys": skipped_keys}
+
+
 def collect_layout_image_keys(profile):
     if not isinstance(profile, dict):
         return set()
@@ -282,6 +358,9 @@ def collect_layout_image_keys(profile):
             elif block_type == "image_gallery":
                 options = block.get("options") if isinstance(block.get("options"), dict) else {}
                 keys.update(_source_keys_from_options(options))
+            elif block_type == "image_stack":
+                options = block.get("options") if isinstance(block.get("options"), dict) else {}
+                keys.update(_source_keys_from_options(options))
     return keys
 
 
@@ -301,6 +380,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                 "blocks_count": 0,
                 "written_cells": [],
                 "written_images": [],
+                "skipped_images": [],
             }
         if not isinstance(raw_config, dict):
             return {"success": False, "error": "layout_config 格式异常"}
@@ -314,12 +394,14 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                 "blocks_count": 0,
                 "written_cells": [],
                 "written_images": [],
+                "skipped_images": [],
             }
 
         regions_count = 0
         blocks_count = 0
         written_cells = []
         written_images = []
+        skipped_images = []
 
         for region in layout_config.get("regions", []):
             if not isinstance(region, dict):
@@ -337,6 +419,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
 
             try:
                 target_cell = _left_top_cell(range_text)
+                _, max_row = _range_row_bounds(range_text)
             except ValueError as e:
                 return {
                     "success": False,
@@ -391,6 +474,28 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                     written_images.extend(gallery_cells)
                     continue
 
+                if block_type == "image_stack":
+                    try:
+                        stack_result = _render_image_stack_block(
+                            workbook.active,
+                            block,
+                            image_data,
+                            target_cell,
+                            max_row,
+                        )
+                    except RuntimeError as e:
+                        return {"success": False, "error": str(e)}
+
+                    stack_cells = stack_result.get("written_cells") or []
+                    skipped_images.extend(stack_result.get("skipped_keys") or [])
+                    if not stack_cells:
+                        continue
+
+                    blocks_count += 1
+                    region_written = True
+                    written_images.extend(stack_cells)
+                    continue
+
                 continue
 
             if not region_parts and not region_written:
@@ -410,6 +515,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
             "blocks_count": blocks_count,
             "written_cells": written_cells,
             "written_images": written_images,
+            "skipped_images": skipped_images,
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
