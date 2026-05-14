@@ -41,7 +41,15 @@
       "template_name": "固体饮料.txt",
       "target_cell": "B8"
     },
-    "template_display_name": "固体饮料模板.xlsx"
+    "template_display_name": "固体饮料模板.xlsx",
+    "image_fields": [
+      {
+        "key": "product_image",
+        "label": "产品图片",
+        "cell": "G8",
+        "enabled": true
+      }
+    ]
   },
   {
     "id": "0903f64e-fc36-419c-9ea2-2dee5d5f5551",
@@ -85,7 +93,8 @@
       "template_name": "滴剂和液体饮料.txt",
       "target_cell": "B8"
     },
-    "template_display_name": "滴剂和液体饮料模板.xlsx"
+    "template_display_name": "滴剂和液体饮料模板.xlsx",
+    "image_fields": []
   },
   {
     "id": "7bc169b4-bfd0-4dd5-a24f-36bce50e5d19",
@@ -129,7 +138,8 @@
       "enabled": true,
       "template_name": "果冻和凝胶.txt",
       "target_cell": "B8"
-    }
+    },
+    "image_fields": []
   },
   {
     "id": "694ea7e9-fac2-45ae-b5e4-d943622c0884",
@@ -173,7 +183,8 @@
       "enabled": true,
       "template_name": "片剂.txt",
       "target_cell": "B8"
-    }
+    },
+    "image_fields": []
   },
   {
     "id": "c71a0eaf-51a9-45a4-bbec-834e1b3a2211",
@@ -217,7 +228,8 @@
       "enabled": true,
       "template_name": "软胶囊爆珠.txt",
       "target_cell": "B8"
-    }
+    },
+    "image_fields": []
   },
   {
     "id": "81c239e1-07ae-41af-8adf-ef4efa2dcf1a",
@@ -261,7 +273,8 @@
       "enabled": true,
       "template_name": "软糖.txt",
       "target_cell": "B8"
-    }
+    },
+    "image_fields": []
   },
   {
     "id": "875e86f4-8ca8-477c-8d2f-4a8745d749ad",
@@ -305,6 +318,7 @@
       "enabled": true,
       "template_name": "硬胶囊.txt",
       "target_cell": "B8"
-    }
+    },
+    "image_fields": []
   }
 ]

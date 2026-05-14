@@ -4,8 +4,12 @@ from datetime import datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
-from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.styles import Alignment
+
+try:
+    from openpyxl.drawing.image import Image as ExcelImage
+except ImportError:
+    ExcelImage = None
 
 from app.app_settings import get_export_sync_dir
 from app.template_manager import (
@@ -17,7 +21,7 @@ from app.description_template_manager import (
     get_description_template,
     render_description_template,
 )
-from app.image_manager import load_image_fields, resolve_uploaded_image_path
+from app.image_manager import resolve_uploaded_image_path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -334,11 +338,10 @@ def _apply_mapping_defaults(data: dict, profile: dict):
             data[k] = str(dv)
 
 
-def _insert_configured_images(sheet, image_data):
+def _insert_configured_images(sheet, image_fields, image_data):
     if not isinstance(image_data, dict):
         return
 
-    image_fields = load_image_fields()
     for field in image_fields:
         if field.get("enabled") is not True:
             continue
@@ -356,20 +359,12 @@ def _insert_configured_images(sheet, image_data):
         if not image_path:
             continue
 
-        img = ExcelImage(str(image_path))
-        max_width = int(field.get("max_width") or 0)
-        max_height = int(field.get("max_height") or 0)
-
-        scale = 1
-        if max_width > 0 and img.width > max_width:
-            scale = min(scale, max_width / img.width)
-        if max_height > 0 and img.height > max_height:
-            scale = min(scale, max_height / img.height)
-
-        if scale < 1:
-            img.width = int(img.width * scale)
-            img.height = int(img.height * scale)
-
+        if ExcelImage is None:
+            raise RuntimeError("图片插入需要安装 pillow，请安装 pillow 后重试")
+        try:
+            img = ExcelImage(str(image_path))
+        except ImportError as e:
+            raise RuntimeError("图片插入需要安装 pillow，请安装 pillow 后重试") from e
         sheet.add_image(img, cell)
 
 
@@ -526,7 +521,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
                 }
 
     try:
-        _insert_configured_images(sheet, image_data or {})
+        _insert_configured_images(sheet, profile.get("image_fields") or [], image_data or {})
     except Exception as e:
         return {
             "success": False,

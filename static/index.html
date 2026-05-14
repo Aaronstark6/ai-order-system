@@ -492,9 +492,9 @@
 
         <form id="confirmForm"></form>
 
-        <div id="imageUploadArea"></div>
-
         <div id="descriptionConfirmArea"></div>
+
+        <div id="imageUploadArea"></div>
 
         <div class="excel-action-row">
             <div class="excel-action-buttons">
@@ -541,13 +541,11 @@
     let currentGeneratedFilename = "";
     let currentDownloadUrl = "";
     let currentDescriptionFields = {};
-    let imageFields = [];
     let ingredientInitialsManuallyEdited = false;
     let descriptionIsComposing = false;
 
     async function loadInitialData() {
         await loadFields();
-        await loadImageFields();
         await loadAppSettings();
         await loadProfiles();
         updateVisibleFields();
@@ -609,16 +607,6 @@
         }
 
         updateProfileTips();
-    }
-
-    async function loadImageFields() {
-        try {
-            const response = await fetch("/api/image-fields");
-            const result = await response.json();
-            imageFields = result.success ? (result.fields || []) : [];
-        } catch (e) {
-            imageFields = [];
-        }
     }
 
     async function loadAppSettings() {
@@ -1387,7 +1375,9 @@
             return;
         }
 
-        const enabledFields = (imageFields || []).filter(field => field && field.enabled === true);
+        const profile = getSelectedProfile();
+        const enabledFields = (profile && Array.isArray(profile.image_fields) ? profile.image_fields : [])
+            .filter(field => field && field.enabled === true);
         if (enabledFields.length === 0) {
             return;
         }
@@ -1760,6 +1750,7 @@
             renderDocumentNoSection(parsedData);
             renderForm(parsedData);
             await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
+            renderImageUploadArea();
         }
     }
 

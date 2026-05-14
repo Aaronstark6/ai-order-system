@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.app_settings import DEFAULT_APP_SETTINGS, load_app_settings
+from app.image_manager import normalize_image_fields
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -156,6 +157,10 @@ def normalize_profile(profile: dict):
     if not profile["description_settings"].get("template_name"):
         profile["description_settings"]["template_name"] = get_default_description_template_name(profile.get("name"))
 
+    profile["image_fields"] = normalize_image_fields(
+        profile.get("image_fields") if isinstance(profile.get("image_fields"), list) else []
+    )
+
     if "document_no_rule" in profile:
         del profile["document_no_rule"]
 
@@ -242,6 +247,7 @@ def create_profile(name: str):
         "composite_mappings": [],
         "document_no_settings": document_no_settings,
         "description_settings": deepcopy(DEFAULT_DESCRIPTION_SETTINGS),
+        "image_fields": [],
     }
 
     profiles.append(profile)
@@ -283,6 +289,7 @@ def update_profile_mappings(
     document_no_settings=None,
     mapping_defaults=None,
     description_settings=None,
+    image_fields=None,
     mapping_order=None,
 ):
     profiles = load_profiles()
@@ -355,6 +362,9 @@ def update_profile_mappings(
                 if isinstance(description_settings, dict):
                     merged.update(description_settings)
                 profile["description_settings"] = normalize_description_settings(merged)
+
+            if image_fields is not None:
+                profile["image_fields"] = normalize_image_fields(image_fields, validate=True)
 
             save_profiles(profiles)
 

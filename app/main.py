@@ -5,7 +5,7 @@ import re
 import shutil
 import subprocess
 
-from fastapi import FastAPI, UploadFile, File, Form, Body
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -29,9 +29,7 @@ from app.ingredient_parser import extract_ingredient_initials_from_description_f
 from app.excel_generator import generate_excel
 from app.image_manager import (
     ensure_image_upload_dir,
-    load_image_fields,
     safe_image_extension,
-    save_image_fields,
 )
 from app.description_template_manager import (
     list_description_templates,
@@ -127,27 +125,6 @@ def api_delete_field(key: str):
         return {"success": False, "error": str(e)}
 
 
-# ================= 图片字段 =================
-
-@app.get("/api/image-fields")
-def api_get_image_fields():
-    try:
-        return {"success": True, "fields": load_image_fields()}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.post("/api/image-fields")
-def api_save_image_fields(data=Body(...)):
-    try:
-        fields = data.get("fields", data) if isinstance(data, dict) else data
-        if not isinstance(fields, list):
-            return {"success": False, "error": "图片字段配置必须是数组"}
-        return {"success": True, "fields": save_image_fields(fields)}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
 @app.post("/api/upload-image")
 def api_upload_image(field_key: str = Form(...), file: UploadFile = File(...)):
     try:
@@ -232,6 +209,7 @@ def api_update_mappings(profile_id: str, data: dict):
                 document_no_settings=data.get("document_no_settings"),
                 mapping_defaults=data.get("mapping_defaults"),
                 description_settings=data.get("description_settings"),
+                image_fields=data.get("image_fields"),
                 mapping_order=data.get("mapping_order"),
             )
         }

@@ -359,7 +359,7 @@
 
         .image-field-add-row {
             display: grid;
-            grid-template-columns: 1.2fr 1.2fr 0.8fr 0.75fr 0.75fr 96px;
+            grid-template-columns: 1.35fr 1.35fr 0.8fr 96px;
             gap: 12px;
             align-items: end;
             margin-bottom: 16px;
@@ -367,7 +367,7 @@
 
         .image-field-table {
             table-layout: fixed;
-            min-width: 900px;
+            min-width: 720px;
         }
 
         .image-field-table input,
@@ -382,12 +382,6 @@
             width: 100%;
             margin: 0;
             padding: 6px 7px;
-        }
-
-        .image-field-table input[type="checkbox"] {
-            width: auto;
-            height: auto;
-            margin: 0;
         }
 
         .image-field-table td,
@@ -407,20 +401,17 @@
         }
 
         .image-field-table th:nth-child(4),
-        .image-field-table td:nth-child(4),
-        .image-field-table th:nth-child(5),
-        .image-field-table td:nth-child(5),
-        .image-field-table th:nth-child(6),
-        .image-field-table td:nth-child(6) {
-            width: 110px;
+        .image-field-table td:nth-child(4) {
+            width: 120px;
         }
 
-        .image-field-table th:nth-child(7),
-        .image-field-table td:nth-child(7) {
+        .image-field-table th:nth-child(5),
+        .image-field-table td:nth-child(5) {
             width: 96px;
         }
 
-        .field-library-table input[type="checkbox"] {
+        .field-library-table input[type="checkbox"],
+        .image-field-table input[type="checkbox"] {
             width: auto;
             height: auto;
             margin: 0;
@@ -428,18 +419,22 @@
             vertical-align: middle;
         }
 
-        .field-library-table .action-cell {
+        .field-library-table .action-cell,
+        .image-field-table .action-cell {
             white-space: nowrap;
         }
 
         .field-library-add-row > button,
-        .field-library-table .action-cell button {
+        .field-library-table .action-cell button,
+        .image-field-add-row > button,
+        .image-field-table .action-cell button {
             width: 96px;
             padding: 0 10px;
             border-radius: 4px;
         }
 
-        .field-library-add-row > button {
+        .field-library-add-row > button,
+        .image-field-add-row > button {
             margin-bottom: 14px;
         }
 
@@ -579,20 +574,16 @@
             }
 
             .image-field-table {
-                min-width: 900px;
+                min-width: 720px;
             }
 
             .mapping-inline-row button,
             .template-file-row button,
             .export-sync-row button,
             .ai-key-row button,
-            .field-library-add-row button {
-                width: 100%;
-            }
-
+            .field-library-add-row button,
             .image-field-add-row button {
                 width: 100%;
-                margin-bottom: 14px;
             }
 
             .danger-actions {
@@ -699,7 +690,7 @@
 <div class="card">
     <h2>图片字段设置</h2>
 
-    <p class="tips">全局图片字段配置。启用后首页会显示上传框，生成 Excel 时插入到指定单元格。</p>
+    <p class="tips">当前模板映射的图片字段配置。启用后首页会显示上传框，生成 Excel 时插入到指定单元格。</p>
 
     <div class="image-field-add-row">
         <div>
@@ -714,14 +705,6 @@
             <label for="newImageCell">Excel单元格</label>
             <input id="newImageCell" placeholder="H10">
         </div>
-        <div>
-            <label for="newImageMaxWidth">最大宽度(px)</label>
-            <input id="newImageMaxWidth" type="number" min="1" value="200">
-        </div>
-        <div>
-            <label for="newImageMaxHeight">最大高度(px)</label>
-            <input id="newImageMaxHeight" type="number" min="1" value="150">
-        </div>
         <button type="button" onclick="addImageField()">新增图片字段</button>
     </div>
 
@@ -733,8 +716,6 @@
                 <th>显示名称</th>
                 <th>Key</th>
                 <th>单元格</th>
-                <th>最大宽度</th>
-                <th>最大高度</th>
                 <th>操作</th>
             </tr>
             </thead>
@@ -743,7 +724,7 @@
     </div>
 
     <div class="button-row">
-        <button type="button" onclick="saveImageFields()">保存图片字段设置</button>
+        <button type="button" onclick="saveImageFields()">应用到当前映射</button>
     </div>
     <div id="imageFieldResult"></div>
 </div>
@@ -924,14 +905,12 @@
 
     async function loadAll() {
         await loadFields();
-        await loadImageFields();
         await loadAppSettings();
         await loadAiSettingsStatus();
         await loadDescriptionTemplates();
         await loadProfiles();
         renderProfileSelect();
         selectProfile();
-        renderImageFieldTable();
         renderAppSettings();
     }
 
@@ -1198,18 +1177,6 @@
         resultDiv.innerHTML = `<p class="success">字段已删除</p>`;
     }
 
-    async function loadImageFields() {
-        const response = await fetch("/api/image-fields");
-        const result = await response.json();
-
-        if (!result.success) {
-            imageFields = [];
-            return;
-        }
-
-        imageFields = result.fields || [];
-    }
-
     function renderImageFieldTable() {
         const tbody = document.getElementById("imageFieldTable");
         if (!tbody) {
@@ -1225,9 +1192,7 @@
                 <td><input id="img_label_${index}" value="${escapeHtml(field.label || "")}"></td>
                 <td><input id="img_key_${index}" value="${escapeHtml(field.key || "")}"></td>
                 <td><input id="img_cell_${index}" value="${escapeHtml(field.cell || "")}" placeholder="H10"></td>
-                <td><input id="img_width_${index}" type="number" min="1" value="${escapeHtml(field.max_width || 200)}"></td>
-                <td><input id="img_height_${index}" type="number" min="1" value="${escapeHtml(field.max_height || 150)}"></td>
-                <td><button class="delete" type="button" onclick="deleteImageField(${index})">删除</button></td>
+                <td class="action-cell"><button class="delete" type="button" onclick="deleteImageField(${index})">删除</button></td>
             `;
             tbody.appendChild(tr);
         });
@@ -1241,22 +1206,22 @@
                 enabled: Boolean(document.getElementById("img_enabled_" + index)?.checked),
                 label: (document.getElementById("img_label_" + index)?.value || "").trim(),
                 key: (document.getElementById("img_key_" + index)?.value || "").trim(),
-                cell: (document.getElementById("img_cell_" + index)?.value || "").trim().toUpperCase(),
-                max_width: Number(document.getElementById("img_width_" + index)?.value || 200),
-                max_height: Number(document.getElementById("img_height_" + index)?.value || 150)
+                cell: (document.getElementById("img_cell_" + index)?.value || "").trim().toUpperCase()
             };
         });
     }
 
     function addImageField() {
         const resultDiv = document.getElementById("imageFieldResult");
+        if (!currentProfile) {
+            resultDiv.innerHTML = `<p class="error">请先选择一个映射</p>`;
+            return;
+        }
         const field = {
             enabled: true,
             label: document.getElementById("newImageLabel").value.trim(),
             key: document.getElementById("newImageKey").value.trim(),
-            cell: document.getElementById("newImageCell").value.trim().toUpperCase(),
-            max_width: Number(document.getElementById("newImageMaxWidth").value || 200),
-            max_height: Number(document.getElementById("newImageMaxHeight").value || 150)
+            cell: document.getElementById("newImageCell").value.trim().toUpperCase()
         };
 
         if (!field.label || !field.key || !field.cell) {
@@ -1274,40 +1239,50 @@
         document.getElementById("newImageLabel").value = "";
         document.getElementById("newImageKey").value = "";
         document.getElementById("newImageCell").value = "";
-        document.getElementById("newImageMaxWidth").value = "200";
-        document.getElementById("newImageMaxHeight").value = "150";
-        resultDiv.innerHTML = `<p class="success">图片字段已添加，请保存设置</p>`;
+        resultDiv.innerHTML = `<p class="success">图片字段已添加，请保存当前映射</p>`;
     }
 
     function deleteImageField(index) {
+        if (!currentProfile) {
+            const resultDiv = document.getElementById("imageFieldResult");
+            resultDiv.innerHTML = `<p class="error">请先选择一个映射</p>`;
+            return;
+        }
         imageFields = collectImageFieldsFromTable().filter((_, i) => i !== index);
         renderImageFieldTable();
         const resultDiv = document.getElementById("imageFieldResult");
-        resultDiv.innerHTML = `<p class="success">图片字段已删除，请保存设置</p>`;
+        resultDiv.innerHTML = `<p class="success">图片字段已删除，请保存当前映射</p>`;
     }
 
-    async function saveImageFields() {
+    function validateImageFields(fieldsToValidate) {
         const resultDiv = document.getElementById("imageFieldResult");
         resultDiv.innerHTML = "";
-        const fieldsToSave = collectImageFieldsFromTable();
+        const seen = new Set();
+        for (const field of fieldsToValidate) {
+            if (!field.label || !field.key || !field.cell) {
+                throw new Error("图片字段的显示名称、Key、Excel单元格不能为空");
+            }
+            if (seen.has(field.key)) {
+                throw new Error(`图片字段 key 重复：${field.key}`);
+            }
+            seen.add(field.key);
+        }
+    }
 
-        const response = await fetch("/api/image-fields", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ fields: fieldsToSave })
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-            resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "保存失败")}</p>`;
+    function saveImageFields() {
+        const resultDiv = document.getElementById("imageFieldResult");
+        if (!currentProfile) {
+            resultDiv.innerHTML = `<p class="error">请先选择一个映射</p>`;
             return;
         }
-
-        imageFields = result.fields || [];
-        renderImageFieldTable();
-        resultDiv.innerHTML = `<p class="success">图片字段设置已保存</p>`;
+        try {
+            imageFields = collectImageFieldsFromTable();
+            validateImageFields(imageFields);
+            renderImageFieldTable();
+            resultDiv.innerHTML = `<p class="success">图片字段已更新，请点击底部“保存当前映射”</p>`;
+        } catch (error) {
+            resultDiv.innerHTML = `<p class="error">${escapeHtml(error.message || "图片字段设置有误")}</p>`;
+        }
     }
 
     async function loadProfiles() {
@@ -1586,9 +1561,13 @@
     function selectProfile() {
         const profileId = document.getElementById("profileSelect").value;
         currentProfile = profiles.find(p => p.id === profileId) || null;
+        imageFields = currentProfile && Array.isArray(currentProfile.image_fields)
+            ? currentProfile.image_fields.map(field => Object.assign({}, field))
+            : [];
 
         renderProfileInfo();
         renderFieldTable();
+        renderImageFieldTable();
         renderDescriptionSettings();
         renderDocumentNoSettings();
     }
@@ -2198,6 +2177,8 @@
 
             const documentNoSettings = collectDocumentNoSettings();
             const descriptionSettings = collectDescriptionSettings();
+            imageFields = collectImageFieldsFromTable();
+            validateImageFields(imageFields);
             const mappingOrder = getCurrentMappingOrderFromTable();
 
             const mappingDefaults = {};
@@ -2218,6 +2199,7 @@
                     mappings: mappings,
                     document_no_settings: documentNoSettings,
                     description_settings: descriptionSettings,
+                    image_fields: imageFields,
                     mapping_defaults: mappingDefaults,
                     mapping_order: mappingOrder
                 })
