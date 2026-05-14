@@ -57,11 +57,12 @@
           "id": "region_1778737283119",
           "name": "主描述区域",
           "type": "rich_text",
+          "enabled": true,
           "sheet": "active",
-          "range": "",
+          "range": "A16:H20",
           "blocks": [
             {
-              "id": "block_1778737606845",
+              "id": "block_1778742141351",
               "type": "description_fields",
               "source": "description_fields",
               "enabled": true,
@@ -272,11 +273,36 @@
       "template_name": "软胶囊爆珠.txt",
       "target_cell": "B8"
     },
-    "image_fields": [],
+    "image_fields": [
+      {
+        "key": "product_image",
+        "enabled": false,
+        "cell": ""
+      }
+    ],
     "profile_version": "v2",
     "layout_config": {
-      "enabled": false,
-      "regions": []
+      "enabled": true,
+      "regions": [
+        {
+          "id": "region_1778742199167",
+          "name": "主产品描述区域",
+          "type": "rich_text",
+          "enabled": true,
+          "sheet": "active",
+          "range": "A16:H26",
+          "blocks": [
+            {
+              "id": "block_1778742240271",
+              "type": "description_fields",
+              "source": "description_fields",
+              "enabled": true,
+              "options": {}
+            }
+          ],
+          "options": {}
+        }
+      ]
     }
   },
   {

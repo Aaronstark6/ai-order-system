@@ -1739,6 +1739,7 @@
                 id: String(region && region.id || "").trim(),
                 name: String(region && region.name || "").trim(),
                 type: String(region && region.type || "").trim(),
+                enabled: !region || region.enabled !== false,
                 sheet: String(region && region.sheet || "active").trim() || "active",
                 range: String(region && region.range || "").trim().toUpperCase(),
                 blocks: Array.isArray(region && region.blocks)
@@ -1899,6 +1900,7 @@
                 id: (document.getElementById("layout_region_id_" + regionIndex)?.value || "").trim(),
                 name: (document.getElementById("layout_region_name_" + regionIndex)?.value || "").trim(),
                 type: (document.getElementById("layout_region_type_" + regionIndex)?.value || "").trim(),
+                enabled: true,
                 sheet: (document.getElementById("layout_region_sheet_" + regionIndex)?.value || "active").trim() || "active",
                 range: (document.getElementById("layout_region_range_" + regionIndex)?.value || "").trim().toUpperCase(),
                 blocks: blocks,
@@ -1922,6 +1924,7 @@
             id: `region_${ts}`,
             name: "新区域",
             type: "rich_text",
+            enabled: true,
             sheet: "active",
             range: "",
             blocks: [],
