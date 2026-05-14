@@ -47,6 +47,16 @@
         "key": "product_image",
         "enabled": true,
         "cell": "G8"
+      },
+      {
+        "key": "front_label",
+        "enabled": true,
+        "cell": "G9"
+      },
+      {
+        "key": "back_label",
+        "enabled": true,
+        "cell": "G10"
       }
     ],
     "profile_version": "v2",
@@ -278,6 +288,16 @@
         "key": "product_image",
         "enabled": true,
         "cell": "G8"
+      },
+      {
+        "key": "front_label",
+        "enabled": true,
+        "cell": "G9"
+      },
+      {
+        "key": "back_label",
+        "enabled": true,
+        "cell": "G10"
       }
     ],
     "profile_version": "v2",
@@ -285,22 +305,30 @@
       "enabled": true,
       "regions": [
         {
-          "id": "region_1778743057724",
-          "name": "单图测试区域",
-          "type": "image",
+          "id": "region_1778744284408",
+          "name": "图片画廊区域",
+          "type": "image_gallery",
           "enabled": true,
           "sheet": "active",
           "range": "A16:H26",
           "blocks": [
             {
-              "id": "block_1778743104524",
-              "type": "image",
-              "source": "product_image",
+              "id": "block_1778744315136",
+              "type": "image_gallery",
+              "source": "image_data",
               "enabled": true,
               "options": {
-                "width": 220,
-                "height": 160,
-                "keep_ratio": true
+                "source_keys": [
+                  "front_label",
+                  "back_label",
+                  "product_image"
+                ],
+                "columns": 3,
+                "image_width": 180,
+                "image_height": 140,
+                "keep_ratio": true,
+                "row_step": 8,
+                "col_step": 4
               }
             }
           ],

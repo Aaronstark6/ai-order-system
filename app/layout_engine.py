@@ -5,6 +5,7 @@ try:
     from openpyxl.drawing.image import Image as ExcelImage
 except ImportError:
     ExcelImage = None
+from openpyxl.utils import column_index_from_string, get_column_letter
 
 from app.image_manager import resolve_uploaded_image_path
 from app.layout_schema import normalize_layout_config
@@ -22,6 +23,18 @@ def _left_top_cell(range_text):
     if not match:
         raise ValueError(f"Excel区域格式非法：{text}")
     return f"{match.group(1)}{match.group(2)}"
+
+
+def _offset_cell(cell_ref, row_offset=0, col_offset=0):
+    match = CELL_RANGE_RE.match(str(cell_ref or "").strip().upper())
+    if not match:
+        raise ValueError(f"Excel单元格格式非法：{cell_ref}")
+
+    col_index = column_index_from_string(match.group(1)) + int(col_offset or 0)
+    row_index = int(match.group(2)) + int(row_offset or 0)
+    if col_index < 1 or row_index < 1:
+        raise ValueError(f"Excel单元格格式非法：{cell_ref}")
+    return f"{get_column_letter(col_index)}{row_index}"
 
 
 def _render_description_fields(description_fields):
@@ -145,6 +158,133 @@ def _render_image_block(sheet, block, image_data, target_cell):
     return True
 
 
+def _source_keys_from_options(options):
+    if not isinstance(options, dict):
+        return []
+
+    raw_keys = options.get("source_keys")
+    if isinstance(raw_keys, list):
+        values = raw_keys
+    elif isinstance(raw_keys, str):
+        values = raw_keys.split(",")
+    else:
+        values = []
+
+    keys = []
+    seen = set()
+    for value in values:
+        key = str(value or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        keys.append(key)
+    return keys
+
+
+def _positive_int(value, default):
+    number = _to_positive_number(value)
+    if not number:
+        return default
+    return max(1, int(round(number)))
+
+
+def _gallery_image_options(options):
+    if not isinstance(options, dict):
+        options = {}
+    return {
+        "width": options.get("image_width") or 180,
+        "height": options.get("image_height") or 140,
+        "keep_ratio": options.get("keep_ratio"),
+    }
+
+
+def _render_image_gallery_block(sheet, block, image_data, target_cell):
+    if not isinstance(image_data, dict):
+        return []
+
+    options = block.get("options") if isinstance(block.get("options"), dict) else {}
+    source_keys = _source_keys_from_options(options)
+    if not source_keys:
+        return []
+
+    columns = _positive_int(options.get("columns"), 3)
+    row_step = _positive_int(options.get("row_step"), 8)
+    col_step = _positive_int(options.get("col_step"), 4)
+    size_options = _gallery_image_options(options)
+    written_cells = []
+    image_index = 0
+
+    for key in source_keys:
+        item = image_data.get(key)
+        if not isinstance(item, dict):
+            continue
+
+        image_path = resolve_uploaded_image_path(item.get("image_path"))
+        if not image_path:
+            continue
+
+        if ExcelImage is None:
+            raise RuntimeError("图片渲染需要安装 pillow。")
+
+        try:
+            img = ExcelImage(str(image_path))
+        except ImportError as e:
+            raise RuntimeError("图片渲染需要安装 pillow。") from e
+
+        row_index = image_index // columns
+        col_index = image_index % columns
+        cell = _offset_cell(
+            target_cell,
+            row_offset=row_index * row_step,
+            col_offset=col_index * col_step,
+        )
+        _apply_image_size(img, size_options)
+        sheet.add_image(img, cell)
+        written_cells.append(cell)
+        image_index += 1
+
+    return written_cells
+
+
+def collect_layout_image_keys(profile):
+    if not isinstance(profile, dict):
+        return set()
+
+    raw_config = profile.get("layout_config")
+    if not isinstance(raw_config, dict):
+        return set()
+
+    layout_config = normalize_layout_config(raw_config)
+    if layout_config.get("enabled") is not True:
+        return set()
+
+    keys = set()
+    for region in layout_config.get("regions", []):
+        if not isinstance(region, dict) or region.get("enabled") is False:
+            continue
+        if str(region.get("sheet") or "active").strip().lower() != "active":
+            continue
+        if not str(region.get("range") or "").strip():
+            continue
+
+        blocks = region.get("blocks")
+        if not isinstance(blocks, list):
+            continue
+
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("enabled") is not True:
+                continue
+            block_type = str(block.get("type") or "").strip()
+            if block_type == "image":
+                source = str(block.get("source") or "").strip()
+                if source:
+                    keys.add(source)
+            elif block_type == "image_gallery":
+                options = block.get("options") if isinstance(block.get("options"), dict) else {}
+                keys.update(_source_keys_from_options(options))
+    return keys
+
+
 def render_layout(workbook, data, profile, description_fields=None, description_text=None, image_data=None):
     try:
         if workbook is None:
@@ -236,6 +376,19 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                     blocks_count += 1
                     region_written = True
                     written_images.append(target_cell)
+                    continue
+
+                if block_type == "image_gallery":
+                    try:
+                        gallery_cells = _render_image_gallery_block(workbook.active, block, image_data, target_cell)
+                    except RuntimeError as e:
+                        return {"success": False, "error": str(e)}
+                    if not gallery_cells:
+                        continue
+
+                    blocks_count += 1
+                    region_written = True
+                    written_images.extend(gallery_cells)
                     continue
 
                 continue

@@ -551,7 +551,7 @@
         }
 
         .layout-block-row {
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 86px 86px 96px 72px 96px;
+            grid-template-columns: repeat(4, minmax(120px, 1fr));
             margin-top: 10px;
             padding-top: 10px;
             border-top: 1px dashed #e5e7eb;
@@ -1740,6 +1740,16 @@
         return Number.isFinite(number) && number > 0 ? number : fallback;
     }
 
+    function parseLayoutSourceKeys(value) {
+        if (Array.isArray(value)) {
+            return value.map(item => String(item || "").trim()).filter(Boolean);
+        }
+        return String(value || "")
+            .split(",")
+            .map(item => item.trim())
+            .filter(Boolean);
+    }
+
     function normalizeLayoutBlockOptions(type, options) {
         const source = options && typeof options === "object" && !Array.isArray(options) ? options : {};
         if (type === "image") {
@@ -1747,6 +1757,17 @@
                 width: parseLayoutNumber(source.width, 220),
                 height: parseLayoutNumber(source.height, 160),
                 keep_ratio: source.keep_ratio !== false
+            };
+        }
+        if (type === "image_gallery") {
+            return {
+                source_keys: parseLayoutSourceKeys(source.source_keys),
+                columns: parseLayoutNumber(source.columns, 3),
+                image_width: parseLayoutNumber(source.image_width, 180),
+                image_height: parseLayoutNumber(source.image_height, 140),
+                keep_ratio: source.keep_ratio !== false,
+                row_step: parseLayoutNumber(source.row_step, 8),
+                col_step: parseLayoutNumber(source.col_step, 4)
             };
         }
         return source;
@@ -1862,6 +1883,7 @@
                 <div class="button-row">
                     <button type="button" onclick="addLayoutBlock(${index}, 'description_fields')">新增描述 Block</button>
                     <button type="button" onclick="addLayoutBlock(${index}, 'image')">新增 Image Block</button>
+                    <button type="button" onclick="addLayoutBlock(${index}, 'image_gallery')">新增 Gallery Block</button>
                 </div>
             `;
             list.appendChild(card);
@@ -1887,8 +1909,12 @@
             row.dataset.blockIndex = String(blockIndex);
             const type = String(block.type || "description_fields").trim() || "description_fields";
             const options = normalizeLayoutBlockOptions(type, block.options || {});
-            const sourcePlaceholder = type === "image" ? "front_label" : "description_fields";
-            const imageOptionsDisabled = type === "image" ? "" : "disabled";
+            const isImage = type === "image";
+            const isGallery = type === "image_gallery";
+            const sourcePlaceholder = isImage ? "front_label" : (isGallery ? "image_data" : "description_fields");
+            const sizeOptionsDisabled = isImage || isGallery ? "" : "disabled";
+            const widthValue = isImage ? options.width : (isGallery ? options.image_width : "");
+            const heightValue = isImage ? options.height : (isGallery ? options.image_height : "");
             row.innerHTML = `
                 <div>
                     <label>Block ID</label>
@@ -1899,6 +1925,7 @@
                     <select id="layout_block_type_${regionIndex}_${blockIndex}" onchange="refreshLayoutConfigDraft()">
                         <option value="description_fields" ${type === "description_fields" ? "selected" : ""}>description_fields</option>
                         <option value="image" ${type === "image" ? "selected" : ""}>image</option>
+                        <option value="image_gallery" ${type === "image_gallery" ? "selected" : ""}>image_gallery</option>
                     </select>
                 </div>
                 <div>
@@ -1906,15 +1933,31 @@
                     <input id="layout_block_source_${regionIndex}_${blockIndex}" value="${escapeHtml(block.source || "")}" placeholder="${escapeHtml(sourcePlaceholder)}">
                 </div>
                 <div>
+                    <label>Source Keys</label>
+                    <input id="layout_block_source_keys_${regionIndex}_${blockIndex}" value="${isGallery ? escapeHtml((options.source_keys || []).join(",")) : ""}" placeholder="front_label,back_label,product_image" ${isGallery ? "" : "disabled"}>
+                </div>
+                <div>
                     <label>Width</label>
-                    <input id="layout_block_width_${regionIndex}_${blockIndex}" type="number" min="1" value="${type === "image" ? escapeHtml(options.width) : ""}" placeholder="220" ${imageOptionsDisabled}>
+                    <input id="layout_block_width_${regionIndex}_${blockIndex}" type="number" min="1" value="${escapeHtml(widthValue)}" placeholder="${isGallery ? "180" : "220"}" ${sizeOptionsDisabled}>
                 </div>
                 <div>
                     <label>Height</label>
-                    <input id="layout_block_height_${regionIndex}_${blockIndex}" type="number" min="1" value="${type === "image" ? escapeHtml(options.height) : ""}" placeholder="160" ${imageOptionsDisabled}>
+                    <input id="layout_block_height_${regionIndex}_${blockIndex}" type="number" min="1" value="${escapeHtml(heightValue)}" placeholder="${isGallery ? "140" : "160"}" ${sizeOptionsDisabled}>
+                </div>
+                <div>
+                    <label>Columns</label>
+                    <input id="layout_block_columns_${regionIndex}_${blockIndex}" type="number" min="1" value="${isGallery ? escapeHtml(options.columns) : ""}" placeholder="3" ${isGallery ? "" : "disabled"}>
+                </div>
+                <div>
+                    <label>Row Step</label>
+                    <input id="layout_block_row_step_${regionIndex}_${blockIndex}" type="number" min="1" value="${isGallery ? escapeHtml(options.row_step) : ""}" placeholder="8" ${isGallery ? "" : "disabled"}>
+                </div>
+                <div>
+                    <label>Col Step</label>
+                    <input id="layout_block_col_step_${regionIndex}_${blockIndex}" type="number" min="1" value="${isGallery ? escapeHtml(options.col_step) : ""}" placeholder="4" ${isGallery ? "" : "disabled"}>
                 </div>
                 <label class="checkbox-line">
-                    <input type="checkbox" id="layout_block_keep_ratio_${regionIndex}_${blockIndex}" ${options.keep_ratio !== false ? "checked" : ""} ${imageOptionsDisabled}>
+                    <input type="checkbox" id="layout_block_keep_ratio_${regionIndex}_${blockIndex}" ${options.keep_ratio !== false ? "checked" : ""} ${sizeOptionsDisabled}>
                     <span>等比</span>
                 </label>
                 <label class="checkbox-line">
@@ -1934,13 +1977,24 @@
             const blocks = Array.from(card.querySelectorAll(".layout-block-row")).map(row => {
                 const blockIndex = row.dataset.blockIndex;
                 const type = (document.getElementById(`layout_block_type_${regionIndex}_${blockIndex}`)?.value || "description_fields").trim();
-                const options = type === "image"
-                    ? {
+                let options = {};
+                if (type === "image") {
+                    options = {
                         width: parseLayoutNumber(document.getElementById(`layout_block_width_${regionIndex}_${blockIndex}`)?.value, 220),
                         height: parseLayoutNumber(document.getElementById(`layout_block_height_${regionIndex}_${blockIndex}`)?.value, 160),
                         keep_ratio: Boolean(document.getElementById(`layout_block_keep_ratio_${regionIndex}_${blockIndex}`)?.checked)
-                    }
-                    : {};
+                    };
+                } else if (type === "image_gallery") {
+                    options = {
+                        source_keys: parseLayoutSourceKeys(document.getElementById(`layout_block_source_keys_${regionIndex}_${blockIndex}`)?.value),
+                        columns: parseLayoutNumber(document.getElementById(`layout_block_columns_${regionIndex}_${blockIndex}`)?.value, 3),
+                        image_width: parseLayoutNumber(document.getElementById(`layout_block_width_${regionIndex}_${blockIndex}`)?.value, 180),
+                        image_height: parseLayoutNumber(document.getElementById(`layout_block_height_${regionIndex}_${blockIndex}`)?.value, 140),
+                        keep_ratio: Boolean(document.getElementById(`layout_block_keep_ratio_${regionIndex}_${blockIndex}`)?.checked),
+                        row_step: parseLayoutNumber(document.getElementById(`layout_block_row_step_${regionIndex}_${blockIndex}`)?.value, 8),
+                        col_step: parseLayoutNumber(document.getElementById(`layout_block_col_step_${regionIndex}_${blockIndex}`)?.value, 4)
+                    };
+                }
                 return {
                     id: (document.getElementById(`layout_block_id_${regionIndex}_${blockIndex}`)?.value || "").trim(),
                     type: type,
@@ -2015,11 +2069,13 @@
             return;
         }
         const ts = Date.now();
-        const type = blockType === "image" ? "image" : "description_fields";
+        const type = blockType === "image"
+            ? "image"
+            : (blockType === "image_gallery" ? "image_gallery" : "description_fields");
         config.regions[regionIndex].blocks.push({
             id: `block_${ts}`,
             type: type,
-            source: type === "image" ? "" : "description_fields",
+            source: type === "image" ? "" : (type === "image_gallery" ? "image_data" : "description_fields"),
             enabled: true,
             options: type === "image"
                 ? {
@@ -2027,6 +2083,16 @@
                     height: 160,
                     keep_ratio: true
                 }
+                : type === "image_gallery"
+                    ? {
+                        source_keys: [],
+                        columns: 3,
+                        image_width: 180,
+                        image_height: 140,
+                        keep_ratio: true,
+                        row_step: 8,
+                        col_step: 4
+                    }
                 : {}
         });
         currentProfile.layout_config = config;

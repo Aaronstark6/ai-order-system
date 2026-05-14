@@ -23,7 +23,7 @@ from app.description_template_manager import (
 )
 from app.image_manager import load_image_fields, resolve_uploaded_image_path
 from app.ingredient_parser import analyze_ingredient_initials_source
-from app.layout_engine import render_layout
+from app.layout_engine import collect_layout_image_keys, render_layout
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -356,9 +356,14 @@ def _apply_mapping_defaults(data: dict, profile: dict):
             data[k] = str(dv)
 
 
-def _insert_configured_images(sheet, image_fields, image_data):
+def _insert_configured_images(sheet, image_fields, image_data, skip_keys=None):
     if not isinstance(image_data, dict):
         return
+    skip_keys = {
+        str(key or "").strip()
+        for key in (skip_keys or set())
+        if str(key or "").strip()
+    }
 
     library_keys = {
         str(field.get("key") or "").strip()
@@ -373,6 +378,8 @@ def _insert_configured_images(sheet, image_fields, image_data):
         key = str(field.get("key") or "").strip()
         cell = str(field.get("cell") or "").strip().upper()
         if not key or not cell:
+            continue
+        if key in skip_keys:
             continue
         if key not in library_keys:
             continue
@@ -551,8 +558,14 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
                     "error": f"文档编号写入 {doc_cell} 失败：{str(e)}"
                 }
 
+    layout_image_keys = collect_layout_image_keys(profile)
     try:
-        _insert_configured_images(sheet, profile.get("image_fields") or [], image_data or {})
+        _insert_configured_images(
+            sheet,
+            profile.get("image_fields") or [],
+            image_data or {},
+            skip_keys=layout_image_keys,
+        )
     except Exception as e:
         return {
             "success": False,

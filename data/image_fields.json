@@ -2,5 +2,13 @@
   {
     "key": "product_image",
     "label": "图片1"
+  },
+  {
+    "key": "front_label",
+    "label": "图片2"
+  },
+  {
+    "key": "back_label",
+    "label": "图片3"
   }
 ]
