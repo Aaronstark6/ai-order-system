@@ -21,7 +21,7 @@ from app.description_template_manager import (
     get_description_template,
     render_description_template,
 )
-from app.image_manager import resolve_uploaded_image_path
+from app.image_manager import load_image_fields, resolve_uploaded_image_path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -342,6 +342,12 @@ def _insert_configured_images(sheet, image_fields, image_data):
     if not isinstance(image_data, dict):
         return
 
+    library_keys = {
+        str(field.get("key") or "").strip()
+        for field in load_image_fields()
+        if str(field.get("key") or "").strip()
+    }
+
     for field in image_fields:
         if field.get("enabled") is not True:
             continue
@@ -349,6 +355,8 @@ def _insert_configured_images(sheet, image_fields, image_data):
         key = str(field.get("key") or "").strip()
         cell = str(field.get("cell") or "").strip().upper()
         if not key or not cell:
+            continue
+        if key not in library_keys:
             continue
 
         item = image_data.get(key)
@@ -557,10 +565,13 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
         except Exception as e:
             sync_error = str(e)
 
+    last_generated_file_path = sync_path if synced and sync_path else str(output_file)
+
     return {
         "success": True,
         "filename": filename,
         "output_path": str(output_file),
+        "lastGeneratedFilePath": last_generated_file_path,
         "download_url": f"/api/download/{filename}",
         "synced": synced,
         "sync_path": sync_path,

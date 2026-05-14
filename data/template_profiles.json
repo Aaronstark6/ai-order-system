@@ -45,9 +45,8 @@
     "image_fields": [
       {
         "key": "product_image",
-        "label": "产品图片",
-        "cell": "G8",
-        "enabled": true
+        "enabled": true,
+        "cell": "G8"
       }
     ]
   },
@@ -94,7 +93,13 @@
       "target_cell": "B8"
     },
     "template_display_name": "滴剂和液体饮料模板.xlsx",
-    "image_fields": []
+    "image_fields": [
+      {
+        "key": "product_image",
+        "enabled": true,
+        "cell": "G8"
+      }
+    ]
   },
   {
     "id": "7bc169b4-bfd0-4dd5-a24f-36bce50e5d19",

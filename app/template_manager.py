@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.app_settings import DEFAULT_APP_SETTINGS, load_app_settings
-from app.image_manager import normalize_image_fields
+from app.image_manager import normalize_image_mappings
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -157,7 +157,7 @@ def normalize_profile(profile: dict):
     if not profile["description_settings"].get("template_name"):
         profile["description_settings"]["template_name"] = get_default_description_template_name(profile.get("name"))
 
-    profile["image_fields"] = normalize_image_fields(
+    profile["image_fields"] = normalize_image_mappings(
         profile.get("image_fields") if isinstance(profile.get("image_fields"), list) else []
     )
 
@@ -364,7 +364,7 @@ def update_profile_mappings(
                 profile["description_settings"] = normalize_description_settings(merged)
 
             if image_fields is not None:
-                profile["image_fields"] = normalize_image_fields(image_fields, validate=True)
+                profile["image_fields"] = normalize_image_mappings(image_fields, validate=True)
 
             save_profiles(profiles)
 

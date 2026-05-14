@@ -1,37 +1,88 @@
+import json
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+IMAGE_FIELDS_FILE = BASE_DIR / "data" / "image_fields.json"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
-def normalize_image_field(field):
+def normalize_image_library_field(field):
     if not isinstance(field, dict):
         field = {}
 
     return {
         "key": str(field.get("key") or "").strip(),
         "label": str(field.get("label") or "").strip(),
-        "cell": str(field.get("cell") or "").strip().upper(),
-        "enabled": field.get("enabled") is not False,
     }
 
 
-def normalize_image_fields(fields, validate=False):
+def normalize_image_library_fields(fields, validate=False):
     normalized = []
     seen_keys = set()
 
     for field in fields or []:
-        item = normalize_image_field(field)
+        item = normalize_image_library_field(field)
         if not item["key"] and not validate:
             continue
         if not item["key"]:
             raise ValueError("图片字段 key 不能为空")
         if not item["label"]:
             raise ValueError("图片字段名称不能为空")
-        if not item["cell"]:
-            raise ValueError(f"图片字段 {item['key']} 的 Excel 单元格不能为空")
+        if item["key"] in seen_keys:
+            raise ValueError(f"图片字段 key 重复：{item['key']}")
+        seen_keys.add(item["key"])
+        normalized.append(item)
+
+    return normalized
+
+
+def load_image_fields():
+    if not IMAGE_FIELDS_FILE.exists():
+        save_image_fields([])
+        return []
+
+    with open(IMAGE_FIELDS_FILE, "r", encoding="utf-8") as f:
+        fields = json.load(f)
+
+    if not isinstance(fields, list):
+        fields = []
+
+    return normalize_image_library_fields(fields)
+
+
+def save_image_fields(fields):
+    normalized = normalize_image_library_fields(fields, validate=True)
+    IMAGE_FIELDS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(IMAGE_FIELDS_FILE, "w", encoding="utf-8") as f:
+        json.dump(normalized, f, ensure_ascii=False, indent=2)
+    return normalized
+
+
+def normalize_image_mapping(field):
+    if not isinstance(field, dict):
+        field = {}
+
+    return {
+        "key": str(field.get("key") or "").strip(),
+        "enabled": field.get("enabled") is True,
+        "cell": str(field.get("cell") or "").strip().upper(),
+    }
+
+
+def normalize_image_mappings(fields, validate=False):
+    normalized = []
+    seen_keys = set()
+
+    for field in fields or []:
+        item = normalize_image_mapping(field)
+        if not item["key"] and not validate:
+            continue
+        if not item["key"]:
+            raise ValueError("图片字段 key 不能为空")
+        if item["enabled"] and not item["cell"]:
+            raise ValueError(f"图片字段 {item['key']} 已启用但没有设置 Excel 单元格")
         if item["key"] in seen_keys:
             raise ValueError(f"图片字段 key 重复：{item['key']}")
         seen_keys.add(item["key"])

@@ -540,12 +540,15 @@
     };
     let currentGeneratedFilename = "";
     let currentDownloadUrl = "";
+    let lastGeneratedFilePath = "";
     let currentDescriptionFields = {};
+    let imageFields = [];
     let ingredientInitialsManuallyEdited = false;
     let descriptionIsComposing = false;
 
     async function loadInitialData() {
         await loadFields();
+        await loadImageFields();
         await loadAppSettings();
         await loadProfiles();
         updateVisibleFields();
@@ -566,6 +569,16 @@
         }
 
         allFields = result.fields || [];
+    }
+
+    async function loadImageFields() {
+        try {
+            const response = await fetch("/api/image-fields");
+            const result = await response.json();
+            imageFields = result.success ? (result.fields || []) : [];
+        } catch (e) {
+            imageFields = [];
+        }
     }
 
     async function loadProfiles() {
@@ -1376,8 +1389,11 @@
         }
 
         const profile = getSelectedProfile();
+        const imageFieldLabels = new Map(
+            (imageFields || []).map(field => [String(field.key || ""), field.label || field.key || ""])
+        );
         const enabledFields = (profile && Array.isArray(profile.image_fields) ? profile.image_fields : [])
-            .filter(field => field && field.enabled === true);
+            .filter(field => field && field.enabled === true && imageFieldLabels.has(String(field.key || "")));
         if (enabledFields.length === 0) {
             return;
         }
@@ -1398,8 +1414,9 @@
 
             const item = document.createElement("div");
             item.className = "image-upload-item";
+            const labelText = imageFieldLabels.get(key) || key;
             item.innerHTML = `
-                <label for="image_field_${escapeHtml(key)}">${escapeHtml(field.label || key)}</label>
+                <label for="image_field_${escapeHtml(key)}">${escapeHtml(labelText)}</label>
                 <input
                     id="image_field_${escapeHtml(key)}"
                     class="image-upload-input"
@@ -1792,6 +1809,7 @@
     function resetExcelActions() {
         currentGeneratedFilename = "";
         currentDownloadUrl = "";
+        lastGeneratedFilePath = "";
 
         const downloadBtn = document.getElementById("downloadExcelBtn");
 
@@ -1803,22 +1821,32 @@
     }
 
     function enableExcelActions(result) {
-        currentGeneratedFilename = result.filename || "";
+        lastGeneratedFilePath = result.lastGeneratedFilePath || result.output_path || result.file_path || "";
+        currentGeneratedFilename = lastGeneratedFilePath ? getFilenameFromPath(lastGeneratedFilePath) : (result.filename || "");
         currentDownloadUrl = result.download_url || "";
 
         const downloadBtn = document.getElementById("downloadExcelBtn");
 
-        if (downloadBtn && currentGeneratedFilename) {
+        if (downloadBtn && lastGeneratedFilePath) {
             downloadBtn.disabled = false;
             downloadBtn.classList.remove("disabled");
             downloadBtn.setAttribute("aria-disabled", "false");
         }
     }
 
+    function getFilenameFromPath(path) {
+        const text = String(path || "").trim();
+        if (!text) {
+            return "";
+        }
+        const parts = text.split(/[\\/]+/);
+        return parts[parts.length - 1] || text;
+    }
+
     async function openOutputFolder() {
         const submitResult = document.getElementById("submitResult");
 
-        if (!currentGeneratedFilename) {
+        if (!lastGeneratedFilePath) {
             if (submitResult) {
                 submitResult.innerHTML = `<p class="error">请先生成Excel</p>`;
             }
@@ -1831,7 +1859,7 @@
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                filename: currentGeneratedFilename
+                lastGeneratedFilePath: lastGeneratedFilePath
             })
         });
         const result = await response.json();
@@ -1847,7 +1875,7 @@
 
         submitResult.innerHTML = `
             <p class="success excel-result-message">已打开订单目录</p>
-            <p class="sync-path">文件名：${escapeHtml(currentGeneratedFilename)}</p>
+            <p class="sync-path">文件名：${escapeHtml(getFilenameFromPath(lastGeneratedFilePath))}</p>
         `;
     }
 
@@ -1953,8 +1981,9 @@
 
             enableExcelActions(result);
 
-            const filenameHtml = result.filename
-                ? `<p class="sync-path">文件名：${escapeHtml(result.filename)}</p>`
+            const filename = getFilenameFromPath(lastGeneratedFilePath);
+            const filenameHtml = filename
+                ? `<p class="sync-path">文件名：${escapeHtml(filename)}</p>`
                 : "";
             const syncStatusHtml = result.synced && result.sync_path
                 ? `<p class="sync-path">已同步到：${escapeHtml(result.sync_path)}</p>`
@@ -1980,7 +2009,7 @@
         const submitResult = document.getElementById("submitResult");
         const syncBtn = document.getElementById("syncExcelBtn");
 
-        if (!currentGeneratedFilename) {
+        if (!lastGeneratedFilePath) {
             if (submitResult) {
                 submitResult.innerHTML = `<p class="error">请先生成 Excel</p>`;
             }
@@ -1998,7 +2027,7 @@
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                filename: currentGeneratedFilename
+                lastGeneratedFilePath: lastGeneratedFilePath
             })
         });
         const result = await response.json();
@@ -2016,6 +2045,9 @@
             submitResult.innerHTML = `<p class="sync-error">${escapeHtml(result.error || "同步失败")}</p>`;
             return;
         }
+
+        lastGeneratedFilePath = result.lastGeneratedFilePath || result.sync_path || lastGeneratedFilePath;
+        currentGeneratedFilename = getFilenameFromPath(lastGeneratedFilePath);
 
         submitResult.innerHTML = `
             <p class="success excel-result-message">同步成功！</p>

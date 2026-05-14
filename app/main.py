@@ -29,7 +29,9 @@ from app.ingredient_parser import extract_ingredient_initials_from_description_f
 from app.excel_generator import generate_excel
 from app.image_manager import (
     ensure_image_upload_dir,
+    load_image_fields,
     safe_image_extension,
+    save_image_fields,
 )
 from app.description_template_manager import (
     list_description_templates,
@@ -53,35 +55,10 @@ app = FastAPI(title="AI Order System V2")
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
+IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
+LAST_GENERATED_FILE_PATH = ""
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-
-def _path_is_inside(child: Path, parent: Path):
-    try:
-        child.resolve().relative_to(parent.resolve())
-        return True
-    except ValueError:
-        return False
-
-
-def _find_allowed_output_file(filename: str):
-    safe_filename = Path(str(filename or "")).name
-    if not safe_filename:
-        return None
-
-    output_file = OUTPUT_DIR / safe_filename
-    if output_file.exists() and _path_is_inside(output_file, OUTPUT_DIR):
-        return output_file
-
-    export_sync_dir = str(get_export_sync_dir() or "").strip()
-    if export_sync_dir:
-        sync_dir = Path(export_sync_dir).expanduser()
-        sync_file = sync_dir / safe_filename
-        if sync_file.exists() and _path_is_inside(sync_file, sync_dir):
-            return sync_file
-
-    return None
 
 
 @app.get("/")
@@ -92,6 +69,40 @@ def index():
 @app.get("/config")
 def config_page():
     return FileResponse(STATIC_DIR / "config.html")
+
+
+def _clear_files_under_dir(target_dir: Path):
+    deleted_files = 0
+    failed_files = 0
+    errors = []
+
+    root = target_dir.resolve()
+    if not root.exists():
+        return deleted_files, failed_files, errors
+
+    if not root.is_dir():
+        return deleted_files, failed_files, [f"{root} 不是目录"]
+
+    for path in root.rglob("*"):
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(root)
+        except ValueError:
+            failed_files += 1
+            errors.append(f"跳过非法路径：{path}")
+            continue
+
+        if not path.is_file():
+            continue
+
+        try:
+            path.unlink()
+            deleted_files += 1
+        except Exception as e:
+            failed_files += 1
+            errors.append(f"{path}: {e}")
+
+    return deleted_files, failed_files, errors
 
 
 # ================= 字段库 =================
@@ -121,6 +132,27 @@ def api_update_field(key: str, field: dict):
 def api_delete_field(key: str):
     try:
         return {"success": True, "result": delete_field(key)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ================= 图片字段库 =================
+
+@app.get("/api/image-fields")
+def api_get_image_fields():
+    try:
+        return {"success": True, "fields": load_image_fields()}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/image-fields")
+def api_save_image_fields(data: dict):
+    try:
+        fields = data.get("fields", data)
+        if not isinstance(fields, list):
+            return {"success": False, "error": "图片字段配置必须是数组"}
+        return {"success": True, "fields": save_image_fields(fields)}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -251,6 +283,37 @@ def api_test_export_sync_dir(data: dict):
         return {"success": False, "error": f"路径不可用：{e}"}
 
 
+@app.post("/api/clear-cache")
+def api_clear_cache():
+    try:
+        deleted_files = 0
+        failed_files = 0
+        errors = []
+
+        for target_dir in [OUTPUT_DIR, IMAGE_UPLOAD_DIR]:
+            deleted, failed, dir_errors = _clear_files_under_dir(target_dir)
+            deleted_files += deleted
+            failed_files += failed
+            errors.extend(dir_errors)
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+        return {
+            "success": failed_files == 0,
+            "deleted_files": deleted_files,
+            "failed_files": failed_files,
+            "errors": errors,
+            "message": "缓存已清空" if failed_files == 0 else "缓存部分清理失败",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "deleted_files": 0,
+            "failed_files": 1,
+            "errors": [str(e)],
+            "message": "缓存清理失败",
+        }
+
+
 @app.get("/api/ai-settings/status")
 def api_ai_settings_status():
     return {"success": True, "has_api_key": bool(get_deepseek_api_key())}
@@ -375,6 +438,7 @@ def api_parse(data: dict):
 
 @app.post("/api/generate-excel")
 def api_generate_excel(data: dict):
+    global LAST_GENERATED_FILE_PATH
     try:
         profile_id = data.get("profile_id", "")
         order_data = data.get("data", {})
@@ -390,13 +454,16 @@ def api_generate_excel(data: dict):
         if composite_data is None:
             composite_data = data.get("composite_values", [])
 
-        return generate_excel(
+        result = generate_excel(
             data=order_data,
             profile_id=profile_id,
             composite_data=composite_data,
             description_text=data.get("description_text"),
             image_data=data.get("image_data") or {},
         )
+        if result.get("success") and str(result.get("lastGeneratedFilePath") or result.get("output_path") or "").strip():
+            LAST_GENERATED_FILE_PATH = str(result.get("lastGeneratedFilePath") or result.get("output_path") or "").strip()
+        return result
 
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -404,14 +471,24 @@ def api_generate_excel(data: dict):
 
 @app.post("/api/sync-output")
 def api_sync_output(data: dict):
+    global LAST_GENERATED_FILE_PATH
     try:
-        filename = Path(str(data.get("filename") or "")).name
-        if not filename:
-            return {"success": False, "error": "filename不能为空"}
+        last_generated_file_path = str(
+            data.get("lastGeneratedFilePath") or data.get("last_generated_file_path") or LAST_GENERATED_FILE_PATH
+        ).strip()
+        if not last_generated_file_path:
+            return {"success": False, "error": "lastGeneratedFilePath不能为空，请先生成 Excel"}
 
-        source_file = OUTPUT_DIR / filename
+        source_file = Path(last_generated_file_path).expanduser()
+        if not source_file.is_absolute():
+            source_file = (BASE_DIR / source_file).resolve()
+        else:
+            source_file = source_file.resolve()
+
         if not source_file.exists():
             return {"success": False, "error": "输出文件不存在，请先生成 Excel"}
+
+        filename = source_file.name
 
         export_sync_dir = str(get_export_sync_dir() or "").strip()
         if not export_sync_dir:
@@ -421,11 +498,13 @@ def api_sync_output(data: dict):
         target_dir.mkdir(parents=True, exist_ok=True)
         target_file = target_dir / filename
         shutil.copy2(source_file, target_file)
+        LAST_GENERATED_FILE_PATH = str(target_file)
 
         return {
             "success": True,
             "synced": True,
-            "sync_path": str(target_file)
+            "sync_path": str(target_file),
+            "lastGeneratedFilePath": str(target_file),
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -434,19 +513,27 @@ def api_sync_output(data: dict):
 @app.post("/api/open-output-folder")
 def api_open_output_folder(data: dict):
     try:
-        filename = Path(str(data.get("filename") or "")).name
-        if not filename:
-            return {"success": False, "error": "filename不能为空"}
+        last_generated_file_path = str(
+            data.get("lastGeneratedFilePath") or data.get("last_generated_file_path") or LAST_GENERATED_FILE_PATH
+        ).strip()
+        if not last_generated_file_path:
+            return {"success": False, "error": "lastGeneratedFilePath不能为空，请先生成 Excel"}
 
-        target_file = _find_allowed_output_file(filename)
-        if not target_file:
-            return {"success": False, "error": "找不到订单文件，请先生成 Excel 或检查同步目录"}
+        target_file = Path(last_generated_file_path).expanduser()
+        if not target_file.is_absolute():
+            target_file = (BASE_DIR / target_file).resolve()
+        else:
+            target_file = target_file.resolve()
+
+        if not target_file.exists() or not target_file.is_file():
+            return {"success": False, "error": "找不到实际生成的订单文件，请重新生成 Excel"}
 
         if os.name != "nt":
             return {"success": False, "error": "当前系统暂不支持自动打开文件夹，请手动打开输出目录"}
 
-        subprocess.Popen(f'explorer /select,"{str(target_file.resolve())}"')
-        return {"success": True, "path": str(target_file)}
+        target_dir = os.path.dirname(str(target_file))
+        subprocess.Popen(["explorer", f"/select,{str(target_file)}"])
+        return {"success": True, "path": str(target_dir), "filename": target_file.name}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
