@@ -585,6 +585,110 @@
             padding-bottom: 11px;
         }
 
+        .layout-designer {
+            width: 900px;
+            max-width: 100%;
+            height: 600px;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            overflow: auto;
+            position: relative;
+            margin: 14px 0 18px;
+        }
+
+        .layout-designer-stage {
+            position: relative;
+            width: 880px;
+            height: 984px;
+            background: #f9fafb;
+        }
+
+        .layout-designer-corner,
+        .layout-designer-col,
+        .layout-designer-row {
+            position: absolute;
+            background: #e5e7eb;
+            color: #4b5563;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #d1d5db;
+            border-bottom: 1px solid #d1d5db;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        .layout-designer-corner {
+            left: 0;
+            top: 0;
+            width: 40px;
+            height: 24px;
+        }
+
+        .layout-designer-grid {
+            position: absolute;
+            left: 40px;
+            top: 24px;
+            width: 840px;
+            height: 960px;
+            background-color: #ffffff;
+            background-image:
+                linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+            background-size: 70px 24px;
+        }
+
+        .layout-designer-region {
+            position: absolute;
+            box-sizing: border-box;
+            border: 2px solid #2563eb;
+            background: rgba(37, 99, 235, 0.16);
+            color: #111827;
+            padding: 6px;
+            cursor: move;
+            overflow: hidden;
+            min-width: 70px;
+            min-height: 24px;
+            user-select: none;
+        }
+
+        .layout-designer-region.selected {
+            border-width: 3px;
+            background: rgba(22, 119, 255, 0.24);
+            box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.12);
+        }
+
+        .layout-designer-region-title {
+            font-weight: 700;
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .layout-designer-region-meta {
+            font-size: 11px;
+            line-height: 1.35;
+            margin-top: 3px;
+        }
+
+        .layout-designer-resize {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 14px;
+            height: 14px;
+            background: #2563eb;
+            cursor: nwse-resize;
+        }
+
+        .layout-region-card.selected {
+            border-color: #1677ff;
+            box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.12);
+        }
+
         .drag-handle {
             cursor: grab;
             color: #666;
@@ -987,6 +1091,14 @@
     let aiSettingsUnlocked = false;
     let aiSettingsPassword = "";
     let draggedFieldKey = "";
+    let selectedLayoutRegionIndex = 0;
+    let activeLayoutDesignerDrag = null;
+    const LAYOUT_DESIGNER_COL_WIDTH = 70;
+    const LAYOUT_DESIGNER_ROW_HEIGHT = 24;
+    const LAYOUT_DESIGNER_ROW_LABEL_WIDTH = 40;
+    const LAYOUT_DESIGNER_COL_LABEL_HEIGHT = 24;
+    const LAYOUT_DESIGNER_COLUMNS = 12;
+    const LAYOUT_DESIGNER_ROWS = 40;
 
     async function loadAll() {
         await loadFields();
@@ -1826,6 +1938,309 @@
         };
     }
 
+    function clampLayoutDesignerValue(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    function excelColumnToNumber(label) {
+        const text = String(label || "").trim().toUpperCase();
+        let number = 0;
+        for (const char of text) {
+            const code = char.charCodeAt(0);
+            if (code < 65 || code > 90) {
+                return 0;
+            }
+            number = number * 26 + code - 64;
+        }
+        return number;
+    }
+
+    function numberToExcelColumn(number) {
+        let value = Math.max(1, Math.round(Number(number) || 1));
+        let label = "";
+        while (value > 0) {
+            const remainder = (value - 1) % 26;
+            label = String.fromCharCode(65 + remainder) + label;
+            value = Math.floor((value - 1) / 26);
+        }
+        return label;
+    }
+
+    function parseExcelCell(cell) {
+        const match = String(cell || "").trim().toUpperCase().match(/^\$?([A-Z]{1,3})\$?(\d+)$/);
+        if (!match) {
+            return null;
+        }
+        const col = excelColumnToNumber(match[1]);
+        const row = Number(match[2]);
+        if (!col || !Number.isFinite(row) || row < 1) {
+            return null;
+        }
+        return { col, row };
+    }
+
+    function cellToCanvasPosition(cell) {
+        const parsed = parseExcelCell(cell);
+        if (!parsed) {
+            return null;
+        }
+        return {
+            x: (parsed.col - 1) * LAYOUT_DESIGNER_COL_WIDTH,
+            y: (parsed.row - 1) * LAYOUT_DESIGNER_ROW_HEIGHT
+        };
+    }
+
+    function rangeToRect(range) {
+        const parts = String(range || "").trim().toUpperCase().split(":").filter(Boolean);
+        if (!parts.length) {
+            return null;
+        }
+        const start = parseExcelCell(parts[0]);
+        const end = parseExcelCell(parts[1] || parts[0]);
+        if (!start || !end) {
+            return null;
+        }
+        const startCol = clampLayoutDesignerValue(Math.min(start.col, end.col), 1, LAYOUT_DESIGNER_COLUMNS);
+        const endCol = clampLayoutDesignerValue(Math.max(start.col, end.col), 1, LAYOUT_DESIGNER_COLUMNS);
+        const startRow = clampLayoutDesignerValue(Math.min(start.row, end.row), 1, LAYOUT_DESIGNER_ROWS);
+        const endRow = clampLayoutDesignerValue(Math.max(start.row, end.row), 1, LAYOUT_DESIGNER_ROWS);
+        return {
+            x: (startCol - 1) * LAYOUT_DESIGNER_COL_WIDTH,
+            y: (startRow - 1) * LAYOUT_DESIGNER_ROW_HEIGHT,
+            width: (endCol - startCol + 1) * LAYOUT_DESIGNER_COL_WIDTH,
+            height: (endRow - startRow + 1) * LAYOUT_DESIGNER_ROW_HEIGHT
+        };
+    }
+
+    function rectToRange(x, y, width, height) {
+        const maxWidth = LAYOUT_DESIGNER_COLUMNS * LAYOUT_DESIGNER_COL_WIDTH;
+        const maxHeight = LAYOUT_DESIGNER_ROWS * LAYOUT_DESIGNER_ROW_HEIGHT;
+        const snappedX = clampLayoutDesignerValue(
+            Math.round((Number(x) || 0) / LAYOUT_DESIGNER_COL_WIDTH) * LAYOUT_DESIGNER_COL_WIDTH,
+            0,
+            maxWidth - LAYOUT_DESIGNER_COL_WIDTH
+        );
+        const snappedY = clampLayoutDesignerValue(
+            Math.round((Number(y) || 0) / LAYOUT_DESIGNER_ROW_HEIGHT) * LAYOUT_DESIGNER_ROW_HEIGHT,
+            0,
+            maxHeight - LAYOUT_DESIGNER_ROW_HEIGHT
+        );
+        const snappedWidth = clampLayoutDesignerValue(
+            Math.round((Number(width) || LAYOUT_DESIGNER_COL_WIDTH) / LAYOUT_DESIGNER_COL_WIDTH) * LAYOUT_DESIGNER_COL_WIDTH,
+            LAYOUT_DESIGNER_COL_WIDTH,
+            maxWidth - snappedX
+        );
+        const snappedHeight = clampLayoutDesignerValue(
+            Math.round((Number(height) || LAYOUT_DESIGNER_ROW_HEIGHT) / LAYOUT_DESIGNER_ROW_HEIGHT) * LAYOUT_DESIGNER_ROW_HEIGHT,
+            LAYOUT_DESIGNER_ROW_HEIGHT,
+            maxHeight - snappedY
+        );
+        const startCol = Math.floor(snappedX / LAYOUT_DESIGNER_COL_WIDTH) + 1;
+        const startRow = Math.floor(snappedY / LAYOUT_DESIGNER_ROW_HEIGHT) + 1;
+        const colSpan = Math.max(1, Math.round(snappedWidth / LAYOUT_DESIGNER_COL_WIDTH));
+        const rowSpan = Math.max(1, Math.round(snappedHeight / LAYOUT_DESIGNER_ROW_HEIGHT));
+        const endCol = clampLayoutDesignerValue(startCol + colSpan - 1, 1, LAYOUT_DESIGNER_COLUMNS);
+        const endRow = clampLayoutDesignerValue(startRow + rowSpan - 1, 1, LAYOUT_DESIGNER_ROWS);
+        return `${numberToExcelColumn(startCol)}${startRow}:${numberToExcelColumn(endCol)}${endRow}`;
+    }
+
+    function defaultLayoutDesignerRect(index) {
+        const col = (index % 3) * 3;
+        const row = Math.floor(index / 3) * 5;
+        return {
+            x: col * LAYOUT_DESIGNER_COL_WIDTH,
+            y: row * LAYOUT_DESIGNER_ROW_HEIGHT,
+            width: 3 * LAYOUT_DESIGNER_COL_WIDTH,
+            height: 4 * LAYOUT_DESIGNER_ROW_HEIGHT
+        };
+    }
+
+    function syncLayoutDesignerRangeInput(index, range) {
+        const input = document.getElementById("layout_region_range_" + index);
+        if (input) {
+            input.value = range;
+        }
+        if (currentProfile && currentProfile.layout_config && currentProfile.layout_config.regions[index]) {
+            currentProfile.layout_config.regions[index].range = range;
+        }
+    }
+
+    function syncLayoutDesignerFromRegionInput(index, shouldRender = true) {
+        if (!currentProfile) {
+            return;
+        }
+        const config = collectLayoutConfig();
+        currentProfile.layout_config = config;
+        selectedLayoutRegionIndex = clampLayoutDesignerValue(index, 0, Math.max(0, config.regions.length - 1));
+        if (shouldRender) {
+            renderLayoutDesigner(config.regions);
+            highlightLayoutRegionForm(selectedLayoutRegionIndex);
+        }
+    }
+
+    function highlightLayoutRegionForm(index) {
+        document.querySelectorAll(".layout-region-card").forEach(card => {
+            card.classList.toggle("selected", Number(card.dataset.regionIndex) === Number(index));
+        });
+    }
+
+    function selectLayoutDesignerRegion(index, shouldScroll = true) {
+        selectedLayoutRegionIndex = Number(index) || 0;
+        document.querySelectorAll(".layout-designer-region").forEach(region => {
+            region.classList.toggle("selected", Number(region.dataset.regionIndex) === selectedLayoutRegionIndex);
+        });
+        highlightLayoutRegionForm(selectedLayoutRegionIndex);
+        if (shouldScroll) {
+            const card = document.querySelector(`.layout-region-card[data-region-index="${selectedLayoutRegionIndex}"]`);
+            if (card) {
+                card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+    }
+
+    function renderLayoutDesigner(regions) {
+        const container = document.getElementById("layoutDesignerCanvas");
+        if (!container) {
+            return;
+        }
+
+        const stage = document.createElement("div");
+        stage.className = "layout-designer-stage";
+
+        const corner = document.createElement("div");
+        corner.className = "layout-designer-corner";
+        stage.appendChild(corner);
+
+        for (let col = 1; col <= LAYOUT_DESIGNER_COLUMNS; col += 1) {
+            const label = document.createElement("div");
+            label.className = "layout-designer-col";
+            label.textContent = numberToExcelColumn(col);
+            label.style.left = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH + (col - 1) * LAYOUT_DESIGNER_COL_WIDTH}px`;
+            label.style.top = "0";
+            label.style.width = `${LAYOUT_DESIGNER_COL_WIDTH}px`;
+            label.style.height = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT}px`;
+            stage.appendChild(label);
+        }
+
+        for (let row = 1; row <= LAYOUT_DESIGNER_ROWS; row += 1) {
+            const label = document.createElement("div");
+            label.className = "layout-designer-row";
+            label.textContent = String(row);
+            label.style.left = "0";
+            label.style.top = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT + (row - 1) * LAYOUT_DESIGNER_ROW_HEIGHT}px`;
+            label.style.width = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH}px`;
+            label.style.height = `${LAYOUT_DESIGNER_ROW_HEIGHT}px`;
+            stage.appendChild(label);
+        }
+
+        const grid = document.createElement("div");
+        grid.className = "layout-designer-grid";
+        stage.appendChild(grid);
+
+        (regions || []).forEach((region, index) => {
+            const rect = rangeToRect(region.range) || defaultLayoutDesignerRect(index);
+            const box = document.createElement("div");
+            box.className = "layout-designer-region";
+            box.dataset.regionIndex = String(index);
+            box.style.left = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH + rect.x}px`;
+            box.style.top = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT + rect.y}px`;
+            box.style.width = `${rect.width}px`;
+            box.style.height = `${rect.height}px`;
+            box.innerHTML = `
+                <div class="layout-designer-region-title">${escapeHtml(region.name || region.id || "Region")}</div>
+                <div class="layout-designer-region-meta">${escapeHtml(region.range || rectToRange(rect.x, rect.y, rect.width, rect.height))}</div>
+                <div class="layout-designer-region-meta">${escapeHtml(region.type || "region")}</div>
+                <div class="layout-designer-resize"></div>
+            `;
+            box.addEventListener("mousedown", event => startLayoutDesignerDrag(event, index, "move"));
+            box.addEventListener("click", event => {
+                event.stopPropagation();
+                selectLayoutDesignerRegion(index);
+            });
+            const handle = box.querySelector(".layout-designer-resize");
+            if (handle) {
+                handle.addEventListener("mousedown", event => startLayoutDesignerDrag(event, index, "resize"));
+            }
+            stage.appendChild(box);
+        });
+
+        container.innerHTML = "";
+        container.appendChild(stage);
+        if ((regions || []).length > 0) {
+            selectedLayoutRegionIndex = clampLayoutDesignerValue(selectedLayoutRegionIndex, 0, regions.length - 1);
+            selectLayoutDesignerRegion(selectedLayoutRegionIndex, false);
+        }
+    }
+
+    function startLayoutDesignerDrag(event, index, mode) {
+        event.preventDefault();
+        event.stopPropagation();
+        selectLayoutDesignerRegion(index, false);
+        const box = event.currentTarget.classList.contains("layout-designer-region")
+            ? event.currentTarget
+            : event.currentTarget.closest(".layout-designer-region");
+        const rect = rangeToRect(currentProfile?.layout_config?.regions?.[index]?.range)
+            || defaultLayoutDesignerRect(index);
+        activeLayoutDesignerDrag = {
+            index,
+            mode,
+            startX: event.clientX,
+            startY: event.clientY,
+            rect,
+            box
+        };
+        document.addEventListener("mousemove", onLayoutDesignerDragMove);
+        document.addEventListener("mouseup", endLayoutDesignerDrag);
+    }
+
+    function onLayoutDesignerDragMove(event) {
+        if (!activeLayoutDesignerDrag) {
+            return;
+        }
+        const drag = activeLayoutDesignerDrag;
+        const deltaX = event.clientX - drag.startX;
+        const deltaY = event.clientY - drag.startY;
+        let nextX = drag.rect.x;
+        let nextY = drag.rect.y;
+        let nextWidth = drag.rect.width;
+        let nextHeight = drag.rect.height;
+
+        if (drag.mode === "resize") {
+            nextWidth = drag.rect.width + deltaX;
+            nextHeight = drag.rect.height + deltaY;
+        } else {
+            nextX = drag.rect.x + deltaX;
+            nextY = drag.rect.y + deltaY;
+        }
+
+        const range = rectToRange(nextX, nextY, nextWidth, nextHeight);
+        const rect = rangeToRect(range);
+        if (!rect || !drag.box) {
+            return;
+        }
+        drag.box.style.left = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH + rect.x}px`;
+        drag.box.style.top = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT + rect.y}px`;
+        drag.box.style.width = `${rect.width}px`;
+        drag.box.style.height = `${rect.height}px`;
+        const meta = drag.box.querySelector(".layout-designer-region-meta");
+        if (meta) {
+            meta.textContent = range;
+        }
+        syncLayoutDesignerRangeInput(drag.index, range);
+    }
+
+    function endLayoutDesignerDrag() {
+        if (!activeLayoutDesignerDrag) {
+            return;
+        }
+        const index = activeLayoutDesignerDrag.index;
+        activeLayoutDesignerDrag = null;
+        document.removeEventListener("mousemove", onLayoutDesignerDragMove);
+        document.removeEventListener("mouseup", endLayoutDesignerDrag);
+        syncLayoutDesignerFromRegionInput(index, false);
+        renderLayoutConfig();
+    }
+
     function renderLayoutConfig() {
         const area = document.getElementById("layoutConfigArea");
         const resultDiv = document.getElementById("layoutConfigResult");
@@ -1853,10 +2268,16 @@
                 <button type="button" onclick="addLayoutRegion()">新增区域</button>
                 <button type="button" class="save" onclick="saveLayoutConfig()">保存 Layout 配置</button>
             </div>
+            <div class="layout-designer-section">
+                <h3>Layout Designer（实验）</h3>
+                <p class="tips">当前为简化版 Excel 区域设计器，用于快速调整 Region 的大致位置和大小。保存后会同步到 Excel区域。</p>
+                <div id="layoutDesignerCanvas" class="layout-designer"></div>
+            </div>
             <div id="layoutRegionList"></div>
         `;
 
         renderLayoutRegions(config.regions);
+        renderLayoutDesigner(config.regions);
     }
 
     function renderLayoutRegions(regions) {
@@ -1873,22 +2294,23 @@
         list.innerHTML = "";
         regions.forEach((region, index) => {
             const card = document.createElement("div");
-            card.className = "layout-region-card";
+            card.className = "layout-region-card" + (index === selectedLayoutRegionIndex ? " selected" : "");
             card.dataset.regionIndex = String(index);
+            card.addEventListener("click", () => selectLayoutDesignerRegion(index, false));
             const blocks = Array.isArray(region.blocks) ? region.blocks : [];
             card.innerHTML = `
                 <div class="layout-region-header">
                     <div>
                         <label>区域ID</label>
-                        <input id="layout_region_id_${index}" value="${escapeHtml(region.id || "")}" placeholder="main_description">
+                        <input id="layout_region_id_${index}" value="${escapeHtml(region.id || "")}" placeholder="main_description" oninput="syncLayoutDesignerFromRegionInput(${index})">
                     </div>
                     <div>
                         <label>区域名称</label>
-                        <input id="layout_region_name_${index}" value="${escapeHtml(region.name || "")}" placeholder="主产品描述区域">
+                        <input id="layout_region_name_${index}" value="${escapeHtml(region.name || "")}" placeholder="主产品描述区域" oninput="syncLayoutDesignerFromRegionInput(${index})">
                     </div>
                     <div>
                         <label>区域类型</label>
-                        <input id="layout_region_type_${index}" value="${escapeHtml(region.type || "")}" placeholder="rich_text">
+                        <input id="layout_region_type_${index}" value="${escapeHtml(region.type || "")}" placeholder="rich_text" oninput="syncLayoutDesignerFromRegionInput(${index})">
                     </div>
                     <div>
                         <label>工作表</label>
@@ -1896,7 +2318,7 @@
                     </div>
                     <div>
                         <label>Excel区域</label>
-                        <input id="layout_region_range_${index}" value="${escapeHtml(region.range || "")}" placeholder="A10:H20">
+                        <input id="layout_region_range_${index}" value="${escapeHtml(region.range || "")}" placeholder="A10:H20" oninput="syncLayoutDesignerFromRegionInput(${index})">
                     </div>
                     <div class="layout-count">Block数量：${blocks.length}</div>
                     <button class="delete" type="button" onclick="deleteLayoutRegion(${index})">删除区域</button>

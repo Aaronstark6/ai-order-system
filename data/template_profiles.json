@@ -62,7 +62,18 @@
     "profile_version": "v2",
     "layout_config": {
       "enabled": true,
-      "regions": []
+      "regions": [
+        {
+          "id": "region_1778772659338",
+          "name": "新区域",
+          "type": "rich_text",
+          "enabled": true,
+          "sheet": "active",
+          "range": "G7:K40",
+          "blocks": [],
+          "options": {}
+        }
+      ]
     }
   },
   {
