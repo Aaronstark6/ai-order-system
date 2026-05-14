@@ -816,6 +816,65 @@
             margin-top: 3px;
         }
 
+        .region-preview {
+            pointer-events: none;
+            margin-top: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            max-height: calc(100% - 44px);
+            overflow: hidden;
+        }
+
+        .block-preview {
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.5);
+            border-radius: 5px;
+            padding: 5px;
+            font-size: 10px;
+            color: #4b5563;
+            overflow: hidden;
+        }
+
+        .preview-label {
+            font-weight: 700;
+            font-size: 10px;
+            color: #374151;
+            margin-bottom: 4px;
+            white-space: nowrap;
+        }
+
+        .preview-text-block {
+            color: #6b7280;
+            line-height: 1.35;
+            text-align: left;
+            white-space: pre-line;
+        }
+
+        .preview-image-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .preview-image-box {
+            min-height: 18px;
+            border: 1px dashed #94a3b8;
+            border-radius: 4px;
+            background: rgba(226, 232, 240, 0.75);
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
+
+        .preview-gallery-grid {
+            display: grid;
+            gap: 4px;
+        }
+
         .layout-designer-resize {
             position: absolute;
             right: 0;
@@ -2074,6 +2133,10 @@
             .filter(Boolean);
     }
 
+    function parseSourceKeys(value) {
+        return parseLayoutSourceKeys(value);
+    }
+
     function normalizeLayoutBlockOptions(type, options) {
         const source = options && typeof options === "object" && !Array.isArray(options) ? options : {};
         if (type === "image") {
@@ -2365,6 +2428,74 @@
         }
     }
 
+    function renderBlockPreview(block) {
+        const type = String(block && block.type || "description_fields").trim() || "description_fields";
+        const options = normalizeLayoutBlockOptions(type, block?.options || {});
+
+        if (type === "description_fields") {
+            return `
+                <div class="block-preview">
+                    <div class="preview-label">文本描述预览</div>
+                    <div class="preview-text-block">产品描述
+配方要求
+包装方式
+颜色/口味</div>
+                </div>
+            `;
+        }
+
+        if (type === "image_stack") {
+            const keys = parseSourceKeys(options.source_keys);
+            const count = Math.min(3, Math.max(1, keys.length || 3));
+            const boxes = Array.from({ length: count }, (_, index) => `
+                <div class="preview-image-box">图片 ${index + 1}</div>
+            `).join("");
+            return `
+                <div class="block-preview">
+                    <div class="preview-label">纵向图片堆叠</div>
+                    <div class="preview-image-stack">${boxes}</div>
+                </div>
+            `;
+        }
+
+        if (type === "image_gallery") {
+            const keys = parseSourceKeys(options.source_keys);
+            const count = Math.min(9, Math.max(1, keys.length || 6));
+            const columns = Math.min(6, Math.max(1, Math.round(Number(options.columns) || 3)));
+            const boxes = Array.from({ length: count }, () => `<div class="preview-image-box">图</div>`).join("");
+            return `
+                <div class="block-preview">
+                    <div class="preview-label">图片画廊</div>
+                    <div class="preview-gallery-grid" style="grid-template-columns: repeat(${columns}, minmax(0, 1fr));">${boxes}</div>
+                </div>
+            `;
+        }
+
+        if (type === "image") {
+            return `
+                <div class="block-preview">
+                    <div class="preview-label">单图</div>
+                    <div class="preview-image-box">单图</div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="block-preview">
+                <div class="preview-label">未知Block：${escapeHtml(type)}</div>
+            </div>
+        `;
+    }
+
+    function renderRegionBlockPreview(region) {
+        const blocks = Array.isArray(region && region.blocks) ? region.blocks.filter(block => block && block.enabled !== false) : [];
+        const visibleBlocks = blocks.length ? blocks : [];
+        if (!visibleBlocks.length) {
+            return `<div class="block-preview"><div class="preview-label">Blocks: 0</div></div>`;
+        }
+        return visibleBlocks.map(block => renderBlockPreview(block)).join("");
+    }
+
     function syncLayoutDesignerRangeInput(index, range) {
         const input = document.getElementById("layout_region_range_" + index);
         if (input) {
@@ -2516,10 +2647,12 @@
             box.style.top = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT + rect.y}px`;
             box.style.width = `${rect.width}px`;
             box.style.height = `${rect.height}px`;
+            const blocks = Array.isArray(region.blocks) ? region.blocks : [];
             box.innerHTML = `
                 <div class="layout-designer-region-title">${escapeHtml(region.name || region.id || "Region")}</div>
                 <div class="layout-designer-region-meta">${escapeHtml(region.range || rectToRange(rect.x, rect.y, rect.width, rect.height))}</div>
-                <div class="layout-designer-region-meta">${escapeHtml(region.type || "region")}</div>
+                <div class="region-preview">${renderRegionBlockPreview(region)}</div>
+                <div class="layout-designer-region-meta">Blocks: ${blocks.length}</div>
                 <div class="layout-designer-resize"></div>
             `;
             box.addEventListener("mousedown", event => startLayoutDesignerDrag(event, index, "move"));
