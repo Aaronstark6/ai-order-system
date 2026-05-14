@@ -69,11 +69,17 @@
           "type": "rich_text",
           "enabled": true,
           "sheet": "active",
-          "range": "G7:K40",
+          "range": "F4:J37",
           "blocks": [],
           "options": {}
         }
       ]
+    },
+    "layout_preview": {
+      "enabled": true,
+      "image_path": "static/layout_previews/preview_20260515001008471535.png",
+      "image_width": 2240,
+      "image_height": 1119
     }
   },
   {
@@ -130,6 +136,12 @@
     "layout_config": {
       "enabled": false,
       "regions": []
+    },
+    "layout_preview": {
+      "enabled": false,
+      "image_path": "",
+      "image_width": 0,
+      "image_height": 0
     }
   },
   {
@@ -180,6 +192,12 @@
     "layout_config": {
       "enabled": false,
       "regions": []
+    },
+    "layout_preview": {
+      "enabled": false,
+      "image_path": "",
+      "image_width": 0,
+      "image_height": 0
     }
   },
   {
@@ -230,6 +248,12 @@
     "layout_config": {
       "enabled": false,
       "regions": []
+    },
+    "layout_preview": {
+      "enabled": false,
+      "image_path": "",
+      "image_width": 0,
+      "image_height": 0
     }
   },
   {
@@ -328,6 +352,12 @@
           "options": {}
         }
       ]
+    },
+    "layout_preview": {
+      "enabled": false,
+      "image_path": "",
+      "image_width": 0,
+      "image_height": 0
     }
   },
   {
@@ -378,6 +408,12 @@
     "layout_config": {
       "enabled": false,
       "regions": []
+    },
+    "layout_preview": {
+      "enabled": false,
+      "image_path": "",
+      "image_width": 0,
+      "image_height": 0
     }
   },
   {
@@ -428,6 +464,12 @@
     "layout_config": {
       "enabled": false,
       "regions": []
+    },
+    "layout_preview": {
+      "enabled": false,
+      "image_path": "",
+      "image_width": 0,
+      "image_height": 0
     }
   }
 ]

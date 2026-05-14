@@ -9,6 +9,11 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+try:
+    from PIL import Image as PILImage
+except ImportError:
+    PILImage = None
+
 from app.app_settings import (
     load_app_settings,
     save_app_settings,
@@ -57,6 +62,7 @@ STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
 LAYOUT_CACHE_DIR = OUTPUT_DIR / "layout_cache"
+LAYOUT_PREVIEW_DIR = STATIC_DIR / "layout_previews"
 LAST_GENERATED_FILE_PATH = ""
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -330,6 +336,52 @@ def api_upload_template(profile_id: str, file: UploadFile = File(...)):
         return {"success": False, "error": str(e)}
 
 
+@app.post("/api/template-profiles/{profile_id}/layout-preview")
+def api_upload_layout_preview(profile_id: str, file: UploadFile = File(...)):
+    try:
+        if PILImage is None:
+            return {"success": False, "error": "图片预览需要安装 pillow"}
+
+        profile = get_profile(profile_id)
+        if not profile:
+            return {"success": False, "error": "映射不存在"}
+
+        original_name = file.filename or "preview.png"
+        suffix = Path(original_name).suffix.lower()
+        if suffix not in {".png", ".jpg", ".jpeg"}:
+            return {"success": False, "error": "只支持上传 png、jpg、jpeg 图片"}
+
+        LAYOUT_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+        filename = f"preview_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.png"
+        target_path = LAYOUT_PREVIEW_DIR / filename
+
+        with PILImage.open(file.file) as image:
+            width, height = image.size
+            image.convert("RGBA").save(target_path, format="PNG")
+
+        image_path = str(Path("static") / "layout_previews" / filename).replace("\\", "/")
+        layout_preview = {
+            "enabled": True,
+            "image_path": image_path,
+            "image_width": width,
+            "image_height": height,
+        }
+        profile = update_profile_mappings(
+            profile_id=profile_id,
+            mappings=None,
+            layout_preview=layout_preview,
+        )
+        return {
+            "success": True,
+            "image_path": image_path,
+            "image_width": width,
+            "image_height": height,
+            "profile": profile,
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.delete("/api/template-profiles/{profile_id}/template")
 def api_delete_template_file(profile_id: str):
     try:
@@ -353,6 +405,7 @@ def api_update_mappings(profile_id: str, data: dict):
                 description_settings=data.get("description_settings"),
                 image_fields=data.get("image_fields"),
                 layout_config=data.get("layout_config"),
+                layout_preview=data.get("layout_preview"),
                 mapping_order=data.get("mapping_order"),
             )
         }
@@ -373,6 +426,7 @@ def api_update_layout_config(profile_id: str, data: dict):
                 profile_id=profile_id,
                 mappings=None,
                 layout_config=data.get("layout_config"),
+                layout_preview=data.get("layout_preview"),
             )
         }
     except Exception as e:

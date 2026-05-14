@@ -640,6 +640,38 @@
             background-size: 70px 24px;
         }
 
+        .layout-background-panel {
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 14px 0;
+        }
+
+        .layout-background-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .layout-background-row input[type="file"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .layout-background-preview {
+            margin-top: 10px;
+            max-width: 260px;
+            max-height: 150px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            object-fit: contain;
+            display: block;
+        }
+
         .layout-designer-region {
             position: absolute;
             box-sizing: border-box;
@@ -1854,6 +1886,28 @@
         };
     }
 
+    function defaultLayoutPreview() {
+        return {
+            enabled: false,
+            image_path: "",
+            image_width: 0,
+            image_height: 0
+        };
+    }
+
+    function normalizeLayoutPreview(raw) {
+        const preview = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+        const imagePath = String(preview.image_path || "").trim().replace(/\\/g, "/");
+        const imageWidth = Math.max(0, Math.round(Number(preview.image_width || 0)));
+        const imageHeight = Math.max(0, Math.round(Number(preview.image_height || 0)));
+        return {
+            enabled: Boolean(preview.enabled) && Boolean(imagePath),
+            image_path: imagePath,
+            image_width: Number.isFinite(imageWidth) ? imageWidth : 0,
+            image_height: Number.isFinite(imageHeight) ? imageHeight : 0
+        };
+    }
+
     function parseLayoutNumber(value, fallback) {
         const text = String(value ?? "").trim();
         if (!text) {
@@ -2103,6 +2157,7 @@
         if (!container) {
             return;
         }
+        const preview = normalizeLayoutPreview(currentProfile?.layout_preview || defaultLayoutPreview());
 
         const stage = document.createElement("div");
         stage.className = "layout-designer-stage";
@@ -2135,6 +2190,15 @@
 
         const grid = document.createElement("div");
         grid.className = "layout-designer-grid";
+        if (preview.enabled && preview.image_path) {
+            const imageUrl = preview.image_path.startsWith("/")
+                ? preview.image_path
+                : `/${preview.image_path}`;
+            grid.style.backgroundImage = `linear-gradient(to right, rgba(229, 231, 235, 0.42) 1px, transparent 1px), linear-gradient(to bottom, rgba(229, 231, 235, 0.42) 1px, transparent 1px), url("${imageUrl}")`;
+            grid.style.backgroundSize = `${LAYOUT_DESIGNER_COL_WIDTH}px ${LAYOUT_DESIGNER_ROW_HEIGHT}px, ${LAYOUT_DESIGNER_COL_WIDTH}px ${LAYOUT_DESIGNER_ROW_HEIGHT}px, contain`;
+            grid.style.backgroundRepeat = "repeat, repeat, no-repeat";
+            grid.style.backgroundPosition = "top left, top left, top left";
+        }
         stage.appendChild(grid);
 
         (regions || []).forEach((region, index) => {
@@ -2258,6 +2322,11 @@
 
         const config = normalizeLayoutConfig(currentProfile.layout_config || defaultLayoutConfig());
         currentProfile.layout_config = config;
+        currentProfile.layout_preview = normalizeLayoutPreview(currentProfile.layout_preview || defaultLayoutPreview());
+        const preview = currentProfile.layout_preview;
+        const previewSrc = preview.image_path
+            ? (preview.image_path.startsWith("/") ? preview.image_path : `/${preview.image_path}`)
+            : "";
 
         area.innerHTML = `
             <label class="checkbox-line">
@@ -2267,6 +2336,21 @@
             <div class="button-row">
                 <button type="button" onclick="addLayoutRegion()">新增区域</button>
                 <button type="button" class="save" onclick="saveLayoutConfig()">保存 Layout 配置</button>
+            </div>
+            <div class="layout-background-panel">
+                <h3>Template Background（实验）</h3>
+                <p class="tips">上传模板截图后，可作为 Layout Designer 背景参考；Region 仍按简化 Excel 网格换算区域。</p>
+                <label class="checkbox-line">
+                    <input type="checkbox" id="layout_preview_enabled" ${preview.enabled ? "checked" : ""} onchange="toggleLayoutPreviewEnabled()">
+                    <span>启用背景图</span>
+                </label>
+                <div class="layout-background-row">
+                    <input id="layoutPreviewInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg">
+                    <button type="button" onclick="uploadLayoutPreview()">上传背景图</button>
+                    <button class="delete" type="button" onclick="clearLayoutPreview()">清除背景图</button>
+                    <span class="tips">${preview.image_path ? `${preview.image_width || 0} × ${preview.image_height || 0}` : "当前未上传背景图"}</span>
+                </div>
+                ${previewSrc ? `<img class="layout-background-preview" src="${escapeHtml(previewSrc)}" alt="Layout preview">` : ""}
             </div>
             <div class="layout-designer-section">
                 <h3>Layout Designer（实验）</h3>
@@ -2503,6 +2587,15 @@
         };
     }
 
+    function collectLayoutPreview() {
+        const current = normalizeLayoutPreview(currentProfile?.layout_preview || defaultLayoutPreview());
+        const enabledInput = document.getElementById("layout_preview_enabled");
+        return normalizeLayoutPreview({
+            ...current,
+            enabled: enabledInput ? enabledInput.checked : current.enabled
+        });
+    }
+
     function syncCurrentProfileFromResult(profile) {
         if (!profile || !profile.id) {
             return;
@@ -2516,6 +2609,56 @@
             return;
         }
         currentProfile.layout_config = collectLayoutConfig();
+        renderLayoutConfig();
+    }
+
+    function toggleLayoutPreviewEnabled() {
+        if (!currentProfile) {
+            return;
+        }
+        currentProfile.layout_preview = collectLayoutPreview();
+        renderLayoutDesigner(currentProfile.layout_config?.regions || []);
+    }
+
+    async function uploadLayoutPreview() {
+        const resultDiv = document.getElementById("layoutConfigResult");
+        const input = document.getElementById("layoutPreviewInput");
+        if (!currentProfile) {
+            return;
+        }
+        if (!input || !input.files || !input.files.length) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">请先选择背景图</p>`;
+            }
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", input.files[0]);
+        const response = await fetch(`/api/template-profiles/${currentProfile.id}/layout-preview`, {
+            method: "POST",
+            body: formData
+        });
+        const result = await response.json();
+        if (!result.success) {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<p class="error">${escapeHtml(result.error || "背景图上传失败")}</p>`;
+            }
+            return;
+        }
+
+        syncCurrentProfileFromResult(result.profile);
+        renderLayoutConfig();
+        if (resultDiv) {
+            resultDiv.innerHTML = `<p class="success">背景图已上传</p>`;
+        }
+    }
+
+    function clearLayoutPreview() {
+        if (!currentProfile) {
+            return;
+        }
+        currentProfile.layout_preview = defaultLayoutPreview();
         renderLayoutConfig();
     }
 
@@ -2622,13 +2765,15 @@
         }
 
         const layoutConfig = collectLayoutConfig();
+        const layoutPreview = collectLayoutPreview();
         const response = await fetch(`/api/template-profiles/${currentProfile.id}/layout-config`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                layout_config: layoutConfig
+                layout_config: layoutConfig,
+                layout_preview: layoutPreview
             })
         });
         const result = await response.json();
@@ -3238,6 +3383,7 @@
             const documentNoSettings = collectDocumentNoSettings();
             const descriptionSettings = collectDescriptionSettings();
             const layoutConfig = collectLayoutConfig();
+            const layoutPreview = collectLayoutPreview();
             const imageLibraryFields = collectImageLibraryFieldsFromTable();
             validateImageLibraryFields(imageLibraryFields);
             const imageMappings = collectImageMappingsFromTable();
@@ -3264,6 +3410,7 @@
                     document_no_settings: documentNoSettings,
                     description_settings: descriptionSettings,
                     layout_config: layoutConfig,
+                    layout_preview: layoutPreview,
                     image_fields: imageMappings,
                     mapping_defaults: mappingDefaults,
                     mapping_order: mappingOrder

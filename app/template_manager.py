@@ -48,6 +48,13 @@ DEFAULT_DESCRIPTION_SETTINGS = {
     "target_cell": "",
 }
 
+DEFAULT_LAYOUT_PREVIEW = {
+    "enabled": False,
+    "image_path": "",
+    "image_width": 0,
+    "image_height": 0,
+}
+
 PRODUCT_DESCRIPTION_TEMPLATE_MAP = {
     "片剂": "片剂.txt",
     "泡腾片": "泡腾片.txt",
@@ -97,6 +104,34 @@ def normalize_description_settings(raw):
     merged["enabled"] = bool(merged.get("enabled", False))
     merged["template_name"] = Path(str(merged.get("template_name") or "").strip()).name
     merged["target_cell"] = str(merged.get("target_cell") or "").strip().upper()
+
+    return merged
+
+
+def normalize_layout_preview(raw):
+    merged = deepcopy(DEFAULT_LAYOUT_PREVIEW)
+    if isinstance(raw, dict):
+        for key, value in raw.items():
+            if key in DEFAULT_LAYOUT_PREVIEW:
+                merged[key] = value
+
+    merged["enabled"] = bool(merged.get("enabled", False))
+    merged["image_path"] = str(merged.get("image_path") or "").strip().replace("\\", "/")
+
+    try:
+        merged["image_width"] = max(0, int(round(float(merged.get("image_width") or 0))))
+    except (TypeError, ValueError):
+        merged["image_width"] = 0
+
+    try:
+        merged["image_height"] = max(0, int(round(float(merged.get("image_height") or 0))))
+    except (TypeError, ValueError):
+        merged["image_height"] = 0
+
+    if not merged["image_path"]:
+        merged["enabled"] = False
+        merged["image_width"] = 0
+        merged["image_height"] = 0
 
     return merged
 
@@ -168,6 +203,9 @@ def normalize_profile(profile: dict):
     )
     profile["layout_config"] = normalize_layout_config(
         profile.get("layout_config") if isinstance(profile.get("layout_config"), dict) else default_layout_config()
+    )
+    profile["layout_preview"] = normalize_layout_preview(
+        profile.get("layout_preview") if isinstance(profile.get("layout_preview"), dict) else {}
     )
 
     if "document_no_rule" in profile:
@@ -258,6 +296,7 @@ def create_profile(name: str):
         "document_no_settings": document_no_settings,
         "description_settings": deepcopy(DEFAULT_DESCRIPTION_SETTINGS),
         "image_fields": [],
+        "layout_preview": deepcopy(DEFAULT_LAYOUT_PREVIEW),
     }
 
     profiles.append(profile)
@@ -301,6 +340,7 @@ def update_profile_mappings(
         description_settings=None,
         image_fields=None,
         layout_config=None,
+        layout_preview=None,
         mapping_order=None,
 ):
     profiles = load_profiles()
@@ -381,6 +421,15 @@ def update_profile_mappings(
 
             if layout_config is not None:
                 profile["layout_config"] = normalize_layout_config(layout_config)
+
+            if layout_preview is not None:
+                current = profile.get("layout_preview")
+                merged = {}
+                if isinstance(current, dict):
+                    merged.update(current)
+                if isinstance(layout_preview, dict):
+                    merged.update(layout_preview)
+                profile["layout_preview"] = normalize_layout_preview(merged)
 
             save_profiles(profiles)
 
