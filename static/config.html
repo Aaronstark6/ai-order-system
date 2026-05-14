@@ -597,6 +597,93 @@
             margin: 14px 0 18px;
         }
 
+        .layout-designer-workspace {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .layout-designer-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .region-inspector {
+            width: 320px;
+            height: 600px;
+            overflow-y: auto;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: #f9fafb;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        .region-inspector h3,
+        .region-inspector h4 {
+            margin: 0 0 8px;
+        }
+
+        .inspector-muted {
+            color: #6b7280;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .inspector-field {
+            margin-bottom: 10px;
+        }
+
+        .inspector-field label {
+            display: block;
+            color: #4b5563;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .inspector-field input,
+        .inspector-field select {
+            height: 34px;
+            margin: 0;
+        }
+
+        .inspector-summary {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 12px;
+        }
+
+        .inspector-block-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .inspector-block-card.selected {
+            border-color: #1677ff;
+            box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.12);
+        }
+
+        .inspector-block-title {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .inspector-block-options {
+            border-top: 1px dashed #e5e7eb;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+
         .layout-designer-stage {
             position: relative;
             width: 880px;
@@ -697,7 +784,7 @@
         .layout-designer-region {
             position: absolute;
             box-sizing: border-box;
-            border: 2px solid #2563eb;
+            border: 2px solid rgba(37, 99, 235, 0.55);
             background: rgba(37, 99, 235, 0.16);
             color: #111827;
             padding: 6px;
@@ -709,9 +796,10 @@
         }
 
         .layout-designer-region.selected {
-            border-width: 3px;
+            border: 3px solid #f59e0b;
             background: rgba(22, 119, 255, 0.24);
-            box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.12);
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
+            z-index: 20;
         }
 
         .layout-designer-region-title {
@@ -790,10 +878,20 @@
             .image-field-add-row,
             .layout-region-header,
             .layout-block-row,
+            .layout-designer-workspace,
             .settings-grid,
             .grid-3,
             .grid-4 {
                 grid-template-columns: 1fr;
+            }
+
+            .layout-designer-workspace {
+                display: block;
+            }
+
+            .region-inspector {
+                width: 100%;
+                margin-top: 12px;
             }
 
             .field-library-table {
@@ -1148,6 +1246,8 @@
     let aiSettingsPassword = "";
     let draggedFieldKey = "";
     let selectedLayoutRegionIndex = 0;
+    let currentSelectedRegionId = null;
+    let currentInspectorBlockIndex = null;
     let activeLayoutDesignerDrag = null;
     const LAYOUT_DESIGNER_COL_WIDTH = 70;
     const LAYOUT_DESIGNER_ROW_HEIGHT = 24;
@@ -2014,8 +2114,8 @@
         const regions = Array.isArray(config.regions) ? config.regions : [];
         return {
             enabled: config.enabled === true,
-            regions: regions.map(region => ({
-                id: String(region && region.id || "").trim(),
+            regions: regions.map((region, index) => ({
+                id: String(region && region.id || "").trim() || `region_${Date.now()}_${index}`,
                 name: String(region && region.name || "").trim(),
                 type: String(region && region.type || "").trim(),
                 enabled: !region || region.enabled !== false,
@@ -2239,6 +2339,32 @@
         };
     }
 
+    function getLayoutRegionId(region, index) {
+        return String(region && region.id || `region_${index}`).trim();
+    }
+
+    function findLayoutRegionIndexById(regionId) {
+        const regions = currentProfile?.layout_config?.regions || [];
+        return regions.findIndex((region, index) => getLayoutRegionId(region, index) === regionId);
+    }
+
+    function ensureSelectedLayoutRegion(regions) {
+        const list = Array.isArray(regions) ? regions : [];
+        if (!list.length) {
+            currentSelectedRegionId = null;
+            selectedLayoutRegionIndex = 0;
+            currentInspectorBlockIndex = null;
+            return;
+        }
+        const existingIndex = list.findIndex((region, index) => getLayoutRegionId(region, index) === currentSelectedRegionId);
+        selectedLayoutRegionIndex = existingIndex >= 0 ? existingIndex : 0;
+        currentSelectedRegionId = getLayoutRegionId(list[selectedLayoutRegionIndex], selectedLayoutRegionIndex);
+        const blocks = list[selectedLayoutRegionIndex].blocks || [];
+        if (currentInspectorBlockIndex !== null && currentInspectorBlockIndex >= blocks.length) {
+            currentInspectorBlockIndex = blocks.length ? blocks.length - 1 : null;
+        }
+    }
+
     function syncLayoutDesignerRangeInput(index, range) {
         const input = document.getElementById("layout_region_range_" + index);
         if (input) {
@@ -2247,6 +2373,7 @@
         if (currentProfile && currentProfile.layout_config && currentProfile.layout_config.regions[index]) {
             currentProfile.layout_config.regions[index].range = range;
         }
+        renderRegionInspector();
     }
 
     function syncLayoutDesignerFromRegionInput(index, shouldRender = true) {
@@ -2256,24 +2383,35 @@
         const config = collectLayoutConfig();
         currentProfile.layout_config = config;
         selectedLayoutRegionIndex = clampLayoutDesignerValue(index, 0, Math.max(0, config.regions.length - 1));
+        currentSelectedRegionId = getLayoutRegionId(config.regions[selectedLayoutRegionIndex], selectedLayoutRegionIndex);
         if (shouldRender) {
             renderLayoutDesigner(config.regions);
-            highlightLayoutRegionForm(selectedLayoutRegionIndex);
+            highlightLayoutRegionForm();
+            renderRegionInspector();
         }
     }
 
-    function highlightLayoutRegionForm(index) {
+    function highlightLayoutRegionForm() {
         document.querySelectorAll(".layout-region-card").forEach(card => {
-            card.classList.toggle("selected", Number(card.dataset.regionIndex) === Number(index));
+            card.classList.toggle("selected", card.dataset.regionId === currentSelectedRegionId);
         });
     }
 
-    function selectLayoutDesignerRegion(index, shouldScroll = true) {
+    function selectLayoutDesignerRegion(index, shouldScroll = true, shouldRenderInspector = true) {
+        const previousRegionId = currentSelectedRegionId;
         selectedLayoutRegionIndex = Number(index) || 0;
+        const region = currentProfile?.layout_config?.regions?.[selectedLayoutRegionIndex];
+        currentSelectedRegionId = getLayoutRegionId(region, selectedLayoutRegionIndex);
+        if (previousRegionId !== currentSelectedRegionId) {
+            currentInspectorBlockIndex = null;
+        }
         document.querySelectorAll(".layout-designer-region").forEach(region => {
-            region.classList.toggle("selected", Number(region.dataset.regionIndex) === selectedLayoutRegionIndex);
+            region.classList.toggle("selected", region.dataset.regionId === currentSelectedRegionId);
         });
-        highlightLayoutRegionForm(selectedLayoutRegionIndex);
+        highlightLayoutRegionForm();
+        if (shouldRenderInspector) {
+            renderRegionInspector();
+        }
         if (shouldScroll) {
             const card = document.querySelector(`.layout-region-card[data-region-index="${selectedLayoutRegionIndex}"]`);
             if (card) {
@@ -2369,9 +2507,11 @@
 
         (regions || []).forEach((region, index) => {
             const rect = rangeToRect(region.range) || defaultLayoutDesignerRect(index);
+            const regionId = getLayoutRegionId(region, index);
             const box = document.createElement("div");
-            box.className = "layout-designer-region";
+            box.className = "layout-designer-region" + (regionId === currentSelectedRegionId ? " selected" : "");
             box.dataset.regionIndex = String(index);
+            box.dataset.regionId = regionId;
             box.style.left = `${LAYOUT_DESIGNER_ROW_LABEL_WIDTH + rect.x}px`;
             box.style.top = `${LAYOUT_DESIGNER_COL_LABEL_HEIGHT + rect.y}px`;
             box.style.width = `${rect.width}px`;
@@ -2397,8 +2537,8 @@
         container.innerHTML = "";
         container.appendChild(stage);
         if ((regions || []).length > 0) {
-            selectedLayoutRegionIndex = clampLayoutDesignerValue(selectedLayoutRegionIndex, 0, regions.length - 1);
-            selectLayoutDesignerRegion(selectedLayoutRegionIndex, false);
+            ensureSelectedLayoutRegion(regions);
+            selectLayoutDesignerRegion(selectedLayoutRegionIndex, false, false);
         }
     }
 
@@ -2488,6 +2628,7 @@
 
         const config = normalizeLayoutConfig(currentProfile.layout_config || defaultLayoutConfig());
         currentProfile.layout_config = config;
+        ensureSelectedLayoutRegion(config.regions);
         currentProfile.layout_preview = normalizeLayoutPreview(currentProfile.layout_preview || defaultLayoutPreview());
         const preview = currentProfile.layout_preview;
         const previewSrc = preview.image_path
@@ -2521,17 +2662,23 @@
                 </div>
                 ${previewSrc ? `<img class="layout-background-preview" src="${escapeHtml(previewSrc)}" alt="Layout preview">` : ""}
             </div>
-            <div class="layout-designer-section">
-                <h3>Layout Designer（实验）</h3>
-                <p class="tips">当前为简化版 Excel 区域设计器，用于快速调整 Region 的大致位置和大小。保存后会同步到 Excel区域。</p>
-                <p class="tips">${geometryNotice}</p>
-                <div id="layoutDesignerCanvas" class="layout-designer"></div>
+            <div class="layout-designer-workspace">
+                <div class="layout-designer-main">
+                    <div class="layout-designer-section">
+                        <h3>Layout Designer（实验）</h3>
+                        <p class="tips">当前为简化版 Excel 区域设计器，用于快速调整 Region 的大致位置和大小。保存后会同步到 Excel区域。</p>
+                        <p class="tips">${geometryNotice}</p>
+                        <div id="layoutDesignerCanvas" class="layout-designer"></div>
+                    </div>
+                </div>
+                <div id="regionInspector" class="region-inspector"></div>
             </div>
             <div id="layoutRegionList"></div>
         `;
 
         renderLayoutRegions(config.regions);
         renderLayoutDesigner(config.regions);
+        renderRegionInspector();
     }
 
     function renderLayoutRegions(regions) {
@@ -2545,11 +2692,23 @@
             return;
         }
 
+        list.oninput = event => {
+            if (event.target.closest(".layout-block-row")) {
+                syncLayoutFormDraftFromLower();
+            }
+        };
+        list.onchange = event => {
+            if (event.target.closest(".layout-block-row")) {
+                syncLayoutFormDraftFromLower();
+            }
+        };
         list.innerHTML = "";
         regions.forEach((region, index) => {
+            const regionId = getLayoutRegionId(region, index);
             const card = document.createElement("div");
-            card.className = "layout-region-card" + (index === selectedLayoutRegionIndex ? " selected" : "");
+            card.className = "layout-region-card" + (regionId === currentSelectedRegionId ? " selected" : "");
             card.dataset.regionIndex = String(index);
+            card.dataset.regionId = regionId;
             card.addEventListener("click", () => selectLayoutDesignerRegion(index, false));
             const blocks = Array.isArray(region.blocks) ? region.blocks : [];
             card.innerHTML = `
@@ -2575,6 +2734,10 @@
                         <input id="layout_region_range_${index}" value="${escapeHtml(region.range || "")}" placeholder="A10:H20" oninput="syncLayoutDesignerFromRegionInput(${index})">
                     </div>
                     <div class="layout-count">Block数量：${blocks.length}</div>
+                    <label class="checkbox-line">
+                        <input type="checkbox" id="layout_region_enabled_${index}" ${region.enabled !== false ? "checked" : ""} onchange="syncLayoutDesignerFromRegionInput(${index})">
+                        <span>启用</span>
+                    </label>
                     <button class="delete" type="button" onclick="deleteLayoutRegion(${index})">删除区域</button>
                 </div>
                 <div class="layout-blocks-title">Blocks</div>
@@ -2743,7 +2906,7 @@
                 id: (document.getElementById("layout_region_id_" + regionIndex)?.value || "").trim(),
                 name: (document.getElementById("layout_region_name_" + regionIndex)?.value || "").trim(),
                 type: (document.getElementById("layout_region_type_" + regionIndex)?.value || "").trim(),
-                enabled: true,
+                enabled: Boolean(document.getElementById("layout_region_enabled_" + regionIndex)?.checked ?? true),
                 sheet: (document.getElementById("layout_region_sheet_" + regionIndex)?.value || "active").trim() || "active",
                 range: (document.getElementById("layout_region_range_" + regionIndex)?.value || "").trim().toUpperCase(),
                 blocks: blocks,
@@ -2764,6 +2927,339 @@
             ...current,
             enabled: enabledInput ? enabledInput.checked : current.enabled
         });
+    }
+
+    function getSelectedLayoutRegion() {
+        const index = findLayoutRegionIndexById(currentSelectedRegionId);
+        if (index < 0) {
+            return { index: -1, region: null };
+        }
+        return {
+            index,
+            region: currentProfile.layout_config.regions[index]
+        };
+    }
+
+    function syncLayoutFormDraftFromLower() {
+        if (!currentProfile) {
+            return;
+        }
+        currentProfile.layout_config = collectLayoutConfig();
+        ensureSelectedLayoutRegion(currentProfile.layout_config.regions);
+        renderLayoutDesigner(currentProfile.layout_config.regions);
+        renderRegionInspector();
+    }
+
+    function summarizeBlockOptions(block) {
+        const type = String(block.type || "description_fields");
+        const options = normalizeLayoutBlockOptions(type, block.options || {});
+        if (type === "image_stack") {
+            return `source_keys: ${(options.source_keys || []).join(",") || "-"} · ${options.image_width}×${options.image_height} · ${options.layout_mode}`;
+        }
+        if (type === "image_gallery") {
+            return `source_keys: ${(options.source_keys || []).join(",") || "-"} · ${options.columns}列 · ${options.image_width}×${options.image_height}`;
+        }
+        if (type === "image") {
+            return `source: ${block.source || "-"} · ${options.width}×${options.height}`;
+        }
+        return block.source ? `source: ${block.source}` : "description_fields";
+    }
+
+    function renderInspectorBlockEditor(block, blockIndex) {
+        const type = String(block.type || "description_fields").trim() || "description_fields";
+        const options = normalizeLayoutBlockOptions(type, block.options || {});
+        const common = `
+            <div class="inspector-field">
+                <label>Block Type</label>
+                <select onchange="updateInspectorBlockField(${blockIndex}, 'type', this.value, true)">
+                    <option value="description_fields" ${type === "description_fields" ? "selected" : ""}>description_fields</option>
+                    <option value="image" ${type === "image" ? "selected" : ""}>image</option>
+                    <option value="image_gallery" ${type === "image_gallery" ? "selected" : ""}>image_gallery</option>
+                    <option value="image_stack" ${type === "image_stack" ? "selected" : ""}>image_stack</option>
+                </select>
+            </div>
+            <label class="checkbox-line inspector-field">
+                <input type="checkbox" ${block.enabled !== false ? "checked" : ""} onchange="updateInspectorBlockField(${blockIndex}, 'enabled', this.checked)">
+                <span>启用 Block</span>
+            </label>
+            <div class="inspector-field">
+                <label>Source</label>
+                <input value="${escapeHtml(block.source || "")}" oninput="updateInspectorBlockField(${blockIndex}, 'source', this.value)">
+            </div>
+        `;
+
+        if (type === "image_stack") {
+            return common + `
+                <div class="inspector-field">
+                    <label>source_keys</label>
+                    <input value="${escapeHtml((options.source_keys || []).join(","))}" oninput="updateInspectorBlockField(${blockIndex}, 'options.source_keys', this.value)">
+                </div>
+                <div class="inspector-field">
+                    <label>width</label>
+                    <input type="number" min="1" value="${escapeHtml(options.image_width)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.image_width', this.value)">
+                </div>
+                <div class="inspector-field">
+                    <label>height</label>
+                    <input type="number" min="1" value="${escapeHtml(options.image_height)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.image_height', this.value)">
+                </div>
+                <label class="checkbox-line inspector-field">
+                    <input type="checkbox" ${options.keep_ratio !== false ? "checked" : ""} onchange="updateInspectorBlockField(${blockIndex}, 'options.keep_ratio', this.checked)">
+                    <span>keep_ratio</span>
+                </label>
+                <div class="inspector-field">
+                    <label>gap_px</label>
+                    <input type="number" min="0" value="${escapeHtml(options.gap_px)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.gap_px', this.value)">
+                </div>
+                <div class="inspector-field">
+                    <label>layout_mode</label>
+                    <select onchange="updateInspectorBlockField(${blockIndex}, 'options.layout_mode', this.value)">
+                        <option value="auto_stack" ${options.layout_mode === "auto_stack" ? "selected" : ""}>auto_stack</option>
+                        <option value="row_step" ${options.layout_mode === "row_step" ? "selected" : ""}>row_step</option>
+                    </select>
+                </div>
+                <div class="inspector-field">
+                    <label>anchor_cell</label>
+                    <input value="${escapeHtml(options.anchor_cell || "")}" oninput="updateInspectorBlockField(${blockIndex}, 'options.anchor_cell', this.value)">
+                </div>
+            `;
+        }
+
+        if (type === "image_gallery") {
+            return common + `
+                <div class="inspector-field">
+                    <label>source_keys</label>
+                    <input value="${escapeHtml((options.source_keys || []).join(","))}" oninput="updateInspectorBlockField(${blockIndex}, 'options.source_keys', this.value)">
+                </div>
+                <div class="inspector-field">
+                    <label>columns</label>
+                    <input type="number" min="1" value="${escapeHtml(options.columns)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.columns', this.value)">
+                </div>
+                <div class="inspector-field">
+                    <label>width</label>
+                    <input type="number" min="1" value="${escapeHtml(options.image_width)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.image_width', this.value)">
+                </div>
+                <div class="inspector-field">
+                    <label>height</label>
+                    <input type="number" min="1" value="${escapeHtml(options.image_height)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.image_height', this.value)">
+                </div>
+                <label class="checkbox-line inspector-field">
+                    <input type="checkbox" ${options.keep_ratio !== false ? "checked" : ""} onchange="updateInspectorBlockField(${blockIndex}, 'options.keep_ratio', this.checked)">
+                    <span>keep_ratio</span>
+                </label>
+                <div class="inspector-field">
+                    <label>row_step</label>
+                    <input type="number" min="1" value="${escapeHtml(options.row_step)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.row_step', this.value)">
+                </div>
+                <div class="inspector-field">
+                    <label>col_step</label>
+                    <input type="number" min="1" value="${escapeHtml(options.col_step)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.col_step', this.value)">
+                </div>
+            `;
+        }
+
+        if (type === "image") {
+            return common + `
+                <div class="inspector-field">
+                    <label>width</label>
+                    <input type="number" min="1" value="${escapeHtml(options.width)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.width', this.value)">
+                </div>
+                <div class="inspector-field">
+                    <label>height</label>
+                    <input type="number" min="1" value="${escapeHtml(options.height)}" oninput="updateInspectorBlockField(${blockIndex}, 'options.height', this.value)">
+                </div>
+                <label class="checkbox-line inspector-field">
+                    <input type="checkbox" ${options.keep_ratio !== false ? "checked" : ""} onchange="updateInspectorBlockField(${blockIndex}, 'options.keep_ratio', this.checked)">
+                    <span>keep_ratio</span>
+                </label>
+            `;
+        }
+
+        return common;
+    }
+
+    function renderRegionInspector() {
+        const inspector = document.getElementById("regionInspector");
+        if (!inspector) {
+            return;
+        }
+        if (!currentProfile || !currentProfile.layout_config || !currentProfile.layout_config.regions.length) {
+            inspector.innerHTML = `<div class="inspector-muted">请选择或新增一个 Region。</div>`;
+            return;
+        }
+
+        ensureSelectedLayoutRegion(currentProfile.layout_config.regions);
+        const { index, region } = getSelectedLayoutRegion();
+        if (!region) {
+            inspector.innerHTML = `<div class="inspector-muted">请选择一个 Region。</div>`;
+            return;
+        }
+
+        const blocks = Array.isArray(region.blocks) ? region.blocks : [];
+        const blockCards = blocks.map((block, blockIndex) => {
+            const isSelected = currentInspectorBlockIndex === blockIndex;
+            return `
+                <div class="inspector-block-card ${isSelected ? "selected" : ""}">
+                    <div class="inspector-block-title" onclick="selectInspectorBlock(${blockIndex})">
+                        <span>[${escapeHtml(block.type || "description_fields")}]</span>
+                        <span class="inspector-muted">${block.enabled !== false ? "on" : "off"}</span>
+                    </div>
+                    <div class="inspector-muted">${escapeHtml(summarizeBlockOptions(block))}</div>
+                    ${isSelected ? `
+                        <div class="inspector-block-options">
+                            ${renderInspectorBlockEditor(block, blockIndex)}
+                            <button class="delete" type="button" onclick="deleteInspectorBlock(${blockIndex})">删除 Block</button>
+                        </div>
+                    ` : ""}
+                </div>
+            `;
+        }).join("");
+
+        inspector.innerHTML = `
+            <div class="inspector-summary">
+                <h3>${escapeHtml(region.name || region.id || "Region")}</h3>
+                <div class="inspector-muted">${escapeHtml(region.type || "region")}</div>
+                <div class="inspector-muted">${escapeHtml(region.range || "-")}</div>
+            </div>
+            <div class="inspector-field">
+                <label>Region Name</label>
+                <input value="${escapeHtml(region.name || "")}" oninput="updateInspectorRegionField('name', this.value)">
+            </div>
+            <div class="inspector-field">
+                <label>Excel Range</label>
+                <input value="${escapeHtml(region.range || "")}" oninput="updateInspectorRegionField('range', this.value.toUpperCase())">
+            </div>
+            <div class="inspector-field">
+                <label>Sheet</label>
+                <div class="inspector-muted">${escapeHtml(region.sheet || "active")}</div>
+            </div>
+            <label class="checkbox-line inspector-field">
+                <input type="checkbox" ${region.enabled !== false ? "checked" : ""} onchange="updateInspectorRegionField('enabled', this.checked)">
+                <span>启用 Region</span>
+            </label>
+            <div class="button-row">
+                <button type="button" onclick="addInspectorBlock()">新增 Block</button>
+                <button class="delete" type="button" onclick="deleteInspectorRegion()">删除 Region</button>
+            </div>
+            <h4>Blocks</h4>
+            ${blockCards || `<div class="inspector-muted">暂无 Block。</div>`}
+        `;
+    }
+
+    function updateInspectorRegionField(field, value) {
+        const { index, region } = getSelectedLayoutRegion();
+        if (!region) {
+            return;
+        }
+        const idPrefix = "layout_region_" + field + "_" + index;
+        const input = document.getElementById(idPrefix);
+        if (input) {
+            if (input.type === "checkbox") {
+                input.checked = Boolean(value);
+            } else {
+                input.value = value;
+            }
+        }
+        if (field === "enabled") {
+            const enabledInput = document.getElementById("layout_region_enabled_" + index);
+            if (enabledInput) {
+                enabledInput.checked = Boolean(value);
+            }
+        }
+        region[field] = field === "enabled" ? Boolean(value) : String(value || "").trim();
+        if (field === "range") {
+            region.range = String(value || "").trim().toUpperCase();
+        }
+        currentProfile.layout_config.regions[index] = region;
+        renderLayoutDesigner(currentProfile.layout_config.regions);
+        highlightLayoutRegionForm();
+    }
+
+    function selectInspectorBlock(blockIndex) {
+        currentInspectorBlockIndex = currentInspectorBlockIndex === blockIndex ? null : blockIndex;
+        renderRegionInspector();
+    }
+
+    function updateInspectorBlockField(blockIndex, field, value, rerender = false) {
+        const { index, region } = getSelectedLayoutRegion();
+        if (!region || !region.blocks || !region.blocks[blockIndex]) {
+            return;
+        }
+        const block = region.blocks[blockIndex];
+        if (field === "type") {
+            block.type = value;
+            block.options = normalizeLayoutBlockOptions(value, {});
+            rerender = true;
+        } else if (field === "enabled") {
+            block.enabled = Boolean(value);
+        } else if (field === "source") {
+            block.source = String(value || "").trim();
+        } else if (field.startsWith("options.")) {
+            const key = field.replace("options.", "");
+            const type = String(block.type || "description_fields");
+            const options = normalizeLayoutBlockOptions(type, block.options || {});
+            if (key === "source_keys") {
+                options.source_keys = parseLayoutSourceKeys(value);
+            } else if (key === "keep_ratio") {
+                options.keep_ratio = Boolean(value);
+            } else if (["image_width", "image_height", "width", "height", "columns", "row_step", "col_step", "gap_px"].includes(key)) {
+                options[key] = parseLayoutNumber(value, options[key] || 1);
+            } else {
+                options[key] = String(value || "").trim();
+                if (key === "anchor_cell") {
+                    options[key] = options[key].toUpperCase();
+                }
+            }
+            block.options = options;
+        }
+        region.blocks[blockIndex] = block;
+        currentProfile.layout_config.regions[index] = region;
+        renderLayoutRegions(currentProfile.layout_config.regions);
+        renderLayoutDesigner(currentProfile.layout_config.regions);
+        if (rerender) {
+            renderRegionInspector();
+        }
+    }
+
+    function addInspectorBlock() {
+        const { index, region } = getSelectedLayoutRegion();
+        if (!region) {
+            return;
+        }
+        if (!Array.isArray(region.blocks)) {
+            region.blocks = [];
+        }
+        region.blocks.push({
+            id: `block_${Date.now()}`,
+            type: "description_fields",
+            enabled: true,
+            source: "",
+            options: {}
+        });
+        currentInspectorBlockIndex = region.blocks.length - 1;
+        currentProfile.layout_config.regions[index] = region;
+        renderLayoutConfig();
+    }
+
+    function deleteInspectorBlock(blockIndex) {
+        const { index, region } = getSelectedLayoutRegion();
+        if (!region || !Array.isArray(region.blocks)) {
+            return;
+        }
+        region.blocks.splice(blockIndex, 1);
+        currentInspectorBlockIndex = null;
+        currentProfile.layout_config.regions[index] = region;
+        renderLayoutConfig();
+    }
+
+    function deleteInspectorRegion() {
+        const { index, region } = getSelectedLayoutRegion();
+        if (!region) {
+            return;
+        }
+        if (!confirm(`确定删除 Region：${region.name || region.id || region.range || index + 1} 吗？`)) {
+            return;
+        }
+        deleteLayoutRegion(index, { skipConfirm: true });
     }
 
     function syncCurrentProfileFromResult(profile) {
@@ -2852,12 +3348,18 @@
         renderLayoutConfig();
     }
 
-    function deleteLayoutRegion(index) {
+    function deleteLayoutRegion(index, options = {}) {
         if (!currentProfile) {
             return;
         }
         const config = collectLayoutConfig();
+        const region = config.regions[index];
+        if (!options.skipConfirm && region && !confirm(`确定删除 Region：${region.name || region.id || region.range || index + 1} 吗？`)) {
+            return;
+        }
         config.regions.splice(index, 1);
+        currentSelectedRegionId = null;
+        currentInspectorBlockIndex = null;
         currentProfile.layout_config = config;
         renderLayoutConfig();
     }
