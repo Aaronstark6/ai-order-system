@@ -302,7 +302,7 @@
     ],
     "profile_version": "v2",
     "layout_config": {
-      "enabled": true,
+      "enabled": false,
       "regions": [
         {
           "id": "region_1778744284408",
@@ -316,7 +316,7 @@
               "id": "block_1778744315136",
               "type": "image_gallery",
               "source": "image_data",
-              "enabled": true,
+              "enabled": false,
               "options": {
                 "source_keys": [
                   "front_label",

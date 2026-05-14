@@ -2017,9 +2017,17 @@
         });
 
         return {
-            enabled: Boolean(enabled && enabled.checked),
+            enabled: enabled ? enabled.checked : false,
             regions: regions
         };
+    }
+
+    function syncCurrentProfileFromResult(profile) {
+        if (!profile || !profile.id) {
+            return;
+        }
+        currentProfile = profile;
+        profiles = profiles.map(item => item.id === currentProfile.id ? currentProfile : item);
     }
 
     function refreshLayoutConfigDraft() {
@@ -2140,8 +2148,7 @@
             return;
         }
 
-        currentProfile = result.profile;
-        profiles = profiles.map(profile => profile.id === currentProfile.id ? currentProfile : profile);
+        syncCurrentProfileFromResult(result.profile);
         renderLayoutConfig();
         if (resultDiv) {
             resultDiv.innerHTML = `<p class="success">Layout配置已保存</p>`;
@@ -2738,6 +2745,7 @@
 
             const documentNoSettings = collectDocumentNoSettings();
             const descriptionSettings = collectDescriptionSettings();
+            const layoutConfig = collectLayoutConfig();
             const imageLibraryFields = collectImageLibraryFieldsFromTable();
             validateImageLibraryFields(imageLibraryFields);
             const imageMappings = collectImageMappingsFromTable();
@@ -2763,6 +2771,7 @@
                     mappings: mappings,
                     document_no_settings: documentNoSettings,
                     description_settings: descriptionSettings,
+                    layout_config: layoutConfig,
                     image_fields: imageMappings,
                     mapping_defaults: mappingDefaults,
                     mapping_order: mappingOrder
@@ -2786,6 +2795,7 @@
             renderProfileSelect();
 
             document.getElementById("profileSelect").value = result.profile.id;
+            syncCurrentProfileFromResult(result.profile);
             selectProfile();
 
             resultDiv.innerHTML = `<p class="success">字段库与当前映射已保存</p>`;
