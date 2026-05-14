@@ -276,8 +276,8 @@
     "image_fields": [
       {
         "key": "product_image",
-        "enabled": false,
-        "cell": ""
+        "enabled": true,
+        "cell": "G8"
       }
     ],
     "profile_version": "v2",
@@ -285,19 +285,23 @@
       "enabled": true,
       "regions": [
         {
-          "id": "region_1778742199167",
-          "name": "主产品描述区域",
-          "type": "rich_text",
+          "id": "region_1778743057724",
+          "name": "单图测试区域",
+          "type": "image",
           "enabled": true,
           "sheet": "active",
           "range": "A16:H26",
           "blocks": [
             {
-              "id": "block_1778742240271",
-              "type": "description_fields",
-              "source": "description_fields",
+              "id": "block_1778743104524",
+              "type": "image",
+              "source": "product_image",
               "enabled": true,
-              "options": {}
+              "options": {
+                "width": 220,
+                "height": 160,
+                "keep_ratio": true
+              }
             }
           ],
           "options": {}

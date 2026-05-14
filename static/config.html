@@ -551,7 +551,7 @@
         }
 
         .layout-block-row {
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 86px 96px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 86px 86px 96px 72px 96px;
             margin-top: 10px;
             padding-top: 10px;
             border-top: 1px dashed #e5e7eb;
@@ -566,6 +566,7 @@
 
         .layout-region-header input,
         .layout-block-row input,
+        .layout-block-row select,
         .layout-block-row button,
         .layout-region-header button {
             height: 38px;
@@ -1730,6 +1731,27 @@
         };
     }
 
+    function parseLayoutNumber(value, fallback) {
+        const text = String(value ?? "").trim();
+        if (!text) {
+            return fallback;
+        }
+        const number = Number(text);
+        return Number.isFinite(number) && number > 0 ? number : fallback;
+    }
+
+    function normalizeLayoutBlockOptions(type, options) {
+        const source = options && typeof options === "object" && !Array.isArray(options) ? options : {};
+        if (type === "image") {
+            return {
+                width: parseLayoutNumber(source.width, 220),
+                height: parseLayoutNumber(source.height, 160),
+                keep_ratio: source.keep_ratio !== false
+            };
+        }
+        return source;
+    }
+
     function normalizeLayoutConfig(raw) {
         const config = raw && typeof raw === "object" ? raw : {};
         const regions = Array.isArray(config.regions) ? config.regions : [];
@@ -1743,13 +1765,17 @@
                 sheet: String(region && region.sheet || "active").trim() || "active",
                 range: String(region && region.range || "").trim().toUpperCase(),
                 blocks: Array.isArray(region && region.blocks)
-                    ? region.blocks.map(block => ({
-                        id: String(block && block.id || "").trim(),
-                        type: String(block && block.type || "").trim(),
-                        source: String(block && block.source || "").trim(),
-                        enabled: !block || block.enabled !== false,
-                        options: block && typeof block.options === "object" && !Array.isArray(block.options) ? block.options : {}
-                    }))
+                    ? region.blocks.map(block => {
+                        const type = String(block && block.type || "").trim() || "description_fields";
+                        const rawOptions = block && typeof block.options === "object" && !Array.isArray(block.options) ? block.options : {};
+                        return {
+                            id: String(block && block.id || "").trim(),
+                            type: type,
+                            source: String(block && block.source || "").trim(),
+                            enabled: !block || block.enabled !== false,
+                            options: normalizeLayoutBlockOptions(type, rawOptions)
+                        };
+                    })
                     : [],
                 options: region && typeof region.options === "object" && !Array.isArray(region.options) ? region.options : {}
             }))
@@ -1834,7 +1860,8 @@
                 <div class="layout-blocks-title">Blocks</div>
                 <div id="layout_blocks_${index}"></div>
                 <div class="button-row">
-                    <button type="button" onclick="addLayoutBlock(${index})">新增 Block</button>
+                    <button type="button" onclick="addLayoutBlock(${index}, 'description_fields')">新增描述 Block</button>
+                    <button type="button" onclick="addLayoutBlock(${index}, 'image')">新增 Image Block</button>
                 </div>
             `;
             list.appendChild(card);
@@ -1858,6 +1885,10 @@
             const row = document.createElement("div");
             row.className = "layout-block-row";
             row.dataset.blockIndex = String(blockIndex);
+            const type = String(block.type || "description_fields").trim() || "description_fields";
+            const options = normalizeLayoutBlockOptions(type, block.options || {});
+            const sourcePlaceholder = type === "image" ? "front_label" : "description_fields";
+            const imageOptionsDisabled = type === "image" ? "" : "disabled";
             row.innerHTML = `
                 <div>
                     <label>Block ID</label>
@@ -1865,12 +1896,27 @@
                 </div>
                 <div>
                     <label>Block Type</label>
-                    <input id="layout_block_type_${regionIndex}_${blockIndex}" value="${escapeHtml(block.type || "")}" placeholder="description_fields">
+                    <select id="layout_block_type_${regionIndex}_${blockIndex}" onchange="refreshLayoutConfigDraft()">
+                        <option value="description_fields" ${type === "description_fields" ? "selected" : ""}>description_fields</option>
+                        <option value="image" ${type === "image" ? "selected" : ""}>image</option>
+                    </select>
                 </div>
                 <div>
                     <label>Source</label>
-                    <input id="layout_block_source_${regionIndex}_${blockIndex}" value="${escapeHtml(block.source || "")}" placeholder="description_fields">
+                    <input id="layout_block_source_${regionIndex}_${blockIndex}" value="${escapeHtml(block.source || "")}" placeholder="${escapeHtml(sourcePlaceholder)}">
                 </div>
+                <div>
+                    <label>Width</label>
+                    <input id="layout_block_width_${regionIndex}_${blockIndex}" type="number" min="1" value="${type === "image" ? escapeHtml(options.width) : ""}" placeholder="220" ${imageOptionsDisabled}>
+                </div>
+                <div>
+                    <label>Height</label>
+                    <input id="layout_block_height_${regionIndex}_${blockIndex}" type="number" min="1" value="${type === "image" ? escapeHtml(options.height) : ""}" placeholder="160" ${imageOptionsDisabled}>
+                </div>
+                <label class="checkbox-line">
+                    <input type="checkbox" id="layout_block_keep_ratio_${regionIndex}_${blockIndex}" ${options.keep_ratio !== false ? "checked" : ""} ${imageOptionsDisabled}>
+                    <span>等比</span>
+                </label>
                 <label class="checkbox-line">
                     <input type="checkbox" id="layout_block_enabled_${regionIndex}_${blockIndex}" ${block.enabled !== false ? "checked" : ""}>
                     <span>启用</span>
@@ -1887,12 +1933,20 @@
             const regionIndex = card.dataset.regionIndex;
             const blocks = Array.from(card.querySelectorAll(".layout-block-row")).map(row => {
                 const blockIndex = row.dataset.blockIndex;
+                const type = (document.getElementById(`layout_block_type_${regionIndex}_${blockIndex}`)?.value || "description_fields").trim();
+                const options = type === "image"
+                    ? {
+                        width: parseLayoutNumber(document.getElementById(`layout_block_width_${regionIndex}_${blockIndex}`)?.value, 220),
+                        height: parseLayoutNumber(document.getElementById(`layout_block_height_${regionIndex}_${blockIndex}`)?.value, 160),
+                        keep_ratio: Boolean(document.getElementById(`layout_block_keep_ratio_${regionIndex}_${blockIndex}`)?.checked)
+                    }
+                    : {};
                 return {
                     id: (document.getElementById(`layout_block_id_${regionIndex}_${blockIndex}`)?.value || "").trim(),
-                    type: (document.getElementById(`layout_block_type_${regionIndex}_${blockIndex}`)?.value || "").trim(),
+                    type: type,
                     source: (document.getElementById(`layout_block_source_${regionIndex}_${blockIndex}`)?.value || "").trim(),
                     enabled: Boolean(document.getElementById(`layout_block_enabled_${regionIndex}_${blockIndex}`)?.checked),
-                    options: {}
+                    options: options
                 };
             });
 
@@ -1912,6 +1966,14 @@
             enabled: Boolean(enabled && enabled.checked),
             regions: regions
         };
+    }
+
+    function refreshLayoutConfigDraft() {
+        if (!currentProfile) {
+            return;
+        }
+        currentProfile.layout_config = collectLayoutConfig();
+        renderLayoutConfig();
     }
 
     function addLayoutRegion() {
@@ -1944,7 +2006,7 @@
         renderLayoutConfig();
     }
 
-    function addLayoutBlock(regionIndex) {
+    function addLayoutBlock(regionIndex, blockType) {
         if (!currentProfile) {
             return;
         }
@@ -1953,12 +2015,19 @@
             return;
         }
         const ts = Date.now();
+        const type = blockType === "image" ? "image" : "description_fields";
         config.regions[regionIndex].blocks.push({
             id: `block_${ts}`,
-            type: "description_fields",
-            source: "description_fields",
+            type: type,
+            source: type === "image" ? "" : "description_fields",
             enabled: true,
-            options: {}
+            options: type === "image"
+                ? {
+                    width: 220,
+                    height: 160,
+                    keep_ratio: true
+                }
+                : {}
         });
         currentProfile.layout_config = config;
         renderLayoutConfig();
