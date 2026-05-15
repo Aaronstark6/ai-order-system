@@ -1,8 +1,9 @@
 import json
-from pathlib import Path
+
+from app.runtime_paths import get_base_dir
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = get_base_dir()
 MAPPINGS_FILE = BASE_DIR / "data" / "mappings.json"
 
 

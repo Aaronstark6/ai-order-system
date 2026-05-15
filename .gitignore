@@ -4,3 +4,6 @@ __pycache__/
 .env
 output/
 .vscode/
+build/
+dist/
+*.spec

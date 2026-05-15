@@ -26,9 +26,10 @@ from app.image_manager import cleanup_layout_cache, load_image_fields, resolve_u
 from app.ingredient_parser import analyze_ingredient_initials_source
 from app.layout_engine import collect_layout_image_keys, render_layout
 from app.logger import get_logger
+from app.runtime_paths import get_base_dir
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = get_base_dir()
 TEMPLATE_UPLOAD_DIR = BASE_DIR / "templates" / "uploads"
 OUTPUT_DIR = BASE_DIR / "output"
 SOURCE_MARK_RE = re.compile(r"\[(模板|AI|系统|人工)\]")

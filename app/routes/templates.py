@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, UploadFile
 
 from app.logger import get_logger
+from app.runtime_paths import get_base_dir
 
 try:
     from PIL import Image as PILImage
@@ -25,7 +26,7 @@ from app.template_manager import (
 router = APIRouter()
 logger = get_logger(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = get_base_dir()
 STATIC_DIR = BASE_DIR / "static"
 LAYOUT_PREVIEW_DIR = STATIC_DIR / "layout_previews"
 

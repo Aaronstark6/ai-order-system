@@ -5,8 +5,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from app.runtime_paths import get_base_dir
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+
+BASE_DIR = get_base_dir()
 IMAGE_FIELDS_FILE = BASE_DIR / "data" / "image_fields.json"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
 IMAGE_POOL_UPLOAD_DIR = BASE_DIR / "uploads" / "image_pool"

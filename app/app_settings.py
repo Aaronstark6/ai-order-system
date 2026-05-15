@@ -1,13 +1,14 @@
 import json
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
+
+from app.runtime_paths import get_base_dir
 
 
 load_dotenv()
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = get_base_dir()
 SETTINGS_FILE = BASE_DIR / "data" / "app_settings.json"
 DEFAULT_APP_SETTINGS = {
     "default_sales_name": "Anna",

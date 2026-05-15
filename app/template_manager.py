@@ -7,9 +7,10 @@ from uuid import uuid4
 from app.app_settings import DEFAULT_APP_SETTINGS, load_app_settings
 from app.image_manager import normalize_image_mappings
 from app.layout_schema import default_layout_config, normalize_layout_config
+from app.runtime_paths import get_base_dir
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = get_base_dir()
 DATA_DIR = BASE_DIR / "data"
 TEMPLATE_UPLOAD_DIR = BASE_DIR / "templates" / "uploads"
 PROFILES_FILE = DATA_DIR / "template_profiles.json"

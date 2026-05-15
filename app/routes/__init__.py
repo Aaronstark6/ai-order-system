@@ -28,6 +28,7 @@ from app.logger import get_logger
 from app.routes.images import router as images_router
 from app.routes.parse import router as parse_router
 from app.routes.templates import router as templates_router
+from app.runtime_paths import get_base_dir
 
 
 core_router = APIRouter()
@@ -40,7 +41,7 @@ __all__ = [
     "templates_router",
 ]
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = get_base_dir()
 OUTPUT_DIR = BASE_DIR / "output"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
 LAST_GENERATED_FILE_PATH = ""

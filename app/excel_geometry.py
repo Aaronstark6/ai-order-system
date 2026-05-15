@@ -3,10 +3,11 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
+from app.runtime_paths import get_base_dir
 from app.template_manager import get_profile
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = get_base_dir()
 TEMPLATE_UPLOAD_DIR = BASE_DIR / "templates" / "uploads"
 DEFAULT_COLUMN_WIDTH_PX = 64
 DEFAULT_ROW_HEIGHT_PX = 24

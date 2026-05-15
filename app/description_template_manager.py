@@ -1,8 +1,10 @@
 import re
 from pathlib import Path
 
+from app.runtime_paths import get_base_dir
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+
+BASE_DIR = get_base_dir()
 DESCRIPTION_TEMPLATE_DIR = BASE_DIR / "data" / "description_templates"
 DEFAULT_DESCRIPTION_TEMPLATE_CONTENT = """产品名称：{product_name}
 产品形式：{product_form}
