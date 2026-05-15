@@ -89,6 +89,19 @@
             max-height: 340px;
         }
 
+        .chat-copy-tip {
+            display: none;
+            margin-top: -8px;
+            margin-bottom: 12px;
+            color: #1677ff;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .chat-copy-tip.visible {
+            display: block;
+        }
+
         .description-textarea {
             min-height: 260px;
             font-family: Consolas, "Microsoft YaHei", monospace;
@@ -549,6 +562,7 @@
         <h2>客户聊天内容</h2>
 
         <textarea id="message" placeholder="例如：客户小李要订购5000盒固体饮料，电话是13800138000，下周发货"></textarea>
+        <div id="messageCopyTip" class="chat-copy-tip">已复制选中内容</div>
 
         <label>选择模板映射</label>
         <select id="profileSelect">
@@ -627,8 +641,86 @@
     let ingredientInitialsManuallyEdited = false;
     let currentIngredientInitialsMessage = "";
     let descriptionIsComposing = false;
+    let chatCopyTipTimer = null;
+
+    function showMessageCopyTip() {
+        const tip = document.getElementById("messageCopyTip");
+        if (!tip) {
+            return;
+        }
+
+        tip.classList.add("visible");
+        if (chatCopyTipTimer) {
+            clearTimeout(chatCopyTipTimer);
+        }
+        chatCopyTipTimer = setTimeout(() => {
+            tip.classList.remove("visible");
+            chatCopyTipTimer = null;
+        }, 1500);
+    }
+
+    function fallbackCopyText(text, sourceTextarea) {
+        const helper = document.createElement("textarea");
+        const selectionStart = sourceTextarea.selectionStart;
+        const selectionEnd = sourceTextarea.selectionEnd;
+
+        helper.value = text;
+        helper.setAttribute("readonly", "");
+        helper.style.position = "fixed";
+        helper.style.left = "-9999px";
+        helper.style.top = "0";
+        document.body.appendChild(helper);
+        helper.select();
+
+        const copied = document.execCommand("copy");
+        document.body.removeChild(helper);
+        sourceTextarea.focus();
+        sourceTextarea.setSelectionRange(selectionStart, selectionEnd);
+        return copied;
+    }
+
+    async function copySelectedMessageText(textarea) {
+        const selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+        if (!selectedText.trim()) {
+            return;
+        }
+
+        try {
+            let copied = true;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(selectedText);
+            } else {
+                copied = fallbackCopyText(selectedText, textarea);
+            }
+            if (copied) {
+                showMessageCopyTip();
+            }
+        } catch (error) {
+            try {
+                if (!fallbackCopyText(selectedText, textarea)) {
+                    return;
+                }
+                showMessageCopyTip();
+            } catch (fallbackError) {
+                console.warn("Copy selected chat text failed", fallbackError);
+            }
+        }
+    }
+
+    function initChatAutoCopy() {
+        const textarea = document.getElementById("message");
+        if (!textarea || textarea.dataset.autoCopyReady === "true") {
+            return;
+        }
+
+        textarea.dataset.autoCopyReady = "true";
+        textarea.addEventListener("mouseup", () => {
+            copySelectedMessageText(textarea);
+        });
+    }
 
     async function loadInitialData() {
+        initChatAutoCopy();
         await loadFields();
         await loadImageFields();
         await loadAppSettings();

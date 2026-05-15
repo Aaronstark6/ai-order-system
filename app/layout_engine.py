@@ -15,6 +15,7 @@ except ImportError:
     ExcelImage = None
 from openpyxl.utils import column_index_from_string, get_column_letter
 
+from app.excel_writer import safe_write_cell
 from app.image_manager import ensure_layout_cache_dir, resolve_uploaded_image_path
 from app.logger import get_logger
 from app.layout_schema import normalize_layout_config
@@ -896,10 +897,12 @@ def render_layout(workbook, data, profile, description_fields=None, description_
 
             regions_count += 1
             if region_parts:
-                cell = workbook.active[target_cell]
-                cell.value = "\n\n".join(region_parts)
+                written_cell = safe_write_cell(workbook.active, target_cell, "\n\n".join(region_parts))
+                if not written_cell:
+                    continue
+                cell = workbook.active[written_cell]
                 _set_wrap_text_only(cell)
-                written_cells.append(target_cell)
+                written_cells.append(written_cell)
 
         logger.info(
             "Layout render succeeded: regions=%s blocks=%s images=%s skipped_images=%s",

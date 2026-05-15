@@ -21,15 +21,18 @@ from app.description_template_manager import (
     get_description_template,
     render_description_template,
 )
+from app.excel_writer import normalize_cell_ref, resolve_merged_cell_anchor, safe_write_cell
 from app.image_manager import cleanup_layout_cache, load_image_fields, resolve_uploaded_image_path
 from app.ingredient_parser import analyze_ingredient_initials_source
 from app.layout_engine import collect_layout_image_keys, render_layout
+from app.logger import get_logger
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_UPLOAD_DIR = BASE_DIR / "templates" / "uploads"
 OUTPUT_DIR = BASE_DIR / "output"
 SOURCE_MARK_RE = re.compile(r"\[(模板|AI|系统|人工)\]")
+logger = get_logger(__name__)
 
 
 def safe_filename_text(text):
@@ -267,34 +270,35 @@ def strip_description_source_marks(text):
 
 
 def write_cell(sheet, cell, value):
-    cell = str(cell or "").strip().upper()
-
-    if not cell:
-        return
-
-    sheet[cell] = value
+    return safe_write_cell(sheet, cell, value)
 
 
 def write_description_cell(sheet, cell, value):
-    cell = str(cell or "").strip().upper()
-
-    if not cell:
-        return
-
-    sheet[cell] = strip_description_source_marks(value)
+    return safe_write_cell(sheet, cell, strip_description_source_marks(value))
 
 
 def set_wrap_text(sheet, cell):
-    old_alignment = sheet[cell].alignment
+    target_cell = normalize_cell_ref(cell)
+    if not target_cell:
+        logger.warning("Skip wrap text: invalid cell_ref=%s", cell)
+        return None
 
-    sheet[cell].alignment = Alignment(
-        horizontal=old_alignment.horizontal,
-        vertical=old_alignment.vertical,
-        text_rotation=old_alignment.text_rotation,
-        wrap_text=True,
-        shrink_to_fit=old_alignment.shrink_to_fit,
-        indent=old_alignment.indent
-    )
+    try:
+        target_cell = resolve_merged_cell_anchor(sheet, target_cell)
+        old_alignment = sheet[target_cell].alignment
+
+        sheet[target_cell].alignment = Alignment(
+            horizontal=old_alignment.horizontal,
+            vertical=old_alignment.vertical,
+            text_rotation=old_alignment.text_rotation,
+            wrap_text=True,
+            shrink_to_fit=old_alignment.shrink_to_fit,
+            indent=old_alignment.indent
+        )
+        return target_cell
+    except Exception as e:
+        logger.exception("Set wrap text failed: cell_ref=%s", cell)
+        raise ValueError(f"单元格 {cell} 自动换行设置失败：{e}") from e
 
 
 def normalize_composite_values(composite_data=None, composite_values=None):
