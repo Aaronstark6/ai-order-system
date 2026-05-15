@@ -66,6 +66,11 @@ def config_page():
     return FileResponse(STATIC_DIR / "config.html")
 
 
+@app.get("/v4-schema")
+def v4_schema_page():
+    return FileResponse(STATIC_DIR / "v4_schema.html")
+
+
 # ====================
 # Health Check
 # ====================

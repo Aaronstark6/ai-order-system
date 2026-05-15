@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 产品结构模型预览</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            color: #1f2937;
+            background: #f4f6f8;
+        }
+
+        .page {
+            width: min(1180px, calc(100% - 40px));
+            margin: 0 auto;
+            padding: 28px 0 40px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            line-height: 1.25;
+            color: #111827;
+        }
+
+        .home-link {
+            color: #1677ff;
+            text-decoration: none;
+            font-size: 15px;
+            white-space: nowrap;
+        }
+
+        .home-link:hover {
+            text-decoration: underline;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .summary-item,
+        .card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+        }
+
+        .summary-item {
+            padding: 14px 16px;
+        }
+
+        .label {
+            margin-bottom: 6px;
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .value {
+            color: #111827;
+            font-size: 16px;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .section {
+            margin-top: 24px;
+        }
+
+        .section h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            line-height: 1.3;
+            color: #111827;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 14px;
+        }
+
+        .card {
+            padding: 16px;
+            min-width: 0;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eef0f4;
+        }
+
+        .card-title {
+            margin: 0;
+            font-size: 17px;
+            color: #111827;
+        }
+
+        .code {
+            color: #64748b;
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        .field-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: minmax(90px, 1.1fr) minmax(80px, 1fr) minmax(64px, auto);
+            gap: 8px;
+            align-items: start;
+            padding: 9px 0;
+            border-bottom: 1px solid #f1f3f6;
+        }
+
+        .field-row:last-child {
+            border-bottom: none;
+        }
+
+        .field-name {
+            font-weight: 600;
+            color: #374151;
+            word-break: break-word;
+        }
+
+        .field-meta {
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+
+        .badge {
+            justify-self: start;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: #eef6ff;
+            color: #2563eb;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: nowrap;
+        }
+
+        .state {
+            padding: 14px 16px;
+            border-radius: 8px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            color: #4b5563;
+        }
+
+        .error {
+            border-color: #fecaca;
+            color: #b91c1c;
+            background: #fff5f5;
+        }
+
+        @media (max-width: 720px) {
+            .page {
+                width: min(100% - 24px, 1180px);
+                padding-top: 18px;
+            }
+
+            .topbar,
+            .summary {
+                display: block;
+            }
+
+            .home-link {
+                display: inline-block;
+                margin-top: 10px;
+            }
+
+            .summary-item + .summary-item {
+                margin-top: 10px;
+            }
+
+            .field-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="topbar">
+            <h1>V4 产品结构模型预览</h1>
+            <a class="home-link" href="/">返回首页</a>
+        </div>
+
+        <div id="status" class="state">正在加载 V4 Product Schema...</div>
+        <div id="content" style="display: none;"></div>
+    </main>
+
+    <script>
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function formatExample(field) {
+            if (!Object.prototype.hasOwnProperty.call(field, "example")) {
+                return "";
+            }
+            return `示例：${escapeHtml(JSON.stringify(field.example).replace(/^"|"$/g, ""))}`;
+        }
+
+        function formatOptions(field) {
+            if (!Array.isArray(field.options) || field.options.length === 0) {
+                return "";
+            }
+            return `选项：${field.options.map(escapeHtml).join(" / ")}`;
+        }
+
+        function renderFields(fields) {
+            const entries = Object.entries(fields || {});
+            if (!entries.length) {
+                return `<div class="field-meta">暂无字段</div>`;
+            }
+
+            return `
+                <div class="field-list">
+                    ${entries.map(([key, field]) => `
+                        <div class="field-row">
+                            <div>
+                                <div class="field-name">${escapeHtml(field.label || key)}</div>
+                                <div class="code">${escapeHtml(key)}</div>
+                            </div>
+                            <div class="field-meta">
+                                <div>${formatExample(field)}</div>
+                                <div>${formatOptions(field)}</div>
+                            </div>
+                            <span class="badge">${escapeHtml(field.type || "unknown")}</span>
+                        </div>
+                    `).join("")}
+                </div>
+            `;
+        }
+
+        function renderProductForms(productForms) {
+            const entries = Object.entries(productForms || {});
+            if (!entries.length) {
+                return `<div class="state">暂无产品形式配置</div>`;
+            }
+
+            return `
+                <div class="grid">
+                    ${entries.map(([key, form]) => `
+                        <article class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">${escapeHtml(form.label || key)}</h3>
+                                <span class="code">${escapeHtml(key)}</span>
+                            </div>
+                            <div class="field-meta">启用字段：${escapeHtml(form.enabled_field || "")}</div>
+                            ${renderFields(form.fields || {})}
+                        </article>
+                    `).join("")}
+                </div>
+            `;
+        }
+
+        function renderFieldSection(title, fields) {
+            return `
+                <section class="section">
+                    <h2>${escapeHtml(title)}</h2>
+                    <article class="card">${renderFields(fields || {})}</article>
+                </section>
+            `;
+        }
+
+        function renderTargets(targets) {
+            const entries = Object.entries(targets || {});
+            if (!entries.length) {
+                return `<div class="state">暂无渲染目标配置</div>`;
+            }
+
+            return `
+                <div class="grid">
+                    ${entries.map(([key, target]) => `
+                        <article class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">${escapeHtml(key)}</h3>
+                                <span class="badge">${escapeHtml(target.status || "unknown")}</span>
+                            </div>
+                            <div class="value">${escapeHtml(target.description || "")}</div>
+                        </article>
+                    `).join("")}
+                </div>
+            `;
+        }
+
+        function renderSchema(schema) {
+            const content = document.getElementById("content");
+            content.innerHTML = `
+                <section class="summary">
+                    <div class="summary-item">
+                        <div class="label">version</div>
+                        <div class="value">${escapeHtml(schema.version || "")}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">description</div>
+                        <div class="value">${escapeHtml(schema.description || "")}</div>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <h2>product_forms</h2>
+                    ${renderProductForms(schema.product_forms || {})}
+                </section>
+
+                ${renderFieldSection("packaging", schema.packaging && schema.packaging.fields)}
+                ${renderFieldSection("images", schema.images && schema.images.fields)}
+
+                <section class="section">
+                    <h2>render_targets</h2>
+                    ${renderTargets(schema.render_targets || {})}
+                </section>
+            `;
+        }
+
+        async function loadSchema() {
+            const status = document.getElementById("status");
+            const content = document.getElementById("content");
+
+            try {
+                const response = await fetch("/api/v4/product-schema");
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || "加载失败");
+                }
+
+                renderSchema(result.data || {});
+                status.style.display = "none";
+                content.style.display = "block";
+            } catch (error) {
+                status.classList.add("error");
+                status.textContent = `V4 Product Schema 加载失败：${error.message || error}`;
+            }
+        }
+
+        loadSchema();
+    </script>
+</body>
+</html>
