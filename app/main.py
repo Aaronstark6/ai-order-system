@@ -8,6 +8,7 @@ from app.routes import (
     images_router,
     parse_router,
     templates_router,
+    v4_router,
 )
 from app.runtime_paths import get_base_dir
 
@@ -47,6 +48,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.include_router(images_router)
 app.include_router(parse_router)
 app.include_router(templates_router)
+app.include_router(v4_router)
 app.include_router(core_router)
 
 

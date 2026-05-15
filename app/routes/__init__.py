@@ -28,6 +28,7 @@ from app.logger import get_logger
 from app.routes.images import router as images_router
 from app.routes.parse import router as parse_router
 from app.routes.templates import router as templates_router
+from app.routes.v4 import router as v4_router
 from app.runtime_paths import get_base_dir
 
 
@@ -39,6 +40,7 @@ __all__ = [
     "images_router",
     "parse_router",
     "templates_router",
+    "v4_router",
 ]
 
 BASE_DIR = get_base_dir()
