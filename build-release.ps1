@@ -32,6 +32,7 @@ conda run -n $envName python -m PyInstaller `
     --noconfirm `
     --clean `
     --onedir `
+    --noconsole `
     --name ai-order-system `
     --distpath $buildDistDir `
     --workpath $buildWorkDir `
@@ -59,6 +60,15 @@ if (Test-Path (Join-Path $PSScriptRoot ".env.example")) {
     Copy-Item -Path (Join-Path $PSScriptRoot ".env") -Destination $releaseDir -Force
 }
 
-Copy-Item -Path (Join-Path $PSScriptRoot "start-release.bat") -Destination $releaseDir -Force
+$releaseLogsDir = Join-Path $releaseDir "logs"
+New-Item -ItemType Directory -Path $releaseLogsDir -Force | Out-Null
+$releaseLogFile = Join-Path $releaseLogsDir "app.log"
+if (-not (Test-Path $releaseLogFile)) {
+    New-Item -ItemType File -Path $releaseLogFile -Force | Out-Null
+}
+
+if (Test-Path (Join-Path $PSScriptRoot "debug-start.bat")) {
+    Copy-Item -Path (Join-Path $PSScriptRoot "debug-start.bat") -Destination $releaseDir -Force
+}
 
 Write-Host "Release ready: $releaseDir"

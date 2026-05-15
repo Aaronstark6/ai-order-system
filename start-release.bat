@@ -1,3 +1,3 @@
+@echo off
 cd /d %~dp0
-ai-order-system.exe
-pause
+start "" "%~dp0ai-order-system.exe"
