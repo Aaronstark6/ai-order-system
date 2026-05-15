@@ -1,0 +1,67 @@
+{
+  "version": "v4-example-001",
+  "order": {
+    "customer_name": "Jip",
+    "quantity": "50000",
+    "order_date": "20260513",
+    "customer_type": "电商",
+    "sales_owner": "Anna"
+  },
+  "document": {
+    "sales_name": "Anna",
+    "salesperson_code": "AN",
+    "company_code": "GS",
+    "sequence": "A01",
+    "ingredient_initials": "LS",
+    "product_form": "soft_capsule"
+  },
+  "product": {
+    "form": "soft_capsule",
+    "soft_capsule": {
+      "enabled": true,
+      "shell_size": "0.7g",
+      "shell_color": "深红透明",
+      "shell_material": "素食",
+      "coating_enabled": false,
+      "coating_color": "",
+      "extra_requirements": "胶囊壳如图"
+    }
+  },
+  "formula": {
+    "requirements": [
+      {
+        "name_en": "Astaxanthin",
+        "name_cn": "虾青素",
+        "amount": "12mg",
+        "percentage": "3%"
+      },
+      {
+        "name_en": "Organic virgin coconut oil",
+        "name_cn": "有机初榨椰子油",
+        "amount": "382mg",
+        "percentage": "95.5%"
+      },
+      {
+        "name_en": "Tocopherols",
+        "name_cn": "生育酚",
+        "amount": "6mg",
+        "percentage": "1.5%"
+      }
+    ]
+  },
+  "packaging": {
+    "container_type": "瓶装",
+    "capacity": "200ml",
+    "container_color": "紫色",
+    "cap_color": "紫色",
+    "quantity_per_unit": "90粒/瓶",
+    "seal_method": "必须热塑封",
+    "label_requirement": "我们负责制作"
+  },
+  "images": {
+    "product_photo": "",
+    "front_label": "",
+    "back_label": "",
+    "capsule_photo": ""
+  }
+}
