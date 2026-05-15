@@ -1,6 +1,8 @@
 (function () {
 'use strict';
 
+// 负责右侧 Region/Block 属性编辑。
+
 window.layoutEditorState = window.layoutEditorState || {};
 Object.entries({
     currentProfile: null,
@@ -24,20 +26,6 @@ Object.entries({
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
-if (typeof window.DEBUG_LAYOUT === "undefined") {
-    window.DEBUG_LAYOUT = false;
-}
-window.layoutDebug = window.layoutDebug || function (...args) {
-    if (window.DEBUG_LAYOUT) {
-        console.log("[Layout]", ...args);
-    }
-};
-window.layoutWarn = window.layoutWarn || function (...args) {
-    console.warn("[Layout]", ...args);
-};
-window.layoutError = window.layoutError || function (...args) {
-    console.error("[Layout]", ...args);
-};
 
 function renderInspectorBlockEditor(block, blockIndex) {
     const type = String(block.type || "description_fields").trim() || "description_fields";

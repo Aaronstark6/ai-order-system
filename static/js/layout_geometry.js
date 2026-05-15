@@ -1,6 +1,8 @@
 (function () {
 'use strict';
 
+// 负责 Excel Geometry 与坐标换算。
+
 window.layoutEditorState = window.layoutEditorState || {};
 Object.entries({
     currentProfile: null,

@@ -1,7 +1,8 @@
+"""Render layout_config blocks into Excel worksheets."""
+
 import re
 from copy import copy
 from datetime import datetime
-from pathlib import Path
 
 try:
     from PIL import Image as PILImage
@@ -10,13 +11,8 @@ except ImportError:
 
 try:
     from openpyxl.drawing.image import Image as ExcelImage
-    from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
-    from openpyxl.drawing.xdr import XDRPositiveSize2D
 except ImportError:
     ExcelImage = None
-    AnchorMarker = None
-    OneCellAnchor = None
-    XDRPositiveSize2D = None
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 from app.image_manager import ensure_layout_cache_dir, resolve_uploaded_image_path
@@ -24,9 +20,7 @@ from app.logger import get_logger
 from app.layout_schema import normalize_layout_config
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 CELL_RANGE_RE = re.compile(r"^\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?$")
-EMU_PER_PIXEL = 9525
 logger = get_logger(__name__)
 
 
@@ -70,36 +64,6 @@ def _offset_cell(cell_ref, row_offset=0, col_offset=0):
     if col_index < 1 or row_index < 1:
         raise ValueError(f"Excel单元格格式非法：{cell_ref}")
     return f"{get_column_letter(col_index)}{row_index}"
-
-
-def pixels_to_emu(px):
-    try:
-        number = float(px or 0)
-    except (TypeError, ValueError):
-        number = 0
-    return int(round(max(0, number) * EMU_PER_PIXEL))
-
-
-def add_image_with_offset(sheet, img, cell, offset_x_px=0, offset_y_px=0):
-    if AnchorMarker is None or OneCellAnchor is None or XDRPositiveSize2D is None:
-        raise RuntimeError("图片渲染需要安装 pillow。")
-
-    col_index, row_index = _cell_position(cell)
-    marker = AnchorMarker(
-        col=col_index - 1,
-        row=row_index - 1,
-        colOff=pixels_to_emu(offset_x_px),
-        rowOff=pixels_to_emu(offset_y_px),
-    )
-    anchor = OneCellAnchor(
-        _from=marker,
-        ext=XDRPositiveSize2D(
-            cx=pixels_to_emu(getattr(img, "width", 0)),
-            cy=pixels_to_emu(getattr(img, "height", 0)),
-        ),
-    )
-    img.anchor = anchor
-    sheet._images.append(img)
 
 
 def _render_description_fields(description_fields):
@@ -441,31 +405,6 @@ def _non_negative_number(value, default=0):
     return max(0, number)
 
 
-def _row_height_to_px(height_points):
-    number = _to_positive_number(height_points)
-    if not number:
-        return None
-    return number * 96 / 72
-
-
-def estimate_region_height_px(sheet, range_ref):
-    text = str(range_ref or "").strip().upper()
-    if not text:
-        return None
-
-    try:
-        min_row, max_row = _range_row_bounds(text)
-    except ValueError:
-        return None
-
-    default_height = _row_height_to_px(getattr(sheet.sheet_format, "defaultRowHeight", None)) or 20
-    total = 0
-    for row_index in range(min_row, max_row + 1):
-        row_height = _row_height_to_px(sheet.row_dimensions[row_index].height)
-        total += row_height or default_height
-    return total
-
-
 def _gallery_image_options(options):
     if not isinstance(options, dict):
         options = {}
@@ -535,61 +474,6 @@ def _render_image_gallery_block(sheet, block, image_data, target_cell, image_poo
         image_index += 1
 
     return written_cells
-
-
-def _render_image_stack_row_step_legacy(sheet, block, image_data, target_cell, max_row):
-    options = block.get("options") if isinstance(block.get("options"), dict) else {}
-    source_keys = _source_keys_from_options(options)
-    if not source_keys:
-        return {"written_cells": [], "skipped_keys": []}
-
-    gap_rows = _positive_int(options.get("gap_rows"), 8)
-    size_options = _stack_image_options(options)
-    written_cells = []
-    skipped_keys = []
-
-    for index, key in enumerate(source_keys):
-        try:
-            cell = _offset_cell(target_cell, row_offset=gap_rows * index)
-        except ValueError:
-            skipped_keys.append(key)
-            continue
-
-        row_match = CELL_RANGE_RE.match(cell)
-        if not row_match or int(row_match.group(2)) > max_row:
-            skipped_keys.append(key)
-            continue
-
-        if not isinstance(image_data, dict):
-            skipped_keys.append(key)
-            continue
-
-        item = image_data.get(key)
-        if not isinstance(item, dict):
-            skipped_keys.append(key)
-            continue
-
-        image_path = resolve_uploaded_image_path(item.get("image_path"))
-        if not image_path:
-            skipped_keys.append(key)
-            continue
-
-        if ExcelImage is None:
-            raise RuntimeError("图片渲染需要安装 pillow。")
-
-        try:
-            img = ExcelImage(str(image_path))
-        except ImportError as e:
-            raise RuntimeError("图片渲染需要安装 pillow。") from e
-        except Exception:
-            skipped_keys.append(key)
-            continue
-
-        _apply_image_size(img, size_options)
-        sheet.add_image(img, cell)
-        written_cells.append(cell)
-
-    return {"written_cells": written_cells, "skipped_keys": skipped_keys}
 
 
 def _load_stack_image(image_data, key):
@@ -670,7 +554,7 @@ def _render_image_stack_row_step(sheet, source_keys, image_data, target_cell, ma
     }
 
 
-def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_options, gap_px, region_height_px):
+def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_options, gap_px):
     skipped_keys = []
     valid_paths = []
     valid_keys = []
@@ -752,7 +636,7 @@ def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_o
     }
 
 
-def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=None, region_range=None, image_pool=None):
+def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=None, image_pool=None):
     options = block.get("options") if isinstance(block.get("options"), dict) else {}
     if _use_image_pool(options):
         image_data = _image_pool_to_image_data(image_pool)
@@ -775,7 +659,6 @@ def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=Non
             anchor_cell,
             _stack_image_options(options),
             _non_negative_number(options.get("gap_px"), 12),
-            estimate_region_height_px(sheet, region_range),
         )
 
     if not target_cell:
@@ -989,7 +872,6 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                             image_data,
                             target_cell,
                             max_row,
-                            range_text,
                             image_pool=image_pool,
                         )
                     except RuntimeError as e:

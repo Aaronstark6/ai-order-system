@@ -337,11 +337,11 @@ def update_profile_mappings(
     composite_mappings=None,
     document_no_settings=None,
     mapping_defaults=None,
-        description_settings=None,
-        image_fields=None,
-        layout_config=None,
-        layout_preview=None,
-        mapping_order=None,
+    description_settings=None,
+    image_fields=None,
+    layout_config=None,
+    layout_preview=None,
+    mapping_order=None,
 ):
     profiles = load_profiles()
 

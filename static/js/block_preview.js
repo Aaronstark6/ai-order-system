@@ -1,6 +1,8 @@
 (function () {
 'use strict';
 
+// 负责 Designer 中 Block 模拟预览。
+
 window.layoutEditorState = window.layoutEditorState || {};
 Object.entries({
     currentProfile: null,
@@ -24,20 +26,6 @@ Object.entries({
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
-if (typeof window.DEBUG_LAYOUT === "undefined") {
-    window.DEBUG_LAYOUT = false;
-}
-window.layoutDebug = window.layoutDebug || function (...args) {
-    if (window.DEBUG_LAYOUT) {
-        console.log("[Layout]", ...args);
-    }
-};
-window.layoutWarn = window.layoutWarn || function (...args) {
-    console.warn("[Layout]", ...args);
-};
-window.layoutError = window.layoutError || function (...args) {
-    console.error("[Layout]", ...args);
-};
 
 function parseLayoutNumber(value, fallback) {
     const text = String(value ?? "").trim();
@@ -69,12 +57,6 @@ function parseLayoutSourceKeys(value) {
         .split(",")
         .map(item => item.trim())
         .filter(Boolean);
-}
-
-
-
-function parseSourceKeys(value) {
-    return parseLayoutSourceKeys(value);
 }
 
 
@@ -141,7 +123,7 @@ function renderBlockPreview(block) {
     }
 
     if (type === "image_stack") {
-        const keys = parseSourceKeys(options.source_keys);
+        const keys = parseLayoutSourceKeys(options.source_keys);
         const count = (options.use_image_pool || options.auto_source) ? 4 : Math.min(3, Math.max(1, keys.length || 3));
         const boxes = Array.from({ length: count }, (_, index) => `
             <div class="preview-image-box">图片 ${index + 1}</div>
@@ -155,7 +137,7 @@ function renderBlockPreview(block) {
     }
 
     if (type === "image_gallery") {
-        const keys = parseSourceKeys(options.source_keys);
+        const keys = parseLayoutSourceKeys(options.source_keys);
         const count = (options.use_image_pool || options.auto_source) ? 4 : Math.min(9, Math.max(1, keys.length || 6));
         const columns = Math.min(6, Math.max(1, Math.round(Number(options.columns) || 3)));
         const boxes = Array.from({ length: count }, () => `<div class="preview-image-box">图</div>`).join("");
@@ -229,7 +211,6 @@ Object.assign(window, {
     parseLayoutNumber,
     parseLayoutNonNegativeNumber,
     parseLayoutSourceKeys,
-    parseSourceKeys,
     normalizeLayoutBlockOptions,
     renderBlockPreview,
     renderRegionBlockPreview,

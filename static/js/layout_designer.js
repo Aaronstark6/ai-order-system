@@ -1,6 +1,8 @@
 (function () {
 'use strict';
 
+// 负责 Layout Designer 主画布、Region 拖拽与缩放。
+
 window.layoutEditorState = window.layoutEditorState || {};
 Object.entries({
     currentProfile: null,
@@ -24,20 +26,9 @@ Object.entries({
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
-if (typeof window.DEBUG_LAYOUT === "undefined") {
-    window.DEBUG_LAYOUT = false;
-}
-window.layoutDebug = window.layoutDebug || function (...args) {
-    if (window.DEBUG_LAYOUT) {
-        console.log("[Layout]", ...args);
-    }
-};
-window.layoutWarn = window.layoutWarn || function (...args) {
-    console.warn("[Layout]", ...args);
-};
-window.layoutError = window.layoutError || function (...args) {
-    console.error("[Layout]", ...args);
-};
+const layoutDebug = window.layoutDebug;
+const layoutWarn = window.layoutWarn;
+const layoutError = window.layoutError;
 
 function defaultLayoutConfig() {
     return {
@@ -107,22 +98,6 @@ function normalizeLayoutConfig(raw) {
 
 function getLayoutEditorState() {
     return state;
-}
-
-
-
-function layoutDebug(...args) {
-    if (window.DEBUG_LAYOUT) {
-        console.log("[Layout]", ...args);
-    }
-}
-
-function layoutWarn(...args) {
-    console.warn("[Layout]", ...args);
-}
-
-function layoutError(...args) {
-    console.error("[Layout]", ...args);
 }
 
 
