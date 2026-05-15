@@ -230,6 +230,69 @@
             word-break: break-all;
         }
 
+        .image-pool-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .image-pool-toolbar input[type="file"] {
+            max-width: 360px;
+            margin-bottom: 0;
+        }
+
+        .image-pool-list {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .image-pool-item {
+            border: 1px solid #e0e4ec;
+            border-radius: 8px;
+            background: #fff;
+            padding: 8px;
+            cursor: grab;
+            min-width: 0;
+        }
+
+        .image-pool-item.dragging {
+            opacity: 0.45;
+        }
+
+        .image-pool-thumb {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+            border-radius: 6px;
+            background: #f2f4f7;
+            display: block;
+        }
+
+        .image-pool-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .image-pool-name {
+            flex: 1 1 auto;
+            min-width: 0;
+            color: #555;
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        .image-pool-delete {
+            flex: 0 0 auto;
+            padding: 5px 8px;
+            background: #ff4d4f;
+            font-size: 12px;
+        }
+
         .doc-no-card {
             border: 1px solid #e0e4ec;
             border-radius: 10px;
@@ -465,6 +528,10 @@
             .image-upload-grid {
                 grid-template-columns: 1fr;
             }
+
+            .image-pool-list {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
         }
     </style>
 </head>
@@ -555,6 +622,8 @@
     let lastGeneratedFilePath = "";
     let currentDescriptionFields = {};
     let imageFields = [];
+    let imagePoolItems = [];
+    let draggedImagePoolKey = "";
     let ingredientInitialsManuallyEdited = false;
     let currentIngredientInitialsMessage = "";
     let descriptionIsComposing = false;
@@ -1442,6 +1511,8 @@
         const enabledFields = (profile && Array.isArray(profile.image_fields) ? profile.image_fields : [])
             .filter(field => field && field.enabled === true && imageFieldLabels.has(String(field.key || "")));
         if (enabledFields.length === 0) {
+            area.appendChild(createImagePoolCard());
+            renderImagePoolList();
             return;
         }
 
@@ -1484,9 +1555,144 @@
         });
 
         area.appendChild(card);
+        area.appendChild(createImagePoolCard());
+        renderImagePoolList();
     }
 
     const DESCRIPTION_SOURCE_MARK_RE = /\[(模板|AI|系统|人工)\]/g;
+
+    function imagePoolImageUrl(imagePath) {
+        const path = String(imagePath || "").trim().replace(/\\/g, "/");
+        if (!path) {
+            return "";
+        }
+        return path.startsWith("/") ? path : `/${path}`;
+    }
+
+    function createImagePoolCard() {
+        const card = document.createElement("div");
+        card.className = "image-upload-card";
+        card.innerHTML = `
+            <h3 class="section-title">&#22270;&#29255;&#32032;&#26448;&#27744;&#65288;&#21487;&#36873;&#65289;</h3>
+            <div class="image-pool-toolbar">
+                <input id="imagePoolInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" multiple>
+            </div>
+            <div id="imagePoolList" class="image-pool-list"></div>
+        `;
+
+        const input = card.querySelector("#imagePoolInput");
+        input.addEventListener("change", async function () {
+            const files = Array.from(input.files || []);
+            input.value = "";
+            if (!files.length) {
+                return;
+            }
+            try {
+                await uploadPoolImages(files);
+            } catch (error) {
+                const submitResult = document.getElementById("submitResult");
+                if (submitResult) {
+                    submitResult.innerHTML = `<p class="error">${escapeHtml(error.message || "Image pool upload failed")}</p>`;
+                }
+            }
+        });
+
+        return card;
+    }
+
+    async function uploadPoolImages(files) {
+        for (const file of files) {
+            if (!isAllowedImageFile(file)) {
+                throw new Error(`Image pool ${file.name || ""} only supports JPG, JPEG, PNG`);
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const response = await fetch("/api/image-pool/upload", {
+                method: "POST",
+                body: formData
+            });
+            const result = await response.json();
+
+            if (!result.success || !result.item) {
+                throw new Error(result.error || `Image pool ${file.name} upload failed`);
+            }
+
+            imagePoolItems.push(result.item);
+        }
+        renderImagePoolList();
+    }
+
+    function renderImagePoolList() {
+        const list = document.getElementById("imagePoolList");
+        if (!list) {
+            return;
+        }
+
+        list.innerHTML = "";
+        imagePoolItems.forEach(item => {
+            const key = String(item.key || "");
+            const row = document.createElement("div");
+            row.className = "image-pool-item";
+            row.draggable = true;
+            row.dataset.key = key;
+            row.innerHTML = `
+                <img class="image-pool-thumb" src="${escapeHtml(imagePoolImageUrl(item.image_path))}" alt="${escapeHtml(item.label || item.filename || "")}">
+                <div class="image-pool-meta">
+                    <div class="image-pool-name">${escapeHtml(item.label || item.filename || key)}</div>
+                    <button class="image-pool-delete" type="button">&#21024;&#38500;</button>
+                </div>
+            `;
+
+            row.addEventListener("dragstart", function () {
+                draggedImagePoolKey = key;
+                row.classList.add("dragging");
+            });
+            row.addEventListener("dragend", function () {
+                draggedImagePoolKey = "";
+                row.classList.remove("dragging");
+            });
+            row.addEventListener("dragover", function (event) {
+                event.preventDefault();
+            });
+            row.addEventListener("drop", function (event) {
+                event.preventDefault();
+                moveImagePoolItem(draggedImagePoolKey, key);
+            });
+            row.querySelector(".image-pool-delete").addEventListener("click", function () {
+                imagePoolItems = imagePoolItems.filter(poolItem => String(poolItem.key || "") !== key);
+                renderImagePoolList();
+            });
+
+            list.appendChild(row);
+        });
+    }
+
+    function moveImagePoolItem(sourceKey, targetKey) {
+        if (!sourceKey || !targetKey || sourceKey === targetKey) {
+            return;
+        }
+        const fromIndex = imagePoolItems.findIndex(item => String(item.key || "") === sourceKey);
+        const toIndex = imagePoolItems.findIndex(item => String(item.key || "") === targetKey);
+        if (fromIndex < 0 || toIndex < 0) {
+            return;
+        }
+        const nextItems = imagePoolItems.slice();
+        const [item] = nextItems.splice(fromIndex, 1);
+        nextItems.splice(toIndex, 0, item);
+        imagePoolItems = nextItems;
+        renderImagePoolList();
+    }
+
+    function getImagePoolPayload() {
+        return imagePoolItems.map(item => ({
+            key: String(item.key || "").trim(),
+            label: String(item.label || item.filename || "").trim(),
+            image_path: String(item.image_path || "").trim(),
+            filename: String(item.filename || "").trim()
+        })).filter(item => item.key && item.image_path);
+    }
 
     function stripDescriptionSourceMarks(text) {
         return String(text || "").replace(DESCRIPTION_SOURCE_MARK_RE, "");
@@ -2018,7 +2224,8 @@
                     data: data,
                     description_fields: currentDescriptionFields || {},
                     description_text: descriptionText,
-                    image_data: imageData
+                    image_data: imageData,
+                    image_pool: getImagePoolPayload()
                 })
             });
 

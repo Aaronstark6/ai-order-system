@@ -297,6 +297,114 @@ def _source_keys_from_options(options):
     return keys
 
 
+def _keys_from_option_value(value):
+    if isinstance(value, list):
+        values = value
+    elif isinstance(value, str):
+        values = value.split(",")
+    else:
+        values = []
+
+    keys = []
+    seen = set()
+    for item in values:
+        key = str(item or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        keys.append(key)
+    return keys
+
+
+def _max_images_from_options(options):
+    number = _to_positive_number(options.get("max_images") if isinstance(options, dict) else None)
+    if not number:
+        return 0
+    return max(0, int(round(number)))
+
+
+def _use_image_pool(options):
+    return _to_bool(options.get("use_image_pool") if isinstance(options, dict) else None, default=False)
+
+
+def _normalize_image_pool_items(image_pool):
+    if not isinstance(image_pool, list):
+        return []
+
+    items = []
+    seen = set()
+    for index, item in enumerate(image_pool):
+        if not isinstance(item, dict):
+            continue
+
+        image_path = item.get("image_path")
+        key = str(item.get("key") or "").strip()
+        filename = str(item.get("filename") or "").strip()
+        if not key:
+            key = Path(filename).stem if filename else f"pool_{index}"
+        if not key:
+            key = f"pool_{index}"
+        if key in seen:
+            key = f"{key}_{index}"
+        seen.add(key)
+
+        items.append({
+            "key": key,
+            "image_path": image_path,
+            "label": item.get("label") or filename or key,
+            "filename": filename,
+        })
+    return items
+
+
+def _image_pool_to_image_data(image_pool):
+    pool_data = {}
+    for item in _normalize_image_pool_items(image_pool):
+        pool_data[item["key"]] = item
+    return pool_data
+
+
+def get_block_image_keys(block, image_data, image_pool=None):
+    if not isinstance(block, dict):
+        return []
+
+    options = block.get("options") if isinstance(block.get("options"), dict) else {}
+    exclude_keys = set(_keys_from_option_value(options.get("exclude_keys")))
+    max_images = _max_images_from_options(options)
+
+    if _use_image_pool(options):
+        keys = []
+        for item in _normalize_image_pool_items(image_pool):
+            image_path = resolve_uploaded_image_path(item.get("image_path"))
+            if not image_path:
+                continue
+            keys.append(item["key"])
+            if max_images and len(keys) >= max_images:
+                break
+        return keys
+
+    if _to_bool(options.get("auto_source"), default=False):
+        keys = []
+        if isinstance(image_data, dict):
+            for key, item in image_data.items():
+                key_text = str(key or "").strip()
+                if not key_text or key_text in exclude_keys:
+                    continue
+                if not isinstance(item, dict):
+                    continue
+                if not resolve_uploaded_image_path(item.get("image_path")):
+                    continue
+                keys.append(key_text)
+                if max_images and len(keys) >= max_images:
+                    break
+        return keys
+
+    keys = [key for key in _source_keys_from_options(options) if key not in exclude_keys]
+    if max_images:
+        keys = keys[:max_images]
+    return keys
+
+
 def _positive_int(value, default):
     number = _to_positive_number(value)
     if not number:
@@ -359,12 +467,15 @@ def _stack_image_options(options):
     }
 
 
-def _render_image_gallery_block(sheet, block, image_data, target_cell):
+def _render_image_gallery_block(sheet, block, image_data, target_cell, image_pool=None):
+    options = block.get("options") if isinstance(block.get("options"), dict) else {}
+    if _use_image_pool(options):
+        image_data = _image_pool_to_image_data(image_pool)
+
     if not isinstance(image_data, dict):
         return []
 
-    options = block.get("options") if isinstance(block.get("options"), dict) else {}
-    source_keys = _source_keys_from_options(options)
+    source_keys = get_block_image_keys(block, image_data, image_pool=image_pool)
     if not source_keys:
         return []
 
@@ -599,9 +710,12 @@ def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_o
     }
 
 
-def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=None, region_range=None):
+def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=None, region_range=None, image_pool=None):
     options = block.get("options") if isinstance(block.get("options"), dict) else {}
-    source_keys = _source_keys_from_options(options)
+    if _use_image_pool(options):
+        image_data = _image_pool_to_image_data(image_pool)
+
+    source_keys = get_block_image_keys(block, image_data, image_pool=image_pool)
     if not source_keys:
         return {"written_cells": [], "skipped_keys": [], "written_images_detail": []}
 
@@ -636,7 +750,7 @@ def _render_image_stack_block(sheet, block, image_data, target_cell, max_row=Non
     )
 
 
-def collect_layout_image_keys(profile):
+def collect_layout_image_keys(profile, image_data=None):
     if not isinstance(profile, dict):
         return set()
 
@@ -669,14 +783,26 @@ def collect_layout_image_keys(profile):
                     keys.add(source)
             elif block_type == "image_gallery":
                 options = block.get("options") if isinstance(block.get("options"), dict) else {}
-                keys.update(_source_keys_from_options(options))
+                if _to_bool(options.get("auto_source"), default=False):
+                    if isinstance(image_data, dict):
+                        keys.update(get_block_image_keys(block, image_data))
+                    else:
+                        keys.add("*")
+                else:
+                    keys.update(get_block_image_keys(block, image_data))
             elif block_type == "image_stack":
                 options = block.get("options") if isinstance(block.get("options"), dict) else {}
-                keys.update(_source_keys_from_options(options))
+                if _to_bool(options.get("auto_source"), default=False):
+                    if isinstance(image_data, dict):
+                        keys.update(get_block_image_keys(block, image_data))
+                    else:
+                        keys.add("*")
+                else:
+                    keys.update(get_block_image_keys(block, image_data))
     return keys
 
 
-def render_layout(workbook, data, profile, description_fields=None, description_text=None, image_data=None):
+def render_layout(workbook, data, profile, description_fields=None, description_text=None, image_data=None, image_pool=None):
     try:
         if workbook is None:
             return {"success": False, "error": "workbook 不能为空"}
@@ -784,7 +910,13 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                     if not target_cell:
                         continue
                     try:
-                        gallery_cells = _render_image_gallery_block(workbook.active, block, image_data, target_cell)
+                        gallery_cells = _render_image_gallery_block(
+                            workbook.active,
+                            block,
+                            image_data,
+                            target_cell,
+                            image_pool=image_pool,
+                        )
                     except RuntimeError as e:
                         return {"success": False, "error": str(e)}
                     if not gallery_cells:
@@ -804,6 +936,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                             target_cell,
                             max_row,
                             range_text,
+                            image_pool=image_pool,
                         )
                     except RuntimeError as e:
                         return {"success": False, "error": str(e)}

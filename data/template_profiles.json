@@ -339,6 +339,10 @@
                   "back_label",
                   "product_image"
                 ],
+                "auto_source": true,
+                "use_image_pool": true,
+                "exclude_keys": [],
+                "max_images": 0,
                 "layout_mode": "auto_stack",
                 "anchor_cell": "G8",
                 "image_width": 450,

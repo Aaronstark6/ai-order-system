@@ -364,6 +364,8 @@ def _insert_configured_images(sheet, image_fields, image_data, skip_keys=None):
         for key in (skip_keys or set())
         if str(key or "").strip()
     }
+    if "*" in skip_keys:
+        return
 
     library_keys = {
         str(field.get("key") or "").strip()
@@ -401,7 +403,7 @@ def _insert_configured_images(sheet, image_fields, image_data, skip_keys=None):
         sheet.add_image(img, cell)
 
 
-def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None, description_text=None, image_data=None, description_fields=None):
+def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None, description_text=None, image_data=None, image_pool=None, description_fields=None):
     if composite_values is None:
         composite_values = {}
     composite_values = normalize_composite_values(
@@ -558,7 +560,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
                     "error": f"文档编号写入 {doc_cell} 失败：{str(e)}"
                 }
 
-    layout_image_keys = collect_layout_image_keys(profile)
+    layout_image_keys = collect_layout_image_keys(profile, image_data=image_data or {})
     try:
         _insert_configured_images(
             sheet,
@@ -581,6 +583,7 @@ def generate_excel(data: dict, profile_id: str, composite_data=None, composite_v
             description_fields=description_fields,
             description_text=description_text,
             image_data=image_data,
+            image_pool=image_pool,
         )
         if not layout_result.get("success"):
             return {

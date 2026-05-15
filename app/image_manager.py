@@ -1,10 +1,14 @@
 import json
+import secrets
+import shutil
+from datetime import datetime
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 IMAGE_FIELDS_FILE = BASE_DIR / "data" / "image_fields.json"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
+IMAGE_POOL_UPLOAD_DIR = BASE_DIR / "uploads" / "image_pool"
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
@@ -96,6 +100,11 @@ def ensure_image_upload_dir():
     return IMAGE_UPLOAD_DIR
 
 
+def ensure_image_pool_upload_dir():
+    IMAGE_POOL_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    return IMAGE_POOL_UPLOAD_DIR
+
+
 def is_allowed_image_filename(filename):
     return Path(str(filename or "")).suffix.lower() in ALLOWED_IMAGE_EXTENSIONS
 
@@ -105,6 +114,24 @@ def safe_image_extension(filename):
     if ext not in ALLOWED_IMAGE_EXTENSIONS:
         raise ValueError("仅支持 JPG、JPEG、PNG 图片")
     return ext
+
+
+def save_pool_image(uploaded_file):
+    ext = safe_image_extension(getattr(uploaded_file, "filename", ""))
+    upload_dir = ensure_image_pool_upload_dir()
+    stem = f"pool_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{secrets.randbelow(1000000):06d}"
+    filename = f"{stem}{ext}"
+    image_file = upload_dir / filename
+
+    with open(image_file, "wb") as f:
+        shutil.copyfileobj(uploaded_file.file, f)
+
+    return {
+        "success": True,
+        "image_path": str(Path("uploads") / "image_pool" / filename).replace("\\", "/"),
+        "filename": filename,
+        "original_name": getattr(uploaded_file, "filename", "") or filename,
+    }
 
 
 def resolve_uploaded_image_path(image_path):
@@ -117,10 +144,19 @@ def resolve_uploaded_image_path(image_path):
         path = BASE_DIR / path
 
     resolved = path.resolve()
-    upload_root = IMAGE_UPLOAD_DIR.resolve()
-    try:
-        resolved.relative_to(upload_root)
-    except ValueError:
+    allowed_roots = [
+        IMAGE_UPLOAD_DIR.resolve(),
+        IMAGE_POOL_UPLOAD_DIR.resolve(),
+    ]
+    is_under_allowed_root = False
+    for upload_root in allowed_roots:
+        try:
+            resolved.relative_to(upload_root)
+            is_under_allowed_root = True
+            break
+        except ValueError:
+            continue
+    if not is_under_allowed_root:
         return None
 
     if not resolved.exists() or not resolved.is_file():

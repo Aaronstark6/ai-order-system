@@ -37,6 +37,7 @@ from app.image_manager import (
     ensure_image_upload_dir,
     load_image_fields,
     safe_image_extension,
+    save_pool_image,
     save_image_fields,
 )
 from app.description_template_manager import (
@@ -61,12 +62,15 @@ app = FastAPI(title="AI Order System V2")
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
+UPLOADS_DIR = BASE_DIR / "uploads"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
 LAYOUT_CACHE_DIR = OUTPUT_DIR / "layout_cache"
 LAYOUT_PREVIEW_DIR = STATIC_DIR / "layout_previews"
 LAST_GENERATED_FILE_PATH = ""
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 
 @app.get("/")
@@ -301,6 +305,25 @@ def api_upload_image(field_key: str = Form(...), file: UploadFile = File(...)):
 
 
 # ================= 模板映射 =================
+
+@app.post("/api/image-pool/upload")
+def api_upload_image_pool(file: UploadFile = File(...)):
+    try:
+        saved = save_pool_image(file)
+        filename = saved.get("filename") or ""
+        key = Path(filename).stem
+        return {
+            "success": True,
+            "item": {
+                "key": key,
+                "label": saved.get("original_name") or filename,
+                "image_path": saved.get("image_path") or "",
+                "filename": filename,
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 
 @app.get("/api/template-profiles")
 def api_get_profiles():
@@ -640,6 +663,7 @@ def api_generate_excel(data: dict):
             composite_data=composite_data,
             description_text=data.get("description_text"),
             image_data=data.get("image_data") or {},
+            image_pool=data.get("image_pool") or [],
             description_fields=description_fields,
         )
         if result.get("success") and str(result.get("lastGeneratedFilePath") or result.get("output_path") or "").strip():
