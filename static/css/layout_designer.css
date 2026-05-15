@@ -49,6 +49,20 @@
     padding-bottom: 11px;
 }
 
+.layout-save-status {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.layout-save-status.saved {
+    color: #15803d;
+}
+
+.layout-save-status.dirty {
+    color: #d97706;
+}
+
 .layout-designer {
     width: 900px;
     max-width: 100%;

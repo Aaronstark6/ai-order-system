@@ -1,14 +1,25 @@
 (function () {
 'use strict';
 
-window.layoutEditorState = window.layoutEditorState || {
+window.layoutEditorState = window.layoutEditorState || {};
+Object.entries({
     currentProfile: null,
     layoutConfig: null,
     geometry: null,
     selectedRegionId: null,
+    selectedBlockId: null,
+    dirty: false,
+    lastSavedAt: null,
     previewState: {},
-    imagePool: []
-};
+    imagePool: [],
+    geometryError: "",
+    selectedRegionIndex: 0,
+    activeDrag: null
+}).forEach(([key, value]) => {
+    if (!Object.prototype.hasOwnProperty.call(window.layoutEditorState, key)) {
+        window.layoutEditorState[key] = value;
+    }
+});
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;

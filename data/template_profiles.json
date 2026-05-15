@@ -302,17 +302,17 @@
     "image_fields": [
       {
         "key": "front_label",
-        "enabled": true,
+        "enabled": false,
         "cell": "G8"
       },
       {
         "key": "back_label",
-        "enabled": true,
+        "enabled": false,
         "cell": "G9"
       },
       {
         "key": "product_image",
-        "enabled": true,
+        "enabled": false,
         "cell": "G10"
       }
     ],
@@ -326,7 +326,7 @@
           "type": "rich_text",
           "enabled": true,
           "sheet": "active",
-          "range": "G8:K10",
+          "range": "G8:L9",
           "blocks": [
             {
               "id": "block_1778767519655",

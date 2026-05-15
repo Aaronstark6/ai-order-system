@@ -1,14 +1,25 @@
 (function () {
 'use strict';
 
-window.layoutEditorState = window.layoutEditorState || {
+window.layoutEditorState = window.layoutEditorState || {};
+Object.entries({
     currentProfile: null,
     layoutConfig: null,
     geometry: null,
     selectedRegionId: null,
+    selectedBlockId: null,
+    dirty: false,
+    lastSavedAt: null,
     previewState: {},
-    imagePool: []
-};
+    imagePool: [],
+    geometryError: "",
+    selectedRegionIndex: 0,
+    activeDrag: null
+}).forEach(([key, value]) => {
+    if (!Object.prototype.hasOwnProperty.call(window.layoutEditorState, key)) {
+        window.layoutEditorState[key] = value;
+    }
+});
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
@@ -24,12 +35,14 @@ const GEOMETRY_FALLBACK_MESSAGE = "\u672a\u8bfb\u53d6\u5230\u771f\u5b9e Excel \u
 function syncLayoutEditorStateFromProfile(profile) {
     state.currentProfile = profile || null;
     state.layoutConfig = profile && profile.layout_config ? profile.layout_config : null;
+    state.selectedRegionId = null;
+    state.selectedBlockId = null;
+    state.selectedRegionIndex = 0;
+    state.dirty = false;
+    state.lastSavedAt = null;
     if (!state.currentProfile) {
         state.geometry = null;
         state.geometryError = GEOMETRY_FALLBACK_MESSAGE;
-        state.selectedRegionId = null;
-        state.selectedRegionIndex = 0;
-        state.inspectorBlockIndex = null;
     }
 }
 

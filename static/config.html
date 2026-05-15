@@ -928,14 +928,25 @@
     let imageFields = [];
     let profiles = [];
     let currentProfile = null;
-    window.layoutEditorState = window.layoutEditorState || {
+    window.layoutEditorState = window.layoutEditorState || {};
+    Object.entries({
         currentProfile: null,
         layoutConfig: null,
         geometry: null,
         selectedRegionId: null,
+        selectedBlockId: null,
+        dirty: false,
+        lastSavedAt: null,
         previewState: {},
-        imagePool: []
-    };
+        imagePool: [],
+        geometryError: "",
+        selectedRegionIndex: 0,
+        activeDrag: null
+    }).forEach(([key, value]) => {
+        if (!Object.prototype.hasOwnProperty.call(window.layoutEditorState, key)) {
+            window.layoutEditorState[key] = value;
+        }
+    });
     window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
     window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
     let descriptionTemplateNames = [];
@@ -1670,8 +1681,18 @@
         }
     }
 
-    async function selectProfile() {
-        const profileId = document.getElementById("profileSelect").value;
+    async function selectProfile(options = {}) {
+        const select = document.getElementById("profileSelect");
+        const profileId = select.value;
+        const state = getLayoutEditorState();
+        if (!options.force && state.dirty && currentProfile && currentProfile.id !== profileId) {
+            const confirmed = confirm("当前 Layout 有未保存修改，切换映射会丢失修改，是否继续？");
+            if (!confirmed) {
+                select.value = currentProfile.id || "";
+                return;
+            }
+            markLayoutSaved();
+        }
         currentProfile = profiles.find(p => p.id === profileId) || null;
         syncLayoutEditorStateFromProfile(currentProfile);
         await loadCurrentGeometry();
@@ -2289,7 +2310,8 @@
 
             const documentNoSettings = collectDocumentNoSettings();
             const descriptionSettings = collectDescriptionSettings();
-            const layoutConfig = collectLayoutConfig();
+            setLayoutConfig(collectLayoutConfig(), { render: false });
+            const layoutConfig = getLayoutConfig();
             const layoutPreview = collectLayoutPreview();
             const imageLibraryFields = collectImageLibraryFieldsFromTable();
             validateImageLibraryFields(imageLibraryFields);
@@ -2342,7 +2364,8 @@
 
             document.getElementById("profileSelect").value = result.profile.id;
             syncCurrentProfileFromResult(result.profile);
-            selectProfile();
+            markLayoutSaved();
+            selectProfile({ force: true });
 
             resultDiv.innerHTML = `<p class="success">字段库与当前映射已保存</p>`;
         } catch (error) {

@@ -1,14 +1,25 @@
 (function () {
 'use strict';
 
-window.layoutEditorState = window.layoutEditorState || {
+window.layoutEditorState = window.layoutEditorState || {};
+Object.entries({
     currentProfile: null,
     layoutConfig: null,
     geometry: null,
     selectedRegionId: null,
+    selectedBlockId: null,
+    dirty: false,
+    lastSavedAt: null,
     previewState: {},
-    imagePool: []
-};
+    imagePool: [],
+    geometryError: "",
+    selectedRegionIndex: 0,
+    activeDrag: null
+}).forEach(([key, value]) => {
+    if (!Object.prototype.hasOwnProperty.call(window.layoutEditorState, key)) {
+        window.layoutEditorState[key] = value;
+    }
+});
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
@@ -164,12 +175,13 @@ function renderRegionInspector() {
     if (!inspector) {
         return;
     }
-    if (!state.currentProfile || !state.currentProfile.layout_config || !state.currentProfile.layout_config.regions.length) {
+    const config = getLayoutConfig();
+    if (!state.currentProfile || !config.regions.length) {
         inspector.innerHTML = `<div class="inspector-muted">请选择或新增一个 Region。</div>`;
         return;
     }
 
-    ensureSelectedLayoutRegion(state.currentProfile.layout_config.regions);
+    ensureSelectedLayoutRegion(config.regions);
     const { index, region } = getSelectedLayoutRegion();
     if (!region) {
         inspector.innerHTML = `<div class="inspector-muted">请选择一个 Region。</div>`;
@@ -178,7 +190,8 @@ function renderRegionInspector() {
 
     const blocks = Array.isArray(region.blocks) ? region.blocks : [];
     const blockCards = blocks.map((block, blockIndex) => {
-        const isSelected = state.inspectorBlockIndex === blockIndex;
+        const blockId = getLayoutBlockId(block, blockIndex);
+        const isSelected = state.selectedBlockId === blockId;
         return `
             <div class="inspector-block-card ${isSelected ? "selected" : ""}">
                 <div class="inspector-block-title" onclick="selectInspectorBlock(${blockIndex})">
@@ -253,16 +266,19 @@ function updateInspectorRegionField(field, value) {
     if (field === "range") {
         region.range = String(value || "").trim().toUpperCase();
     }
-    state.currentProfile.layout_config.regions[index] = region;
-    renderLayoutDesigner(state.currentProfile.layout_config.regions);
+    const config = getLayoutConfig();
+    config.regions[index] = region;
+    setLayoutConfig(config, { render: false });
+    renderLayoutDesigner(config.regions);
     highlightLayoutRegionForm();
 }
 
 
 
 function selectInspectorBlock(blockIndex) {
-    state.inspectorBlockIndex = state.inspectorBlockIndex === blockIndex ? null : blockIndex;
-    renderRegionInspector();
+    const { region } = getSelectedLayoutRegion();
+    const block = region?.blocks?.[blockIndex];
+    setSelectedBlock(block ? getLayoutBlockId(block, blockIndex) : null);
 }
 
 
@@ -307,10 +323,12 @@ function updateInspectorBlockField(blockIndex, field, value, rerender = false) {
         }
         block.options = options;
     }
+    const config = getLayoutConfig();
     region.blocks[blockIndex] = block;
-    state.currentProfile.layout_config.regions[index] = region;
-    renderLayoutRegions(state.currentProfile.layout_config.regions);
-    renderLayoutDesigner(state.currentProfile.layout_config.regions);
+    config.regions[index] = region;
+    setLayoutConfig(config, { render: false });
+    renderLayoutRegions(config.regions);
+    renderLayoutDesigner(config.regions);
     if (rerender) {
         renderRegionInspector();
     }
@@ -333,8 +351,10 @@ function addInspectorBlock() {
         source: "",
         options: {}
     });
-    state.inspectorBlockIndex = region.blocks.length - 1;
-    state.currentProfile.layout_config.regions[index] = region;
+    state.selectedBlockId = getLayoutBlockId(region.blocks[region.blocks.length - 1], region.blocks.length - 1);
+    const config = getLayoutConfig();
+    config.regions[index] = region;
+    setLayoutConfig(config, { render: false });
     renderLayoutConfig();
 }
 
@@ -346,8 +366,10 @@ function deleteInspectorBlock(blockIndex) {
         return;
     }
     region.blocks.splice(blockIndex, 1);
-    state.inspectorBlockIndex = null;
-    state.currentProfile.layout_config.regions[index] = region;
+    state.selectedBlockId = null;
+    const config = getLayoutConfig();
+    config.regions[index] = region;
+    setLayoutConfig(config, { render: false });
     renderLayoutConfig();
 }
 

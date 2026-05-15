@@ -1,14 +1,25 @@
 (function () {
 'use strict';
 
-window.layoutEditorState = window.layoutEditorState || {
+window.layoutEditorState = window.layoutEditorState || {};
+Object.entries({
     currentProfile: null,
     layoutConfig: null,
     geometry: null,
     selectedRegionId: null,
+    selectedBlockId: null,
+    dirty: false,
+    lastSavedAt: null,
     previewState: {},
-    imagePool: []
-};
+    imagePool: [],
+    geometryError: "",
+    selectedRegionIndex: 0,
+    activeDrag: null
+}).forEach(([key, value]) => {
+    if (!Object.prototype.hasOwnProperty.call(window.layoutEditorState, key)) {
+        window.layoutEditorState[key] = value;
+    }
+});
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
@@ -79,6 +90,113 @@ function normalizeLayoutConfig(raw) {
 }
 
 
+function getLayoutEditorState() {
+    return state;
+}
+
+
+
+function renderLayoutSaveStatus(message) {
+    const status = document.getElementById("layoutDirtyStatus");
+    if (!status) {
+        return;
+    }
+    status.className = "layout-save-status " + (state.dirty ? "dirty" : "saved");
+    status.textContent = message || (state.dirty ? "Layout 有未保存修改" : "Layout 已保存");
+}
+
+
+
+function syncCurrentProfileLayoutConfig() {
+    const config = getLayoutConfig();
+    if (state.currentProfile) {
+        state.currentProfile.layout_config = config;
+    }
+    try {
+        if (currentProfile) {
+            currentProfile.layout_config = config;
+        }
+    } catch (error) {
+        // config.html owns the legacy currentProfile binding.
+    }
+    return config;
+}
+
+
+
+function markLayoutDirty() {
+    state.dirty = true;
+    renderLayoutSaveStatus();
+}
+
+
+
+function markLayoutSaved() {
+    state.dirty = false;
+    state.lastSavedAt = new Date().toISOString();
+    renderLayoutSaveStatus();
+}
+
+
+
+function getLayoutConfig() {
+    if (!state.layoutConfig) {
+        state.layoutConfig = normalizeLayoutConfig(state.currentProfile?.layout_config || defaultLayoutConfig());
+    }
+    return state.layoutConfig;
+}
+
+
+
+function setLayoutConfig(layoutConfig, options = {}) {
+    const config = normalizeLayoutConfig(layoutConfig || defaultLayoutConfig());
+    state.layoutConfig = config;
+    syncCurrentProfileLayoutConfig();
+    ensureSelectedLayoutRegion(config.regions);
+    if (options.dirty !== false) {
+        markLayoutDirty();
+    } else {
+        renderLayoutSaveStatus();
+    }
+    if (options.render !== false) {
+        renderLayoutDesigner(config.regions);
+        renderRegionInspector();
+    }
+    return config;
+}
+
+
+
+function getSelectedRegion() {
+    return getSelectedLayoutRegion().region;
+}
+
+
+
+function setSelectedRegion(regionId, options = {}) {
+    const previousRegionId = state.selectedRegionId;
+    state.selectedRegionId = regionId || null;
+    if (previousRegionId !== state.selectedRegionId) {
+        state.selectedBlockId = null;
+    }
+    const regions = getLayoutConfig().regions || [];
+    const index = regions.findIndex((region, regionIndex) => getLayoutRegionId(region, regionIndex) === state.selectedRegionId);
+    state.selectedRegionIndex = index >= 0 ? index : 0;
+    highlightLayoutDesignerRegion();
+    highlightLayoutRegionForm();
+    if (options.renderInspector !== false) {
+        renderRegionInspector();
+    }
+}
+
+
+
+function setSelectedBlock(blockId) {
+    state.selectedBlockId = state.selectedBlockId === blockId ? null : blockId;
+    renderRegionInspector();
+}
+
+
 
 function getLayoutRegionId(region, index) {
     return String(region && region.id || `region_${index}`).trim();
@@ -86,8 +204,14 @@ function getLayoutRegionId(region, index) {
 
 
 
+function getLayoutBlockId(block, index) {
+    return String(block && block.id || `block_${index}`).trim();
+}
+
+
+
 function findLayoutRegionIndexById(regionId) {
-    const regions = state.currentProfile?.layout_config?.regions || [];
+    const regions = getLayoutConfig().regions || [];
     return regions.findIndex((region, index) => getLayoutRegionId(region, index) === regionId);
 }
 
@@ -97,16 +221,16 @@ function ensureSelectedLayoutRegion(regions) {
     const list = Array.isArray(regions) ? regions : [];
     if (!list.length) {
         state.selectedRegionId = null;
+        state.selectedBlockId = null;
         state.selectedRegionIndex = 0;
-        state.inspectorBlockIndex = null;
         return;
     }
     const existingIndex = list.findIndex((region, index) => getLayoutRegionId(region, index) === state.selectedRegionId);
     state.selectedRegionIndex = existingIndex >= 0 ? existingIndex : 0;
     state.selectedRegionId = getLayoutRegionId(list[state.selectedRegionIndex], state.selectedRegionIndex);
     const blocks = list[state.selectedRegionIndex].blocks || [];
-    if (state.inspectorBlockIndex !== null && state.inspectorBlockIndex >= blocks.length) {
-        state.inspectorBlockIndex = blocks.length ? blocks.length - 1 : null;
+    if (state.selectedBlockId && !blocks.some((block, blockIndex) => getLayoutBlockId(block, blockIndex) === state.selectedBlockId)) {
+        state.selectedBlockId = null;
     }
 }
 
@@ -117,9 +241,12 @@ function syncLayoutDesignerRangeInput(index, range) {
     if (input) {
         input.value = range;
     }
-    if (state.currentProfile && state.currentProfile.layout_config && state.currentProfile.layout_config.regions[index]) {
-        state.currentProfile.layout_config.regions[index].range = range;
+    const config = getLayoutConfig();
+    if (config.regions[index]) {
+        config.regions[index].range = range;
     }
+    syncCurrentProfileLayoutConfig();
+    markLayoutDirty();
     renderRegionInspector();
 }
 
@@ -129,8 +256,7 @@ function syncLayoutDesignerFromRegionInput(index, shouldRender = true) {
     if (!state.currentProfile) {
         return;
     }
-    const config = collectLayoutConfig();
-    state.currentProfile.layout_config = config;
+    const config = setLayoutConfig(collectLayoutConfig(), { render: false });
     state.selectedRegionIndex = clampLayoutDesignerValue(index, 0, Math.max(0, config.regions.length - 1));
     state.selectedRegionId = getLayoutRegionId(config.regions[state.selectedRegionIndex], state.selectedRegionIndex);
     if (shouldRender) {
@@ -150,21 +276,20 @@ function highlightLayoutRegionForm() {
 
 
 
-function selectLayoutDesignerRegion(index, shouldScroll = true, shouldRenderInspector = true) {
-    const previousRegionId = state.selectedRegionId;
-    state.selectedRegionIndex = Number(index) || 0;
-    const region = state.currentProfile?.layout_config?.regions?.[state.selectedRegionIndex];
-    state.selectedRegionId = getLayoutRegionId(region, state.selectedRegionIndex);
-    if (previousRegionId !== state.selectedRegionId) {
-        state.inspectorBlockIndex = null;
-    }
+function highlightLayoutDesignerRegion() {
     document.querySelectorAll(".layout-designer-region").forEach(region => {
         region.classList.toggle("selected", region.dataset.regionId === state.selectedRegionId);
     });
-    highlightLayoutRegionForm();
-    if (shouldRenderInspector) {
-        renderRegionInspector();
-    }
+}
+
+
+
+function selectLayoutDesignerRegion(index, shouldScroll = true, shouldRenderInspector = true) {
+    state.selectedRegionIndex = Number(index) || 0;
+    const region = getLayoutConfig().regions?.[state.selectedRegionIndex];
+    setSelectedRegion(getLayoutRegionId(region, state.selectedRegionIndex), {
+        renderInspector: shouldRenderInspector
+    });
     if (shouldScroll) {
         const card = document.querySelector(`.layout-region-card[data-region-index="${state.selectedRegionIndex}"]`);
         if (card) {
@@ -180,6 +305,8 @@ function renderLayoutDesigner(regions) {
     if (!container) {
         return;
     }
+    const layoutConfig = getLayoutConfig();
+    regions = Array.isArray(regions) ? regions : layoutConfig.regions;
     const preview = normalizeLayoutPreview(state.currentProfile?.layout_preview || defaultLayoutPreview());
     const metrics = getLayoutDesignerMetrics();
 
@@ -295,7 +422,8 @@ function renderLayoutDesigner(regions) {
     container.appendChild(stage);
     if ((regions || []).length > 0) {
         ensureSelectedLayoutRegion(regions);
-        selectLayoutDesignerRegion(state.selectedRegionIndex, false, false);
+        highlightLayoutDesignerRegion();
+        highlightLayoutRegionForm();
     }
 }
 
@@ -308,7 +436,7 @@ function startLayoutDesignerDrag(event, index, mode) {
     const box = event.currentTarget.classList.contains("layout-designer-region")
         ? event.currentTarget
         : event.currentTarget.closest(".layout-designer-region");
-    const rect = rangeToRect(state.currentProfile?.layout_config?.regions?.[index]?.range)
+    const rect = rangeToRect(getLayoutConfig().regions?.[index]?.range)
         || defaultLayoutDesignerRect(index);
     state.activeDrag = {
         index,
@@ -391,8 +519,11 @@ function renderLayoutConfig() {
         return;
     }
 
-    const config = normalizeLayoutConfig(state.currentProfile.layout_config || defaultLayoutConfig());
-    state.currentProfile.layout_config = config;
+    if (!state.layoutConfig) {
+        setLayoutConfig(state.currentProfile.layout_config || defaultLayoutConfig(), { dirty: false, render: false });
+    }
+    const config = getLayoutConfig();
+    syncCurrentProfileLayoutConfig();
     ensureSelectedLayoutRegion(config.regions);
     state.currentProfile.layout_preview = normalizeLayoutPreview(state.currentProfile.layout_preview || defaultLayoutPreview());
     const preview = state.currentProfile.layout_preview;
@@ -404,8 +535,9 @@ function renderLayoutConfig() {
         : escapeHtml(state.geometryError || "未读取到真实 Excel 几何，当前使用简化网格。");
 
     area.innerHTML = `
+        <div id="layoutDirtyStatus" class="layout-save-status ${state.dirty ? "dirty" : "saved"}">${state.dirty ? "Layout 有未保存修改" : "Layout 已保存"}</div>
         <label class="checkbox-line">
-            <input type="checkbox" id="layout_enabled" ${config.enabled ? "checked" : ""}>
+            <input type="checkbox" id="layout_enabled" ${config.enabled ? "checked" : ""} onchange="refreshLayoutConfigDraft()">
             <span>启用 Layout Engine</span>
         </label>
         <div class="button-row">
@@ -739,7 +871,7 @@ function getSelectedLayoutRegion() {
     }
     return {
         index,
-        region: state.currentProfile.layout_config.regions[index]
+        region: getLayoutConfig().regions[index]
     };
 }
 
@@ -749,9 +881,9 @@ function syncLayoutFormDraftFromLower() {
     if (!state.currentProfile) {
         return;
     }
-    state.currentProfile.layout_config = collectLayoutConfig();
-    ensureSelectedLayoutRegion(state.currentProfile.layout_config.regions);
-    renderLayoutDesigner(state.currentProfile.layout_config.regions);
+    const config = setLayoutConfig(collectLayoutConfig(), { render: false });
+    ensureSelectedLayoutRegion(config.regions);
+    renderLayoutDesigner(config.regions);
     renderRegionInspector();
 }
 
@@ -762,7 +894,8 @@ function syncCurrentProfileFromResult(profile) {
         return;
     }
     state.currentProfile = profile;
-    state.layoutConfig = profile.layout_config || null;
+    state.layoutConfig = normalizeLayoutConfig(profile.layout_config || defaultLayoutConfig());
+    state.selectedBlockId = null;
     try {
         currentProfile = profile;
     } catch (error) {
@@ -781,7 +914,7 @@ function refreshLayoutConfigDraft() {
     if (!state.currentProfile) {
         return;
     }
-    state.currentProfile.layout_config = collectLayoutConfig();
+    setLayoutConfig(collectLayoutConfig(), { render: false });
     renderLayoutConfig();
 }
 
@@ -792,7 +925,8 @@ function toggleLayoutPreviewEnabled() {
         return;
     }
     state.currentProfile.layout_preview = collectLayoutPreview();
-    renderLayoutDesigner(state.currentProfile.layout_config?.regions || []);
+    markLayoutDirty();
+    renderLayoutDesigner(getLayoutConfig().regions || []);
 }
 
 
@@ -825,6 +959,7 @@ async function uploadLayoutPreview() {
     }
 
     syncCurrentProfileFromResult(result.profile);
+    markLayoutSaved();
     renderLayoutConfig();
     if (resultDiv) {
         resultDiv.innerHTML = `<p class="success">背景图已上传</p>`;
@@ -838,6 +973,7 @@ function clearLayoutPreview() {
         return;
     }
     state.currentProfile.layout_preview = defaultLayoutPreview();
+    markLayoutDirty();
     renderLayoutConfig();
 }
 
@@ -847,7 +983,7 @@ function addLayoutRegion() {
     if (!state.currentProfile) {
         return;
     }
-    const config = collectLayoutConfig();
+    const config = getLayoutConfig();
     const ts = Date.now();
     config.regions.push({
         id: `region_${ts}`,
@@ -859,7 +995,7 @@ function addLayoutRegion() {
         blocks: [],
         options: {}
     });
-    state.currentProfile.layout_config = config;
+    setLayoutConfig(config, { render: false });
     renderLayoutConfig();
 }
 
@@ -869,16 +1005,15 @@ function deleteLayoutRegion(index, options = {}) {
     if (!state.currentProfile) {
         return;
     }
-    const config = collectLayoutConfig();
+    const config = getLayoutConfig();
     const region = config.regions[index];
     if (!options.skipConfirm && region && !confirm(`确定删除 Region：${region.name || region.id || region.range || index + 1} 吗？`)) {
         return;
     }
     config.regions.splice(index, 1);
     state.selectedRegionId = null;
-    state.inspectorBlockIndex = null;
-    state.currentProfile.layout_config = config;
-    state.layoutConfig = config;
+    state.selectedBlockId = null;
+    setLayoutConfig(config, { render: false });
     renderLayoutConfig();
 }
 
@@ -886,7 +1021,7 @@ function addLayoutBlock(regionIndex, blockType) {
     if (!state.currentProfile) {
         return;
     }
-    const config = collectLayoutConfig();
+    const config = getLayoutConfig();
     if (!config.regions[regionIndex]) {
         return;
     }
@@ -936,7 +1071,7 @@ function addLayoutBlock(regionIndex, blockType) {
                     }
             : {}
     });
-    state.currentProfile.layout_config = config;
+    setLayoutConfig(config, { render: false });
     renderLayoutConfig();
 }
 
@@ -946,12 +1081,16 @@ function deleteLayoutBlock(regionIndex, blockIndex) {
     if (!state.currentProfile) {
         return;
     }
-    const config = collectLayoutConfig();
+    const config = getLayoutConfig();
     if (!config.regions[regionIndex]) {
         return;
     }
+    const block = config.regions[regionIndex].blocks[blockIndex];
+    if (block && getLayoutBlockId(block, blockIndex) === state.selectedBlockId) {
+        state.selectedBlockId = null;
+    }
     config.regions[regionIndex].blocks.splice(blockIndex, 1);
-    state.currentProfile.layout_config = config;
+    setLayoutConfig(config, { render: false });
     renderLayoutConfig();
 }
 
@@ -966,7 +1105,8 @@ async function saveLayoutConfig() {
         return;
     }
 
-    const layoutConfig = collectLayoutConfig();
+    setLayoutConfig(collectLayoutConfig(), { render: false });
+    const layoutConfig = getLayoutConfig();
     const layoutPreview = collectLayoutPreview();
     const response = await fetch(`/api/template-profiles/${state.currentProfile.id}/layout-config`, {
         method: "POST",
@@ -988,6 +1128,8 @@ async function saveLayoutConfig() {
     }
 
     syncCurrentProfileFromResult(result.profile);
+    setLayoutConfig(result.profile.layout_config || defaultLayoutConfig(), { dirty: false, render: false });
+    markLayoutSaved();
     renderLayoutConfig();
     if (resultDiv) {
         resultDiv.innerHTML = `<p class="success">Layout配置已保存</p>`;
@@ -997,13 +1139,24 @@ async function saveLayoutConfig() {
 
 
 Object.assign(window, {
+    getLayoutEditorState,
+    setLayoutConfig,
+    getLayoutConfig,
+    setSelectedRegion,
+    getSelectedRegion,
+    setSelectedBlock,
+    markLayoutDirty,
+    markLayoutSaved,
+    syncCurrentProfileLayoutConfig,
     defaultLayoutConfig,
     defaultLayoutPreview,
     normalizeLayoutPreview,
     normalizeLayoutConfig,
     getLayoutRegionId,
+    getLayoutBlockId,
     findLayoutRegionIndexById,
     ensureSelectedLayoutRegion,
+    highlightLayoutDesignerRegion,
     syncLayoutDesignerRangeInput,
     syncLayoutDesignerFromRegionInput,
     highlightLayoutRegionForm,
