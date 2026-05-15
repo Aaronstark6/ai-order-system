@@ -2311,8 +2311,12 @@
 
             const documentNoSettings = collectDocumentNoSettings();
             const descriptionSettings = collectDescriptionSettings();
-            setLayoutConfig(collectLayoutConfig(), { render: false });
-            const layoutConfig = getLayoutConfig();
+            const nextLayoutConfig = collectLayoutConfig();
+            updateLayout(config => {
+                config.enabled = nextLayoutConfig.enabled;
+                config.regions = nextLayoutConfig.regions;
+            }, { skipRender: true });
+            const layoutConfig = JSON.parse(JSON.stringify(getLayoutConfig()));
             const layoutPreview = collectLayoutPreview();
             const imageLibraryFields = collectImageLibraryFieldsFromTable();
             validateImageLibraryFields(imageLibraryFields);

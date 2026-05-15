@@ -24,6 +24,9 @@ Object.entries({
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
+if (typeof window.DEBUG_LAYOUT === "undefined") {
+    window.DEBUG_LAYOUT = false;
+}
 
 const LAYOUT_DESIGNER_COL_WIDTH = 70;
 const LAYOUT_DESIGNER_ROW_HEIGHT = 24;

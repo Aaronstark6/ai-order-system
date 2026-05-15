@@ -24,6 +24,9 @@ Object.entries({
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
+if (typeof window.DEBUG_LAYOUT === "undefined") {
+    window.DEBUG_LAYOUT = false;
+}
 
 function defaultLayoutConfig() {
     return {
@@ -97,6 +100,26 @@ function getLayoutEditorState() {
 
 
 
+function layoutDebug(...args) {
+    if (window.DEBUG_LAYOUT) {
+        console.log("[layout]", ...args);
+    }
+}
+
+
+
+function refreshLayoutUI() {
+    const config = getLayoutConfig();
+    renderLayoutDesigner(config.regions);
+    if (state.advancedVisible) {
+        renderLayoutRegions(config.regions);
+    }
+    renderRegionInspector();
+    renderLayoutSaveStatus();
+}
+
+
+
 function renderLayoutSaveStatus(message) {
     const status = document.getElementById("layoutDirtyStatus");
     if (!status) {
@@ -162,6 +185,28 @@ function markLayoutSaved() {
 
 
 
+function findRegionById(regionId) {
+    const regions = getLayoutConfig().regions || [];
+    const index = regions.findIndex((region, regionIndex) => getLayoutRegionId(region, regionIndex) === regionId);
+    return {
+        index,
+        region: index >= 0 ? regions[index] : null
+    };
+}
+
+
+
+function findBlockById(region, blockId) {
+    const blocks = Array.isArray(region && region.blocks) ? region.blocks : [];
+    const index = blocks.findIndex((block, blockIndex) => getLayoutBlockId(block, blockIndex) === blockId);
+    return {
+        index,
+        block: index >= 0 ? blocks[index] : null
+    };
+}
+
+
+
 function getLayoutConfig() {
     if (!state.layoutConfig) {
         state.layoutConfig = normalizeLayoutConfig(state.currentProfile?.layout_config || defaultLayoutConfig());
@@ -182,10 +227,27 @@ function setLayoutConfig(layoutConfig, options = {}) {
         renderLayoutSaveStatus();
     }
     if (options.render !== false) {
-        renderLayoutDesigner(config.regions);
-        renderRegionInspector();
+        refreshLayoutUI();
     }
     return config;
+}
+
+
+
+function updateLayout(mutator, options = {}) {
+    if (!state.layoutConfig) {
+        return null;
+    }
+    mutator(state.layoutConfig);
+    state.layoutConfig = normalizeLayoutConfig(state.layoutConfig);
+    syncCurrentProfileLayoutConfig();
+    ensureSelectedLayoutRegion(state.layoutConfig.regions);
+    markLayoutDirty();
+    layoutDebug("layout updated", options);
+    if (!options.skipRender) {
+        refreshLayoutUI();
+    }
+    return state.layoutConfig;
 }
 
 
@@ -202,8 +264,7 @@ function setSelectedRegion(regionId, options = {}) {
     if (previousRegionId !== state.selectedRegionId) {
         state.selectedBlockId = null;
     }
-    const regions = getLayoutConfig().regions || [];
-    const index = regions.findIndex((region, regionIndex) => getLayoutRegionId(region, regionIndex) === state.selectedRegionId);
+    const { index } = findRegionById(state.selectedRegionId);
     state.selectedRegionIndex = index >= 0 ? index : 0;
     highlightLayoutDesignerRegion();
     highlightLayoutRegionForm();
@@ -234,8 +295,7 @@ function getLayoutBlockId(block, index) {
 
 
 function findLayoutRegionIndexById(regionId) {
-    const regions = getLayoutConfig().regions || [];
-    return regions.findIndex((region, index) => getLayoutRegionId(region, index) === regionId);
+    return findRegionById(regionId).index;
 }
 
 
@@ -264,12 +324,11 @@ function syncLayoutDesignerRangeInput(index, range) {
     if (input) {
         input.value = range;
     }
-    const config = getLayoutConfig();
-    if (config.regions[index]) {
-        config.regions[index].range = range;
-    }
-    syncCurrentProfileLayoutConfig();
-    markLayoutDirty();
+    updateLayout(config => {
+        if (config.regions[index]) {
+            config.regions[index].range = range;
+        }
+    }, { skipRender: true });
     renderRegionInspector();
 }
 
@@ -279,7 +338,13 @@ function syncLayoutDesignerFromRegionInput(index, shouldRender = true) {
     if (!state.currentProfile) {
         return;
     }
-    const config = setLayoutConfig(collectLayoutConfig(), { render: false });
+    let config = getLayoutConfig();
+    const nextConfig = collectLayoutConfig();
+    updateLayout(target => {
+        target.enabled = nextConfig.enabled;
+        target.regions = nextConfig.regions;
+    }, { skipRender: true });
+    config = getLayoutConfig();
     state.selectedRegionIndex = clampLayoutDesignerValue(index, 0, Math.max(0, config.regions.length - 1));
     state.selectedRegionId = getLayoutRegionId(config.regions[state.selectedRegionIndex], state.selectedRegionIndex);
     if (shouldRender) {
@@ -919,7 +984,13 @@ function syncLayoutFormDraftFromLower() {
     if (!state.currentProfile) {
         return;
     }
-    const config = setLayoutConfig(collectLayoutConfig(), { render: false });
+    let config = getLayoutConfig();
+    const nextConfig = collectLayoutConfig();
+    updateLayout(target => {
+        target.enabled = nextConfig.enabled;
+        target.regions = nextConfig.regions;
+    }, { skipRender: true });
+    config = getLayoutConfig();
     ensureSelectedLayoutRegion(config.regions);
     renderLayoutDesigner(config.regions);
     renderRegionInspector();
@@ -952,7 +1023,11 @@ function refreshLayoutConfigDraft() {
     if (!state.currentProfile) {
         return;
     }
-    setLayoutConfig(collectLayoutConfig(), { render: false });
+    const nextConfig = collectLayoutConfig();
+    updateLayout(target => {
+        target.enabled = nextConfig.enabled;
+        target.regions = nextConfig.regions;
+    }, { skipRender: true });
     renderLayoutConfig();
 }
 
@@ -1021,117 +1096,113 @@ function addLayoutRegion() {
     if (!state.currentProfile) {
         return;
     }
-    const config = getLayoutConfig();
     const ts = Date.now();
-    config.regions.push({
-        id: `region_${ts}`,
-        name: "新区域",
-        type: "rich_text",
-        enabled: true,
-        sheet: "active",
-        range: "",
-        blocks: [],
-        options: {}
-    });
-    setLayoutConfig(config, { render: false });
+    updateLayout(config => {
+        config.regions.push({
+            id: `region_${ts}`,
+            name: "\u65b0\u533a\u57df",
+            type: "rich_text",
+            enabled: true,
+            sheet: "active",
+            range: "",
+            blocks: [],
+            options: {}
+        });
+    }, { skipRender: true });
     renderLayoutConfig();
 }
-
 
 
 function deleteLayoutRegion(index, options = {}) {
     if (!state.currentProfile) {
         return;
     }
-    const config = getLayoutConfig();
-    const region = config.regions[index];
-    if (!options.skipConfirm && region && !confirm(`确定删除 Region：${region.name || region.id || region.range || index + 1} 吗？`)) {
+    const region = getLayoutConfig().regions[index];
+    if (!options.skipConfirm && region && !confirm(`\u786e\u5b9a\u5220\u9664 Region\uff1a${region.name || region.id || region.range || index + 1} \u5417\uff1f`)) {
         return;
     }
-    config.regions.splice(index, 1);
-    state.selectedRegionId = null;
-    state.selectedBlockId = null;
-    setLayoutConfig(config, { render: false });
+    updateLayout(config => {
+        config.regions.splice(index, 1);
+        state.selectedRegionId = null;
+        state.selectedBlockId = null;
+    }, { skipRender: true });
     renderLayoutConfig();
 }
 
+
 function addLayoutBlock(regionIndex, blockType) {
-    if (!state.currentProfile) {
-        return;
-    }
-    const config = getLayoutConfig();
-    if (!config.regions[regionIndex]) {
+    if (!state.currentProfile || !getLayoutConfig().regions[regionIndex]) {
         return;
     }
     const ts = Date.now();
     const type = ["image", "image_gallery", "image_stack"].includes(blockType)
         ? blockType
         : "description_fields";
-    config.regions[regionIndex].blocks.push({
-        id: `block_${ts}`,
-        type: type,
-        source: type === "image" ? "" : (["image_gallery", "image_stack"].includes(type) ? "image_data" : "description_fields"),
-        enabled: true,
-        options: type === "image"
-            ? {
-                width: 220,
-                height: 160,
-                keep_ratio: true
-            }
-            : type === "image_gallery"
+    updateLayout(config => {
+        config.regions[regionIndex].blocks.push({
+            id: `block_${ts}`,
+            type: type,
+            source: type === "image" ? "" : (["image_gallery", "image_stack"].includes(type) ? "image_data" : "description_fields"),
+            enabled: true,
+            options: type === "image"
                 ? {
-                    source_keys: [],
-                    auto_source: false,
-                    use_image_pool: false,
-                    exclude_keys: [],
-                    max_images: 0,
-                    columns: 3,
-                    image_width: 180,
-                    image_height: 140,
-                    keep_ratio: true,
-                    row_step: 8,
-                    col_step: 4
+                    width: 220,
+                    height: 160,
+                    keep_ratio: true
                 }
-                : type === "image_stack"
+                : type === "image_gallery"
                     ? {
                         source_keys: [],
                         auto_source: false,
                         use_image_pool: false,
                         exclude_keys: [],
                         max_images: 0,
-                        layout_mode: "auto_stack",
-                        anchor_cell: "",
-                        image_width: 220,
-                        image_height: 120,
+                        columns: 3,
+                        image_width: 180,
+                        image_height: 140,
                         keep_ratio: true,
-                        gap_rows: 8,
-                        gap_px: 12
+                        row_step: 8,
+                        col_step: 4
                     }
-            : {}
-    });
-    setLayoutConfig(config, { render: false });
+                    : type === "image_stack"
+                        ? {
+                            source_keys: [],
+                            auto_source: false,
+                            use_image_pool: false,
+                            exclude_keys: [],
+                            max_images: 0,
+                            layout_mode: "auto_stack",
+                            anchor_cell: "",
+                            image_width: 220,
+                            image_height: 120,
+                            keep_ratio: true,
+                            gap_rows: 8,
+                            gap_px: 12
+                        }
+                : {}
+        });
+    }, { skipRender: true });
     renderLayoutConfig();
 }
-
 
 
 function deleteLayoutBlock(regionIndex, blockIndex) {
     if (!state.currentProfile) {
         return;
     }
-    const config = getLayoutConfig();
-    if (!config.regions[regionIndex]) {
+    const region = getLayoutConfig().regions[regionIndex];
+    if (!region) {
         return;
     }
-    const block = config.regions[regionIndex].blocks[blockIndex];
-    if (block && getLayoutBlockId(block, blockIndex) === state.selectedBlockId) {
-        state.selectedBlockId = null;
-    }
-    config.regions[regionIndex].blocks.splice(blockIndex, 1);
-    setLayoutConfig(config, { render: false });
+    const block = region.blocks[blockIndex];
+    updateLayout(config => {
+        if (block && getLayoutBlockId(block, blockIndex) === state.selectedBlockId) {
+            state.selectedBlockId = null;
+        }
+        config.regions[regionIndex].blocks.splice(blockIndex, 1);
+    }, { skipRender: true });
     renderLayoutConfig();
 }
-
 
 
 async function saveLayoutConfig() {
@@ -1143,8 +1214,12 @@ async function saveLayoutConfig() {
         return;
     }
 
-    setLayoutConfig(collectLayoutConfig(), { render: false });
-    const layoutConfig = getLayoutConfig();
+    const nextConfig = collectLayoutConfig();
+    updateLayout(config => {
+        config.enabled = nextConfig.enabled;
+        config.regions = nextConfig.regions;
+    }, { skipRender: true });
+    const layoutConfig = JSON.parse(JSON.stringify(getLayoutConfig()));
     const layoutPreview = collectLayoutPreview();
     const response = await fetch(`/api/template-profiles/${state.currentProfile.id}/layout-config`, {
         method: "POST",
@@ -1178,6 +1253,11 @@ async function saveLayoutConfig() {
 
 Object.assign(window, {
     getLayoutEditorState,
+    updateLayout,
+    refreshLayoutUI,
+    findRegionById,
+    findBlockById,
+    layoutDebug,
     setLayoutConfig,
     getLayoutConfig,
     setSelectedRegion,

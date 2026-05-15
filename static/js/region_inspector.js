@@ -263,17 +263,17 @@ function updateInspectorRegionField(field, value) {
             enabledInput.checked = Boolean(value);
         }
     }
-    region[field] = field === "enabled" ? Boolean(value) : String(value || "").trim();
-    if (field === "range") {
-        region.range = String(value || "").trim().toUpperCase();
-    }
-    const config = getLayoutConfig();
-    config.regions[index] = region;
-    setLayoutConfig(config, { render: false });
-    renderLayoutDesigner(config.regions);
-    highlightLayoutRegionForm();
+    updateLayout(config => {
+        const target = config.regions[index];
+        if (!target) {
+            return;
+        }
+        target[field] = field === "enabled" ? Boolean(value) : String(value || "").trim();
+        if (field === "range") {
+            target.range = String(value || "").trim().toUpperCase();
+        }
+    });
 }
-
 
 
 function selectInspectorBlock(blockIndex) {
@@ -289,52 +289,51 @@ function updateInspectorBlockField(blockIndex, field, value, rerender = false) {
     if (!region || !region.blocks || !region.blocks[blockIndex]) {
         return;
     }
-    const block = region.blocks[blockIndex];
-    if (field === "type") {
-        block.type = value;
-        block.options = normalizeLayoutBlockOptions(value, {});
-        rerender = true;
-    } else if (field === "enabled") {
-        block.enabled = Boolean(value);
-    } else if (field === "source") {
-        block.source = String(value || "").trim();
-    } else if (field.startsWith("options.")) {
-        const key = field.replace("options.", "");
-        const type = String(block.type || "description_fields");
-        const options = normalizeLayoutBlockOptions(type, block.options || {});
-        if (key === "source_keys") {
-            options.source_keys = parseLayoutSourceKeys(value);
-        } else if (key === "exclude_keys") {
-            options.exclude_keys = parseLayoutSourceKeys(value);
-        } else if (key === "keep_ratio") {
-            options.keep_ratio = Boolean(value);
-        } else if (key === "auto_source") {
-            options.auto_source = Boolean(value);
-        } else if (key === "use_image_pool") {
-            options.use_image_pool = Boolean(value);
-        } else if (["image_width", "image_height", "width", "height", "columns", "row_step", "col_step", "gap_px"].includes(key)) {
-            options[key] = parseLayoutNumber(value, options[key] || 1);
-        } else if (key === "max_images") {
-            options.max_images = parseLayoutNonNegativeNumber(value, 0);
-        } else {
-            options[key] = String(value || "").trim();
-            if (key === "anchor_cell") {
-                options[key] = options[key].toUpperCase();
-            }
+    updateLayout(config => {
+        const targetRegion = config.regions[index];
+        const block = targetRegion?.blocks?.[blockIndex];
+        if (!block) {
+            return;
         }
-        block.options = options;
-    }
-    const config = getLayoutConfig();
-    region.blocks[blockIndex] = block;
-    config.regions[index] = region;
-    setLayoutConfig(config, { render: false });
-    renderLayoutRegions(config.regions);
-    renderLayoutDesigner(config.regions);
+        if (field === "type") {
+            block.type = value;
+            block.options = normalizeLayoutBlockOptions(value, {});
+            rerender = true;
+        } else if (field === "enabled") {
+            block.enabled = Boolean(value);
+        } else if (field === "source") {
+            block.source = String(value || "").trim();
+        } else if (field.startsWith("options.")) {
+            const key = field.replace("options.", "");
+            const type = String(block.type || "description_fields");
+            const options = normalizeLayoutBlockOptions(type, block.options || {});
+            if (key === "source_keys") {
+                options.source_keys = parseLayoutSourceKeys(value);
+            } else if (key === "exclude_keys") {
+                options.exclude_keys = parseLayoutSourceKeys(value);
+            } else if (key === "keep_ratio") {
+                options.keep_ratio = Boolean(value);
+            } else if (key === "auto_source") {
+                options.auto_source = Boolean(value);
+            } else if (key === "use_image_pool") {
+                options.use_image_pool = Boolean(value);
+            } else if (["image_width", "image_height", "width", "height", "columns", "row_step", "col_step", "gap_px"].includes(key)) {
+                options[key] = parseLayoutNumber(value, options[key] || 1);
+            } else if (key === "max_images") {
+                options.max_images = parseLayoutNonNegativeNumber(value, 0);
+            } else {
+                options[key] = String(value || "").trim();
+                if (key === "anchor_cell") {
+                    options[key] = options[key].toUpperCase();
+                }
+            }
+            block.options = options;
+        }
+    }, { skipRender: rerender });
     if (rerender) {
-        renderRegionInspector();
+        refreshLayoutUI();
     }
 }
-
 
 
 function addInspectorBlock() {
@@ -342,23 +341,26 @@ function addInspectorBlock() {
     if (!region) {
         return;
     }
-    if (!Array.isArray(region.blocks)) {
-        region.blocks = [];
-    }
-    region.blocks.push({
+    const block = {
         id: `block_${Date.now()}`,
         type: "description_fields",
         enabled: true,
         source: "",
         options: {}
-    });
-    state.selectedBlockId = getLayoutBlockId(region.blocks[region.blocks.length - 1], region.blocks.length - 1);
-    const config = getLayoutConfig();
-    config.regions[index] = region;
-    setLayoutConfig(config, { render: false });
+    };
+    updateLayout(config => {
+        const target = config.regions[index];
+        if (!target) {
+            return;
+        }
+        if (!Array.isArray(target.blocks)) {
+            target.blocks = [];
+        }
+        target.blocks.push(block);
+        state.selectedBlockId = getLayoutBlockId(block, target.blocks.length - 1);
+    }, { skipRender: true });
     renderLayoutConfig();
 }
-
 
 
 function deleteInspectorBlock(blockIndex) {
@@ -366,14 +368,16 @@ function deleteInspectorBlock(blockIndex) {
     if (!region || !Array.isArray(region.blocks)) {
         return;
     }
-    region.blocks.splice(blockIndex, 1);
-    state.selectedBlockId = null;
-    const config = getLayoutConfig();
-    config.regions[index] = region;
-    setLayoutConfig(config, { render: false });
+    updateLayout(config => {
+        const target = config.regions[index];
+        if (!target || !Array.isArray(target.blocks)) {
+            return;
+        }
+        target.blocks.splice(blockIndex, 1);
+        state.selectedBlockId = null;
+    }, { skipRender: true });
     renderLayoutConfig();
 }
-
 
 
 function deleteInspectorRegion() {

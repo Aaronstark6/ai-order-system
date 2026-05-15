@@ -24,6 +24,9 @@ Object.entries({
 window.layoutEditorState.previewState = window.layoutEditorState.previewState || {};
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
+if (typeof window.DEBUG_LAYOUT === "undefined") {
+    window.DEBUG_LAYOUT = false;
+}
 
 function parseLayoutNumber(value, fallback) {
     const text = String(value ?? "").trim();
