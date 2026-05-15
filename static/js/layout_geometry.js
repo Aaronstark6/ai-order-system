@@ -14,7 +14,8 @@ Object.entries({
     imagePool: [],
     geometryError: "",
     selectedRegionIndex: 0,
-    activeDrag: null
+    activeDrag: null,
+    advancedVisible: false
 }).forEach(([key, value]) => {
     if (!Object.prototype.hasOwnProperty.call(window.layoutEditorState, key)) {
         window.layoutEditorState[key] = value;

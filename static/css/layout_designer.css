@@ -63,6 +63,32 @@
     color: #d97706;
 }
 
+.layout-advanced-toggle-row {
+    margin: 14px 0 8px;
+}
+
+.layout-advanced-panel {
+    display: none;
+    border-top: 1px dashed #d1d5db;
+    margin-top: 10px;
+    padding-top: 12px;
+}
+
+.layout-advanced-panel.open {
+    display: block;
+}
+
+.layout-advanced-tip {
+    background: #fff7e6;
+    border: 1px solid #ffd591;
+    border-radius: 6px;
+    color: #8a5a00;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+}
+
 .layout-designer {
     width: 900px;
     max-width: 100%;

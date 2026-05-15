@@ -326,7 +326,7 @@
           "type": "rich_text",
           "enabled": true,
           "sheet": "active",
-          "range": "G8:L9",
+          "range": "G8:K10",
           "blocks": [
             {
               "id": "block_1778767519655",

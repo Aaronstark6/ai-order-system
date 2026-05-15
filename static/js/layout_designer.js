@@ -14,7 +14,8 @@ Object.entries({
     imagePool: [],
     geometryError: "",
     selectedRegionIndex: 0,
-    activeDrag: null
+    activeDrag: null,
+    advancedVisible: false
 }).forEach(([key, value]) => {
     if (!Object.prototype.hasOwnProperty.call(window.layoutEditorState, key)) {
         window.layoutEditorState[key] = value;
@@ -103,6 +104,28 @@ function renderLayoutSaveStatus(message) {
     }
     status.className = "layout-save-status " + (state.dirty ? "dirty" : "saved");
     status.textContent = message || (state.dirty ? "Layout 有未保存修改" : "Layout 已保存");
+}
+
+
+function renderLayoutAdvancedPanelState() {
+    const panel = document.getElementById("layoutAdvancedPanel");
+    const button = document.getElementById("layoutAdvancedToggle");
+    if (panel) {
+        panel.classList.toggle("open", Boolean(state.advancedVisible));
+    }
+    if (button) {
+        button.textContent = state.advancedVisible ? "隐藏高级配置" : "显示高级配置";
+    }
+}
+
+
+
+function toggleLayoutAdvancedPanel() {
+    state.advancedVisible = !state.advancedVisible;
+    renderLayoutAdvancedPanelState();
+    if (state.advancedVisible) {
+        renderLayoutRegions(getLayoutConfig().regions || []);
+    }
 }
 
 
@@ -570,12 +593,19 @@ function renderLayoutConfig() {
             </div>
             <div id="regionInspector" class="region-inspector"></div>
         </div>
-        <div id="layoutRegionList"></div>
+        <div class="layout-advanced-toggle-row">
+            <button id="layoutAdvancedToggle" type="button" class="gray" onclick="toggleLayoutAdvancedPanel()">${state.advancedVisible ? "隐藏高级配置" : "显示高级配置"}</button>
+        </div>
+        <div class="layout-advanced-panel ${state.advancedVisible ? "open" : ""}" id="layoutAdvancedPanel">
+            <p class="layout-advanced-tip">高级配置用于直接编辑 Layout 原始结构。一般情况下请优先使用上方 Designer 和右侧 Inspector。</p>
+            <div id="layoutRegionList"></div>
+        </div>
     `;
 
     renderLayoutRegions(config.regions);
     renderLayoutDesigner(config.regions);
     renderRegionInspector();
+    renderLayoutAdvancedPanelState();
 }
 
 
@@ -782,7 +812,15 @@ function renderLayoutBlocks(regionIndex, blocks) {
 
 function collectLayoutConfig() {
     const enabled = document.getElementById("layout_enabled");
-    const regions = Array.from(document.querySelectorAll(".layout-region-card")).map(card => {
+    const regionCards = Array.from(document.querySelectorAll(".layout-region-card"));
+    if (!regionCards.length) {
+        const current = getLayoutConfig();
+        return normalizeLayoutConfig({
+            ...current,
+            enabled: enabled ? enabled.checked : current.enabled
+        });
+    }
+    const regions = regionCards.map(card => {
         const regionIndex = card.dataset.regionIndex;
         const blocks = Array.from(card.querySelectorAll(".layout-block-row")).map(row => {
             const blockIndex = row.dataset.blockIndex;
@@ -1157,6 +1195,8 @@ Object.assign(window, {
     findLayoutRegionIndexById,
     ensureSelectedLayoutRegion,
     highlightLayoutDesignerRegion,
+    renderLayoutAdvancedPanelState,
+    toggleLayoutAdvancedPanel,
     syncLayoutDesignerRangeInput,
     syncLayoutDesignerFromRegionInput,
     highlightLayoutRegionForm,
