@@ -13,27 +13,44 @@
         body {
             font-family: Arial, "Microsoft YaHei", sans-serif;
             background: #f5f6f8;
-            padding: 30px;
+            padding: 24px;
             margin: 0;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
         }
 
-        h1 {
-            color: #333;
-            margin-top: 0;
+        .app-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex: 0 0 auto;
+            margin-bottom: 16px;
         }
 
-        .nav {
-            margin-bottom: 20px;
+        h1 {
+            color: #333;
+            margin: 0;
+            font-size: 30px;
+            line-height: 1.2;
+        }
+
+        .config-link {
+            color: #1677ff;
+            text-decoration: none;
+            font-size: 15px;
+            white-space: nowrap;
+        }
+
+        .config-link:hover {
+            text-decoration: underline;
         }
 
         .layout {
             display: grid;
             grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
             gap: 25px;
-            align-items: start;
+            align-items: stretch;
             flex: 1 1 auto;
             min-height: 0;
             overflow: hidden;
@@ -56,8 +73,16 @@
         .left-panel {
             position: sticky;
             top: 20px;
-            align-self: flex-start;
+            align-self: stretch;
+            display: flex;
+            flex-direction: column;
             min-height: 0;
+            overflow: hidden;
+        }
+
+        .left-panel h2 {
+            flex: 0 0 auto;
+            margin: 0 0 12px;
         }
 
         .right-panel {
@@ -85,8 +110,69 @@
         }
 
         #message {
-            min-height: 290px;
-            max-height: 340px;
+            flex: 1 1 auto;
+            min-height: 260px;
+            max-height: none;
+            resize: none;
+        }
+
+        .chat-import-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 6px;
+            margin: 2px 0 10px;
+        }
+
+        .chat-import-row input[type="file"] {
+            margin: 0;
+        }
+
+        .chat-import-tip {
+            color: #666;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .profile-compact-card {
+            border: 1px solid #e0e4ec;
+            border-radius: 10px;
+            padding: 14px 16px 16px;
+            margin-bottom: 18px;
+            background: #fafbfd;
+        }
+
+        .profile-compact-card > h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #222;
+            border-top: none;
+            padding-top: 0;
+        }
+
+        .profile-compact-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+        }
+
+        .profile-compact-row select {
+            flex: 0 1 360px;
+            width: auto;
+            height: 36px;
+            margin: 0;
+            padding: 7px 10px;
+        }
+
+        .profile-compact-tip {
+            flex: 1 1 auto;
+            min-width: 160px;
+            color: #666;
+            font-size: 13px;
+            line-height: 1.35;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .chat-copy-tip {
@@ -509,6 +595,7 @@
 
             .left-panel {
                 position: static;
+                overflow: visible;
             }
 
             .right-panel {
@@ -545,16 +632,26 @@
             .image-pool-list {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
+            .profile-compact-row {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .profile-compact-row select,
+            .profile-compact-tip {
+                width: 100%;
+                min-width: 0;
+            }
         }
     </style>
 </head>
 <body>
 
-<h1>外贸订单解析系统</h1>
-
-<div class="nav">
-    <a href="/config">进入配置中心</a>
-</div>
+<header class="app-header">
+    <h1>外贸订单解析系统</h1>
+    <a href="/config" class="config-link">进入配置中心</a>
+</header>
 
 <div class="layout">
 
@@ -564,13 +661,9 @@
         <textarea id="message" placeholder="例如：客户小李要订购5000盒固体饮料，电话是13800138000，下周发货"></textarea>
         <div id="messageCopyTip" class="chat-copy-tip">已复制选中内容</div>
 
-        <label>选择模板映射</label>
-        <select id="profileSelect">
-            <option value="">请选择模板映射</option>
-        </select>
-
-        <div class="info-box" id="profileTips">
-            请选择本次要使用的 Excel 模板映射。
+        <div class="chat-import-row">
+            <input id="chatImportInput" type="file" accept=".txt,.html,.htm,text/plain,text/html">
+            <div class="chat-import-tip">支持导入 txt/html 聊天记录，导入后仍需点击 AI解析。</div>
         </div>
 
         <button id="parseBtn" onclick="parseMessage()">AI解析</button>
@@ -580,6 +673,19 @@
 
     <div class="card right-panel">
         <h2>订单信息确认</h2>
+
+        <div class="profile-compact-card">
+            <h3>选择模板映射</h3>
+            <div class="profile-compact-row">
+                <select id="profileSelect">
+                    <option value="">请选择模板映射</option>
+                </select>
+
+                <div id="profileTips" class="profile-compact-tip">
+                    请选择本次要使用的 Excel 模板映射。
+                </div>
+            </div>
+        </div>
 
         <div id="documentNoConfirmArea"></div>
 
@@ -620,6 +726,19 @@
         "dosage_form_code",
         "product_code"
     ];
+    const DOC_FIXED_DEFAULT_KEYS = new Set([
+        "sales_name",
+        "salesperson_code",
+        "sales_code",
+        "company_code",
+        "company_short_name",
+        "sequence",
+        "serial_prefix",
+        "default_sales_name",
+        "default_salesperson_code",
+        "default_company_code",
+        "default_sequence"
+    ]);
     let allFields = [];
     let visibleFields = [];
     let profiles = [];
@@ -719,8 +838,108 @@
         });
     }
 
+    function readChatFileAsText(file) {
+        if (!file) {
+            return Promise.reject(new Error("未选择聊天文件"));
+        }
+        if (typeof file.text === "function") {
+            return file.text();
+        }
+
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ""));
+            reader.onerror = () => reject(reader.error || new Error("读取文件失败"));
+            reader.readAsText(file);
+        });
+    }
+
+    function htmlToPlainText(html) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(String(html || ""), "text/html");
+        doc.querySelectorAll("script, style, noscript").forEach(node => node.remove());
+
+        const body = doc.body || doc.documentElement;
+        const text = body ? (body.innerText || body.textContent || "") : "";
+        return String(text || "")
+            .replace(/\r\n/g, "\n")
+            .replace(/\r/g, "\n")
+            .replace(/[ \t]+\n/g, "\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+    }
+
+    function isSupportedChatFile(file) {
+        const name = String(file && file.name || "").toLowerCase();
+        return name.endsWith(".txt") || name.endsWith(".html") || name.endsWith(".htm");
+    }
+
+    async function importChatFile(file) {
+        const errorDiv = document.getElementById("parseError");
+        const messageTextarea = document.getElementById("message");
+
+        if (errorDiv) {
+            errorDiv.innerText = "";
+        }
+
+        if (!file) {
+            return;
+        }
+        if (!isSupportedChatFile(file)) {
+            throw new Error("只支持导入 txt/html 聊天记录");
+        }
+
+        const rawText = await readChatFileAsText(file);
+        if (!String(rawText || "").trim()) {
+            throw new Error("聊天文件为空");
+        }
+
+        const lowerName = String(file.name || "").toLowerCase();
+        const text = lowerName.endsWith(".html") || lowerName.endsWith(".htm")
+            ? htmlToPlainText(rawText)
+            : String(rawText || "");
+
+        if (!String(text || "").trim()) {
+            throw new Error("聊天文件为空");
+        }
+
+        if (messageTextarea) {
+            messageTextarea.value = text;
+        }
+        if (errorDiv) {
+            errorDiv.innerText = "";
+        }
+        resetExcelActions();
+    }
+
+    function initChatImport() {
+        const input = document.getElementById("chatImportInput");
+        const errorDiv = document.getElementById("parseError");
+        if (!input || input.dataset.importReady === "true") {
+            return;
+        }
+
+        input.dataset.importReady = "true";
+        input.addEventListener("change", async () => {
+            const file = input.files && input.files[0] ? input.files[0] : null;
+            try {
+                await importChatFile(file);
+            } catch (error) {
+                if (errorDiv) {
+                    const message = error && error.message ? error.message : "读取失败";
+                    errorDiv.innerText = message === "只支持导入 txt/html 聊天记录" || message === "聊天文件为空"
+                        ? message
+                        : `聊天记录导入失败：${message}`;
+                }
+            } finally {
+                input.value = "";
+            }
+        });
+    }
+
     async function loadInitialData() {
         initChatAutoCopy();
+        initChatImport();
         await loadFields();
         await loadImageFields();
         await loadAppSettings();
@@ -811,6 +1030,33 @@
     function getSelectedProfile() {
         const profileId = document.getElementById("profileSelect").value;
         return profiles.find(p => p.id === profileId) || null;
+    }
+
+    function stripDocumentDefaultFields(data) {
+        const out = Object.assign({}, data || {});
+        DOC_FIXED_DEFAULT_KEYS.forEach(key => {
+            delete out[key];
+        });
+        return out;
+    }
+
+    function getCurrentDocumentDefaultValues() {
+        const ids = {
+            sales_name: "doc_field_sales_name",
+            salesperson_code: "doc_field_salesperson_code",
+            company_code: "doc_field_company_code",
+            sequence: "doc_field_sequence"
+        };
+        const values = {};
+
+        Object.keys(ids).forEach(key => {
+            const input = document.getElementById(ids[key]);
+            if (input && input.value != null) {
+                values[key] = String(input.value);
+            }
+        });
+
+        return values;
     }
 
     function mergeDataWithMappingDefaults(data) {
@@ -948,7 +1194,7 @@
         }
 
         updateVisibleFields();
-        renderDocumentNoSection(parsedData);
+        renderDocumentNoSection(parsedData, { preserveFixedDefaults: true });
         renderForm(parsedData);
         renderImageUploadArea();
         await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
@@ -1206,7 +1452,11 @@
         const profile = getSelectedProfile();
         const st = profile && profile.document_no_settings ? profile.document_no_settings : {};
         const el = document.getElementById(elId);
-        let v = el && el.value != null ? String(el.value).trim() : "";
+        if (el) {
+            return el.value != null ? String(el.value).trim() : "";
+        }
+
+        let v = "";
         if (!v && settingKey && st[settingKey] != null && String(st[settingKey]).trim() !== "") {
             v = String(st[settingKey]).trim();
         }
@@ -1386,13 +1636,15 @@
         }
     }
 
-    function renderDocumentNoSection(data) {
+    function renderDocumentNoSection(data, options) {
+        options = options || {};
         const area = document.getElementById("documentNoConfirmArea");
         if (!area) {
             return;
         }
 
         const profile = getSelectedProfile();
+        const currentDefaults = options.preserveFixedDefaults ? getCurrentDocumentDefaultValues() : {};
         area.innerHTML = "";
 
         if (!profile) {
@@ -1404,7 +1656,14 @@
         const d = syncOrderAndDealDates(data);
 
         const v = function (key, fallbackSetting, fallbackLiteral) {
-            let raw = d[key] != null && String(d[key]).trim() !== "" ? String(d[key]).trim() : "";
+            if (options.preserveFixedDefaults && Object.prototype.hasOwnProperty.call(currentDefaults, key)) {
+                return String(currentDefaults[key] || "").trim();
+            }
+
+            let raw = "";
+            if (!raw && d[key] != null && String(d[key]).trim() !== "") {
+                raw = String(d[key]).trim();
+            }
             if (!raw && fallbackSetting && s[fallbackSetting]) {
                 raw = String(s[fallbackSetting]).trim();
             }
@@ -2101,7 +2360,7 @@
         ingredientInitialsManuallyEdited = false;
         currentIngredientInitialsMessage = "";
         currentDescriptionFields = {};
-        parsedData = syncOrderAndDealDates(result.data);
+        parsedData = syncOrderAndDealDates(stripDocumentDefaultFields(result.data));
 
         const productForm = normalizeProductForm(extractParsedProductForm(parsedData));
         if (productForm) {
@@ -2114,7 +2373,7 @@
 
         if (!autoSelected) {
             updateVisibleFields();
-            renderDocumentNoSection(parsedData);
+            renderDocumentNoSection(parsedData, { preserveFixedDefaults: true });
             renderForm(parsedData);
             await renderDescriptionArea(mergeDataWithMappingDefaults(parsedData), { useAi: true });
             renderImageUploadArea();

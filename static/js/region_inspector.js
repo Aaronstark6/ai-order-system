@@ -27,6 +27,36 @@ window.layoutEditorState.previewState = window.layoutEditorState.previewState ||
 window.layoutEditorState.imagePool = Array.isArray(window.layoutEditorState.imagePool) ? window.layoutEditorState.imagePool : [];
 const state = window.layoutEditorState;
 
+function getImageSelectionState(options) {
+    const useImagePool = options.use_image_pool === true;
+    const autoSource = options.auto_source === true;
+    const sourceKeysDisabled = useImagePool || autoSource;
+    const excludeKeysDisabled = useImagePool;
+    const modeTip = useImagePool
+        ? "当前由图片素材池接管，相关手动选择项已禁用。"
+        : autoSource
+            ? "当前由自动图片模式接管，相关手动选择项已禁用。"
+            : "";
+
+    return {
+        useImagePool,
+        autoSource,
+        sourceKeysDisabled,
+        excludeKeysDisabled,
+        sourceKeysPlaceholder: useImagePool
+            ? "使用首页图片素材池时不需要 source_keys"
+            : autoSource
+                ? "自动使用订单图片时不需要 source_keys"
+                : "source_key1,source_key2",
+        excludeKeysPlaceholder: useImagePool
+            ? "使用首页图片素材池时不需要 exclude_keys"
+            : "logo_image,qr_code",
+        modeTip
+    };
+}
+
+
+
 function renderInspectorBlockEditor(block, blockIndex) {
     const type = String(block.type || "description_fields").trim() || "description_fields";
     const options = normalizeLayoutBlockOptions(type, block.options || {});
@@ -51,6 +81,7 @@ function renderInspectorBlockEditor(block, blockIndex) {
     `;
 
     if (type === "image_stack") {
+        const imageSelection = getImageSelectionState(options);
         return common + `
             <label class="checkbox-line inspector-field">
                 <input type="checkbox" ${options.auto_source === true ? "checked" : ""} onchange="updateInspectorBlockField(${blockIndex}, 'options.auto_source', this.checked, true)">
@@ -62,11 +93,13 @@ function renderInspectorBlockEditor(block, blockIndex) {
             </label>
             <div class="inspector-field">
                 <label>source_keys</label>
-                <input value="${escapeHtml((options.source_keys || []).join(","))}" placeholder="${options.auto_source ? "auto_source 开启时不生效" : ""}" oninput="updateInspectorBlockField(${blockIndex}, 'options.source_keys', this.value)">
+                <input class="${imageSelection.sourceKeysDisabled ? "state-disabled-input" : ""}" value="${escapeHtml((options.source_keys || []).join(","))}" placeholder="${escapeHtml(imageSelection.sourceKeysPlaceholder)}" ${imageSelection.sourceKeysDisabled ? "disabled" : ""} oninput="updateInspectorBlockField(${blockIndex}, 'options.source_keys', this.value)">
+                ${imageSelection.sourceKeysDisabled ? `<div class="inspector-state-tip">${escapeHtml(imageSelection.modeTip)}</div>` : ""}
             </div>
             <div class="inspector-field">
                 <label>exclude_keys</label>
-                <input value="${escapeHtml((options.exclude_keys || []).join(","))}" placeholder="logo_image,qr_code" oninput="updateInspectorBlockField(${blockIndex}, 'options.exclude_keys', this.value)">
+                <input class="${imageSelection.excludeKeysDisabled ? "state-disabled-input" : ""}" value="${escapeHtml((options.exclude_keys || []).join(","))}" placeholder="${escapeHtml(imageSelection.excludeKeysPlaceholder)}" ${imageSelection.excludeKeysDisabled ? "disabled" : ""} oninput="updateInspectorBlockField(${blockIndex}, 'options.exclude_keys', this.value)">
+                ${imageSelection.excludeKeysDisabled ? `<div class="inspector-state-tip">${escapeHtml(imageSelection.modeTip)}</div>` : ""}
             </div>
             <div class="inspector-field">
                 <label>max_images</label>
@@ -103,6 +136,7 @@ function renderInspectorBlockEditor(block, blockIndex) {
     }
 
     if (type === "image_gallery") {
+        const imageSelection = getImageSelectionState(options);
         return common + `
             <label class="checkbox-line inspector-field">
                 <input type="checkbox" ${options.auto_source === true ? "checked" : ""} onchange="updateInspectorBlockField(${blockIndex}, 'options.auto_source', this.checked, true)">
@@ -114,11 +148,13 @@ function renderInspectorBlockEditor(block, blockIndex) {
             </label>
             <div class="inspector-field">
                 <label>source_keys</label>
-                <input value="${escapeHtml((options.source_keys || []).join(","))}" placeholder="${options.auto_source ? "auto_source 开启时不生效" : ""}" oninput="updateInspectorBlockField(${blockIndex}, 'options.source_keys', this.value)">
+                <input class="${imageSelection.sourceKeysDisabled ? "state-disabled-input" : ""}" value="${escapeHtml((options.source_keys || []).join(","))}" placeholder="${escapeHtml(imageSelection.sourceKeysPlaceholder)}" ${imageSelection.sourceKeysDisabled ? "disabled" : ""} oninput="updateInspectorBlockField(${blockIndex}, 'options.source_keys', this.value)">
+                ${imageSelection.sourceKeysDisabled ? `<div class="inspector-state-tip">${escapeHtml(imageSelection.modeTip)}</div>` : ""}
             </div>
             <div class="inspector-field">
                 <label>exclude_keys</label>
-                <input value="${escapeHtml((options.exclude_keys || []).join(","))}" placeholder="logo_image,qr_code" oninput="updateInspectorBlockField(${blockIndex}, 'options.exclude_keys', this.value)">
+                <input class="${imageSelection.excludeKeysDisabled ? "state-disabled-input" : ""}" value="${escapeHtml((options.exclude_keys || []).join(","))}" placeholder="${escapeHtml(imageSelection.excludeKeysPlaceholder)}" ${imageSelection.excludeKeysDisabled ? "disabled" : ""} oninput="updateInspectorBlockField(${blockIndex}, 'options.exclude_keys', this.value)">
+                ${imageSelection.excludeKeysDisabled ? `<div class="inspector-state-tip">${escapeHtml(imageSelection.modeTip)}</div>` : ""}
             </div>
             <div class="inspector-field">
                 <label>max_images</label>

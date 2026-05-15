@@ -45,17 +45,17 @@
     "image_fields": [
       {
         "key": "front_label",
-        "enabled": true,
+        "enabled": false,
         "cell": "G9"
       },
       {
         "key": "back_label",
-        "enabled": true,
+        "enabled": false,
         "cell": "G10"
       },
       {
         "key": "product_image",
-        "enabled": true,
+        "enabled": false,
         "cell": "G8"
       }
     ],
@@ -66,11 +66,32 @@
         {
           "id": "region_1778772659338",
           "name": "新区域",
-          "type": "rich_text",
+          "type": "image_region",
           "enabled": true,
           "sheet": "active",
-          "range": "G8:K11",
-          "blocks": [],
+          "range": "G8:K10",
+          "blocks": [
+            {
+              "id": "block_1778836590926",
+              "type": "image_stack",
+              "source": "",
+              "enabled": true,
+              "options": {
+                "source_keys": [],
+                "auto_source": true,
+                "use_image_pool": true,
+                "exclude_keys": [],
+                "max_images": 0,
+                "layout_mode": "auto_stack",
+                "anchor_cell": "",
+                "image_width": 400,
+                "image_height": 400,
+                "keep_ratio": true,
+                "gap_rows": 8,
+                "gap_px": 12
+              }
+            }
+          ],
           "options": {}
         }
       ]
@@ -127,6 +148,16 @@
     "template_display_name": "滴剂和液体饮料模板.xlsx",
     "image_fields": [
       {
+        "key": "front_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "back_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
         "key": "product_image",
         "enabled": true,
         "cell": "G8"
@@ -134,8 +165,40 @@
     ],
     "profile_version": "v2",
     "layout_config": {
-      "enabled": false,
-      "regions": []
+      "enabled": true,
+      "regions": [
+        {
+          "id": "region_1778836716550",
+          "name": "新区域",
+          "type": "image_region",
+          "enabled": true,
+          "sheet": "active",
+          "range": "G8:K9",
+          "blocks": [
+            {
+              "id": "block_1778836761861",
+              "type": "image_stack",
+              "source": "image_data",
+              "enabled": true,
+              "options": {
+                "source_keys": [],
+                "auto_source": true,
+                "use_image_pool": true,
+                "exclude_keys": [],
+                "max_images": 0,
+                "layout_mode": "auto_stack",
+                "anchor_cell": "G8",
+                "image_width": 400,
+                "image_height": 400,
+                "keep_ratio": true,
+                "gap_rows": 8,
+                "gap_px": 12
+              }
+            }
+          ],
+          "options": {}
+        }
+      ]
     },
     "layout_preview": {
       "enabled": false,
@@ -187,11 +250,59 @@
       "template_name": "果冻和凝胶.txt",
       "target_cell": "B8"
     },
-    "image_fields": [],
+    "image_fields": [
+      {
+        "key": "front_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "back_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "product_image",
+        "enabled": false,
+        "cell": ""
+      }
+    ],
     "profile_version": "v2",
     "layout_config": {
-      "enabled": false,
-      "regions": []
+      "enabled": true,
+      "regions": [
+        {
+          "id": "region_1778837330067",
+          "name": "新区域",
+          "type": "image_region",
+          "enabled": true,
+          "sheet": "active",
+          "range": "G8:K9",
+          "blocks": [
+            {
+              "id": "block_1778837356579",
+              "type": "image_stack",
+              "source": "",
+              "enabled": true,
+              "options": {
+                "source_keys": [],
+                "auto_source": true,
+                "use_image_pool": true,
+                "exclude_keys": [],
+                "max_images": 0,
+                "layout_mode": "auto_stack",
+                "anchor_cell": "G8",
+                "image_width": 400,
+                "image_height": 400,
+                "keep_ratio": true,
+                "gap_rows": 8,
+                "gap_px": 12
+              }
+            }
+          ],
+          "options": {}
+        }
+      ]
     },
     "layout_preview": {
       "enabled": false,
@@ -243,11 +354,59 @@
       "template_name": "片剂.txt",
       "target_cell": "B8"
     },
-    "image_fields": [],
+    "image_fields": [
+      {
+        "key": "front_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "back_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "product_image",
+        "enabled": false,
+        "cell": ""
+      }
+    ],
     "profile_version": "v2",
     "layout_config": {
-      "enabled": false,
-      "regions": []
+      "enabled": true,
+      "regions": [
+        {
+          "id": "region_1778837488434",
+          "name": "新区域",
+          "type": "image_region",
+          "enabled": true,
+          "sheet": "active",
+          "range": "G8:K10",
+          "blocks": [
+            {
+              "id": "block_1778837509970",
+              "type": "image_stack",
+              "source": "",
+              "enabled": true,
+              "options": {
+                "source_keys": [],
+                "auto_source": true,
+                "use_image_pool": true,
+                "exclude_keys": [],
+                "max_images": 0,
+                "layout_mode": "auto_stack",
+                "anchor_cell": "G8",
+                "image_width": 400,
+                "image_height": 400,
+                "keep_ratio": true,
+                "gap_rows": 8,
+                "gap_px": 12
+              }
+            }
+          ],
+          "options": {}
+        }
+      ]
     },
     "layout_preview": {
       "enabled": false,
@@ -407,11 +566,59 @@
       "template_name": "软糖.txt",
       "target_cell": "B8"
     },
-    "image_fields": [],
+    "image_fields": [
+      {
+        "key": "front_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "back_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "product_image",
+        "enabled": false,
+        "cell": ""
+      }
+    ],
     "profile_version": "v2",
     "layout_config": {
-      "enabled": false,
-      "regions": []
+      "enabled": true,
+      "regions": [
+        {
+          "id": "region_1778837710241",
+          "name": "新区域",
+          "type": "image_region",
+          "enabled": true,
+          "sheet": "active",
+          "range": "G8:K10",
+          "blocks": [
+            {
+              "id": "block_1778837742073",
+              "type": "image_stack",
+              "source": "",
+              "enabled": true,
+              "options": {
+                "source_keys": [],
+                "auto_source": true,
+                "use_image_pool": true,
+                "exclude_keys": [],
+                "max_images": 0,
+                "layout_mode": "auto_stack",
+                "anchor_cell": "G8",
+                "image_width": 400,
+                "image_height": 400,
+                "keep_ratio": true,
+                "gap_rows": 8,
+                "gap_px": 12
+              }
+            }
+          ],
+          "options": {}
+        }
+      ]
     },
     "layout_preview": {
       "enabled": false,
@@ -463,11 +670,59 @@
       "template_name": "硬胶囊.txt",
       "target_cell": "B8"
     },
-    "image_fields": [],
+    "image_fields": [
+      {
+        "key": "front_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "back_label",
+        "enabled": false,
+        "cell": ""
+      },
+      {
+        "key": "product_image",
+        "enabled": false,
+        "cell": ""
+      }
+    ],
     "profile_version": "v2",
     "layout_config": {
-      "enabled": false,
-      "regions": []
+      "enabled": true,
+      "regions": [
+        {
+          "id": "region_1778837796585",
+          "name": "新区域",
+          "type": "image_stack",
+          "enabled": true,
+          "sheet": "active",
+          "range": "G8:K10",
+          "blocks": [
+            {
+              "id": "block_1778837810865",
+              "type": "image_stack",
+              "source": "",
+              "enabled": true,
+              "options": {
+                "source_keys": [],
+                "auto_source": true,
+                "use_image_pool": true,
+                "exclude_keys": [],
+                "max_images": 0,
+                "layout_mode": "auto_stack",
+                "anchor_cell": "G8",
+                "image_width": 400,
+                "image_height": 400,
+                "keep_ratio": true,
+                "gap_rows": 8,
+                "gap_px": 12
+              }
+            }
+          ],
+          "options": {}
+        }
+      ]
     },
     "layout_preview": {
       "enabled": false,
