@@ -12,6 +12,7 @@ from pathlib import Path
 
 HOST = "127.0.0.1"
 RELEASE_PORT = 8001
+INSTANCE_LOCK_PORT = 8765
 HEALTH_WAIT_SECONDS = 10
 SERVER_JOIN_TIMEOUT_SECONDS = 10
 
@@ -79,6 +80,23 @@ def is_port_in_use(port):
         return sock.connect_ex((HOST, port)) == 0
 
 
+def acquire_instance_lock():
+    lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+
+    try:
+        lock_socket.bind((HOST, INSTANCE_LOCK_PORT))
+        lock_socket.listen(1)
+    except OSError:
+        lock_socket.close()
+        logging.info("launcher already running")
+        return None
+
+    logging.info("launcher instance acquired: %s:%s", HOST, INSTANCE_LOCK_PORT)
+    return lock_socket
+
+
 def wait_for_health(port, timeout_seconds=HEALTH_WAIT_SECONDS):
     deadline = time.monotonic() + timeout_seconds
     health_url = make_health_url(port)
@@ -121,8 +139,9 @@ def import_fastapi_app():
 
 
 class AppLauncher:
-    def __init__(self, port):
+    def __init__(self, port, instance_lock):
         self.port = port
+        self.instance_lock = instance_lock
         self.server = None
         self.server_thread = None
         self.started_server = False
@@ -192,8 +211,13 @@ class AppLauncher:
             else:
                 logging.info("no owned server to stop")
 
+            if self.instance_lock is not None:
+                self.instance_lock.close()
+                self.instance_lock = None
+                logging.info("launcher instance lock released")
+
             self.shutdown_complete = True
-            logging.info("launcher exited")
+            logging.info("launcher exiting")
 
             if icon is not None:
                 icon.stop()
@@ -232,7 +256,14 @@ def main():
 
     port = get_port()
     logging.info("RELEASE_PORT: %s", port)
-    launcher = AppLauncher(port)
+    instance_lock = acquire_instance_lock()
+    if instance_lock is None:
+        open_browser(port)
+        logging.info("browser opened from secondary launch")
+        logging.info("launcher exiting")
+        sys.exit(0)
+
+    launcher = AppLauncher(port, instance_lock)
 
     try:
         server_started = launcher.start_server_if_available()

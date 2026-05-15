@@ -214,6 +214,26 @@
             background: #52c41a;
         }
 
+        .chat-action-row {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+            flex: 0 0 auto;
+        }
+
+        .chat-action-row #parseBtn {
+            flex: 2 1 0;
+        }
+
+        .chat-action-row #clearChatBtn {
+            flex: 1 1 0;
+            background: #6b7280;
+        }
+
+        .chat-action-row #clearChatBtn:hover {
+            background: #4b5563;
+        }
+
         button:disabled {
             background: #aaa;
             color: #777;
@@ -683,7 +703,10 @@
             <div class="chat-import-tip">支持导入 txt/html 聊天记录，导入后仍需点击 AI解析。</div>
         </div>
 
-        <button id="parseBtn" onclick="parseMessage()">AI解析</button>
+        <div class="chat-action-row">
+            <button id="parseBtn" onclick="parseMessage()">AI解析</button>
+            <button id="clearChatBtn" type="button" onclick="clearChatMessage()">清空</button>
+        </div>
 
         <div id="parseError" class="error"></div>
     </div>
@@ -2419,6 +2442,24 @@
         }
 
         return "text";
+    }
+
+    function clearChatMessage() {
+        const messageTextarea = document.getElementById("message");
+        const errorDiv = document.getElementById("parseError");
+        const submitResult = document.getElementById("submitResult");
+
+        if (messageTextarea) {
+            messageTextarea.value = "";
+            messageTextarea.focus();
+        }
+        if (errorDiv) {
+            errorDiv.innerText = "";
+        }
+        if (submitResult) {
+            submitResult.innerHTML = "";
+        }
+        resetExcelActions();
     }
 
     async function parseMessage() {
