@@ -24,12 +24,14 @@ from app.excel_generator import generate_excel
 from app.field_library import add_field, delete_field, load_fields, update_field
 from app.image_manager import LAYOUT_CACHE_DIR
 from app.ingredient_parser import analyze_ingredient_initials_source
+from app.logger import get_logger
 from app.routes.images import router as images_router
 from app.routes.parse import router as parse_router
 from app.routes.templates import router as templates_router
 
 
 core_router = APIRouter()
+logger = get_logger(__name__)
 
 __all__ = [
     "core_router",
@@ -163,6 +165,7 @@ def api_add_field(field: dict):
     try:
         return {"success": True, "field": add_field(field)}
     except Exception as e:
+        logger.exception("Add field failed")
         return {"success": False, "error": str(e)}
 
 
@@ -171,6 +174,7 @@ def api_update_field(key: str, field: dict):
     try:
         return {"success": True, "field": update_field(key, field)}
     except Exception as e:
+        logger.exception("Update field failed: key=%s", key)
         return {"success": False, "error": str(e)}
 
 
@@ -179,6 +183,7 @@ def api_delete_field(key: str):
     try:
         return {"success": True, "result": delete_field(key)}
     except Exception as e:
+        logger.exception("Delete field failed: key=%s", key)
         return {"success": False, "error": str(e)}
 
 
@@ -193,6 +198,7 @@ def api_save_app_settings(data: dict):
         save_app_settings(data)
         return {"success": True, "settings": public_app_settings()}
     except Exception as e:
+        logger.exception("Save app settings failed")
         return {"success": False, "error": str(e)}
 
 
@@ -213,6 +219,7 @@ def api_test_export_sync_dir(data: dict):
         test_file.unlink(missing_ok=True)
         return {"success": True, "message": "路径可用"}
     except Exception as e:
+        logger.exception("Test export sync dir failed")
         return {"success": False, "error": f"路径不可用：{e}"}
 
 
@@ -221,6 +228,7 @@ def api_clear_cache():
     try:
         return _clear_cache_payload()
     except Exception as e:
+        logger.exception("Clear cache failed")
         return {
             "success": False,
             "deleted_files": 0,
@@ -240,6 +248,7 @@ def api_ai_settings_status():
 def api_ai_settings_unlock(data: dict):
     password = str(data.get("password") or "")
     if password != AI_SETTINGS_PASSWORD:
+        logger.warning("AI settings unlock rejected: invalid password")
         return {"success": False, "error": "密码错误"}
 
     return {"success": True, "api_key": get_deepseek_api_key()}
@@ -250,11 +259,13 @@ def api_save_ai_settings(data: dict):
     try:
         password = str(data.get("password") or "")
         if password != AI_SETTINGS_PASSWORD:
+            logger.warning("Save AI settings rejected: invalid password")
             return {"success": False, "error": "密码错误"}
 
         save_deepseek_api_key(data.get("api_key", ""))
         return {"success": True, "has_api_key": bool(str(data.get("api_key") or "").strip())}
     except Exception as e:
+        logger.exception("Save AI settings failed")
         return {"success": False, "error": str(e)}
 
 
@@ -263,6 +274,7 @@ def api_list_description_templates():
     try:
         return {"success": True, "templates": list_description_templates()}
     except Exception as e:
+        logger.exception("List description templates failed")
         return {"success": False, "error": str(e)}
 
 
@@ -275,6 +287,7 @@ def api_get_description_template(template_name: str):
             "content": get_description_template(template_name),
         }
     except Exception as e:
+        logger.exception("Get description template failed: template_name=%s", template_name)
         return {"success": False, "error": str(e)}
 
 
@@ -284,6 +297,7 @@ def api_save_description_template(template_name: str, data: dict):
         saved = save_description_template(template_name, data.get("content", ""))
         return {"success": True, "template": saved}
     except Exception as e:
+        logger.exception("Save description template failed: template_name=%s", template_name)
         return {"success": False, "error": str(e)}
 
 
@@ -293,6 +307,7 @@ def api_restore_description_template(template_name: str):
         restored = restore_default_description_template(template_name)
         return {"success": True, "template": restored}
     except Exception as e:
+        logger.exception("Restore description template failed: template_name=%s", template_name)
         return {"success": False, "error": str(e)}
 
 
@@ -300,6 +315,7 @@ def api_restore_description_template(template_name: str):
 def api_generate_excel(data: dict):
     global LAST_GENERATED_FILE_PATH
     try:
+        logger.info("Excel generation started: profile_id=%s", data.get("profile_id", ""))
         profile_id = data.get("profile_id", "")
         order_data = data.get("data", {})
         description_fields = data.get("description_fields", {})
@@ -327,11 +343,15 @@ def api_generate_excel(data: dict):
             image_pool=data.get("image_pool") or [],
             description_fields=description_fields,
         )
+        if not result.get("success"):
+            logger.error("Excel generation failed: %s", result.get("error") or "unknown error")
         if result.get("success") and str(result.get("lastGeneratedFilePath") or result.get("output_path") or "").strip():
             LAST_GENERATED_FILE_PATH = str(result.get("lastGeneratedFilePath") or result.get("output_path") or "").strip()
+            logger.info("Excel generation succeeded: path=%s", LAST_GENERATED_FILE_PATH)
         return result
 
     except Exception as e:
+        logger.exception("Excel generation failed")
         return {"success": False, "error": str(e)}
 
 
@@ -373,6 +393,7 @@ def api_sync_output(data: dict):
             "lastGeneratedFilePath": str(target_file),
         }
     except Exception as e:
+        logger.exception("Sync output failed")
         return {"success": False, "error": str(e)}
 
 
@@ -401,6 +422,7 @@ def api_open_output_folder(data: dict):
         subprocess.Popen(["explorer", f"/select,{str(target_file)}"])
         return {"success": True, "path": str(target_dir), "filename": target_file.name}
     except Exception as e:
+        logger.exception("Open output folder failed")
         return {"success": False, "error": str(e)}
 
 

@@ -3,6 +3,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, UploadFile
 
+from app.logger import get_logger
+
 try:
     from PIL import Image as PILImage
 except ImportError:
@@ -21,6 +23,7 @@ from app.template_manager import (
 
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 STATIC_DIR = BASE_DIR / "static"
@@ -37,6 +40,7 @@ def api_create_profile(data: dict):
     try:
         return {"success": True, "profile": create_profile(data.get("name", ""))}
     except Exception as e:
+        logger.exception("Create template profile failed")
         return {"success": False, "error": str(e)}
 
 
@@ -45,13 +49,16 @@ def api_delete_profile(profile_id: str):
     try:
         return {"success": True, "result": delete_profile(profile_id)}
     except Exception as e:
+        logger.exception("Delete template profile failed: profile_id=%s", profile_id)
         return {"success": False, "error": str(e)}
 
 
 @router.post("/api/template-profiles/{profile_id}/upload-template")
 def api_upload_template(profile_id: str, file: UploadFile = File(...)):
     try:
+        logger.info("Template upload started: profile_id=%s filename=%s", profile_id, file.filename)
         profile = upload_template_file(profile_id, file)
+        logger.info("Template upload succeeded: profile_id=%s template=%s", profile_id, profile.get("template_file", ""))
         return {
             "success": True,
             "template_file": profile.get("template_file", ""),
@@ -59,6 +66,7 @@ def api_upload_template(profile_id: str, file: UploadFile = File(...)):
             "profile": profile,
         }
     except Exception as e:
+        logger.exception("Template upload failed: profile_id=%s", profile_id)
         return {"success": False, "error": str(e)}
 
 
@@ -66,17 +74,21 @@ def api_upload_template(profile_id: str, file: UploadFile = File(...)):
 def api_upload_layout_preview(profile_id: str, file: UploadFile = File(...)):
     try:
         if PILImage is None:
+            logger.error("Layout preview upload failed: pillow is not installed")
             return {"success": False, "error": "图片预览需要安装 pillow"}
 
         profile = get_profile(profile_id)
         if not profile:
+            logger.warning("Layout preview upload rejected: profile not found profile_id=%s", profile_id)
             return {"success": False, "error": "映射不存在"}
 
         original_name = file.filename or "preview.png"
         suffix = Path(original_name).suffix.lower()
         if suffix not in {".png", ".jpg", ".jpeg"}:
+            logger.warning("Layout preview upload rejected: unsupported suffix=%s", suffix)
             return {"success": False, "error": "只支持上传 png、jpg、jpeg 图片"}
 
+        logger.info("Layout preview upload started: profile_id=%s filename=%s", profile_id, original_name)
         LAYOUT_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
         filename = f"preview_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.png"
         target_path = LAYOUT_PREVIEW_DIR / filename
@@ -97,6 +109,7 @@ def api_upload_layout_preview(profile_id: str, file: UploadFile = File(...)):
             mappings=None,
             layout_preview=layout_preview,
         )
+        logger.info("Layout preview upload succeeded: profile_id=%s path=%s", profile_id, image_path)
         return {
             "success": True,
             "image_path": image_path,
@@ -105,12 +118,16 @@ def api_upload_layout_preview(profile_id: str, file: UploadFile = File(...)):
             "profile": profile,
         }
     except Exception as e:
+        logger.exception("Layout preview upload failed: profile_id=%s", profile_id)
         return {"success": False, "error": str(e)}
 
 
 @router.get("/api/template-profiles/{profile_id}/geometry")
 def api_get_template_geometry(profile_id: str):
-    return get_template_geometry(profile_id)
+    result = get_template_geometry(profile_id)
+    if not result.get("success"):
+        logger.error("Excel Geometry read failed: profile_id=%s error=%s", profile_id, result.get("error"))
+    return result
 
 
 @router.delete("/api/template-profiles/{profile_id}/template")
@@ -118,6 +135,7 @@ def api_delete_template_file(profile_id: str):
     try:
         return {"success": True, "profile": delete_template_file(profile_id)}
     except Exception as e:
+        logger.exception("Delete template file failed: profile_id=%s", profile_id)
         return {"success": False, "error": str(e)}
 
 
@@ -141,6 +159,7 @@ def api_update_mappings(profile_id: str, data: dict):
             )
         }
     except Exception as e:
+        logger.exception("Update template mappings failed: profile_id=%s", profile_id)
         return {"success": False, "error": str(e)}
 
 
@@ -149,6 +168,7 @@ def api_update_layout_config(profile_id: str, data: dict):
     try:
         profile = get_profile(profile_id)
         if not profile:
+            logger.warning("Layout config update rejected: profile not found profile_id=%s", profile_id)
             return {"success": False, "error": "映射不存在"}
 
         return {
@@ -161,4 +181,5 @@ def api_update_layout_config(profile_id: str, data: dict):
             )
         }
     except Exception as e:
+        logger.exception("Update layout config failed: profile_id=%s", profile_id)
         return {"success": False, "error": str(e)}

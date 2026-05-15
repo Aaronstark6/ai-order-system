@@ -27,6 +27,17 @@ const state = window.layoutEditorState;
 if (typeof window.DEBUG_LAYOUT === "undefined") {
     window.DEBUG_LAYOUT = false;
 }
+window.layoutDebug = window.layoutDebug || function (...args) {
+    if (window.DEBUG_LAYOUT) {
+        console.log("[Layout]", ...args);
+    }
+};
+window.layoutWarn = window.layoutWarn || function (...args) {
+    console.warn("[Layout]", ...args);
+};
+window.layoutError = window.layoutError || function (...args) {
+    console.error("[Layout]", ...args);
+};
 
 function parseLayoutNumber(value, fallback) {
     const text = String(value ?? "").trim();

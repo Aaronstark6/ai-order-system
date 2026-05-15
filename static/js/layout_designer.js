@@ -27,6 +27,17 @@ const state = window.layoutEditorState;
 if (typeof window.DEBUG_LAYOUT === "undefined") {
     window.DEBUG_LAYOUT = false;
 }
+window.layoutDebug = window.layoutDebug || function (...args) {
+    if (window.DEBUG_LAYOUT) {
+        console.log("[Layout]", ...args);
+    }
+};
+window.layoutWarn = window.layoutWarn || function (...args) {
+    console.warn("[Layout]", ...args);
+};
+window.layoutError = window.layoutError || function (...args) {
+    console.error("[Layout]", ...args);
+};
 
 function defaultLayoutConfig() {
     return {
@@ -102,8 +113,16 @@ function getLayoutEditorState() {
 
 function layoutDebug(...args) {
     if (window.DEBUG_LAYOUT) {
-        console.log("[layout]", ...args);
+        console.log("[Layout]", ...args);
     }
+}
+
+function layoutWarn(...args) {
+    console.warn("[Layout]", ...args);
+}
+
+function layoutError(...args) {
+    console.error("[Layout]", ...args);
 }
 
 
@@ -1258,6 +1277,8 @@ Object.assign(window, {
     findRegionById,
     findBlockById,
     layoutDebug,
+    layoutWarn,
+    layoutError,
     setLayoutConfig,
     getLayoutConfig,
     setSelectedRegion,

@@ -20,12 +20,14 @@ except ImportError:
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 from app.image_manager import ensure_layout_cache_dir, resolve_uploaded_image_path
+from app.logger import get_logger
 from app.layout_schema import normalize_layout_config
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CELL_RANGE_RE = re.compile(r"^\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?$")
 EMU_PER_PIXEL = 9525
+logger = get_logger(__name__)
 
 
 def _left_top_cell(range_text):
@@ -845,12 +847,16 @@ def collect_layout_image_keys(profile, image_data=None):
 def render_layout(workbook, data, profile, description_fields=None, description_text=None, image_data=None, image_pool=None):
     try:
         if workbook is None:
+            logger.error("Layout render failed: workbook is empty")
             return {"success": False, "error": "workbook 不能为空"}
         if not isinstance(profile, dict):
+            logger.error("Layout render failed: invalid profile")
             return {"success": False, "error": "profile 格式异常"}
 
+        logger.info("Layout render started: profile_id=%s", profile.get("id") or "")
         raw_config = profile.get("layout_config")
         if raw_config is None:
+            logger.info("Layout render skipped: no layout_config")
             return {
                 "success": True,
                 "skipped": True,
@@ -862,10 +868,12 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                 "written_images_detail": [],
             }
         if not isinstance(raw_config, dict):
+            logger.error("Layout render failed: invalid layout_config")
             return {"success": False, "error": "layout_config 格式异常"}
 
         layout_config = normalize_layout_config(raw_config)
         if layout_config.get("enabled") is not True:
+            logger.info("Layout render skipped: layout disabled")
             return {
                 "success": True,
                 "skipped": True,
@@ -886,6 +894,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
 
         for region in layout_config.get("regions", []):
             if not isinstance(region, dict):
+                logger.error("Layout render failed: invalid region")
                 return {"success": False, "error": "layout region 格式异常"}
             if region.get("enabled") is False:
                 continue
@@ -902,6 +911,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                     target_cell = _left_top_cell(range_text)
                     _, max_row = _range_row_bounds(range_text)
                 except ValueError as e:
+                    logger.exception("Layout render failed: invalid region range=%s", range_text)
                     return {
                         "success": False,
                         "error": f"layout region {region.get('id') or region.get('name') or ''} {str(e)}".strip(),
@@ -909,12 +919,14 @@ def render_layout(workbook, data, profile, description_fields=None, description_
 
             blocks = region.get("blocks")
             if not isinstance(blocks, list):
+                logger.error("Layout render failed: invalid blocks region_id=%s", region.get("id") or "")
                 return {"success": False, "error": f"layout region {region.get('id') or ''} blocks 格式异常"}
 
             region_parts = []
             region_written = False
             for block in blocks:
                 if not isinstance(block, dict):
+                    logger.error("Layout render failed: invalid block")
                     return {"success": False, "error": "layout block 格式异常"}
                 if block.get("enabled") is not True:
                     continue
@@ -937,6 +949,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                     try:
                         inserted = _render_image_block(workbook.active, block, image_data, target_cell)
                     except RuntimeError as e:
+                        logger.exception("Layout image block render failed")
                         return {"success": False, "error": str(e)}
                     if not inserted:
                         continue
@@ -958,6 +971,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                             image_pool=image_pool,
                         )
                     except RuntimeError as e:
+                        logger.exception("Layout image gallery render failed")
                         return {"success": False, "error": str(e)}
                     if not gallery_cells:
                         continue
@@ -979,6 +993,7 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                             image_pool=image_pool,
                         )
                     except RuntimeError as e:
+                        logger.exception("Layout image stack render failed")
                         return {"success": False, "error": str(e)}
 
                     stack_cells = stack_result.get("written_cells") or []
@@ -1004,6 +1019,13 @@ def render_layout(workbook, data, profile, description_fields=None, description_
                 _set_wrap_text_only(cell)
                 written_cells.append(target_cell)
 
+        logger.info(
+            "Layout render succeeded: regions=%s blocks=%s images=%s skipped_images=%s",
+            regions_count,
+            blocks_count,
+            len(written_images),
+            len(skipped_images),
+        )
         return {
             "success": True,
             "skipped": False,
@@ -1015,4 +1037,5 @@ def render_layout(workbook, data, profile, description_fields=None, description_
             "written_images_detail": written_images_detail,
         }
     except Exception as e:
+        logger.exception("Layout render failed")
         return {"success": False, "error": str(e)}

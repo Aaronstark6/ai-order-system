@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.logger import get_logger
 from app.routes import (
     core_router,
     images_router,
@@ -15,6 +16,7 @@ from app.routes import (
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 UPLOADS_DIR = BASE_DIR / "uploads"
+logger = get_logger(__name__)
 
 
 # ====================
@@ -22,6 +24,7 @@ UPLOADS_DIR = BASE_DIR / "uploads"
 # ====================
 
 app = FastAPI(title="AI Order System V2")
+logger.info("FastAPI app initialized")
 
 
 # ====================
