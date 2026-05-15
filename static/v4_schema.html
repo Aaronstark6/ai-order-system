@@ -235,6 +235,42 @@
             word-break: break-word;
         }
 
+        .validation-card {
+            border-left: 4px solid #16a34a;
+        }
+
+        .validation-card.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .validation-card.failed {
+            border-left-color: #dc2626;
+        }
+
+        .validation-title {
+            margin: 0;
+            font-size: 17px;
+        }
+
+        .validation-title.passed {
+            color: #15803d;
+        }
+
+        .validation-title.warning {
+            color: #b45309;
+        }
+
+        .validation-title.failed {
+            color: #b91c1c;
+        }
+
+        .validation-list {
+            margin: 10px 0 0;
+            padding-left: 20px;
+            color: #374151;
+            line-height: 1.6;
+        }
+
         @media (max-width: 720px) {
             .page {
                 width: min(100% - 24px, 1180px);
@@ -307,7 +343,12 @@
                 noExamples: "\u6682\u65e0\u793a\u4f8b\u8ba2\u5355",
                 loadSchemaFailed: "V4 Product Schema \u52a0\u8f7d\u5931\u8d25",
                 loadExamplesFailed: "V4 examples \u52a0\u8f7d\u5931\u8d25",
-                loadExampleFailed: "\u793a\u4f8b\u8ba2\u5355\u52a0\u8f7d\u5931\u8d25"
+                loadExampleFailed: "\u793a\u4f8b\u8ba2\u5355\u52a0\u8f7d\u5931\u8d25",
+                validationPassed: "\u7ed3\u6784\u6821\u9a8c\u901a\u8fc7",
+                validationFailed: "\u7ed3\u6784\u6821\u9a8c\u5931\u8d25",
+                validationRequestFailed: "\u6821\u9a8c\u63a5\u53e3\u8bf7\u6c42\u5931\u8d25",
+                warnings: "\u8b66\u544a",
+                errors: "\u9519\u8bef"
             };
             return messages[key] || key;
         }
@@ -505,13 +546,49 @@
             `;
         }
 
-        function renderExample(example) {
+        function renderValidationResult(validationResult, requestError) {
+            if (requestError) {
+                return `
+                    <article class="card validation-card failed">
+                        <h3 class="validation-title failed">${t("validationRequestFailed")}</h3>
+                    </article>
+                `;
+            }
+
+            const result = validationResult || {};
+            const errors = Array.isArray(result.errors) ? result.errors : [];
+            const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+            const stateClass = result.success === false ? "failed" : (warnings.length ? "warning" : "passed");
+            const title = result.success === false ? t("validationFailed") : t("validationPassed");
+
+            return `
+                <article class="card validation-card ${stateClass}">
+                    <h3 class="validation-title ${stateClass}">${title}</h3>
+                    ${errors.length ? `
+                        <div class="field-meta">${t("errors")}:</div>
+                        <ul class="validation-list">
+                            ${errors.map(error => `<li>${escapeHtml(error)}</li>`).join("")}
+                        </ul>
+                    ` : ""}
+                    ${warnings.length ? `
+                        <div class="field-meta">${t("warnings")}:</div>
+                        <ul class="validation-list">
+                            ${warnings.map(warning => `<li>${escapeHtml(warning)}</li>`).join("")}
+                        </ul>
+                    ` : ""}
+                </article>
+            `;
+        }
+
+        function renderExample(example, validationResult, validationRequestFailed) {
             const product = example.product || {};
             const productForm = product.form || "";
             const productFields = productForm && product[productForm] ? product[productForm] : {};
             const content = document.getElementById("exampleContent");
 
             content.innerHTML = `
+                ${renderValidationResult(validationResult, validationRequestFailed)}
+
                 <div class="grid">
                     ${renderKeyValueCard(t("orderInfo"), example.order, [
                         "customer_name",
@@ -598,14 +675,30 @@
             content.style.display = "none";
 
             try {
-                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}`);
-                const result = await response.json();
+                const [exampleResponse, validateResponse] = await Promise.all([
+                    fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}`),
+                    fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/validate`)
+                ]);
+                const result = await exampleResponse.json();
 
                 if (!result.success) {
                     throw new Error(result.error || t("loadingFailed"));
                 }
 
-                renderExample(result.data || {});
+                let validationResult = null;
+                let validationRequestFailed = false;
+                try {
+                    const validateResult = await validateResponse.json();
+                    if (!validateResult.success) {
+                        validationRequestFailed = true;
+                    } else {
+                        validationResult = validateResult.data || {};
+                    }
+                } catch (validationError) {
+                    validationRequestFailed = true;
+                }
+
+                renderExample(result.data || {}, validationResult, validationRequestFailed);
                 status.style.display = "none";
                 content.style.display = "block";
             } catch (error) {
