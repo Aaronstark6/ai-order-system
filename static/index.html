@@ -392,6 +392,23 @@
             font-size: 12px;
         }
 
+        .image-pool-paste-tip {
+            color: #666;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: -4px 0 12px;
+        }
+
+        .image-pool-card {
+            outline: none;
+            transition: border-color 0.18s ease, background-color 0.18s ease;
+        }
+
+        .image-pool-card.paste-active {
+            border-color: #1677ff;
+            background: #f0f7ff;
+        }
+
         .doc-no-card {
             border: 1px solid #e0e4ec;
             border-radius: 10px;
@@ -1922,9 +1939,11 @@
 
     function createImagePoolCard() {
         const card = document.createElement("div");
-        card.className = "image-upload-card";
+        card.className = "image-upload-card image-pool-card";
+        card.tabIndex = 0;
         card.innerHTML = `
             <h3 class="section-title">&#22270;&#29255;&#32032;&#26448;&#27744;&#65288;&#21487;&#36873;&#65289;</h3>
+            <div class="image-pool-paste-tip">支持点击上传、拖拽上传、Ctrl+V 粘贴图片</div>
             <div class="image-pool-toolbar">
                 <input id="imagePoolInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" multiple>
             </div>
@@ -1941,14 +1960,107 @@
             try {
                 await uploadPoolImages(files);
             } catch (error) {
-                const submitResult = document.getElementById("submitResult");
-                if (submitResult) {
-                    submitResult.innerHTML = `<p class="error">${escapeHtml(error.message || "Image pool upload failed")}</p>`;
-                }
+                showImagePoolUploadError(error);
+            }
+        });
+        card.addEventListener("click", function () {
+            card.focus();
+        });
+        card.addEventListener("paste", async function (event) {
+            const files = getPastedImageFiles(event);
+            if (!files.length) {
+                return;
+            }
+
+            event.preventDefault();
+            flashImagePoolPasteActive(card);
+            try {
+                await uploadPoolImages(files);
+            } catch (error) {
+                showImagePoolUploadError(error);
+            }
+        });
+        card.addEventListener("dragover", function (event) {
+            if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+                event.preventDefault();
+                card.classList.add("paste-active");
+            }
+        });
+        card.addEventListener("dragleave", function () {
+            card.classList.remove("paste-active");
+        });
+        card.addEventListener("drop", async function (event) {
+            const files = Array.from(event.dataTransfer && event.dataTransfer.files || []);
+            if (!files.length) {
+                card.classList.remove("paste-active");
+                return;
+            }
+
+            event.preventDefault();
+            flashImagePoolPasteActive(card);
+            try {
+                await uploadPoolImages(files);
+            } catch (error) {
+                showImagePoolUploadError(error);
             }
         });
 
         return card;
+    }
+
+    function showImagePoolUploadError(error) {
+        const submitResult = document.getElementById("submitResult");
+        if (submitResult) {
+            submitResult.innerHTML = `<p class="error">${escapeHtml(error.message || "Image pool upload failed")}</p>`;
+        }
+    }
+
+    function flashImagePoolPasteActive(card) {
+        if (!card) {
+            return;
+        }
+        card.classList.add("paste-active");
+        setTimeout(() => {
+            card.classList.remove("paste-active");
+        }, 500);
+    }
+
+    function getClipboardImageExtension(type) {
+        const lower = String(type || "").toLowerCase();
+        if (lower.includes("jpeg") || lower.includes("jpg")) {
+            return "jpg";
+        }
+        return "png";
+    }
+
+    function normalizePastedImageFile(file, index) {
+        const name = String(file && file.name || "").trim();
+        if (name && isAllowedImageFile(file)) {
+            return file;
+        }
+
+        const type = file && file.type ? file.type : "image/png";
+        const extension = getClipboardImageExtension(type);
+        return new File([file], `pasted-image-${Date.now()}-${index + 1}.${extension}`, { type });
+    }
+
+    function getPastedImageFiles(event) {
+        const data = event && event.clipboardData ? event.clipboardData : null;
+        const items = data && data.items ? Array.from(data.items) : [];
+        const files = [];
+
+        items.forEach(item => {
+            if (!item || !String(item.type || "").toLowerCase().startsWith("image/")) {
+                return;
+            }
+
+            const file = item.getAsFile ? item.getAsFile() : null;
+            if (file) {
+                files.push(normalizePastedImageFile(file, files.length));
+            }
+        });
+
+        return files;
     }
 
     async function uploadPoolImages(files) {
