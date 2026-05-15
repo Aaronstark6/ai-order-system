@@ -5,11 +5,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, Form, UploadFile
 
-try:
-    from PIL import Image as PILImage
-except ImportError:
-    PILImage = None
-
 from app.image_manager import (
     ensure_image_upload_dir,
     load_image_fields,
@@ -17,14 +12,9 @@ from app.image_manager import (
     save_image_fields,
     save_pool_image,
 )
-from app.template_manager import get_profile, update_profile_mappings
 
 
 router = APIRouter()
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-STATIC_DIR = BASE_DIR / "static"
-LAYOUT_PREVIEW_DIR = STATIC_DIR / "layout_previews"
 
 
 @router.get("/api/image-fields")
@@ -90,48 +80,3 @@ def api_upload_image_pool(file: UploadFile = File(...)):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-
-@router.post("/api/template-profiles/{profile_id}/layout-preview")
-def api_upload_layout_preview(profile_id: str, file: UploadFile = File(...)):
-    try:
-        if PILImage is None:
-            return {"success": False, "error": "图片预览需要安装 pillow"}
-
-        profile = get_profile(profile_id)
-        if not profile:
-            return {"success": False, "error": "映射不存在"}
-
-        original_name = file.filename or "preview.png"
-        suffix = Path(original_name).suffix.lower()
-        if suffix not in {".png", ".jpg", ".jpeg"}:
-            return {"success": False, "error": "只支持上传 png、jpg、jpeg 图片"}
-
-        LAYOUT_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
-        filename = f"preview_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.png"
-        target_path = LAYOUT_PREVIEW_DIR / filename
-
-        with PILImage.open(file.file) as image:
-            width, height = image.size
-            image.convert("RGBA").save(target_path, format="PNG")
-
-        image_path = str(Path("static") / "layout_previews" / filename).replace("\\", "/")
-        layout_preview = {
-            "enabled": True,
-            "image_path": image_path,
-            "image_width": width,
-            "image_height": height,
-        }
-        profile = update_profile_mappings(
-            profile_id=profile_id,
-            mappings=None,
-            layout_preview=layout_preview,
-        )
-        return {
-            "success": True,
-            "image_path": image_path,
-            "image_width": width,
-            "image_height": height,
-            "profile": profile,
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e)}

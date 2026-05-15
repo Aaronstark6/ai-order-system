@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -25,26 +25,16 @@ from app.field_library import (
 )
 from app.ingredient_parser import analyze_ingredient_initials_source
 from app.excel_generator import generate_excel
-from app.excel_geometry import get_template_geometry
 from app.image_manager import LAYOUT_CACHE_DIR
 from app.routes.images import router as images_router
 from app.routes.parse import router as parse_router
+from app.routes.templates import router as templates_router
 from app.description_template_manager import (
     list_description_templates,
     get_description_template,
     save_description_template,
     restore_default_description_template,
 )
-from app.template_manager import (
-    load_profiles,
-    get_profile,
-    create_profile,
-    delete_profile,
-    update_profile_mappings,
-    upload_template_file,
-    delete_template_file,
-)
-
 # ✅ 关键：必须在最前面
 app = FastAPI(title="AI Order System V2")
 
@@ -60,6 +50,7 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 app.include_router(images_router)
 app.include_router(parse_router)
+app.include_router(templates_router)
 
 
 @app.get("/")
@@ -242,97 +233,6 @@ def api_update_field(key: str, field: dict):
 def api_delete_field(key: str):
     try:
         return {"success": True, "result": delete_field(key)}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.get("/api/template-profiles")
-def api_get_profiles():
-    return {"success": True, "profiles": load_profiles()}
-
-
-@app.post("/api/template-profiles")
-def api_create_profile(data: dict):
-    try:
-        return {"success": True, "profile": create_profile(data.get("name", ""))}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.delete("/api/template-profiles/{profile_id}")
-def api_delete_profile(profile_id: str):
-    try:
-        return {"success": True, "result": delete_profile(profile_id)}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.post("/api/template-profiles/{profile_id}/upload-template")
-def api_upload_template(profile_id: str, file: UploadFile = File(...)):
-    try:
-        profile = upload_template_file(profile_id, file)
-        return {
-            "success": True,
-            "template_file": profile.get("template_file", ""),
-            "template_display_name": profile.get("template_display_name", ""),
-            "profile": profile,
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.get("/api/template-profiles/{profile_id}/geometry")
-def api_get_template_geometry(profile_id: str):
-    return get_template_geometry(profile_id)
-
-
-@app.delete("/api/template-profiles/{profile_id}/template")
-def api_delete_template_file(profile_id: str):
-    try:
-        return {"success": True, "profile": delete_template_file(profile_id)}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.post("/api/template-profiles/{profile_id}/mappings")
-def api_update_mappings(profile_id: str, data: dict):
-    try:
-        return {
-            "success": True,
-            "profile": update_profile_mappings(
-                profile_id=profile_id,
-                mappings=data.get("mappings", {}),
-                # legacy composite mapping compatibility
-                composite_mappings=data.get("composite_mappings"),
-                document_no_settings=data.get("document_no_settings"),
-                mapping_defaults=data.get("mapping_defaults"),
-                description_settings=data.get("description_settings"),
-                image_fields=data.get("image_fields"),
-                layout_config=data.get("layout_config"),
-                layout_preview=data.get("layout_preview"),
-                mapping_order=data.get("mapping_order"),
-            )
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.post("/api/template-profiles/{profile_id}/layout-config")
-def api_update_layout_config(profile_id: str, data: dict):
-    try:
-        profile = get_profile(profile_id)
-        if not profile:
-            return {"success": False, "error": "映射不存在"}
-
-        return {
-            "success": True,
-            "profile": update_profile_mappings(
-                profile_id=profile_id,
-                mappings=None,
-                layout_config=data.get("layout_config"),
-                layout_preview=data.get("layout_preview"),
-            )
-        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 
