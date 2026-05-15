@@ -19,7 +19,7 @@ except ImportError:
     XDRPositiveSize2D = None
 from openpyxl.utils import column_index_from_string, get_column_letter
 
-from app.image_manager import resolve_uploaded_image_path
+from app.image_manager import ensure_layout_cache_dir, resolve_uploaded_image_path
 from app.layout_schema import normalize_layout_config
 
 
@@ -201,7 +201,7 @@ def create_vertical_stack_image(image_paths, image_width, image_height, keep_rat
 
     paths = [path for path in image_paths if path]
     if not paths:
-        return None
+        return {"path": None, "image_count": 0, "skipped_paths": [], "skipped_indexes": []}
 
     max_width = _to_positive_number(image_width)
     max_height = _to_positive_number(image_height)
@@ -209,25 +209,38 @@ def create_vertical_stack_image(image_paths, image_width, image_height, keep_rat
     keep_ratio = _to_bool(keep_ratio, default=True)
     resampling = getattr(getattr(PILImage, "Resampling", PILImage), "LANCZOS")
     resized_images = []
+    skipped_paths = []
+    skipped_indexes = []
 
-    for image_path in paths:
-        with PILImage.open(image_path) as source:
-            original_width, original_height = source.size
-            target_width = max_width or original_width
-            target_height = max_height or original_height
+    for index, image_path in enumerate(paths):
+        try:
+            with PILImage.open(image_path) as source:
+                original_width, original_height = source.size
+                if original_width <= 0 or original_height <= 0:
+                    raise ValueError("invalid image size")
+                target_width = max_width or original_width
+                target_height = max_height or original_height
 
-            if keep_ratio:
-                scale = min(target_width / original_width, target_height / original_height)
-                width = max(1, int(round(original_width * scale)))
-                height = max(1, int(round(original_height * scale)))
-            else:
-                width = max(1, int(round(target_width)))
-                height = max(1, int(round(target_height)))
+                if keep_ratio:
+                    scale = min(target_width / original_width, target_height / original_height)
+                    width = max(1, int(round(original_width * scale)))
+                    height = max(1, int(round(original_height * scale)))
+                else:
+                    width = max(1, int(round(target_width)))
+                    height = max(1, int(round(target_height)))
 
-            resized_images.append(source.convert("RGBA").resize((width, height), resampling))
+                resized_images.append(source.convert("RGBA").resize((width, height), resampling))
+        except Exception:
+            skipped_paths.append(str(image_path))
+            skipped_indexes.append(index)
 
     if not resized_images:
-        return None
+        return {
+            "path": None,
+            "image_count": 0,
+            "skipped_paths": skipped_paths,
+            "skipped_indexes": skipped_indexes,
+        }
 
     stack_width = max(image.width for image in resized_images)
     stack_height = sum(image.height for image in resized_images) + gap * (len(resized_images) - 1)
@@ -241,11 +254,15 @@ def create_vertical_stack_image(image_paths, image_width, image_height, keep_rat
             composite.paste(image, (0, current_y))
         current_y += image.height + gap
 
-    cache_dir = BASE_DIR / "output" / "layout_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir = ensure_layout_cache_dir()
     composite_path = cache_dir / f"stack_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.png"
     composite.save(composite_path)
-    return composite_path
+    return {
+        "path": composite_path,
+        "image_count": len(resized_images),
+        "skipped_paths": skipped_paths,
+        "skipped_indexes": skipped_indexes,
+    }
 
 
 def _render_image_block(sheet, block, image_data, target_cell):
@@ -674,13 +691,23 @@ def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_o
     if ExcelImage is None:
         raise RuntimeError("图片渲染需要安装 pillow。")
 
-    composite_path = create_vertical_stack_image(
+    composite_result = create_vertical_stack_image(
         valid_paths,
         size_options.get("width"),
         size_options.get("height"),
         _to_bool(size_options.get("keep_ratio"), default=True),
         gap_px,
     )
+    composite_path = composite_result.get("path") if isinstance(composite_result, dict) else composite_result
+    skipped_indexes = composite_result.get("skipped_indexes", []) if isinstance(composite_result, dict) else []
+    skipped_index_set = {index for index in skipped_indexes if isinstance(index, int)}
+    composite_skipped_keys = [
+        key for index, key in enumerate(valid_keys)
+        if index in skipped_index_set
+    ]
+    if composite_skipped_keys:
+        skipped_keys.extend(composite_skipped_keys)
+
     if not composite_path:
         return {
             "written_cells": [],
@@ -688,10 +715,22 @@ def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_o
             "written_images_detail": [],
         }
 
+    written_keys = [
+        key for index, key in enumerate(valid_keys)
+        if index not in skipped_index_set
+    ]
+
     try:
         composite_img = ExcelImage(str(composite_path))
     except ImportError as e:
         raise RuntimeError("图片渲染需要安装 pillow。") from e
+
+    except Exception:
+        return {
+            "written_cells": [],
+            "skipped_keys": skipped_keys + written_keys,
+            "written_images_detail": [],
+        }
 
     sheet.add_image(composite_img, anchor_cell)
 
@@ -702,8 +741,9 @@ def _render_image_stack_auto(sheet, source_keys, image_data, anchor_cell, size_o
             {
                 "type": "composite_stack",
                 "cell": anchor_cell,
-                "source_keys": valid_keys,
-                "image_count": len(valid_paths),
+                "source_keys": written_keys,
+                "image_count": len(written_keys),
+                "skipped_count": len(skipped_keys),
                 "composite_path": str(composite_path),
             }
         ],

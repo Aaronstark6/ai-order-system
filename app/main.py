@@ -34,6 +34,7 @@ from app.ingredient_parser import analyze_ingredient_initials_source
 from app.excel_generator import generate_excel
 from app.excel_geometry import get_template_geometry
 from app.image_manager import (
+    LAYOUT_CACHE_DIR,
     ensure_image_upload_dir,
     load_image_fields,
     safe_image_extension,
@@ -64,7 +65,6 @@ STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
 UPLOADS_DIR = BASE_DIR / "uploads"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
-LAYOUT_CACHE_DIR = OUTPUT_DIR / "layout_cache"
 LAYOUT_PREVIEW_DIR = STATIC_DIR / "layout_previews"
 LAST_GENERATED_FILE_PATH = ""
 

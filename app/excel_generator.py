@@ -21,7 +21,7 @@ from app.description_template_manager import (
     get_description_template,
     render_description_template,
 )
-from app.image_manager import load_image_fields, resolve_uploaded_image_path
+from app.image_manager import cleanup_layout_cache, load_image_fields, resolve_uploaded_image_path
 from app.ingredient_parser import analyze_ingredient_initials_source
 from app.layout_engine import collect_layout_image_keys, render_layout
 
@@ -404,6 +404,11 @@ def _insert_configured_images(sheet, image_fields, image_data, skip_keys=None):
 
 
 def generate_excel(data: dict, profile_id: str, composite_data=None, composite_values=None, description_text=None, image_data=None, image_pool=None, description_fields=None):
+    try:
+        cleanup_layout_cache(max_age_hours=24)
+    except Exception:
+        pass
+
     if composite_values is None:
         composite_values = {}
     composite_values = normalize_composite_values(

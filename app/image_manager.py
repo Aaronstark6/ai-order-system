@@ -1,6 +1,7 @@
 import json
 import secrets
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -9,6 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 IMAGE_FIELDS_FILE = BASE_DIR / "data" / "image_fields.json"
 IMAGE_UPLOAD_DIR = BASE_DIR / "uploads" / "images"
 IMAGE_POOL_UPLOAD_DIR = BASE_DIR / "uploads" / "image_pool"
+LAYOUT_CACHE_DIR = BASE_DIR / "output" / "layout_cache"
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
@@ -103,6 +105,48 @@ def ensure_image_upload_dir():
 def ensure_image_pool_upload_dir():
     IMAGE_POOL_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     return IMAGE_POOL_UPLOAD_DIR
+
+
+def ensure_layout_cache_dir():
+    LAYOUT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return LAYOUT_CACHE_DIR
+
+
+def cleanup_layout_cache(max_age_hours=24):
+    cache_dir = ensure_layout_cache_dir()
+    allowed_extensions = {".png", ".jpg", ".jpeg"}
+    try:
+        max_age_seconds = max(0, float(max_age_hours)) * 3600
+    except (TypeError, ValueError):
+        max_age_seconds = 24 * 3600
+    cutoff = time.time() - max_age_seconds
+
+    deleted_files = 0
+    failed_files = 0
+    errors = []
+    root = cache_dir.resolve()
+
+    for path in cache_dir.iterdir():
+        if not path.is_file() or path.suffix.lower() not in allowed_extensions:
+            continue
+
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(root)
+            if path.stat().st_mtime >= cutoff:
+                continue
+            path.unlink()
+            deleted_files += 1
+        except Exception as e:
+            failed_files += 1
+            errors.append(f"{path}: {e}")
+
+    return {
+        "success": failed_files == 0,
+        "deleted_files": deleted_files,
+        "failed_files": failed_files,
+        "errors": errors,
+    }
 
 
 def is_allowed_image_filename(filename):
