@@ -34,9 +34,4 @@ def get_logger(name="ai-order-system"):
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-        logger.info(
-            "Logger initialized: log_file=%s",
-            log_file_path,
-        )
-
     return logger
