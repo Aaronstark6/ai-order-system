@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>V4 产品结构模型预览</title>
+    <title>V4 &#20135;&#21697;&#32467;&#26500;&#27169;&#22411;&#39044;&#35272;</title>
     <style>
         * {
             box-sizing: border-box;
@@ -23,11 +23,16 @@
             padding: 28px 0 40px;
         }
 
-        .topbar {
+        .topbar,
+        .section-header,
+        .example-toolbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 16px;
+        }
+
+        .topbar {
             margin-bottom: 22px;
         }
 
@@ -35,6 +40,13 @@
             margin: 0;
             font-size: 28px;
             line-height: 1.25;
+            color: #111827;
+        }
+
+        h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            line-height: 1.3;
             color: #111827;
         }
 
@@ -83,13 +95,6 @@
 
         .section {
             margin-top: 24px;
-        }
-
-        .section h2 {
-            margin: 0 0 12px;
-            font-size: 20px;
-            line-height: 1.3;
-            color: #111827;
         }
 
         .grid {
@@ -182,6 +187,54 @@
             background: #fff5f5;
         }
 
+        .example-toolbar {
+            justify-content: flex-start;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .example-toolbar label {
+            color: #374151;
+            font-weight: 600;
+        }
+
+        .example-toolbar select {
+            min-width: 280px;
+            height: 36px;
+            padding: 6px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #111827;
+            font-size: 14px;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #f1f3f6;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .table th {
+            color: #475569;
+            font-size: 13px;
+            background: #f8fafc;
+        }
+
+        .table td {
+            color: #111827;
+            font-size: 14px;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+
         @media (max-width: 720px) {
             .page {
                 width: min(100% - 24px, 1180px);
@@ -211,15 +264,54 @@
 <body>
     <main class="page">
         <div class="topbar">
-            <h1>V4 产品结构模型预览</h1>
-            <a class="home-link" href="/">返回首页</a>
+            <h1>V4 &#20135;&#21697;&#32467;&#26500;&#27169;&#22411;&#39044;&#35272;</h1>
+            <a class="home-link" href="/">&#36820;&#22238;&#39318;&#39029;</a>
         </div>
 
-        <div id="status" class="state">正在加载 V4 Product Schema...</div>
-        <div id="content" style="display: none;"></div>
+        <div id="schemaStatus" class="state">&#27491;&#22312;&#21152;&#36733; V4 Product Schema...</div>
+        <div id="schemaContent" style="display: none;"></div>
+
+        <section class="section">
+            <div class="section-header">
+                <h2>V4 &#31034;&#20363;&#35746;&#21333;</h2>
+            </div>
+            <div class="example-toolbar">
+                <label for="exampleSelect">&#31034;&#20363;&#35746;&#21333;</label>
+                <select id="exampleSelect" disabled>
+                    <option value="">&#27491;&#22312;&#21152;&#36733;&#31034;&#20363;...</option>
+                </select>
+            </div>
+            <div id="exampleStatus" class="state">&#27491;&#22312;&#21152;&#36733; V4 examples...</div>
+            <div id="exampleContent" style="display: none;"></div>
+        </section>
     </main>
 
     <script>
+        const DEFAULT_EXAMPLE = "soft_capsule_order_example";
+
+        function t(key) {
+            const messages = {
+                loadingFailed: "\u52a0\u8f7d\u5931\u8d25",
+                noFields: "\u6682\u65e0\u5b57\u6bb5",
+                noForms: "\u6682\u65e0\u4ea7\u54c1\u5f62\u5f0f\u914d\u7f6e",
+                noTargets: "\u6682\u65e0\u6e32\u67d3\u76ee\u6807\u914d\u7f6e",
+                example: "\u793a\u4f8b",
+                options: "\u9009\u9879",
+                enabledField: "\u542f\u7528\u5b57\u6bb5",
+                orderInfo: "\u8ba2\u5355\u4fe1\u606f",
+                documentInfo: "\u6587\u6863\u4fe1\u606f",
+                productStructure: "\u4ea7\u54c1\u7ed3\u6784",
+                formulaRequirements: "\u914d\u65b9\u8981\u6c42",
+                packagingRequirements: "\u5305\u88c5\u8981\u6c42",
+                imageFields: "\u56fe\u7247\u5b57\u6bb5",
+                noExamples: "\u6682\u65e0\u793a\u4f8b\u8ba2\u5355",
+                loadSchemaFailed: "V4 Product Schema \u52a0\u8f7d\u5931\u8d25",
+                loadExamplesFailed: "V4 examples \u52a0\u8f7d\u5931\u8d25",
+                loadExampleFailed: "\u793a\u4f8b\u8ba2\u5355\u52a0\u8f7d\u5931\u8d25"
+            };
+            return messages[key] || key;
+        }
+
         function escapeHtml(value) {
             return String(value ?? "")
                 .replace(/&/g, "&amp;")
@@ -229,24 +321,37 @@
                 .replace(/'/g, "&#39;");
         }
 
+        function displayValue(value) {
+            if (value === null || value === undefined) {
+                return "";
+            }
+            if (typeof value === "boolean") {
+                return String(value);
+            }
+            if (typeof value === "object") {
+                return JSON.stringify(value);
+            }
+            return String(value);
+        }
+
         function formatExample(field) {
             if (!Object.prototype.hasOwnProperty.call(field, "example")) {
                 return "";
             }
-            return `示例：${escapeHtml(JSON.stringify(field.example).replace(/^"|"$/g, ""))}`;
+            return `${t("example")}: ${escapeHtml(displayValue(field.example))}`;
         }
 
         function formatOptions(field) {
             if (!Array.isArray(field.options) || field.options.length === 0) {
                 return "";
             }
-            return `选项：${field.options.map(escapeHtml).join(" / ")}`;
+            return `${t("options")}: ${field.options.map(escapeHtml).join(" / ")}`;
         }
 
         function renderFields(fields) {
             const entries = Object.entries(fields || {});
             if (!entries.length) {
-                return `<div class="field-meta">暂无字段</div>`;
+                return `<div class="field-meta">${t("noFields")}</div>`;
             }
 
             return `
@@ -271,7 +376,7 @@
         function renderProductForms(productForms) {
             const entries = Object.entries(productForms || {});
             if (!entries.length) {
-                return `<div class="state">暂无产品形式配置</div>`;
+                return `<div class="state">${t("noForms")}</div>`;
             }
 
             return `
@@ -282,7 +387,7 @@
                                 <h3 class="card-title">${escapeHtml(form.label || key)}</h3>
                                 <span class="code">${escapeHtml(key)}</span>
                             </div>
-                            <div class="field-meta">启用字段：${escapeHtml(form.enabled_field || "")}</div>
+                            <div class="field-meta">${t("enabledField")}: ${escapeHtml(form.enabled_field || "")}</div>
                             ${renderFields(form.fields || {})}
                         </article>
                     `).join("")}
@@ -302,7 +407,7 @@
         function renderTargets(targets) {
             const entries = Object.entries(targets || {});
             if (!entries.length) {
-                return `<div class="state">暂无渲染目标配置</div>`;
+                return `<div class="state">${t("noTargets")}</div>`;
             }
 
             return `
@@ -321,7 +426,7 @@
         }
 
         function renderSchema(schema) {
-            const content = document.getElementById("content");
+            const content = document.getElementById("schemaContent");
             content.innerHTML = `
                 <section class="summary">
                     <div class="summary-item">
@@ -349,16 +454,130 @@
             `;
         }
 
+        function renderKeyValueCard(title, data, keys) {
+            return `
+                <article class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">${escapeHtml(title)}</h3>
+                    </div>
+                    <div class="field-list">
+                        ${keys.map(key => `
+                            <div class="field-row">
+                                <div class="field-name">${escapeHtml(key)}</div>
+                                <div class="value">${escapeHtml(displayValue((data || {})[key]))}</div>
+                                <span class="badge">value</span>
+                            </div>
+                        `).join("")}
+                    </div>
+                </article>
+            `;
+        }
+
+        function renderFormulaTable(requirements) {
+            const rows = Array.isArray(requirements) ? requirements : [];
+            if (!rows.length) {
+                return `<article class="card"><div class="field-meta">${t("noFields")}</div></article>`;
+            }
+
+            return `
+                <article class="card">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>name_en</th>
+                                <th>name_cn</th>
+                                <th>amount</th>
+                                <th>percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.name_en || "")}</td>
+                                    <td>${escapeHtml(item.name_cn || "")}</td>
+                                    <td>${escapeHtml(item.amount || "")}</td>
+                                    <td>${escapeHtml(item.percentage || "")}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                </article>
+            `;
+        }
+
+        function renderExample(example) {
+            const product = example.product || {};
+            const productForm = product.form || "";
+            const productFields = productForm && product[productForm] ? product[productForm] : {};
+            const content = document.getElementById("exampleContent");
+
+            content.innerHTML = `
+                <div class="grid">
+                    ${renderKeyValueCard(t("orderInfo"), example.order, [
+                        "customer_name",
+                        "quantity",
+                        "order_date",
+                        "customer_type",
+                        "sales_owner"
+                    ])}
+                    ${renderKeyValueCard(t("documentInfo"), example.document, [
+                        "sales_name",
+                        "salesperson_code",
+                        "company_code",
+                        "sequence",
+                        "ingredient_initials",
+                        "product_form"
+                    ])}
+                </div>
+
+                <section class="section">
+                    <h2>${t("productStructure")}</h2>
+                    <div class="grid">
+                        ${renderKeyValueCard("product", product, ["form"])}
+                        ${renderKeyValueCard(productForm || "product_form", productFields, Object.keys(productFields || {}))}
+                    </div>
+                </section>
+
+                <section class="section">
+                    <h2>${t("formulaRequirements")}</h2>
+                    ${renderFormulaTable(example.formula && example.formula.requirements)}
+                </section>
+
+                <section class="section">
+                    <h2>${t("packagingRequirements")}</h2>
+                    ${renderKeyValueCard("packaging", example.packaging, [
+                        "container_type",
+                        "capacity",
+                        "container_color",
+                        "cap_color",
+                        "quantity_per_unit",
+                        "seal_method",
+                        "label_requirement"
+                    ])}
+                </section>
+
+                <section class="section">
+                    <h2>${t("imageFields")}</h2>
+                    ${renderKeyValueCard("images", example.images, [
+                        "product_photo",
+                        "front_label",
+                        "back_label",
+                        "capsule_photo"
+                    ])}
+                </section>
+            `;
+        }
+
         async function loadSchema() {
-            const status = document.getElementById("status");
-            const content = document.getElementById("content");
+            const status = document.getElementById("schemaStatus");
+            const content = document.getElementById("schemaContent");
 
             try {
                 const response = await fetch("/api/v4/product-schema");
                 const result = await response.json();
 
                 if (!result.success) {
-                    throw new Error(result.error || "加载失败");
+                    throw new Error(result.error || t("loadingFailed"));
                 }
 
                 renderSchema(result.data || {});
@@ -366,11 +585,76 @@
                 content.style.display = "block";
             } catch (error) {
                 status.classList.add("error");
-                status.textContent = `V4 Product Schema 加载失败：${error.message || error}`;
+                status.textContent = `${t("loadSchemaFailed")}: ${error.message || error}`;
+            }
+        }
+
+        async function loadExample(exampleName) {
+            const status = document.getElementById("exampleStatus");
+            const content = document.getElementById("exampleContent");
+            status.classList.remove("error");
+            status.style.display = "block";
+            status.textContent = `${t("example")} ${exampleName} loading...`;
+            content.style.display = "none";
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}`);
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || t("loadingFailed"));
+                }
+
+                renderExample(result.data || {});
+                status.style.display = "none";
+                content.style.display = "block";
+            } catch (error) {
+                status.classList.add("error");
+                status.textContent = `${t("loadExampleFailed")}: ${error.message || error}`;
+            }
+        }
+
+        async function loadExamples() {
+            const status = document.getElementById("exampleStatus");
+            const select = document.getElementById("exampleSelect");
+
+            try {
+                const response = await fetch("/api/v4/examples");
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || t("loadingFailed"));
+                }
+
+                const examples = Array.isArray(result.data) ? result.data : [];
+                if (!examples.length) {
+                    select.innerHTML = `<option value="">${t("noExamples")}</option>`;
+                    status.textContent = t("noExamples");
+                    return;
+                }
+
+                select.innerHTML = examples.map(example => `
+                    <option value="${escapeHtml(example.name)}">${escapeHtml(example.name)}</option>
+                `).join("");
+
+                const defaultExists = examples.some(example => example.name === DEFAULT_EXAMPLE);
+                select.value = defaultExists ? DEFAULT_EXAMPLE : examples[0].name;
+                select.disabled = false;
+                select.addEventListener("change", () => {
+                    if (select.value) {
+                        loadExample(select.value);
+                    }
+                });
+
+                await loadExample(select.value);
+            } catch (error) {
+                status.classList.add("error");
+                status.textContent = `${t("loadExamplesFailed")}: ${error.message || error}`;
             }
         }
 
         loadSchema();
+        loadExamples();
     </script>
 </body>
 </html>
