@@ -345,8 +345,8 @@
                 "max_images": 0,
                 "layout_mode": "auto_stack",
                 "anchor_cell": "G8",
-                "image_width": 300,
-                "image_height": 300,
+                "image_width": 400,
+                "image_height": 400,
                 "keep_ratio": true,
                 "gap_rows": 8,
                 "gap_px": 12

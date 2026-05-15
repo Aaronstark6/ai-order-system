@@ -30,6 +30,7 @@ from app.field_library import (
     delete_field
 )
 from app.ai_parser import parse_message, generate_description_from_message
+from app.chat_preprocessor import preprocess_chat_text
 from app.ingredient_parser import analyze_ingredient_initials_source
 from app.excel_generator import generate_excel
 from app.excel_geometry import get_template_geometry
@@ -622,12 +623,32 @@ def api_generate_description(data: dict):
 @app.post("/api/parse")
 def api_parse(data: dict):
     try:
-        message = data.get("message", "").strip()
+        message = data.get("chat_text")
+        if message is None:
+            message = data.get("message", "")
+        message = str(message or "")
 
-        if not message:
+        if not message.strip():
             return {"success": False, "error": "message不能为空"}
 
-        return {"success": True, "data": parse_message(message)}
+        chat_preprocess = preprocess_chat_text(message)
+        clean_message = str(chat_preprocess.get("clean_text") or "").strip()
+        preprocess_payload = {
+            "stats": chat_preprocess.get("stats") or {},
+            "removed_lines": chat_preprocess.get("removed_lines") or [],
+        }
+        if not clean_message:
+            return {
+                "success": False,
+                "error": "message 清洗后为空，无法解析",
+                "chat_preprocess": preprocess_payload,
+            }
+
+        return {
+            "success": True,
+            "data": parse_message(clean_message),
+            "chat_preprocess": preprocess_payload,
+        }
 
     except Exception as e:
         return {"success": False, "error": str(e)}
