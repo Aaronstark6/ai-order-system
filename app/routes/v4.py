@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.logger import get_logger
+from app.v4_examples import list_examples, load_example
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema
 
 
@@ -40,4 +41,30 @@ def api_v4_product_form(form_key: str):
     return {
         "success": True,
         "data": get_product_form(form_key),
+    }
+
+
+@router.get("/api/v4/examples")
+def api_v4_examples():
+    logger.info("V4 examples requested")
+    return {
+        "success": True,
+        "data": list_examples(),
+    }
+
+
+@router.get("/api/v4/examples/{example_name}")
+def api_v4_example(example_name: str):
+    example = load_example(example_name)
+    if not example:
+        logger.info("V4 example not found: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+        }
+
+    logger.info("V4 example requested: example_name=%s", example_name)
+    return {
+        "success": True,
+        "data": example,
     }
