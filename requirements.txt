@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 openpyxl
 Pillow
+pystray
 requests
 python-dotenv
 python-multipart

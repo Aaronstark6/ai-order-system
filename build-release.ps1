@@ -18,6 +18,16 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
+Write-Host "Checking release dependencies..."
+conda run -n $envName python -c "import pystray, PIL"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Release dependencies missing. Installing from requirements.txt..."
+    conda run -n $envName python -m pip install -r requirements.txt
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release dependency install failed."
+    }
+}
+
 if (Test-Path $releaseDir) {
     Remove-Item -LiteralPath $releaseDir -Recurse -Force
 }
@@ -33,6 +43,18 @@ conda run -n $envName python -m PyInstaller `
     --clean `
     --onedir `
     --noconsole `
+    --paths $PSScriptRoot `
+    --collect-submodules app `
+    --hidden-import app.main `
+    --hidden-import app.routes `
+    --hidden-import app.routes.images `
+    --hidden-import app.routes.parse `
+    --hidden-import app.routes.templates `
+    --hidden-import pystray `
+    --hidden-import pystray._win32 `
+    --hidden-import PIL `
+    --hidden-import PIL.Image `
+    --hidden-import PIL.ImageDraw `
     --name ai-order-system `
     --distpath $buildDistDir `
     --workpath $buildWorkDir `
