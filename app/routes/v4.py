@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.logger import get_logger
 from app.v4_examples import list_examples, load_example
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema
+from app.v4_validator import validate_example_order
 
 
 router = APIRouter()
@@ -67,4 +68,21 @@ def api_v4_example(example_name: str):
     return {
         "success": True,
         "data": example,
+    }
+
+
+@router.get("/api/v4/examples/{example_name}/validate")
+def api_v4_example_validate(example_name: str):
+    example = load_example(example_name)
+    if not example:
+        logger.info("V4 example validate not found: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+        }
+
+    logger.info("V4 example validate requested: example_name=%s", example_name)
+    return {
+        "success": True,
+        "data": validate_example_order(example, load_product_schema()),
     }
