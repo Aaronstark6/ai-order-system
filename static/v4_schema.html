@@ -831,6 +831,8 @@
                 validationPassed: "\u7ed3\u6784\u6821\u9a8c\u901a\u8fc7",
                 validationFailed: "\u7ed3\u6784\u6821\u9a8c\u5931\u8d25",
                 validationRequestFailed: "\u6821\u9a8c\u63a5\u53e3\u8bf7\u6c42\u5931\u8d25",
+                rendererPreview: "V4 Renderer \u9884\u89c8",
+                rendererPreviewLoadFailed: "Renderer \u9884\u89c8\u52a0\u8f7d\u5931\u8d25",
                 warnings: "\u8b66\u544a",
                 errors: "\u9519\u8bef",
                 invalidJson: "JSON \u4e0d\u5408\u6cd5",
@@ -2335,7 +2337,64 @@
             `;
         }
 
-        function renderExample(example, validationResult, validationRequestFailed) {
+        function renderRendererPreview(rendererResult, requestError) {
+            if (requestError) {
+                return `
+                    <section class="section">
+                        <h2>${t("rendererPreview")}</h2>
+                        <article class="card validation-card failed">
+                            <h3 class="validation-title failed">${t("rendererPreviewLoadFailed")}</h3>
+                        </article>
+                    </section>
+                `;
+            }
+
+            const result = rendererResult || {};
+            if (result.success === false) {
+                return `
+                    <section class="section">
+                        <h2>${t("rendererPreview")}</h2>
+                        <article class="card validation-card failed">
+                            <h3 class="validation-title failed">${escapeHtml(result.error || t("rendererPreviewLoadFailed"))}</h3>
+                            ${Array.isArray(result.warnings) && result.warnings.length ? `
+                                <div class="field-meta">${t("warnings")}:</div>
+                                <ul class="validation-list">
+                                    ${result.warnings.map(warning => `<li>${escapeHtml(warning)}</li>`).join("")}
+                                </ul>
+                            ` : ""}
+                        </article>
+                    </section>
+                `;
+            }
+
+            const descriptionFields = result.description_fields || {};
+            const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+            return `
+                <section class="section">
+                    <h2>${t("rendererPreview")}</h2>
+                    <div class="grid">
+                        ${["产品形式", "产品要求", "配方要求", "包装要求"].map(fieldName => `
+                            <article class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">${escapeHtml(fieldName)}</h3>
+                                </div>
+                                <div class="value" style="white-space: pre-wrap;">${escapeHtml(descriptionFields[fieldName] || "")}</div>
+                            </article>
+                        `).join("")}
+                    </div>
+                    ${warnings.length ? `
+                        <article class="card validation-card warning" style="margin-top: 14px;">
+                            <h3 class="validation-title warning">${t("warnings")}</h3>
+                            <ul class="validation-list">
+                                ${warnings.map(warning => `<li>${escapeHtml(warning)}</li>`).join("")}
+                            </ul>
+                        </article>
+                    ` : ""}
+                </section>
+            `;
+        }
+
+        function renderExample(example, validationResult, validationRequestFailed, rendererResult, rendererRequestFailed) {
             const product = example.product || {};
             const productForm = product.form || "";
             const productFields = productForm && product[productForm] ? product[productForm] : {};
@@ -2343,6 +2402,7 @@
 
             content.innerHTML = `
                 ${renderValidationResult(validationResult, validationRequestFailed)}
+                ${renderRendererPreview(rendererResult, rendererRequestFailed)}
 
                 <div class="grid">
                     ${renderKeyValueCard(t("orderInfo"), example.order, [
@@ -2444,9 +2504,10 @@
             document.getElementById("exampleProductEditor").style.display = "none";
 
             try {
-                const [exampleResponse, validateResponse] = await Promise.all([
+                const [exampleResponse, validateResponse, rendererResponse] = await Promise.all([
                     fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}`),
-                    fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/validate`)
+                    fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/validate`),
+                    fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/render-description`)
                 ]);
                 const result = await exampleResponse.json();
 
@@ -2467,11 +2528,24 @@
                     validationRequestFailed = true;
                 }
 
+                let rendererResult = null;
+                let rendererRequestFailed = false;
+                try {
+                    const rendererApiResult = await rendererResponse.json();
+                    if (!rendererApiResult.success) {
+                        rendererRequestFailed = true;
+                    } else {
+                        rendererResult = rendererApiResult.data || {};
+                    }
+                } catch (rendererError) {
+                    rendererRequestFailed = true;
+                }
+
                 currentExampleOrder = result.data || {};
                 fillExampleOrderForm(currentExampleOrder);
                 fillExampleDocumentForm(currentExampleOrder);
                 fillExampleProductForm(currentExampleOrder);
-                renderExample(currentExampleOrder, validationResult, validationRequestFailed);
+                renderExample(currentExampleOrder, validationResult, validationRequestFailed, rendererResult, rendererRequestFailed);
                 if (document.getElementById("exampleEditor").style.display !== "none") {
                     document.getElementById("exampleTextarea").value = JSON.stringify(currentExampleOrder, null, 2);
                 }
