@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.logger import get_logger
 from app.v4_examples import list_examples, load_example, save_example
+from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
 from app.v4_validator import validate_example_order
 
@@ -116,4 +117,21 @@ def api_v4_example_validate(example_name: str):
     return {
         "success": True,
         "data": validate_example_order(example, load_product_schema()),
+    }
+
+
+@router.get("/api/v4/examples/{example_name}/render-description")
+def api_v4_example_render_description(example_name: str):
+    example = load_example(example_name)
+    if not example:
+        logger.info("V4 example render-description not found: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+        }
+
+    logger.info("V4 example render-description requested: example_name=%s", example_name)
+    return {
+        "success": True,
+        "data": render_example_to_description_fields(example, load_product_schema()),
     }
