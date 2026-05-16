@@ -1,8 +1,10 @@
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
+from fastapi.responses import FileResponse
 
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
@@ -15,6 +17,40 @@ from app.v4_validator import validate_example_order
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+def _resolve_v4_output_file(filename: str):
+    requested_name = str(filename or "").strip()
+    requested_path = Path(requested_name)
+    if (
+        not requested_name
+        or "/" in requested_name
+        or "\\" in requested_name
+        or requested_name in {".", ".."}
+        or requested_path.is_absolute()
+        or requested_path.name != requested_name
+    ):
+        return None
+
+    if requested_name.endswith(".json"):
+        media_type = "application/json"
+    elif requested_name.endswith(".xlsx"):
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        return None
+
+    output_dir = (get_base_dir() / "v4" / "output").resolve()
+    output_path = (output_dir / requested_name).resolve()
+
+    try:
+        output_path.relative_to(output_dir)
+    except ValueError:
+        return None
+
+    if not output_path.is_file():
+        return None
+
+    return output_path, media_type
 
 
 @router.get("/api/v4/product-schema")
@@ -39,6 +75,25 @@ def api_v4_save_product_schema(schema: Any):
         "success": True,
         "data": result.get("data", {}),
     }
+
+
+@router.get("/api/v4/output/{filename}")
+def api_v4_download_output_file(filename: str):
+    resolved = _resolve_v4_output_file(filename)
+    if not resolved:
+        logger.info("V4 output download not found or rejected: filename=%s", filename)
+        return {
+            "success": False,
+            "error": "\u6587\u4ef6\u4e0d\u5b58\u5728",
+        }
+
+    output_path, media_type = resolved
+    logger.info("V4 output download requested: path=%s", output_path)
+    return FileResponse(
+        path=str(output_path),
+        filename=output_path.name,
+        media_type=media_type,
+    )
 
 
 @router.get("/api/v4/product-forms")
