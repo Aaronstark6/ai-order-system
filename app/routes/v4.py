@@ -489,6 +489,9 @@ def api_v4_example_export_template_rule_excel(example_name: str, payload: Any = 
                 "success": False,
                 "error": preview_result.get("error", "V4 Excel rule preview failed"),
             }
+        operations = preview_result.get("operations", [])
+        if not isinstance(operations, list):
+            operations = []
 
         output_dir = get_base_dir() / "v4" / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -500,7 +503,7 @@ def api_v4_example_export_template_rule_excel(example_name: str, payload: Any = 
 
         executor_result = execute_rules_to_template_excel(
             str(template_path),
-            preview_result.get("operations", []),
+            operations,
             str(output_path),
         )
         if not executor_result.get("success"):
@@ -524,6 +527,7 @@ def api_v4_example_export_template_rule_excel(example_name: str, payload: Any = 
             "filename": filename,
             "output_path": str(output_path),
             "operations_written": executor_result.get("operations_written", 0),
+            "operations": operations,
             "warnings": warnings,
         }
     except Exception as exc:
