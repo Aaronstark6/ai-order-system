@@ -893,10 +893,11 @@
                 selectProductFormRequired: "\u5fc5\u987b\u9009\u62e9\u4ea7\u54c1\u5f62\u5f0f",
                 exportRendererJson: "\u5bfc\u51fa Renderer JSON",
                 exportingRendererJson: "\u5bfc\u51fa\u4e2d...",
-                exportRendererJsonSucceeded: "\u5bfc\u51fa\u6210\u529f\uff1a\u6587\u4ef6\u540d {filename}",
+                exportRendererJsonSucceeded: "Renderer JSON \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
                 exportRendererJsonFailed: "\u5bfc\u51fa\u5931\u8d25",
                 exportDebugExcel: "\u5bfc\u51fa\u8c03\u8bd5 Excel",
-                exportDebugExcelSucceeded: "\u8c03\u8bd5 Excel \u5bfc\u51fa\u6210\u529f\uff1a\u6587\u4ef6\u540d {filename}"
+                exportDebugExcelSucceeded: "\u8c03\u8bd5 Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
+                downloadFile: "\u4e0b\u8f7d\u6587\u4ef6"
             };
             return messages[key] || key;
         }
@@ -1077,7 +1078,7 @@
             messageBox.style.display = "none";
         }
 
-        function showRendererExportMessage(message, type) {
+        function showRendererExportMessage(message, type, allowHtml = false) {
             const messageBox = document.getElementById("rendererExportMessage");
             if (!messageBox) {
                 return;
@@ -1086,8 +1087,19 @@
             if (type) {
                 messageBox.classList.add(type);
             }
-            messageBox.textContent = message;
+            if (allowHtml) {
+                messageBox.innerHTML = message;
+            } else {
+                messageBox.textContent = message;
+            }
             messageBox.style.display = "block";
+        }
+
+        function buildOutputDownloadMessage(messageKey, filename) {
+            const safeFilename = escapeHtml(filename || "");
+            const downloadHref = `/api/v4/output/${encodeURIComponent(filename || "")}`;
+            const message = escapeHtml(t(messageKey)).replace("{filename}", safeFilename);
+            return `${message}<br><a href="${downloadHref}" target="_blank" rel="noopener">${escapeHtml(t("downloadFile"))}</a>`;
         }
 
         function showExampleEditor() {
@@ -2668,8 +2680,9 @@
                 }
 
                 showRendererExportMessage(
-                    t("exportRendererJsonSucceeded").replace("{filename}", result.filename || ""),
-                    "success"
+                    buildOutputDownloadMessage("exportRendererJsonSucceeded", result.filename || ""),
+                    "success",
+                    true
                 );
             } catch (error) {
                 showRendererExportMessage(`${t("exportRendererJsonFailed")}\uff1a${error.message || error}`, "error");
@@ -2707,8 +2720,9 @@
                 }
 
                 showRendererExportMessage(
-                    t("exportDebugExcelSucceeded").replace("{filename}", result.filename || ""),
-                    "success"
+                    buildOutputDownloadMessage("exportDebugExcelSucceeded", result.filename || ""),
+                    "success",
+                    true
                 );
             } catch (error) {
                 showRendererExportMessage(`${t("exportRendererJsonFailed")}\uff1a${error.message || error}`, "error");
