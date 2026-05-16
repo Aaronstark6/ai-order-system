@@ -1,8 +1,11 @@
+import json
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter
 
 from app.logger import get_logger
+from app.runtime_paths import get_base_dir
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
@@ -135,3 +138,56 @@ def api_v4_example_render_description(example_name: str):
         "success": True,
         "data": render_example_to_description_fields(example, load_product_schema()),
     }
+
+
+@router.post("/api/v4/examples/{example_name}/export-render-json")
+def api_v4_example_export_render_json(example_name: str):
+    example = load_example(example_name)
+    if not example:
+        logger.info("V4 example export render JSON not found: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+        }
+
+    try:
+        logger.info("V4 example export render JSON requested: example_name=%s", example_name)
+        render_result = render_example_to_description_fields(example, load_product_schema())
+        if not render_result.get("success"):
+            return {
+                "success": False,
+                "error": render_result.get("error", "V4 renderer failed"),
+            }
+
+        generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = str(example_name or "").strip()
+        if safe_name.endswith(".json"):
+            safe_name = safe_name[:-5]
+        output_dir = get_base_dir() / "v4" / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{safe_name}_render_{timestamp}.json"
+        output_path = output_dir / filename
+
+        payload = {
+            "example_name": example_name,
+            "generated_at": generated_at,
+            "description_fields": render_result.get("description_fields", {}),
+            "warnings": render_result.get("warnings", []),
+        }
+        with output_path.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+
+        logger.info("V4 example export render JSON succeeded: path=%s", output_path)
+        return {
+            "success": True,
+            "output_path": str(output_path),
+            "filename": filename,
+        }
+    except Exception as exc:
+        logger.exception("V4 example export render JSON failed: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
