@@ -25,6 +25,60 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+@router.get("/api/v4/health")
+def api_v4_health():
+    schema_loaded = False
+    examples_count = 0
+    excel_rules_loaded = False
+
+    try:
+        base_dir = get_base_dir()
+        schema_path = base_dir / "v4" / "schemas" / "product_schema.json"
+        examples_dir = base_dir / "v4" / "examples"
+        rules_path = base_dir / "v4" / "schemas" / "excel_render_rules.json"
+
+        if not schema_path.is_file():
+            raise FileNotFoundError(f"Product Schema not found: {schema_path}")
+        with schema_path.open("r", encoding="utf-8") as f:
+            schema = json.load(f)
+        schema_loaded = isinstance(schema, dict) and bool(schema)
+        if not schema_loaded:
+            raise ValueError("Product Schema is empty or invalid")
+
+        if not examples_dir.is_dir():
+            raise FileNotFoundError(f"Examples directory not found: {examples_dir}")
+        examples_count = len(list(examples_dir.glob("*.json")))
+
+        if not rules_path.is_file():
+            raise FileNotFoundError(f"Excel render rules not found: {rules_path}")
+        with rules_path.open("r", encoding="utf-8") as f:
+            excel_rules = json.load(f)
+        excel_rules_loaded = isinstance(excel_rules, dict) and bool(excel_rules)
+        if not excel_rules_loaded:
+            raise ValueError("Excel render rules are empty or invalid")
+
+        return {
+            "success": True,
+            "version": "v4-dev",
+            "module": "v4",
+            "schema_loaded": schema_loaded,
+            "examples_count": examples_count,
+            "excel_rules_loaded": excel_rules_loaded,
+            "message": "V4 experimental chain is available",
+        }
+    except Exception as exc:
+        logger.exception("V4 health check failed")
+        return {
+            "success": False,
+            "version": "v4-dev",
+            "module": "v4",
+            "schema_loaded": schema_loaded,
+            "examples_count": examples_count,
+            "excel_rules_loaded": excel_rules_loaded,
+            "error": str(exc),
+        }
+
+
 def _safe_output_filename_part(value: str) -> str:
     text = str(value or "").strip()
     if text.endswith(".json"):

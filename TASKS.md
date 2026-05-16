@@ -44,14 +44,21 @@
 - 当前状态：已完成初步闭环。
 - 备注：目前仍是实验链路，不等于完全接入正式业务流程。
 
+### 任务：完成 V4 接入前稳定性检查
+
+- 任务目标：统一版本标识，确认 V4 路由注册状态，新增 V4 健康检查接口，并建立接入前检查清单。
+- 涉及文件：`app/main.py`、`app/routes/v4.py`、`docs/V4_INTEGRATION_CHECKLIST.md`、项目管理文档。
+- 当前状态：已完成。
+- 备注：新增 `GET /api/v4/health`；V4 仍保持独立实验链路，不直接接入首页正式订单流程。
+
 ## 进行中
 
 ### 任务：整理项目管理文档体系
 
 - 任务目标：建立状态同步、结构管理、版本管理、任务管理和协作同步文件。
 - 涉及文件：`PROJECT_STATUS.md`、`PROJECT_STRUCTURE.md`、`VERSION_HISTORY.md`、`TASKS.md`、`COLLAB_SYNC.md`、`docs/README.md`。
-- 当前状态：进行中。
-- 备注：这些文件用于 ChatGPT / Codex / GitHub / 新聊天之间同步信息。
+- 当前状态：持续维护。
+- 备注：这些文件用于 ChatGPT / Codex / GitHub / 新聊天之间同步信息；本次已补充 V4 接入前稳定性检查记录。
 
 ## 下一步
 
@@ -65,9 +72,9 @@
 ### 任务：检查 V4 是否需要接入正式业务流程
 
 - 任务目标：判断 V4 Schema 和规则渲染是否已经稳定到可以接入首页订单流程。
-- 涉及文件：`static/v4_schema.html`、`app/routes/v4.py`、`app/v4_*.py`、`static/index.html`。
-- 当前状态：下一步。
-- 备注：接入前必须保护 V3 稳定流程。
+- 涉及文件：`static/v4_schema.html`、`app/routes/v4.py`、`app/v4_*.py`、`docs/V4_INTEGRATION_CHECKLIST.md`。
+- 当前状态：下一步继续验证。
+- 备注：当前结论是不直接接入首页，继续通过 `/v4-schema` 和 `/api/v4/health` 独立验证。
 
 ### 任务：整理编码和中文显示问题
 

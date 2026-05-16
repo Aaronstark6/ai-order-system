@@ -54,6 +54,7 @@ GitHub 负责：
 - `TASKS.md`
 - `COLLAB_SYNC.md`
 - `docs/README.md`
+- `docs/V4_INTEGRATION_CHECKLIST.md`
 
 判断是否属于“较大修改”：
 
@@ -85,5 +86,7 @@ GitHub 负责：
 - GitHub 提交前应确认没有混入无关修改。
 - 遇到历史文档乱码时，优先保留可理解的关键信息，再逐步重建清晰文档。
 - 修改业务代码前，应先理解现有 V3 主流程和 V4 实验链路的边界。
+- V4 接入正式首页前，应先查看 `docs/V4_INTEGRATION_CHECKLIST.md`，并通过 `/api/v4/health` 做基础检查。
+- 当前协作结论：V4 仍保持实验链路，不直接接入首页正式订单生成流程。
 
 最后更新：V4第二聊天窗口

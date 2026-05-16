@@ -21,6 +21,7 @@
 - Layout Engine 排版配置和 Excel 渲染。
 - 本地输出、下载和打开输出目录。
 - V4 Product Schema、Example Order、Renderer、Excel Render Rules、Rule Preview、Rule Executor 实验链路。
+- V4 轻量级健康检查接口：`GET /api/v4/health`，用于接入正式流程前确认 V4 实验链路是否可用。
 
 ## 当前已完成模块
 
@@ -41,6 +42,7 @@
 ## 当前未完成 / 待优化模块
 
 - V4 目前仍偏实验链路，尚未完全接入 V3 首页正式订单流程。
+- 本次检查后，V4 仍保持独立实验链路，不直接接入首页正式生成流程。
 - V4 Rule Executor 后续需要更稳定地读取真实 Excel 模板副本，再按规则写入。
 - 部分历史中文文件在终端中可能显示乱码，后续应逐步统一为 UTF-8。
 - 前端脚本仍有较多内联逻辑，后续如要大改，应先建立专项重构任务。
@@ -60,6 +62,7 @@ conda run -n ai-order-system uvicorn app.main:app --reload
 - 首页：http://127.0.0.1:8000/
 - 配置中心：http://127.0.0.1:8000/config
 - V4 Schema 页面：http://127.0.0.1:8000/v4-schema
+- V4 健康检查：http://127.0.0.1:8000/api/v4/health
 
 常用检查方式：
 
@@ -80,7 +83,7 @@ conda run -n ai-order-system python -m py_compile app/main.py app/routes/images.
 ## 最近一次更新记录
 
 - 更新窗口：V4第二聊天窗口
-- 更新内容：建立根目录项目管理文档体系，用于状态同步、结构管理、版本管理、任务管理和协作同步。
-- 本次代码影响：仅新增/更新 Markdown 文档，不修改业务代码。
+- 更新内容：完成 V4 接入正式流程前稳定性检查，统一主应用版本标识为 `v4-dev`，新增 `GET /api/v4/health`，并新增 `docs/V4_INTEGRATION_CHECKLIST.md`。
+- 本次代码影响：只修改 `app/main.py` 和 `app/routes/v4.py` 的轻量版本/健康检查逻辑，不接入首页正式流程，不改动 V3 订单生成主链路。
 
 最后更新：V4第二聊天窗口

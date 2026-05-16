@@ -77,6 +77,11 @@
 - V4 已经有实验页面 `/v4-schema`。
 - V4 已有 Schema、Example、Renderer、Excel Rules、Rule Executor 等模块。
 - V4 还没有完全接入 V3 首页正式订单生成流程。
+- 当前开发分支标识统一为 `v4-dev`。
+- 主健康检查 `/api/health` 返回 `version: v4-dev`、`branch: v4-dev` 和 `stage: V4 experimental integration`。
+- 新增 V4 健康检查 `/api/v4/health`，用于确认 Schema、Example 和 Excel Render Rules 是否可读取。
+- 新增 `docs/V4_INTEGRATION_CHECKLIST.md`，记录 V4 接入正式流程前的条件、策略和风险。
+- 当前结论：V4 继续保持实验链路，不直接接入首页正式订单流程。
 
 ## 后续版本记录格式
 

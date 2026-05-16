@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 # FastAPI App
 # ====================
 
-app = FastAPI(title="AI Order System V2")
+app = FastAPI(title="AI Order System V4-dev")
 logger.info("FastAPI app initialized")
 
 
@@ -80,5 +80,7 @@ def api_health():
     return {
         "success": True,
         "app": "ai-order-system",
-        "version": "v3",
+        "version": "v4-dev",
+        "branch": "v4-dev",
+        "stage": "V4 experimental integration",
     }
