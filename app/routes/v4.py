@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
 from app.v4_excel_renderer import export_description_fields_to_debug_excel
+from app.v4_excel_rules import get_template_rules, load_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
@@ -94,6 +95,32 @@ def api_v4_download_output_file(filename: str):
         filename=output_path.name,
         media_type=media_type,
     )
+
+
+@router.get("/api/v4/excel-render-rules")
+def api_v4_excel_render_rules():
+    logger.info("V4 Excel render rules requested")
+    return {
+        "success": True,
+        "data": load_excel_render_rules(),
+    }
+
+
+@router.get("/api/v4/excel-render-rules/{template_key}")
+def api_v4_excel_render_template_rules(template_key: str):
+    template_rules = get_template_rules(template_key)
+    if not template_rules:
+        logger.info("V4 Excel render rules template not found: template_key=%s", template_key)
+        return {
+            "success": False,
+            "error": "\u0045\u0078\u0063\u0065\u006c\u6e32\u67d3\u89c4\u5219\u6a21\u677f\u4e0d\u5b58\u5728",
+        }
+
+    logger.info("V4 Excel render rules template requested: template_key=%s", template_key)
+    return {
+        "success": True,
+        "data": template_rules,
+    }
 
 
 @router.get("/api/v4/product-forms")
