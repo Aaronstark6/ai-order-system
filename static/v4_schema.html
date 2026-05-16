@@ -363,6 +363,34 @@
             font-size: 14px;
         }
 
+        .example-editor {
+            margin-bottom: 12px;
+        }
+
+        .example-editor textarea {
+            width: 100%;
+            min-height: 400px;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            color: #111827;
+            background: #fff;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+
+        .example-editor textarea:focus {
+            border-color: #1677ff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+        }
+
+        #exampleEditorMessage {
+            margin-top: 10px;
+        }
+
         .table {
             width: 100%;
             border-collapse: collapse;
@@ -653,7 +681,16 @@
                 <select id="exampleSelect" disabled>
                     <option value="">&#27491;&#22312;&#21152;&#36733;&#31034;&#20363;...</option>
                 </select>
+                <button id="editExampleButton" class="button" type="button" disabled>&#32534;&#36753;&#31034;&#20363;&#35746;&#21333;</button>
             </div>
+            <section id="exampleEditor" class="example-editor" style="display: none;">
+                <textarea id="exampleTextarea" spellcheck="false"></textarea>
+                <div class="editor-actions">
+                    <button id="saveExampleButton" class="button primary" type="button">&#20445;&#23384;&#31034;&#20363;&#35746;&#21333;</button>
+                    <button id="cancelExampleButton" class="button" type="button">&#21462;&#28040;&#32534;&#36753;</button>
+                </div>
+                <div id="exampleEditorMessage" class="state" style="display: none;"></div>
+            </section>
             <div id="exampleStatus" class="state">&#27491;&#22312;&#21152;&#36733; V4 examples...</div>
             <div id="exampleContent" style="display: none;"></div>
         </section>
@@ -732,7 +769,14 @@
                 fieldConfigLabelRequired: "{formKey}.fields.{fieldKey}.label \u4e0d\u80fd\u4e3a\u7a7a",
                 fieldConfigTypeRequired: "{formKey}.fields.{fieldKey}.type \u4e0d\u80fd\u4e3a\u7a7a",
                 fieldConfigTypeInvalid: "{formKey}.fields.{fieldKey}.type \u4e0d\u652f\u6301",
-                selectOptionsRequired: "{formKey}.fields.{fieldKey}.options \u5fc5\u987b\u662f\u975e\u7a7a\u6570\u7ec4"
+                selectOptionsRequired: "{formKey}.fields.{fieldKey}.options \u5fc5\u987b\u662f\u975e\u7a7a\u6570\u7ec4",
+                saveExampleFailed: "\u793a\u4f8b\u8ba2\u5355\u4fdd\u5b58\u5931\u8d25",
+                saveExampleSucceeded: "\u793a\u4f8b\u8ba2\u5355\u4fdd\u5b58\u6210\u529f",
+                selectExampleRequired: "\u8bf7\u5148\u9009\u62e9\u793a\u4f8b\u8ba2\u5355",
+                exampleMustBeObject: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u662f JSON object",
+                exampleMustNotBeEmpty: "\u793a\u4f8b\u8ba2\u5355\u4e0d\u80fd\u662f\u7a7a\u5bf9\u8c61",
+                exampleOrderRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b order",
+                exampleProductRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b product"
             };
             return messages[key] || key;
         }
@@ -894,6 +938,53 @@
             messageBox.classList.remove("error", "success", "warning-message");
             messageBox.textContent = "";
             messageBox.style.display = "none";
+        }
+
+        function showExampleEditorMessage(message, type) {
+            const messageBox = document.getElementById("exampleEditorMessage");
+            messageBox.classList.remove("error", "success", "warning-message");
+            if (type) {
+                messageBox.classList.add(type);
+            }
+            messageBox.textContent = message;
+            messageBox.style.display = "block";
+        }
+
+        function clearExampleEditorMessage() {
+            const messageBox = document.getElementById("exampleEditorMessage");
+            messageBox.classList.remove("error", "success", "warning-message");
+            messageBox.textContent = "";
+            messageBox.style.display = "none";
+        }
+
+        function showExampleEditor() {
+            const editor = document.getElementById("exampleEditor");
+            const textarea = document.getElementById("exampleTextarea");
+            textarea.value = JSON.stringify(currentExampleOrder || {}, null, 2);
+            editor.style.display = "block";
+            clearExampleEditorMessage();
+            textarea.focus();
+        }
+
+        function hideExampleEditor() {
+            document.getElementById("exampleEditor").style.display = "none";
+            clearExampleEditorMessage();
+        }
+
+        function validateExampleBeforeSave(example) {
+            if (!example || typeof example !== "object" || Array.isArray(example)) {
+                return t("exampleMustBeObject");
+            }
+            if (!Object.keys(example).length) {
+                return t("exampleMustNotBeEmpty");
+            }
+            if (!Object.prototype.hasOwnProperty.call(example, "order")) {
+                return t("exampleOrderRequired");
+            }
+            if (!Object.prototype.hasOwnProperty.call(example, "product")) {
+                return t("exampleProductRequired");
+            }
+            return "";
         }
 
         function formatValidationMessage(template, values) {
@@ -1997,10 +2088,12 @@
         async function loadExample(exampleName) {
             const status = document.getElementById("exampleStatus");
             const content = document.getElementById("exampleContent");
+            const editButton = document.getElementById("editExampleButton");
             status.classList.remove("error");
             status.style.display = "block";
             status.textContent = `${t("example")} ${exampleName} loading...`;
             content.style.display = "none";
+            editButton.disabled = true;
 
             try {
                 const [exampleResponse, validateResponse] = await Promise.all([
@@ -2028,11 +2121,66 @@
 
                 currentExampleOrder = result.data || {};
                 renderExample(currentExampleOrder, validationResult, validationRequestFailed);
+                if (document.getElementById("exampleEditor").style.display !== "none") {
+                    document.getElementById("exampleTextarea").value = JSON.stringify(currentExampleOrder, null, 2);
+                }
                 status.style.display = "none";
                 content.style.display = "block";
+                editButton.disabled = false;
             } catch (error) {
                 status.classList.add("error");
                 status.textContent = `${t("loadExampleFailed")}: ${error.message || error}`;
+            }
+        }
+
+        async function saveExampleFromEditor() {
+            const select = document.getElementById("exampleSelect");
+            const exampleName = select.value;
+            const saveButton = document.getElementById("saveExampleButton");
+            let parsedExample;
+
+            if (!exampleName) {
+                showExampleEditorMessage(t("selectExampleRequired"), "error");
+                return;
+            }
+
+            try {
+                parsedExample = JSON.parse(document.getElementById("exampleTextarea").value);
+            } catch (error) {
+                showExampleEditorMessage(`${t("invalidJson")}: ${error.message || error}`, "error");
+                return;
+            }
+
+            const validationError = validateExampleBeforeSave(parsedExample);
+            if (validationError) {
+                showExampleEditorMessage(validationError, "error");
+                return;
+            }
+
+            saveButton.disabled = true;
+            showExampleEditorMessage(t("saving"), "");
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(parsedExample)
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || t("saveExampleFailed"));
+                }
+
+                await loadExample(exampleName);
+                document.getElementById("exampleTextarea").value = JSON.stringify(currentExampleOrder || {}, null, 2);
+                showExampleEditorMessage(t("saveExampleSucceeded"), "success");
+            } catch (error) {
+                showExampleEditorMessage(`${t("saveExampleFailed")}: ${error.message || error}`, "error");
+            } finally {
+                saveButton.disabled = false;
             }
         }
 
@@ -2064,6 +2212,7 @@
                 select.disabled = false;
                 select.addEventListener("change", () => {
                     if (select.value) {
+                        hideExampleEditor();
                         loadExample(select.value);
                     }
                 });
@@ -2076,6 +2225,9 @@
         }
 
         document.getElementById("editSchemaButton").addEventListener("click", showSchemaEditor);
+        document.getElementById("editExampleButton").addEventListener("click", showExampleEditor);
+        document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
+        document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
         document.getElementById("addProductFormButton").addEventListener("click", addProductFormToEditor);
         document.getElementById("updateProductFormButton").addEventListener("click", updateProductFormInEditor);
         document.getElementById("addProductFieldButton").addEventListener("click", addProductFieldToEditor);

@@ -1,4 +1,6 @@
 import json
+import shutil
+from datetime import datetime
 from json import JSONDecodeError
 
 from app.logger import get_logger
@@ -41,6 +43,47 @@ def load_example(example_name):
         return {}
 
     return example
+
+
+def save_example(example_name: str, data: dict):
+    example_path = _get_example_path(example_name)
+    if example_path is None:
+        return {
+            "success": False,
+            "error": "example_name is required",
+        }
+
+    logger.info("V4 example save started: name=%s path=%s", example_name, example_path)
+    try:
+        if not isinstance(data, dict):
+            raise ValueError("example data must be a dict")
+
+        example_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_dir = example_path.parent / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        if example_path.exists():
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = backup_dir / f"{example_path.stem}_{timestamp}.json"
+            logger.info("V4 example backup path: path=%s", backup_path)
+            shutil.copy2(example_path, backup_path)
+        else:
+            logger.info("V4 example backup path: no existing example to backup")
+
+        with example_path.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+
+        logger.info("V4 example save succeeded: name=%s path=%s", example_name, example_path)
+        return {
+            "success": True,
+        }
+    except Exception as exc:
+        logger.exception("V4 example save failed: name=%s path=%s", example_name, example_path)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
 
 
 def list_examples():
