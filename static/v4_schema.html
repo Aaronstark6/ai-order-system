@@ -890,7 +890,11 @@
                 exampleOrderUpdated: "\u57fa\u7840\u8ba2\u5355\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548",
                 exampleDocumentUpdated: "\u6587\u6863\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548",
                 exampleProductUpdated: "\u4ea7\u54c1\u7ed3\u6784\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548",
-                selectProductFormRequired: "\u5fc5\u987b\u9009\u62e9\u4ea7\u54c1\u5f62\u5f0f"
+                selectProductFormRequired: "\u5fc5\u987b\u9009\u62e9\u4ea7\u54c1\u5f62\u5f0f",
+                exportRendererJson: "\u5bfc\u51fa Renderer JSON",
+                exportingRendererJson: "\u5bfc\u51fa\u4e2d...",
+                exportRendererJsonSucceeded: "\u5bfc\u51fa\u6210\u529f\uff1a\u6587\u4ef6\u540d {filename}",
+                exportRendererJsonFailed: "\u5bfc\u51fa\u5931\u8d25"
             };
             return messages[key] || key;
         }
@@ -1069,6 +1073,19 @@
             messageBox.classList.remove("error", "success", "warning-message");
             messageBox.textContent = "";
             messageBox.style.display = "none";
+        }
+
+        function showRendererExportMessage(message, type) {
+            const messageBox = document.getElementById("rendererExportMessage");
+            if (!messageBox) {
+                return;
+            }
+            messageBox.classList.remove("error", "success", "warning-message");
+            if (type) {
+                messageBox.classList.add(type);
+            }
+            messageBox.textContent = message;
+            messageBox.style.display = "block";
         }
 
         function showExampleEditor() {
@@ -2338,10 +2355,18 @@
         }
 
         function renderRendererPreview(rendererResult, requestError) {
+            const exportControls = `
+                <div class="editor-actions" style="margin-bottom: 14px;">
+                    <button id="exportRendererJsonButton" class="button" type="button">${t("exportRendererJson")}</button>
+                    <div id="rendererExportMessage" class="state" style="display: none;"></div>
+                </div>
+            `;
+
             if (requestError) {
                 return `
                     <section class="section">
                         <h2>${t("rendererPreview")}</h2>
+                        ${exportControls}
                         <article class="card validation-card failed">
                             <h3 class="validation-title failed">${t("rendererPreviewLoadFailed")}</h3>
                         </article>
@@ -2354,6 +2379,7 @@
                 return `
                     <section class="section">
                         <h2>${t("rendererPreview")}</h2>
+                        ${exportControls}
                         <article class="card validation-card failed">
                             <h3 class="validation-title failed">${escapeHtml(result.error || t("rendererPreviewLoadFailed"))}</h3>
                             ${Array.isArray(result.warnings) && result.warnings.length ? `
@@ -2372,6 +2398,7 @@
             return `
                 <section class="section">
                     <h2>${t("rendererPreview")}</h2>
+                    ${exportControls}
                     <div class="grid">
                         ${["产品形式", "产品要求", "配方要求", "包装要求"].map(fieldName => `
                             <article class="card">
@@ -2612,6 +2639,45 @@
             }
         }
 
+        async function exportRendererJson() {
+            const select = document.getElementById("exampleSelect");
+            const exampleName = select.value;
+            const exportButton = document.getElementById("exportRendererJsonButton");
+
+            if (!exampleName) {
+                showRendererExportMessage(t("selectExampleRequired"), "error");
+                return;
+            }
+
+            if (exportButton) {
+                exportButton.disabled = true;
+                exportButton.textContent = t("exportingRendererJson");
+            }
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-render-json`, {
+                    method: "POST"
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("exportRendererJsonFailed"));
+                }
+
+                showRendererExportMessage(
+                    t("exportRendererJsonSucceeded").replace("{filename}", result.filename || ""),
+                    "success"
+                );
+            } catch (error) {
+                showRendererExportMessage(`${t("exportRendererJsonFailed")}\uff1a${error.message || error}`, "error");
+            } finally {
+                if (exportButton) {
+                    exportButton.disabled = false;
+                    exportButton.textContent = t("exportRendererJson");
+                }
+            }
+        }
+
         async function loadExamples() {
             const status = document.getElementById("exampleStatus");
             const select = document.getElementById("exampleSelect");
@@ -2656,6 +2722,11 @@
         document.getElementById("editExampleButton").addEventListener("click", showExampleEditor);
         document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
+        document.getElementById("exampleContent").addEventListener("click", event => {
+            if (event.target && event.target.id === "exportRendererJsonButton") {
+                exportRendererJson();
+            }
+        });
         document.getElementById("updateExampleOrderButton").addEventListener("click", updateExampleOrderFromForm);
         document.getElementById("updateExampleDocumentButton").addEventListener("click", updateExampleDocumentFromForm);
         document.getElementById("exampleProductStructureForm").addEventListener("change", renderExampleProductFields);
