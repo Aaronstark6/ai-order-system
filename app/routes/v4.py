@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,7 @@ from fastapi.responses import FileResponse
 
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
+from app.v4_excel_rule_executor import execute_excel_rule_preview_to_workbook
 from app.v4_excel_renderer import export_description_fields_to_debug_excel
 from app.v4_excel_rule_preview import build_excel_rule_preview
 from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save_excel_render_rules
@@ -20,6 +22,14 @@ from app.v4_validator import validate_example_order
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+def _safe_output_filename_part(value: str) -> str:
+    text = str(value or "").strip()
+    if text.endswith(".json"):
+        text = text[:-5]
+    text = re.sub(r"[^\w.-]+", "_", text, flags=re.UNICODE)
+    return text.strip("._") or "output"
 
 
 def _resolve_v4_output_file(filename: str):
@@ -312,6 +322,94 @@ def api_v4_example_excel_rule_preview(example_name: str, template_key: str = "")
     except Exception as exc:
         logger.exception(
             "V4 example Excel rule preview failed: example_name=%s template_key=%s",
+            example_name,
+            template_key,
+        )
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+
+@router.post("/api/v4/examples/{example_name}/export-rule-excel")
+def api_v4_example_export_rule_excel(example_name: str, template_key: str = ""):
+    if not str(template_key or "").strip():
+        return {
+            "success": False,
+            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
+        }
+
+    example = load_example(example_name)
+    if not example:
+        logger.info("V4 example export rule Excel not found: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+        }
+
+    try:
+        logger.info(
+            "V4 example export rule Excel requested: example_name=%s template_key=%s",
+            example_name,
+            template_key,
+        )
+        render_result = render_example_to_description_fields(example, load_product_schema())
+        if not render_result.get("success"):
+            return {
+                "success": False,
+                "error": render_result.get("error", "V4 renderer failed"),
+            }
+
+        preview_result = build_excel_rule_preview(
+            example,
+            render_result.get("description_fields", {}),
+            load_excel_render_rules(),
+            template_key,
+        )
+        if not preview_result.get("success"):
+            return {
+                "success": False,
+                "error": preview_result.get("error", "V4 Excel rule preview failed"),
+            }
+
+        output_dir = get_base_dir() / "v4" / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_example_name = _safe_output_filename_part(example_name)
+        safe_template_key = _safe_output_filename_part(template_key)
+        filename = f"{safe_example_name}_{safe_template_key}_rule_excel_{timestamp}.xlsx"
+        output_path = output_dir / filename
+
+        executor_result = execute_excel_rule_preview_to_workbook(
+            preview_result.get("operations", []),
+            str(output_path),
+        )
+        if not executor_result.get("success"):
+            return {
+                "success": False,
+                "error": executor_result.get("error", "V4 Excel rule executor failed"),
+            }
+
+        warnings = []
+        warnings.extend(preview_result.get("warnings", []))
+        warnings.extend(executor_result.get("warnings", []))
+
+        logger.info(
+            "V4 example export rule Excel succeeded: output_path=%s operations_written=%s warnings=%s",
+            output_path,
+            executor_result.get("operations_written", 0),
+            len(warnings),
+        )
+        return {
+            "success": True,
+            "output_path": str(output_path),
+            "filename": filename,
+            "operations_written": executor_result.get("operations_written", 0),
+            "warnings": warnings,
+        }
+    except Exception as exc:
+        logger.exception(
+            "V4 example export rule Excel failed: example_name=%s template_key=%s",
             example_name,
             template_key,
         )
