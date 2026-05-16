@@ -703,6 +703,14 @@
 
         <section class="section">
             <div class="section-header">
+                <h2>V4 Excel &#28210;&#26579;&#35268;&#21017;&#39044;&#35272;</h2>
+            </div>
+            <div id="excelRulesStatus" class="state">&#27491;&#22312;&#21152;&#36733; Excel &#28210;&#26579;&#35268;&#21017;...</div>
+            <div id="excelRulesContent" style="display: none;"></div>
+        </section>
+
+        <section class="section">
+            <div class="section-header">
                 <h2>V4 &#31034;&#20363;&#35746;&#21333;</h2>
             </div>
             <div class="example-toolbar">
@@ -833,6 +841,8 @@
                 validationRequestFailed: "\u6821\u9a8c\u63a5\u53e3\u8bf7\u6c42\u5931\u8d25",
                 rendererPreview: "V4 Renderer \u9884\u89c8",
                 rendererPreviewLoadFailed: "Renderer \u9884\u89c8\u52a0\u8f7d\u5931\u8d25",
+                loadExcelRulesFailed: "Excel \u6e32\u67d3\u89c4\u5219\u52a0\u8f7d\u5931\u8d25",
+                noExcelRules: "\u6682\u65e0 Excel \u6e32\u67d3\u89c4\u5219",
                 warnings: "\u8b66\u544a",
                 errors: "\u9519\u8bef",
                 invalidJson: "JSON \u4e0d\u5408\u6cd5",
@@ -1041,6 +1051,95 @@
                     <h2>render_targets</h2>
                     ${renderTargets(schema.render_targets || {})}
                 </section>
+            `;
+        }
+
+        function compactJson(value) {
+            if (value === null || value === undefined) {
+                return "";
+            }
+            if (typeof value !== "object") {
+                return String(value);
+            }
+            return JSON.stringify(value);
+        }
+
+        function renderExcelRulesTable(rules) {
+            const ruleList = Array.isArray(rules) ? rules : [];
+            if (!ruleList.length) {
+                return `<div class="state">${t("noExcelRules")}</div>`;
+            }
+
+            return `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>id</th>
+                            <th>type</th>
+                            <th>condition</th>
+                            <th>source</th>
+                            <th>target</th>
+                            <th>checked_text / unchecked_text</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${ruleList.map(rule => `
+                            <tr>
+                                <td>${escapeHtml(rule.id || "")}</td>
+                                <td>${escapeHtml(rule.type || "")}</td>
+                                <td>${escapeHtml(compactJson(rule.condition))}</td>
+                                <td>${escapeHtml(compactJson(rule.source))}</td>
+                                <td>${escapeHtml(compactJson(rule.target))}</td>
+                                <td>${escapeHtml([rule.checked_text, rule.unchecked_text].filter(value => value !== undefined && value !== null && value !== "").join(" / "))}</td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderExcelRulesTemplateCard(templateKey, template) {
+            const templateData = template && typeof template === "object" && !Array.isArray(template)
+                ? template
+                : {};
+
+            return `
+                <article class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">${escapeHtml(templateData.label || templateKey)}</h3>
+                        <span class="code">${escapeHtml(templateKey)}</span>
+                    </div>
+                    ${renderExcelRulesTable(templateData.rules)}
+                </article>
+            `;
+        }
+
+        function renderExcelRenderRules(rules) {
+            const content = document.getElementById("excelRulesContent");
+            const templates = rules && typeof rules.templates === "object" && !Array.isArray(rules.templates)
+                ? rules.templates
+                : {};
+            const templateEntries = Object.entries(templates);
+
+            if (!rules || typeof rules !== "object" || !templateEntries.length) {
+                content.innerHTML = `<div class="state">${t("noExcelRules")}</div>`;
+                return;
+            }
+
+            content.innerHTML = `
+                <section class="summary">
+                    <div class="summary-item">
+                        <div class="label">version</div>
+                        <div class="value">${escapeHtml(rules.version || "")}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">description</div>
+                        <div class="value">${escapeHtml(rules.description || "")}</div>
+                    </div>
+                </section>
+                <div class="grid">
+                    ${templateEntries.map(([templateKey, template]) => renderExcelRulesTemplateCard(templateKey, template)).join("")}
+                </div>
             `;
         }
 
@@ -2532,6 +2631,30 @@
             }
         }
 
+        async function loadExcelRenderRules() {
+            const status = document.getElementById("excelRulesStatus");
+            const content = document.getElementById("excelRulesContent");
+            status.classList.remove("error");
+            status.style.display = "block";
+            content.style.display = "none";
+
+            try {
+                const response = await fetch("/api/v4/excel-render-rules");
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || t("loadingFailed"));
+                }
+
+                renderExcelRenderRules(result.data || {});
+                status.style.display = "none";
+                content.style.display = "block";
+            } catch (error) {
+                status.classList.add("error");
+                status.textContent = `${t("loadExcelRulesFailed")}: ${error.message || error}`;
+            }
+        }
+
         async function loadExample(exampleName) {
             const status = document.getElementById("exampleStatus");
             const content = document.getElementById("exampleContent");
@@ -2807,6 +2930,7 @@
         document.getElementById("cancelSchemaButton").addEventListener("click", hideSchemaEditor);
 
         loadSchema();
+        loadExcelRenderRules();
         loadExamples();
     </script>
 </body>
