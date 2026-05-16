@@ -10,6 +10,7 @@ from app.logger import get_logger
 from app.runtime_paths import get_base_dir
 from app.v4_excel_renderer import export_description_fields_to_debug_excel
 from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save_excel_render_rules
+from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
@@ -108,6 +109,20 @@ def api_v4_excel_render_rules():
 
 @router.post("/api/v4/excel-render-rules")
 def api_v4_save_excel_render_rules(rules_config: Any):
+    logger.info("V4 Excel render rules save requested")
+    validation_result = validate_excel_render_rules(rules_config)
+    if validation_result.get("errors"):
+        logger.info(
+            "V4 Excel render rules save rejected by validation: errors=%s warnings=%s",
+            len(validation_result.get("errors", [])),
+            len(validation_result.get("warnings", [])),
+        )
+        return {
+            "success": False,
+            "error": "\u0045\u0078\u0063\u0065\u006c\u6e32\u67d3\u89c4\u5219\u6821\u9a8c\u5931\u8d25",
+            "validation": validation_result,
+        }
+
     result = save_excel_render_rules(rules_config)
     if not result.get("success"):
         return {
@@ -118,6 +133,16 @@ def api_v4_save_excel_render_rules(rules_config: Any):
     return {
         "success": True,
         "data": result.get("data", {}),
+        "validation": validation_result,
+    }
+
+
+@router.get("/api/v4/excel-render-rules/validate")
+def api_v4_validate_excel_render_rules():
+    logger.info("V4 Excel render rules validation requested")
+    return {
+        "success": True,
+        "data": validate_excel_render_rules(load_excel_render_rules()),
     }
 
 
