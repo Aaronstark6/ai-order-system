@@ -17,6 +17,7 @@ from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
+from app.v4_template_rule_executor import execute_rules_to_template_excel
 from app.v4_validator import validate_example_order
 
 
@@ -30,6 +31,22 @@ def _safe_output_filename_part(value: str) -> str:
         text = text[:-5]
     text = re.sub(r"[^\w.-]+", "_", text, flags=re.UNICODE)
     return text.strip("._") or "output"
+
+
+def _resolve_template_path(template_path: str):
+    raw_path = str(template_path or "").strip()
+    if not raw_path:
+        return None, "template_path \u4e0d\u80fd\u4e3a\u7a7a"
+
+    path = Path(raw_path)
+    if ".." in path.parts:
+        return None, "\u6a21\u677f\u8def\u5f84\u4e0d\u5141\u8bb8\u5305\u542b .."
+
+    resolved = path.resolve()
+    if not resolved.is_file():
+        return None, "\u6a21\u677f\u6587\u4ef6\u4e0d\u5b58\u5728"
+
+    return resolved, ""
 
 
 def _resolve_v4_output_file(filename: str):
@@ -410,6 +427,108 @@ def api_v4_example_export_rule_excel(example_name: str, template_key: str = ""):
     except Exception as exc:
         logger.exception(
             "V4 example export rule Excel failed: example_name=%s template_key=%s",
+            example_name,
+            template_key,
+        )
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+
+@router.post("/api/v4/examples/{example_name}/export-template-rule-excel")
+def api_v4_example_export_template_rule_excel(example_name: str, payload: Any = None, template_key: str = ""):
+    if not str(template_key or "").strip():
+        return {
+            "success": False,
+            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
+        }
+    if not isinstance(payload, dict):
+        return {
+            "success": False,
+            "error": "template_path \u4e0d\u80fd\u4e3a\u7a7a",
+        }
+
+    template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
+    if template_path_error:
+        return {
+            "success": False,
+            "error": template_path_error,
+        }
+
+    example = load_example(example_name)
+    if not example:
+        logger.info("V4 example export template rule Excel not found: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+        }
+
+    try:
+        logger.info(
+            "V4 example export template rule Excel requested: example_name=%s template_key=%s template_path=%s",
+            example_name,
+            template_key,
+            template_path,
+        )
+        render_result = render_example_to_description_fields(example, load_product_schema())
+        if not render_result.get("success"):
+            return {
+                "success": False,
+                "error": render_result.get("error", "V4 renderer failed"),
+            }
+
+        preview_result = build_excel_rule_preview(
+            example,
+            render_result.get("description_fields", {}),
+            load_excel_render_rules(),
+            template_key,
+        )
+        if not preview_result.get("success"):
+            return {
+                "success": False,
+                "error": preview_result.get("error", "V4 Excel rule preview failed"),
+            }
+
+        output_dir = get_base_dir() / "v4" / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_example_name = _safe_output_filename_part(example_name)
+        safe_template_key = _safe_output_filename_part(template_key)
+        filename = f"{safe_example_name}_{safe_template_key}_template_rule_{timestamp}.xlsx"
+        output_path = output_dir / filename
+
+        executor_result = execute_rules_to_template_excel(
+            str(template_path),
+            preview_result.get("operations", []),
+            str(output_path),
+        )
+        if not executor_result.get("success"):
+            return {
+                "success": False,
+                "error": executor_result.get("error", "V4 template rule executor failed"),
+            }
+
+        warnings = []
+        warnings.extend(preview_result.get("warnings", []))
+        warnings.extend(executor_result.get("warnings", []))
+
+        logger.info(
+            "V4 example export template rule Excel succeeded: output_path=%s operations_written=%s warnings=%s",
+            output_path,
+            executor_result.get("operations_written", 0),
+            len(warnings),
+        )
+        return {
+            "success": True,
+            "filename": filename,
+            "output_path": str(output_path),
+            "operations_written": executor_result.get("operations_written", 0),
+            "warnings": warnings,
+        }
+    except Exception as exc:
+        logger.exception(
+            "V4 example export template rule Excel failed: example_name=%s template_key=%s",
             example_name,
             template_key,
         )
