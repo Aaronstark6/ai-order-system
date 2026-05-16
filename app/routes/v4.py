@@ -17,7 +17,11 @@ from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
-from app.v4_template_rule_executor import execute_rules_to_template_excel, execute_rules_to_template_excel_with_preview
+from app.v4_template_rule_executor import (
+    execute_ai_template_to_excel,
+    execute_rules_to_template_excel,
+    execute_rules_to_template_excel_with_preview,
+)
 from app.v4_validator import validate_example_order
 
 
@@ -650,6 +654,51 @@ def api_v4_example_export_template_rule_excel_with_preview(example_name: str, pa
             example_name,
             template_key,
         )
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+
+@router.post("/api/v4/examples/{example_name}/export-ai-template-excel")
+def api_v4_example_export_ai_template_excel(example_name: str, payload: Any = Body(None)):
+    if not isinstance(payload, dict):
+        return {
+            "success": False,
+            "error": "template_path \u4e0d\u80fd\u4e3a\u7a7a",
+        }
+
+    template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
+    if template_path_error:
+        return {
+            "success": False,
+            "error": template_path_error,
+        }
+
+    try:
+        logger.info(
+            "V4 example export AI template Excel requested: example_name=%s template_path=%s",
+            example_name,
+            template_path,
+        )
+        result = execute_ai_template_to_excel(example_name, str(template_path))
+        if not result.get("success"):
+            logger.info(
+                "V4 example export AI template Excel failed: example_name=%s error=%s",
+                example_name,
+                result.get("error", ""),
+            )
+            return result
+
+        logger.info(
+            "V4 example export AI template Excel succeeded: filename=%s operations_written=%s warnings=%s",
+            result.get("filename", ""),
+            result.get("operations_written", 0),
+            len(result.get("warnings", [])),
+        )
+        return result
+    except Exception as exc:
+        logger.exception("V4 example export AI template Excel failed: example_name=%s", example_name)
         return {
             "success": False,
             "error": str(exc),

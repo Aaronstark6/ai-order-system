@@ -941,6 +941,7 @@
                 </div>
                 <div class="add-product-actions">
                     <button id="previewTemplateRuleOperationsButton" class="button" type="button" disabled>&#39044;&#35272;&#20889;&#20837;&#35268;&#21017;</button>
+                    <button id="exportAiTemplateExcelButton" class="button primary" type="button" disabled>AI 自动导出 Excel</button>
                     <button id="exportTemplateRuleExcelWithPreviewButton" class="button primary" type="button" disabled>&#23548;&#20986;&#24182;&#39044;&#35272; Excel</button>
                     <button id="exportTemplateRuleExcelButton" class="button" type="button" disabled>&#23548;&#20986;&#30495;&#23454;&#27169;&#26495; Excel</button>
                 </div>
@@ -1198,6 +1199,9 @@
                 errorCount: "error {count}",
                 confirmExportWithErrors: "\u5f53\u524d\u6709 {count} \u6761 error \u64cd\u4f5c\uff0c\u53ef\u80fd\u5bfc\u81f4 Excel \u5199\u5165\u7f3a\u5931\u6216\u5931\u8d25\u3002\u4ecd\u7136\u7ee7\u7eed\u5bfc\u51fa\u5417\uff1f",
                 exportCancelledDueToErrors: "\u5df2\u53d6\u6d88\u5bfc\u51fa\uff1a\u8bf7\u5148\u68c0\u67e5 error \u64cd\u4f5c\u3002",
+                exportAiTemplateExcel: "AI \u81ea\u52a8\u5bfc\u51fa Excel",
+                exportAiTemplateExcelSucceeded: "AI \u81ea\u52a8\u5bfc\u51fa Excel \u6210\u529f\uff1a{filename}",
+                exportAiTemplateExcelFailed: "AI \u81ea\u52a8\u5bfc\u51fa Excel \u5931\u8d25",
                 exportTemplateRuleExcelWithPreview: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel",
                 exportTemplateRuleExcelWithPreviewSucceeded: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel \u6210\u529f\uff1a{filename}",
                 exportTemplateRuleExcelWithPreviewFailed: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel \u5931\u8d25",
@@ -1594,6 +1598,7 @@
             const currentTemplate = document.getElementById("templateRuleExcelCurrentTemplate");
             const exportButton = document.getElementById("exportTemplateRuleExcelButton");
             const exportWithPreviewButton = document.getElementById("exportTemplateRuleExcelWithPreviewButton");
+            const exportAiButton = document.getElementById("exportAiTemplateExcelButton");
             const previewButton = document.getElementById("previewTemplateRuleOperationsButton");
             const templatePathSelect = document.getElementById("templateRuleExcelPath");
             const exampleSelect = document.getElementById("exampleSelect");
@@ -1604,6 +1609,9 @@
             exportButton.disabled = !templateKey || !templatePathSelect.value;
             if (exportWithPreviewButton) {
                 exportWithPreviewButton.disabled = !templateKey || !templatePathSelect.value || !exampleSelect.value;
+            }
+            if (exportAiButton) {
+                exportAiButton.disabled = !templatePathSelect.value || !exampleSelect.value;
             }
             if (previewButton) {
                 previewButton.disabled = !templateKey || !exampleSelect.value;
@@ -3904,6 +3912,77 @@
             }
         }
 
+        async function exportAiTemplateExcel() {
+            const exampleSelect = document.getElementById("exampleSelect");
+            const pathInput = document.getElementById("templateRuleExcelPath");
+            const exampleName = exampleSelect.value;
+            const templatePath = pathInput.value;
+            const exportButton = document.getElementById("exportAiTemplateExcelButton");
+            const panel = document.getElementById("operationPreviewPanel");
+
+            if (!exampleName) {
+                showTemplateRuleExcelMessage(t("selectExampleRequired"), "error");
+                return;
+            }
+            if (!templatePath) {
+                showTemplateRuleExcelMessage(t("templatePathRequired"), "error");
+                return;
+            }
+
+            if (exportButton) {
+                exportButton.disabled = true;
+                exportButton.textContent = t("exportingRendererJson");
+            }
+            if (panel) {
+                panel.style.display = "block";
+            }
+            showOperationPreviewStatus(t("exportingRendererJson"), "");
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-ai-template-excel`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        template_path: templatePath
+                    })
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("exportAiTemplateExcelFailed"));
+                }
+
+                setOperationPreviewFromResult(result);
+                showTemplateRuleExcelMessage(
+                    `
+                        <div>${buildOutputDownloadMessage("exportAiTemplateExcelSucceeded", result.filename || "")}</div>
+                        <div style="margin-top: 8px;">写入规则数量：${escapeHtml(result.operations_written ?? 0)}</div>
+                        <div style="margin-top: 8px;">AI 规则模板：${escapeHtml(result.template_key || "")}</div>
+                    `,
+                    "success",
+                    true
+                );
+            } catch (error) {
+                operationPreviewState = {
+                    operations: [],
+                    warnings: [],
+                    search: "",
+                    sortBy: "rule_id",
+                    expanded: {}
+                };
+                renderOperationPreviewPanel();
+                showOperationPreviewStatus(`${t("exportAiTemplateExcelFailed")}\uff1a${error.message || error}`, "error");
+                showTemplateRuleExcelMessage(`${t("exportAiTemplateExcelFailed")}\uff1a${error.message || error}`, "error");
+            } finally {
+                if (exportButton) {
+                    exportButton.textContent = t("exportAiTemplateExcel");
+                    updateTemplateRuleExcelState();
+                }
+            }
+        }
+
         async function exportTemplateRuleExcel() {
             const exampleSelect = document.getElementById("exampleSelect");
             const templateSelect = document.getElementById("excelRuleTemplateSelect");
@@ -4010,6 +4089,7 @@
         document.getElementById("cancelExcelRulesButton").addEventListener("click", hideExcelRulesEditor);
         document.getElementById("exportRuleExcelButton").addEventListener("click", exportRuleExcel);
         document.getElementById("previewTemplateRuleOperationsButton").addEventListener("click", previewTemplateRuleOperations);
+        document.getElementById("exportAiTemplateExcelButton").addEventListener("click", exportAiTemplateExcel);
         document.getElementById("exportTemplateRuleExcelWithPreviewButton").addEventListener("click", exportTemplateRuleExcelWithPreview);
         document.getElementById("exportTemplateRuleExcelButton").addEventListener("click", exportTemplateRuleExcel);
         document.getElementById("excelRuleTemplateSelect").addEventListener("change", () => {
