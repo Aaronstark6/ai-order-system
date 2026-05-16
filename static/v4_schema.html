@@ -739,6 +739,14 @@
                 </div>
                 <div id="excelRulesEditorMessage" class="state" style="display: none;"></div>
             </section>
+            <div class="example-toolbar">
+                <label for="excelRuleTemplateSelect">&#27169;&#26495;&#35268;&#21017;</label>
+                <select id="excelRuleTemplateSelect" disabled>
+                    <option value="">&#27491;&#22312;&#21152;&#36733;&#35268;&#21017;...</option>
+                </select>
+                <button id="exportRuleExcelButton" class="button" type="button" disabled>&#23548;&#20986;&#35268;&#21017;&#25191;&#34892; Excel</button>
+            </div>
+            <div id="excelRuleExportMessage" class="state" style="display: none;"></div>
             <div id="excelRulesStatus" class="state">&#27491;&#22312;&#21152;&#36733; Excel &#28210;&#26579;&#35268;&#21017;...</div>
             <div id="excelRulesContent" style="display: none;"></div>
         </section>
@@ -944,6 +952,10 @@
                 exportRendererJsonFailed: "\u5bfc\u51fa\u5931\u8d25",
                 exportDebugExcel: "\u5bfc\u51fa\u8c03\u8bd5 Excel",
                 exportDebugExcelSucceeded: "\u8c03\u8bd5 Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
+                exportRuleExcel: "\u5bfc\u51fa\u89c4\u5219\u6267\u884c Excel",
+                exportRuleExcelSucceeded: "\u89c4\u5219\u6267\u884c Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
+                exportRuleExcelFailed: "\u89c4\u5219\u6267\u884c Excel \u5bfc\u51fa\u5931\u8d25",
+                selectTemplateRequired: "\u8bf7\u5148\u9009\u62e9\u6a21\u677f\u89c4\u5219",
                 downloadFile: "\u4e0b\u8f7d\u6587\u4ef6"
             };
             return messages[key] || key;
@@ -1243,6 +1255,51 @@
         function hideExcelRulesEditor() {
             document.getElementById("excelRulesEditor").style.display = "none";
             clearExcelRulesEditorMessage();
+        }
+
+        function showExcelRuleExportMessage(message, type, allowHtml = false) {
+            const messageBox = document.getElementById("excelRuleExportMessage");
+            messageBox.classList.remove("error", "success", "warning-message");
+            if (type) {
+                messageBox.classList.add(type);
+            }
+            if (allowHtml) {
+                messageBox.innerHTML = message;
+            } else {
+                messageBox.textContent = message;
+            }
+            messageBox.style.display = "block";
+        }
+
+        function syncExcelRuleTemplateSelect() {
+            const select = document.getElementById("excelRuleTemplateSelect");
+            const exportButton = document.getElementById("exportRuleExcelButton");
+            const previousValue = select.value;
+            const templates = currentExcelRenderRules && typeof currentExcelRenderRules.templates === "object" && !Array.isArray(currentExcelRenderRules.templates)
+                ? currentExcelRenderRules.templates
+                : {};
+            const entries = Object.entries(templates);
+
+            if (!entries.length) {
+                select.innerHTML = `<option value="">${t("noExcelRules")}</option>`;
+                select.disabled = true;
+                exportButton.disabled = true;
+                return;
+            }
+
+            select.innerHTML = entries.map(([templateKey, template]) => {
+                const templateData = template && typeof template === "object" && !Array.isArray(template)
+                    ? template
+                    : {};
+                const label = templateData.label || templateKey;
+                return `<option value="${escapeHtml(templateKey)}">${escapeHtml(label)}（${escapeHtml(templateKey)}）</option>`;
+            }).join("");
+
+            if (previousValue && entries.some(([templateKey]) => templateKey === previousValue)) {
+                select.value = previousValue;
+            }
+            select.disabled = false;
+            exportButton.disabled = false;
         }
 
         function showRendererExportMessage(message, type, allowHtml = false) {
@@ -2718,6 +2775,7 @@
 
                 currentExcelRenderRules = result.data || {};
                 renderExcelRenderRules(currentExcelRenderRules);
+                syncExcelRuleTemplateSelect();
                 status.style.display = "none";
                 content.style.display = "block";
                 editButton.disabled = false;
@@ -2972,6 +3030,52 @@
             }
         }
 
+        async function exportRuleExcel() {
+            const exampleSelect = document.getElementById("exampleSelect");
+            const templateSelect = document.getElementById("excelRuleTemplateSelect");
+            const exampleName = exampleSelect.value;
+            const templateKey = templateSelect.value;
+            const exportButton = document.getElementById("exportRuleExcelButton");
+
+            if (!exampleName) {
+                showExcelRuleExportMessage(t("selectExampleRequired"), "error");
+                return;
+            }
+            if (!templateKey) {
+                showExcelRuleExportMessage(t("selectTemplateRequired"), "error");
+                return;
+            }
+
+            if (exportButton) {
+                exportButton.disabled = true;
+                exportButton.textContent = t("exportingRendererJson");
+            }
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-rule-excel?template_key=${encodeURIComponent(templateKey)}`, {
+                    method: "POST"
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("exportRuleExcelFailed"));
+                }
+
+                showExcelRuleExportMessage(
+                    buildOutputDownloadMessage("exportRuleExcelSucceeded", result.filename || ""),
+                    "success",
+                    true
+                );
+            } catch (error) {
+                showExcelRuleExportMessage(`${t("exportRuleExcelFailed")}\uff1a${error.message || error}`, "error");
+            } finally {
+                if (exportButton) {
+                    exportButton.disabled = false;
+                    exportButton.textContent = t("exportRuleExcel");
+                }
+            }
+        }
+
         async function loadExamples() {
             const status = document.getElementById("exampleStatus");
             const select = document.getElementById("exampleSelect");
@@ -3016,6 +3120,7 @@
         document.getElementById("editExcelRulesButton").addEventListener("click", showExcelRulesEditor);
         document.getElementById("saveExcelRulesButton").addEventListener("click", saveExcelRulesFromEditor);
         document.getElementById("cancelExcelRulesButton").addEventListener("click", hideExcelRulesEditor);
+        document.getElementById("exportRuleExcelButton").addEventListener("click", exportRuleExcel);
         document.getElementById("editExampleButton").addEventListener("click", showExampleEditor);
         document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
