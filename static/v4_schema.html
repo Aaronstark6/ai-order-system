@@ -894,7 +894,9 @@
                 exportRendererJson: "\u5bfc\u51fa Renderer JSON",
                 exportingRendererJson: "\u5bfc\u51fa\u4e2d...",
                 exportRendererJsonSucceeded: "\u5bfc\u51fa\u6210\u529f\uff1a\u6587\u4ef6\u540d {filename}",
-                exportRendererJsonFailed: "\u5bfc\u51fa\u5931\u8d25"
+                exportRendererJsonFailed: "\u5bfc\u51fa\u5931\u8d25",
+                exportDebugExcel: "\u5bfc\u51fa\u8c03\u8bd5 Excel",
+                exportDebugExcelSucceeded: "\u8c03\u8bd5 Excel \u5bfc\u51fa\u6210\u529f\uff1a\u6587\u4ef6\u540d {filename}"
             };
             return messages[key] || key;
         }
@@ -2358,6 +2360,7 @@
             const exportControls = `
                 <div class="editor-actions" style="margin-bottom: 14px;">
                     <button id="exportRendererJsonButton" class="button" type="button">${t("exportRendererJson")}</button>
+                    <button id="exportDebugExcelButton" class="button" type="button">${t("exportDebugExcel")}</button>
                     <div id="rendererExportMessage" class="state" style="display: none;"></div>
                 </div>
             `;
@@ -2678,6 +2681,45 @@
             }
         }
 
+        async function exportDebugExcel() {
+            const select = document.getElementById("exampleSelect");
+            const exampleName = select.value;
+            const exportButton = document.getElementById("exportDebugExcelButton");
+
+            if (!exampleName) {
+                showRendererExportMessage(t("selectExampleRequired"), "error");
+                return;
+            }
+
+            if (exportButton) {
+                exportButton.disabled = true;
+                exportButton.textContent = t("exportingRendererJson");
+            }
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-debug-excel`, {
+                    method: "POST"
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("exportRendererJsonFailed"));
+                }
+
+                showRendererExportMessage(
+                    t("exportDebugExcelSucceeded").replace("{filename}", result.filename || ""),
+                    "success"
+                );
+            } catch (error) {
+                showRendererExportMessage(`${t("exportRendererJsonFailed")}\uff1a${error.message || error}`, "error");
+            } finally {
+                if (exportButton) {
+                    exportButton.disabled = false;
+                    exportButton.textContent = t("exportDebugExcel");
+                }
+            }
+        }
+
         async function loadExamples() {
             const status = document.getElementById("exampleStatus");
             const select = document.getElementById("exampleSelect");
@@ -2725,6 +2767,9 @@
         document.getElementById("exampleContent").addEventListener("click", event => {
             if (event.target && event.target.id === "exportRendererJsonButton") {
                 exportRendererJson();
+            }
+            if (event.target && event.target.id === "exportDebugExcelButton") {
+                exportDebugExcel();
             }
         });
         document.getElementById("updateExampleOrderButton").addEventListener("click", updateExampleOrderFromForm);
