@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
+from app.v4_excel_renderer import export_description_fields_to_debug_excel
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
@@ -187,6 +188,53 @@ def api_v4_example_export_render_json(example_name: str):
         }
     except Exception as exc:
         logger.exception("V4 example export render JSON failed: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+
+@router.post("/api/v4/examples/{example_name}/export-debug-excel")
+def api_v4_example_export_debug_excel(example_name: str):
+    example = load_example(example_name)
+    if not example:
+        logger.info("V4 example export debug Excel not found: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+        }
+
+    try:
+        logger.info("V4 example export debug Excel requested: example_name=%s", example_name)
+        render_result = render_example_to_description_fields(example, load_product_schema())
+        if not render_result.get("success"):
+            return {
+                "success": False,
+                "error": render_result.get("error", "V4 renderer failed"),
+            }
+
+        export_result = export_description_fields_to_debug_excel(
+            example_name,
+            render_result.get("description_fields", {}),
+        )
+        if not export_result.get("success"):
+            return {
+                "success": False,
+                "error": export_result.get("error", "V4 debug Excel export failed"),
+            }
+
+        logger.info(
+            "V4 example export debug Excel succeeded: example_name=%s, filename=%s",
+            example_name,
+            export_result.get("filename"),
+        )
+        return {
+            "success": True,
+            "output_path": export_result.get("output_path", ""),
+            "filename": export_result.get("filename", ""),
+        }
+    except Exception as exc:
+        logger.exception("V4 example export debug Excel failed: example_name=%s", example_name)
         return {
             "success": False,
             "error": str(exc),
