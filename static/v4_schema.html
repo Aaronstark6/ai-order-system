@@ -747,6 +747,25 @@
                 <button id="exportRuleExcelButton" class="button" type="button" disabled>&#23548;&#20986;&#35268;&#21017;&#25191;&#34892; Excel</button>
             </div>
             <div id="excelRuleExportMessage" class="state" style="display: none;"></div>
+            <article class="card add-product-card">
+                <div class="card-header">
+                    <h3 class="card-title">&#30495;&#23454;&#27169;&#26495;&#35268;&#21017;&#23548;&#20986;</h3>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="templateRuleExcelPath">&#27169;&#26495;&#36335;&#24452;</label>
+                        <input id="templateRuleExcelPath" type="text" placeholder="&#20363;&#22914; templates/uploads/xxx.xlsx &#25110; data/templates/xxx.xlsx">
+                    </div>
+                    <div class="form-field">
+                        <label>&#24403;&#21069;&#35268;&#21017;&#27169;&#26495;</label>
+                        <div class="value" id="templateRuleExcelCurrentTemplate">-</div>
+                    </div>
+                </div>
+                <div class="add-product-actions">
+                    <button id="exportTemplateRuleExcelButton" class="button" type="button" disabled>&#23548;&#20986;&#30495;&#23454;&#27169;&#26495; Excel</button>
+                </div>
+                <div id="templateRuleExcelMessage" class="state" style="display: none;"></div>
+            </article>
             <div id="excelRulesStatus" class="state">&#27491;&#22312;&#21152;&#36733; Excel &#28210;&#26579;&#35268;&#21017;...</div>
             <div id="excelRulesContent" style="display: none;"></div>
         </section>
@@ -956,6 +975,10 @@
                 exportRuleExcelSucceeded: "\u89c4\u5219\u6267\u884c Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
                 exportRuleExcelFailed: "\u89c4\u5219\u6267\u884c Excel \u5bfc\u51fa\u5931\u8d25",
                 selectTemplateRequired: "\u8bf7\u5148\u9009\u62e9\u6a21\u677f\u89c4\u5219",
+                templatePathRequired: "\u6a21\u677f\u8def\u5f84\u4e0d\u80fd\u4e3a\u7a7a",
+                exportTemplateRuleExcel: "\u5bfc\u51fa\u771f\u5b9e\u6a21\u677f Excel",
+                exportTemplateRuleExcelSucceeded: "\u771f\u5b9e\u6a21\u677f Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
+                exportTemplateRuleExcelFailed: "\u771f\u5b9e\u6a21\u677f Excel \u5bfc\u51fa\u5931\u8d25",
                 downloadFile: "\u4e0b\u8f7d\u6587\u4ef6"
             };
             return messages[key] || key;
@@ -1271,6 +1294,31 @@
             messageBox.style.display = "block";
         }
 
+        function showTemplateRuleExcelMessage(message, type, allowHtml = false) {
+            const messageBox = document.getElementById("templateRuleExcelMessage");
+            messageBox.classList.remove("error", "success", "warning-message");
+            if (type) {
+                messageBox.classList.add(type);
+            }
+            if (allowHtml) {
+                messageBox.innerHTML = message;
+            } else {
+                messageBox.textContent = message;
+            }
+            messageBox.style.display = "block";
+        }
+
+        function updateTemplateRuleExcelState() {
+            const templateSelect = document.getElementById("excelRuleTemplateSelect");
+            const currentTemplate = document.getElementById("templateRuleExcelCurrentTemplate");
+            const exportButton = document.getElementById("exportTemplateRuleExcelButton");
+            const templateKey = templateSelect.value;
+            const selectedOption = templateSelect.options[templateSelect.selectedIndex];
+
+            currentTemplate.textContent = selectedOption && templateKey ? selectedOption.textContent : "-";
+            exportButton.disabled = !templateKey;
+        }
+
         function syncExcelRuleTemplateSelect() {
             const select = document.getElementById("excelRuleTemplateSelect");
             const exportButton = document.getElementById("exportRuleExcelButton");
@@ -1284,6 +1332,7 @@
                 select.innerHTML = `<option value="">${t("noExcelRules")}</option>`;
                 select.disabled = true;
                 exportButton.disabled = true;
+                updateTemplateRuleExcelState();
                 return;
             }
 
@@ -1300,6 +1349,7 @@
             }
             select.disabled = false;
             exportButton.disabled = false;
+            updateTemplateRuleExcelState();
         }
 
         function showRendererExportMessage(message, type, allowHtml = false) {
@@ -3076,6 +3126,65 @@
             }
         }
 
+        async function exportTemplateRuleExcel() {
+            const exampleSelect = document.getElementById("exampleSelect");
+            const templateSelect = document.getElementById("excelRuleTemplateSelect");
+            const pathInput = document.getElementById("templateRuleExcelPath");
+            const exampleName = exampleSelect.value;
+            const templateKey = templateSelect.value;
+            const templatePath = pathInput.value.trim();
+            const exportButton = document.getElementById("exportTemplateRuleExcelButton");
+
+            if (!exampleName) {
+                showTemplateRuleExcelMessage(t("selectExampleRequired"), "error");
+                return;
+            }
+            if (!templateKey) {
+                showTemplateRuleExcelMessage(t("selectTemplateRequired"), "error");
+                return;
+            }
+            if (!templatePath) {
+                showTemplateRuleExcelMessage(t("templatePathRequired"), "error");
+                return;
+            }
+
+            if (exportButton) {
+                exportButton.disabled = true;
+                exportButton.textContent = t("exportingRendererJson");
+            }
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-template-rule-excel?template_key=${encodeURIComponent(templateKey)}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        template_path: templatePath
+                    })
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("exportTemplateRuleExcelFailed"));
+                }
+
+                showTemplateRuleExcelMessage(
+                    buildOutputDownloadMessage("exportTemplateRuleExcelSucceeded", result.filename || ""),
+                    "success",
+                    true
+                );
+            } catch (error) {
+                showTemplateRuleExcelMessage(`${t("exportTemplateRuleExcelFailed")}\uff1a${error.message || error}`, "error");
+            } finally {
+                if (exportButton) {
+                    exportButton.disabled = false;
+                    exportButton.textContent = t("exportTemplateRuleExcel");
+                    updateTemplateRuleExcelState();
+                }
+            }
+        }
+
         async function loadExamples() {
             const status = document.getElementById("exampleStatus");
             const select = document.getElementById("exampleSelect");
@@ -3121,6 +3230,8 @@
         document.getElementById("saveExcelRulesButton").addEventListener("click", saveExcelRulesFromEditor);
         document.getElementById("cancelExcelRulesButton").addEventListener("click", hideExcelRulesEditor);
         document.getElementById("exportRuleExcelButton").addEventListener("click", exportRuleExcel);
+        document.getElementById("exportTemplateRuleExcelButton").addEventListener("click", exportTemplateRuleExcel);
+        document.getElementById("excelRuleTemplateSelect").addEventListener("change", updateTemplateRuleExcelState);
         document.getElementById("editExampleButton").addEventListener("click", showExampleEditor);
         document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
