@@ -746,6 +746,7 @@
                 </select>
                 <button id="exportRuleExcelButton" class="button" type="button" disabled>&#23548;&#20986;&#35268;&#21017;&#25191;&#34892; Excel</button>
             </div>
+            <div id="excelRuleTemplateHint" class="state" style="display: none;"></div>
             <div id="excelRuleExportMessage" class="state" style="display: none;"></div>
             <article class="card add-product-card">
                 <div class="card-header">
@@ -978,6 +979,8 @@
                 exportRuleExcelSucceeded: "\u89c4\u5219\u6267\u884c Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
                 exportRuleExcelFailed: "\u89c4\u5219\u6267\u884c Excel \u5bfc\u51fa\u5931\u8d25",
                 selectTemplateRequired: "\u8bf7\u5148\u9009\u62e9\u6a21\u677f\u89c4\u5219",
+                autoRuleTemplateSelected: "\u5df2\u6839\u636e\u4ea7\u54c1\u5f62\u5f0f\u81ea\u52a8\u9009\u62e9\u89c4\u5219\u6a21\u677f\uff1a{templateKey}",
+                autoRuleTemplateNotFound: "\u672a\u627e\u5230\u5339\u914d\u89c4\u5219\u6a21\u677f\uff0c\u8bf7\u624b\u52a8\u9009\u62e9\u3002",
                 templatePathRequired: "\u6a21\u677f\u8def\u5f84\u4e0d\u80fd\u4e3a\u7a7a",
                 noUploadedTemplates: "\u6682\u65e0\u5df2\u4e0a\u4f20\u6a21\u677f\uff0c\u8bf7\u5148\u5230\u914d\u7f6e\u4e2d\u5fc3\u4e0a\u4f20\u6a21\u677f\u3002",
                 loadTemplateProfilesFailed: "\u6a21\u677f\u5217\u8868\u52a0\u8f7d\u5931\u8d25",
@@ -1297,6 +1300,42 @@
                 messageBox.textContent = message;
             }
             messageBox.style.display = "block";
+        }
+
+        function showExcelRuleTemplateHint(message, type) {
+            const hint = document.getElementById("excelRuleTemplateHint");
+            hint.classList.remove("error", "success", "warning-message");
+            if (type) {
+                hint.classList.add(type);
+            }
+            hint.textContent = message;
+            hint.style.display = "block";
+        }
+
+        function autoSelectRuleTemplateForExample(example) {
+            const select = document.getElementById("excelRuleTemplateSelect");
+            const productForm = example && example.product && typeof example.product === "object"
+                ? example.product.form
+                : "";
+
+            if (!productForm || select.disabled) {
+                return;
+            }
+
+            const expectedTemplateKey = `${productForm}_template`;
+            const optionExists = Array.from(select.options).some(option => option.value === expectedTemplateKey);
+            if (optionExists) {
+                select.value = expectedTemplateKey;
+                showExcelRuleTemplateHint(
+                    t("autoRuleTemplateSelected").replace("{templateKey}", expectedTemplateKey),
+                    "success",
+                );
+                updateTemplateRuleExcelState();
+                return;
+            }
+
+            showExcelRuleTemplateHint(t("autoRuleTemplateNotFound"), "warning-message");
+            updateTemplateRuleExcelState();
         }
 
         function showTemplateRuleExcelMessage(message, type, allowHtml = false) {
@@ -2988,6 +3027,7 @@
                 fillExampleOrderForm(currentExampleOrder);
                 fillExampleDocumentForm(currentExampleOrder);
                 fillExampleProductForm(currentExampleOrder);
+                autoSelectRuleTemplateForExample(currentExampleOrder);
                 renderExample(currentExampleOrder, validationResult, validationRequestFailed, rendererResult, rendererRequestFailed);
                 if (document.getElementById("exampleEditor").style.display !== "none") {
                     document.getElementById("exampleTextarea").value = JSON.stringify(currentExampleOrder, null, 2);
