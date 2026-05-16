@@ -1449,6 +1449,55 @@
             return `${message}<br><a href="${downloadHref}" target="_blank" rel="noopener">${escapeHtml(t("downloadFile"))}</a>`;
         }
 
+        function previewText(value, maxLength = 80) {
+            const text = String(value ?? "");
+            if (text.length <= maxLength) {
+                return text;
+            }
+            return `${text.slice(0, maxLength)}...`;
+        }
+
+        function buildTemplateRuleExcelResultMessage(result) {
+            const filename = result.filename || "";
+            const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+            const operations = Array.isArray(result.operations)
+                ? result.operations
+                : (Array.isArray(result.details) ? result.details : []);
+
+            return `
+                <div>${buildOutputDownloadMessage("exportTemplateRuleExcelSucceeded", filename)}</div>
+                <div style="margin-top: 8px;">写入规则数量：${escapeHtml(result.operations_written ?? 0)}</div>
+                ${warnings.length ? `
+                    <div style="margin-top: 8px;">警告：</div>
+                    <ul class="validation-list">
+                        ${warnings.map(warning => `<li>${escapeHtml(warning)}</li>`).join("")}
+                    </ul>
+                ` : ""}
+                ${operations.length ? `
+                    <table class="table" style="margin-top: 10px;">
+                        <thead>
+                            <tr>
+                                <th>rule_id</th>
+                                <th>type</th>
+                                <th>target_cell</th>
+                                <th>value 预览</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${operations.map(operation => `
+                                <tr>
+                                    <td>${escapeHtml(operation.rule_id || "")}</td>
+                                    <td>${escapeHtml(operation.type || "")}</td>
+                                    <td>${escapeHtml(operation.target_cell || "")}</td>
+                                    <td>${escapeHtml(previewText(operation.value))}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                ` : ""}
+            `;
+        }
+
         function showExampleEditor() {
             const editor = document.getElementById("exampleEditor");
             const textarea = document.getElementById("exampleTextarea");
@@ -3265,7 +3314,7 @@
                 }
 
                 showTemplateRuleExcelMessage(
-                    buildOutputDownloadMessage("exportTemplateRuleExcelSucceeded", result.filename || ""),
+                    buildTemplateRuleExcelResultMessage(result),
                     "success",
                     true
                 );
