@@ -297,9 +297,9 @@
         }
 
         .form-field input,
-        .form-field select {
+        .form-field select,
+        .form-field textarea {
             width: 100%;
-            height: 36px;
             padding: 6px 10px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
@@ -308,8 +308,37 @@
             font-size: 14px;
         }
 
+        .form-field input,
+        .form-field select {
+            height: 36px;
+        }
+
+        .form-field textarea {
+            min-height: 86px;
+            resize: vertical;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+        }
+
+        .form-field.checkbox-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-top: 24px;
+        }
+
+        .form-field.checkbox-field input {
+            width: auto;
+            height: auto;
+            margin: 0;
+        }
+
+        .form-field.checkbox-field label {
+            margin: 0;
+        }
+
         .form-field input:focus,
-        .form-field select:focus {
+        .form-field select:focus,
+        .form-field textarea:focus {
             border-color: #1677ff;
             outline: none;
             box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
@@ -747,6 +776,21 @@
                     <button id="updateExampleDocumentButton" class="button" type="button">&#26356;&#26032;&#25991;&#26723;&#20449;&#24687;</button>
                 </div>
             </article>
+            <article id="exampleProductEditor" class="card add-product-card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">&#20135;&#21697;&#32467;&#26500;&#32534;&#36753;</h3>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="exampleProductStructureForm">&#20135;&#21697;&#24418;&#24335;</label>
+                        <select id="exampleProductStructureForm"></select>
+                    </div>
+                </div>
+                <div id="exampleProductFields" class="form-grid"></div>
+                <div class="add-product-actions">
+                    <button id="updateExampleProductButton" class="button" type="button">&#26356;&#26032;&#20135;&#21697;&#32467;&#26500;</button>
+                </div>
+            </article>
             <section id="exampleEditor" class="example-editor" style="display: none;">
                 <textarea id="exampleTextarea" spellcheck="false"></textarea>
                 <div class="editor-actions">
@@ -842,7 +886,9 @@
                 exampleOrderRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b order",
                 exampleProductRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b product",
                 exampleOrderUpdated: "\u57fa\u7840\u8ba2\u5355\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548",
-                exampleDocumentUpdated: "\u6587\u6863\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548"
+                exampleDocumentUpdated: "\u6587\u6863\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548",
+                exampleProductUpdated: "\u4ea7\u54c1\u7ed3\u6784\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548",
+                selectProductFormRequired: "\u5fc5\u987b\u9009\u62e9\u4ea7\u54c1\u5f62\u5f0f"
             };
             return messages[key] || key;
         }
@@ -1095,6 +1141,32 @@
             }
         }
 
+        function syncExampleProductStructureSelect() {
+            const select = document.getElementById("exampleProductStructureForm");
+            const productForms = currentProductSchema && currentProductSchema.product_forms && typeof currentProductSchema.product_forms === "object" && !Array.isArray(currentProductSchema.product_forms)
+                ? currentProductSchema.product_forms
+                : {};
+            const product = currentExampleOrder && currentExampleOrder.product && typeof currentExampleOrder.product === "object" && !Array.isArray(currentExampleOrder.product)
+                ? currentExampleOrder.product
+                : {};
+            const currentValue = product.form || select.value;
+            const entries = Object.entries(productForms);
+
+            select.innerHTML = [
+                `<option value=""></option>`,
+                ...entries.map(([key, form]) => `
+                    <option value="${escapeHtml(key)}">${escapeHtml(form.label || key)}\uff08${escapeHtml(key)}\uff09</option>
+                `)
+            ].join("");
+            select.disabled = entries.length === 0;
+            if (currentValue && Object.prototype.hasOwnProperty.call(productForms, currentValue)) {
+                select.value = currentValue;
+            } else {
+                select.value = "";
+            }
+            renderExampleProductFields();
+        }
+
         function fillExampleDocumentForm(example) {
             const documentInfo = example && example.document && typeof example.document === "object" && !Array.isArray(example.document)
                 ? example.document
@@ -1105,6 +1177,87 @@
             document.getElementById("exampleSequence").value = displayValue(documentInfo.sequence);
             document.getElementById("exampleIngredientInitials").value = displayValue(documentInfo.ingredient_initials);
             syncExampleProductFormSelect();
+        }
+
+        function fillExampleProductForm(example) {
+            syncExampleProductStructureSelect();
+        }
+
+        function renderExampleProductFieldControl(fieldKey, fieldConfig, value) {
+            const fieldType = fieldConfig.type || "text";
+            const label = escapeHtml(fieldConfig.label || fieldKey);
+            const escapedKey = escapeHtml(fieldKey);
+            const textValue = escapeHtml(displayValue(value));
+
+            if (fieldType === "textarea") {
+                return `
+                    <div class="form-field">
+                        <label for="exampleProductField_${escapedKey}">${label}</label>
+                        <textarea id="exampleProductField_${escapedKey}" data-field-key="${escapedKey}" data-field-type="textarea">${textValue}</textarea>
+                    </div>
+                `;
+            }
+            if (fieldType === "boolean") {
+                return `
+                    <div class="form-field checkbox-field">
+                        <input id="exampleProductField_${escapedKey}" data-field-key="${escapedKey}" data-field-type="boolean" type="checkbox" ${value === true ? "checked" : ""}>
+                        <label for="exampleProductField_${escapedKey}">${label}</label>
+                    </div>
+                `;
+            }
+            if (fieldType === "select") {
+                const options = Array.isArray(fieldConfig.options) ? fieldConfig.options : [];
+                return `
+                    <div class="form-field">
+                        <label for="exampleProductField_${escapedKey}">${label}</label>
+                        <select id="exampleProductField_${escapedKey}" data-field-key="${escapedKey}" data-field-type="select">
+                            <option value=""></option>
+                            ${options.map(option => `
+                                <option value="${escapeHtml(option)}" ${String(option) === String(value ?? "") ? "selected" : ""}>${escapeHtml(option)}</option>
+                            `).join("")}
+                        </select>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="form-field">
+                    <label for="exampleProductField_${escapedKey}">${label}</label>
+                    <input id="exampleProductField_${escapedKey}" data-field-key="${escapedKey}" data-field-type="${escapeHtml(fieldType)}" type="text" value="${textValue}">
+                </div>
+            `;
+        }
+
+        function renderExampleProductFields() {
+            const container = document.getElementById("exampleProductFields");
+            const formKey = document.getElementById("exampleProductStructureForm").value;
+            const productForms = currentProductSchema && currentProductSchema.product_forms && typeof currentProductSchema.product_forms === "object" && !Array.isArray(currentProductSchema.product_forms)
+                ? currentProductSchema.product_forms
+                : {};
+            const productForm = formKey ? productForms[formKey] : null;
+            const fields = productForm && productForm.fields && typeof productForm.fields === "object" && !Array.isArray(productForm.fields)
+                ? productForm.fields
+                : {};
+            const product = currentExampleOrder && currentExampleOrder.product && typeof currentExampleOrder.product === "object" && !Array.isArray(currentExampleOrder.product)
+                ? currentExampleOrder.product
+                : {};
+            const productValues = formKey && product[formKey] && typeof product[formKey] === "object" && !Array.isArray(product[formKey])
+                ? product[formKey]
+                : {};
+            const entries = Object.entries(fields);
+
+            if (!formKey) {
+                container.innerHTML = "";
+                return;
+            }
+            if (!entries.length) {
+                container.innerHTML = `<div class="field-meta">${t("noFields")}</div>`;
+                return;
+            }
+
+            container.innerHTML = entries.map(([fieldKey, fieldConfig]) => (
+                renderExampleProductFieldControl(fieldKey, fieldConfig || {}, productValues[fieldKey])
+            )).join("");
         }
 
         function updateExampleOrderFromForm() {
@@ -1144,6 +1297,35 @@
             renderExample(currentExampleOrder, null, false);
             updateExampleOrderJsonTextarea();
             showExampleEditorMessage(t("exampleDocumentUpdated"), "success");
+        }
+
+        function updateExampleProductFromForm() {
+            const formKey = document.getElementById("exampleProductStructureForm").value;
+            if (!formKey) {
+                showExampleEditorMessage(t("selectProductFormRequired"), "error");
+                return;
+            }
+
+            if (!currentExampleOrder || typeof currentExampleOrder !== "object" || Array.isArray(currentExampleOrder)) {
+                currentExampleOrder = {};
+            }
+            if (!currentExampleOrder.product || typeof currentExampleOrder.product !== "object" || Array.isArray(currentExampleOrder.product)) {
+                currentExampleOrder.product = {};
+            }
+
+            const values = {};
+            document.querySelectorAll("#exampleProductFields [data-field-key]").forEach(input => {
+                const fieldKey = input.dataset.fieldKey;
+                const fieldType = input.dataset.fieldType;
+                values[fieldKey] = fieldType === "boolean" ? input.checked : input.value;
+            });
+
+            currentExampleOrder.product.form = formKey;
+            currentExampleOrder.product[formKey] = values;
+
+            renderExample(currentExampleOrder, null, false);
+            updateExampleOrderJsonTextarea();
+            showExampleEditorMessage(t("exampleProductUpdated"), "success");
         }
 
         function formatValidationMessage(template, values) {
@@ -1636,6 +1818,8 @@
             syncEditProductFormSelect(currentProductSchema);
             syncDeleteProductFormSelect(currentProductSchema);
             syncDeleteProductTypeSelect(currentProductSchema);
+            syncExampleProductFormSelect();
+            syncExampleProductStructureSelect();
             document.getElementById("schemaStatus").style.display = "none";
             document.getElementById("schemaContent").style.display = "block";
         }
@@ -2236,6 +2420,7 @@
                 syncDeleteProductFormSelect(currentProductSchema);
                 syncDeleteProductTypeSelect(currentProductSchema);
                 syncExampleProductFormSelect();
+                syncExampleProductStructureSelect();
                 status.style.display = "none";
                 content.style.display = "block";
                 document.getElementById("editSchemaButton").disabled = false;
@@ -2256,6 +2441,7 @@
             editButton.disabled = true;
             document.getElementById("exampleOrderEditor").style.display = "none";
             document.getElementById("exampleDocumentEditor").style.display = "none";
+            document.getElementById("exampleProductEditor").style.display = "none";
 
             try {
                 const [exampleResponse, validateResponse] = await Promise.all([
@@ -2284,6 +2470,7 @@
                 currentExampleOrder = result.data || {};
                 fillExampleOrderForm(currentExampleOrder);
                 fillExampleDocumentForm(currentExampleOrder);
+                fillExampleProductForm(currentExampleOrder);
                 renderExample(currentExampleOrder, validationResult, validationRequestFailed);
                 if (document.getElementById("exampleEditor").style.display !== "none") {
                     document.getElementById("exampleTextarea").value = JSON.stringify(currentExampleOrder, null, 2);
@@ -2292,6 +2479,7 @@
                 content.style.display = "block";
                 document.getElementById("exampleOrderEditor").style.display = "block";
                 document.getElementById("exampleDocumentEditor").style.display = "block";
+                document.getElementById("exampleProductEditor").style.display = "block";
                 editButton.disabled = false;
             } catch (error) {
                 status.classList.add("error");
@@ -2396,6 +2584,8 @@
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
         document.getElementById("updateExampleOrderButton").addEventListener("click", updateExampleOrderFromForm);
         document.getElementById("updateExampleDocumentButton").addEventListener("click", updateExampleDocumentFromForm);
+        document.getElementById("exampleProductStructureForm").addEventListener("change", renderExampleProductFields);
+        document.getElementById("updateExampleProductButton").addEventListener("click", updateExampleProductFromForm);
         document.getElementById("addProductFormButton").addEventListener("click", addProductFormToEditor);
         document.getElementById("updateProductFormButton").addEventListener("click", updateProductFormInEditor);
         document.getElementById("addProductFieldButton").addEventListener("click", addProductFieldToEditor);
