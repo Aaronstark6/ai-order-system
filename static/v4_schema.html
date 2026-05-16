@@ -754,7 +754,9 @@
                 <div class="form-grid">
                     <div class="form-field">
                         <label for="templateRuleExcelPath">&#27169;&#26495;&#36335;&#24452;</label>
-                        <input id="templateRuleExcelPath" type="text" placeholder="&#20363;&#22914; templates/uploads/xxx.xlsx &#25110; data/templates/xxx.xlsx">
+                        <select id="templateRuleExcelPath" disabled>
+                            <option value="">&#27491;&#22312;&#21152;&#36733;&#27169;&#26495;...</option>
+                        </select>
                     </div>
                     <div class="form-field">
                         <label>&#24403;&#21069;&#35268;&#21017;&#27169;&#26495;</label>
@@ -878,6 +880,7 @@
         let currentProductSchema = {};
         let currentExampleOrder = null;
         let currentExcelRenderRules = {};
+        let currentTemplateProfiles = [];
 
         function t(key) {
             const messages = {
@@ -976,6 +979,8 @@
                 exportRuleExcelFailed: "\u89c4\u5219\u6267\u884c Excel \u5bfc\u51fa\u5931\u8d25",
                 selectTemplateRequired: "\u8bf7\u5148\u9009\u62e9\u6a21\u677f\u89c4\u5219",
                 templatePathRequired: "\u6a21\u677f\u8def\u5f84\u4e0d\u80fd\u4e3a\u7a7a",
+                noUploadedTemplates: "\u6682\u65e0\u5df2\u4e0a\u4f20\u6a21\u677f\uff0c\u8bf7\u5148\u5230\u914d\u7f6e\u4e2d\u5fc3\u4e0a\u4f20\u6a21\u677f\u3002",
+                loadTemplateProfilesFailed: "\u6a21\u677f\u5217\u8868\u52a0\u8f7d\u5931\u8d25",
                 exportTemplateRuleExcel: "\u5bfc\u51fa\u771f\u5b9e\u6a21\u677f Excel",
                 exportTemplateRuleExcelSucceeded: "\u771f\u5b9e\u6a21\u677f Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
                 exportTemplateRuleExcelFailed: "\u771f\u5b9e\u6a21\u677f Excel \u5bfc\u51fa\u5931\u8d25",
@@ -1312,11 +1317,40 @@
             const templateSelect = document.getElementById("excelRuleTemplateSelect");
             const currentTemplate = document.getElementById("templateRuleExcelCurrentTemplate");
             const exportButton = document.getElementById("exportTemplateRuleExcelButton");
+            const templatePathSelect = document.getElementById("templateRuleExcelPath");
             const templateKey = templateSelect.value;
             const selectedOption = templateSelect.options[templateSelect.selectedIndex];
 
             currentTemplate.textContent = selectedOption && templateKey ? selectedOption.textContent : "-";
-            exportButton.disabled = !templateKey;
+            exportButton.disabled = !templateKey || !templatePathSelect.value;
+        }
+
+        function syncTemplateProfileSelect() {
+            const select = document.getElementById("templateRuleExcelPath");
+            const previousValue = select.value;
+            const profiles = Array.isArray(currentTemplateProfiles) ? currentTemplateProfiles : [];
+            const usableProfiles = profiles.filter(profile => profile && profile.template_file);
+
+            if (!usableProfiles.length) {
+                select.innerHTML = `<option value="">${t("noUploadedTemplates")}</option>`;
+                select.disabled = true;
+                updateTemplateRuleExcelState();
+                return;
+            }
+
+            select.innerHTML = usableProfiles.map(profile => {
+                const templateFile = String(profile.template_file || "").split(/[\\/]/).pop();
+                const templatePath = `templates/uploads/${templateFile}`;
+                const profileName = profile.name || profile.id || "template";
+                const displayName = profile.template_display_name || templateFile;
+                return `<option value="${escapeHtml(templatePath)}">${escapeHtml(profileName)} - ${escapeHtml(displayName)}</option>`;
+            }).join("");
+
+            if (previousValue && usableProfiles.some(profile => `templates/uploads/${String(profile.template_file || "").split(/[\\/]/).pop()}` === previousValue)) {
+                select.value = previousValue;
+            }
+            select.disabled = false;
+            updateTemplateRuleExcelState();
         }
 
         function syncExcelRuleTemplateSelect() {
@@ -2878,6 +2912,27 @@
             }
         }
 
+        async function loadTemplateProfilesForV4() {
+            const select = document.getElementById("templateRuleExcelPath");
+            try {
+                const response = await fetch("/api/template-profiles");
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || t("loadingFailed"));
+                }
+
+                currentTemplateProfiles = result.profiles || [];
+                syncTemplateProfileSelect();
+            } catch (error) {
+                currentTemplateProfiles = [];
+                select.innerHTML = `<option value="">${t("loadTemplateProfilesFailed")}</option>`;
+                select.disabled = true;
+                showTemplateRuleExcelMessage(`${t("loadTemplateProfilesFailed")}\uff1a${error.message || error}`, "error");
+                updateTemplateRuleExcelState();
+            }
+        }
+
         async function loadExample(exampleName) {
             const status = document.getElementById("exampleStatus");
             const content = document.getElementById("exampleContent");
@@ -3132,7 +3187,7 @@
             const pathInput = document.getElementById("templateRuleExcelPath");
             const exampleName = exampleSelect.value;
             const templateKey = templateSelect.value;
-            const templatePath = pathInput.value.trim();
+            const templatePath = pathInput.value;
             const exportButton = document.getElementById("exportTemplateRuleExcelButton");
 
             if (!exampleName) {
@@ -3232,6 +3287,7 @@
         document.getElementById("exportRuleExcelButton").addEventListener("click", exportRuleExcel);
         document.getElementById("exportTemplateRuleExcelButton").addEventListener("click", exportTemplateRuleExcel);
         document.getElementById("excelRuleTemplateSelect").addEventListener("change", updateTemplateRuleExcelState);
+        document.getElementById("templateRuleExcelPath").addEventListener("change", updateTemplateRuleExcelState);
         document.getElementById("editExampleButton").addEventListener("click", showExampleEditor);
         document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
@@ -3265,6 +3321,7 @@
 
         loadSchema();
         loadExcelRenderRules();
+        loadTemplateProfilesForV4();
         loadExamples();
     </script>
 </body>
