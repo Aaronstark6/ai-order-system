@@ -416,6 +416,30 @@
             box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
         }
 
+        .excel-rules-editor {
+            margin-bottom: 12px;
+        }
+
+        .excel-rules-editor textarea {
+            width: 100%;
+            min-height: 360px;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            color: #111827;
+            background: #fff;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+
+        .excel-rules-editor textarea:focus {
+            border-color: #1677ff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+        }
+
         #exampleEditorMessage {
             margin-top: 10px;
         }
@@ -704,7 +728,17 @@
         <section class="section">
             <div class="section-header">
                 <h2>V4 Excel &#28210;&#26579;&#35268;&#21017;&#39044;&#35272;</h2>
+                <button id="editExcelRulesButton" class="button" type="button" disabled>&#32534;&#36753; Excel &#28210;&#26579;&#35268;&#21017;</button>
             </div>
+            <section id="excelRulesEditor" class="excel-rules-editor" style="display: none;">
+                <div class="state notice">&#24403;&#21069;&#20026; V4.7 &#23454;&#39564;&#21151;&#33021;&#65292;&#20445;&#23384;&#21069;&#20250;&#33258;&#21160;&#22791;&#20221;&#26087;&#35268;&#21017;&#25991;&#20214;&#12290;</div>
+                <textarea id="excelRulesTextarea" spellcheck="false"></textarea>
+                <div class="editor-actions">
+                    <button id="saveExcelRulesButton" class="button primary" type="button">&#20445;&#23384; Excel &#28210;&#26579;&#35268;&#21017;</button>
+                    <button id="cancelExcelRulesButton" class="button" type="button">&#21462;&#28040;&#32534;&#36753;</button>
+                </div>
+                <div id="excelRulesEditorMessage" class="state" style="display: none;"></div>
+            </section>
             <div id="excelRulesStatus" class="state">&#27491;&#22312;&#21152;&#36733; Excel &#28210;&#26579;&#35268;&#21017;...</div>
             <div id="excelRulesContent" style="display: none;"></div>
         </section>
@@ -816,6 +850,7 @@
         const DEFAULT_EXAMPLE = "soft_capsule_order_example";
         let currentProductSchema = {};
         let currentExampleOrder = null;
+        let currentExcelRenderRules = {};
 
         function t(key) {
             const messages = {
@@ -843,6 +878,8 @@
                 rendererPreviewLoadFailed: "Renderer \u9884\u89c8\u52a0\u8f7d\u5931\u8d25",
                 loadExcelRulesFailed: "Excel \u6e32\u67d3\u89c4\u5219\u52a0\u8f7d\u5931\u8d25",
                 noExcelRules: "\u6682\u65e0 Excel \u6e32\u67d3\u89c4\u5219",
+                saveExcelRulesFailed: "Excel \u6e32\u67d3\u89c4\u5219\u4fdd\u5b58\u5931\u8d25",
+                saveExcelRulesSucceeded: "Excel \u6e32\u67d3\u89c4\u5219\u4fdd\u5b58\u6210\u529f",
                 warnings: "\u8b66\u544a",
                 errors: "\u9519\u8bef",
                 invalidJson: "JSON \u4e0d\u5408\u6cd5",
@@ -1175,6 +1212,37 @@
             messageBox.classList.remove("error", "success", "warning-message");
             messageBox.textContent = "";
             messageBox.style.display = "none";
+        }
+
+        function showExcelRulesEditorMessage(message, type) {
+            const messageBox = document.getElementById("excelRulesEditorMessage");
+            messageBox.classList.remove("error", "success", "warning-message");
+            if (type) {
+                messageBox.classList.add(type);
+            }
+            messageBox.textContent = message;
+            messageBox.style.display = "block";
+        }
+
+        function clearExcelRulesEditorMessage() {
+            const messageBox = document.getElementById("excelRulesEditorMessage");
+            messageBox.classList.remove("error", "success", "warning-message");
+            messageBox.textContent = "";
+            messageBox.style.display = "none";
+        }
+
+        function showExcelRulesEditor() {
+            const editor = document.getElementById("excelRulesEditor");
+            const textarea = document.getElementById("excelRulesTextarea");
+            textarea.value = JSON.stringify(currentExcelRenderRules || {}, null, 2);
+            editor.style.display = "block";
+            clearExcelRulesEditorMessage();
+            textarea.focus();
+        }
+
+        function hideExcelRulesEditor() {
+            document.getElementById("excelRulesEditor").style.display = "none";
+            clearExcelRulesEditorMessage();
         }
 
         function showRendererExportMessage(message, type, allowHtml = false) {
@@ -2634,9 +2702,11 @@
         async function loadExcelRenderRules() {
             const status = document.getElementById("excelRulesStatus");
             const content = document.getElementById("excelRulesContent");
+            const editButton = document.getElementById("editExcelRulesButton");
             status.classList.remove("error");
             status.style.display = "block";
             content.style.display = "none";
+            editButton.disabled = true;
 
             try {
                 const response = await fetch("/api/v4/excel-render-rules");
@@ -2646,12 +2716,57 @@
                     throw new Error(result.error || t("loadingFailed"));
                 }
 
-                renderExcelRenderRules(result.data || {});
+                currentExcelRenderRules = result.data || {};
+                renderExcelRenderRules(currentExcelRenderRules);
                 status.style.display = "none";
                 content.style.display = "block";
+                editButton.disabled = false;
+                if (document.getElementById("excelRulesEditor").style.display !== "none") {
+                    document.getElementById("excelRulesTextarea").value = JSON.stringify(currentExcelRenderRules, null, 2);
+                }
             } catch (error) {
                 status.classList.add("error");
                 status.textContent = `${t("loadExcelRulesFailed")}: ${error.message || error}`;
+            }
+        }
+
+        async function saveExcelRulesFromEditor() {
+            const textarea = document.getElementById("excelRulesTextarea");
+            const saveButton = document.getElementById("saveExcelRulesButton");
+            let parsedRules;
+
+            try {
+                parsedRules = JSON.parse(textarea.value);
+            } catch (error) {
+                showExcelRulesEditorMessage(`${t("invalidJson")}: ${error.message || error}`, "error");
+                return;
+            }
+
+            saveButton.disabled = true;
+            showExcelRulesEditorMessage(t("saving"), "");
+
+            try {
+                const response = await fetch("/api/v4/excel-render-rules", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(parsedRules)
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || t("saveExcelRulesFailed"));
+                }
+
+                currentExcelRenderRules = result.data || {};
+                textarea.value = JSON.stringify(currentExcelRenderRules, null, 2);
+                await loadExcelRenderRules();
+                showExcelRulesEditorMessage(t("saveExcelRulesSucceeded"), "success");
+            } catch (error) {
+                showExcelRulesEditorMessage(`${t("saveExcelRulesFailed")}: ${error.message || error}`, "error");
+            } finally {
+                saveButton.disabled = false;
             }
         }
 
@@ -2898,6 +3013,9 @@
         }
 
         document.getElementById("editSchemaButton").addEventListener("click", showSchemaEditor);
+        document.getElementById("editExcelRulesButton").addEventListener("click", showExcelRulesEditor);
+        document.getElementById("saveExcelRulesButton").addEventListener("click", saveExcelRulesFromEditor);
+        document.getElementById("cancelExcelRulesButton").addEventListener("click", hideExcelRulesEditor);
         document.getElementById("editExampleButton").addEventListener("click", showExampleEditor);
         document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
