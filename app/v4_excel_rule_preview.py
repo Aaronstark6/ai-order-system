@@ -1,3 +1,5 @@
+from openpyxl.utils.cell import coordinate_to_tuple
+
 from app.logger import get_logger
 
 
@@ -6,6 +8,10 @@ logger = get_logger(__name__)
 
 def _is_dict(value):
     return isinstance(value, dict)
+
+
+def _is_empty(value):
+    return value is None or value == ""
 
 
 def _get_nested_value(data, path):
@@ -35,6 +41,78 @@ def _target_cell(rule):
     return target.get("cell") if _is_dict(target) else ""
 
 
+def _is_valid_cell_ref(value):
+    text = str(value or "").strip()
+    if not text:
+        return False
+
+    try:
+        row, column = coordinate_to_tuple(text)
+    except Exception:
+        return False
+
+    return 1 <= row <= 1048576 and 1 <= column <= 16384
+
+
+def _mark_operation_status(operation):
+    reasons = []
+    status = "ok"
+
+    if not str(operation.get("rule_id") or "").strip():
+        reasons.append("rule_id 缺失")
+        status = "error"
+
+    if not str(operation.get("type") or "").strip():
+        reasons.append("type 缺失")
+        status = "error"
+
+    target_cell = str(operation.get("target_cell") or "").strip()
+    if not target_cell:
+        reasons.append("target_cell 缺失")
+        status = "error"
+    elif not _is_valid_cell_ref(target_cell):
+        reasons.append(f"target_cell 无效：{target_cell}")
+        status = "error"
+
+    if _is_empty(operation.get("value")) and status != "error":
+        reasons.append("value 为空")
+        status = "warning"
+
+    operation["status"] = status
+    operation["status_reasons"] = reasons
+    return operation
+
+
+def _invalid_operation(rule, reason):
+    operation = {
+        "rule_id": rule.get("id") if _is_dict(rule) else "",
+        "type": rule.get("type") if _is_dict(rule) else "",
+        "target_cell": _target_cell(rule) if _is_dict(rule) else "",
+        "value": "",
+    }
+    operation = _mark_operation_status(operation)
+    operation["status"] = "error"
+    operation["status_reasons"].append(reason)
+    return operation
+
+
+def _summarize_operations(operations):
+    summary = {
+        "total": len(operations),
+        "ok": 0,
+        "warning": 0,
+        "error": 0,
+    }
+
+    for operation in operations:
+        status = operation.get("status")
+        if status not in summary:
+            status = "ok"
+        summary[status] += 1
+
+    return summary
+
+
 def _build_checkbox_operation(rule, example_data, warnings):
     rule_id = rule.get("id") or ""
     condition = rule.get("condition") if _is_dict(rule.get("condition")) else {}
@@ -49,12 +127,12 @@ def _build_checkbox_operation(rule, example_data, warnings):
     unchecked_text = rule.get("unchecked_text", "")
     value = checked_text if exists and actual_value == expected_value else unchecked_text
 
-    return {
+    return _mark_operation_status({
         "rule_id": rule_id,
         "type": "checkbox",
         "target_cell": _target_cell(rule),
         "value": value,
-    }
+    })
 
 
 def _build_text_operation(rule, description_fields, warnings):
@@ -68,12 +146,12 @@ def _build_text_operation(rule, description_fields, warnings):
     else:
         value = description_fields.get(description_field)
 
-    return {
+    return _mark_operation_status({
         "rule_id": rule_id,
         "type": "text",
         "target_cell": _target_cell(rule),
         "value": "" if value is None else value,
-    }
+    })
 
 
 def build_excel_rule_preview(
@@ -101,6 +179,7 @@ def build_excel_rule_preview(
                 "template_key": template_key,
                 "operations": operations,
                 "warnings": warnings,
+                "validation": _summarize_operations(operations),
             }
 
         rules = template.get("rules")
@@ -111,6 +190,7 @@ def build_excel_rule_preview(
                 "template_key": template_key,
                 "operations": operations,
                 "warnings": warnings,
+                "validation": _summarize_operations(operations),
             }
 
         for rule in rules:
@@ -125,6 +205,7 @@ def build_excel_rule_preview(
                 operations.append(_build_text_operation(rule, description_fields, warnings))
             else:
                 warnings.append(f"不支持的规则类型：{rule_type}")
+                operations.append(_invalid_operation(rule, f"不支持的规则类型：{rule_type}"))
 
         logger.info(
             "V4 Excel rule preview built: template_key=%s operations=%s warnings=%s",
@@ -137,6 +218,7 @@ def build_excel_rule_preview(
             "template_key": template_key,
             "operations": operations,
             "warnings": warnings,
+            "validation": _summarize_operations(operations),
         }
     except Exception as exc:
         logger.exception("V4 Excel rule preview failed: template_key=%s", template_key)
@@ -145,4 +227,5 @@ def build_excel_rule_preview(
             "error": str(exc),
             "operations": [],
             "warnings": warnings,
+            "validation": _summarize_operations([]),
         }

@@ -480,6 +480,32 @@
             white-space: nowrap;
         }
 
+        .operation-preview-counts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .operation-count-pill {
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .operation-count-pill.warning {
+            background: #fffbeb;
+            color: #92400e;
+        }
+
+        .operation-count-pill.error {
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
         .operation-preview-toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -524,6 +550,16 @@
             overflow: hidden;
         }
 
+        .operation-item.warning {
+            border-color: #facc15;
+            background: #fffbeb;
+        }
+
+        .operation-item.error {
+            border-color: #fecaca;
+            background: #fef2f2;
+        }
+
         .operation-summary {
             width: 100%;
             border: 0;
@@ -536,6 +572,14 @@
             color: #111827;
             text-align: left;
             cursor: pointer;
+        }
+
+        .operation-item.warning .operation-summary {
+            background: #fffbeb;
+        }
+
+        .operation-item.error .operation-summary {
+            background: #fef2f2;
         }
 
         .operation-summary:hover {
@@ -557,6 +601,27 @@
         .operation-toggle {
             color: #1677ff;
             white-space: nowrap;
+        }
+
+        .operation-status {
+            display: inline-block;
+            margin-top: 5px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: #ecfdf5;
+            color: #15803d;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .operation-status.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .operation-status.error {
+            background: #fee2e2;
+            color: #b91c1c;
         }
 
         .operation-detail {
@@ -894,6 +959,7 @@
                         <option value="rule_id">按 rule_id 排序</option>
                         <option value="target_cell">按 target_cell 排序</option>
                     </select>
+                    <button id="expandRiskOperationsButton" class="button" type="button">展开全部 warning/error</button>
                 </div>
                 <div id="operationPreviewList" class="operation-list"></div>
             </article>
@@ -1128,6 +1194,10 @@
                 noMatchedOperations: "\u6ca1\u6709\u5339\u914d\u7684\u64cd\u4f5c",
                 expand: "\u5c55\u5f00",
                 collapse: "\u6298\u53e0",
+                warningCount: "warning {count}",
+                errorCount: "error {count}",
+                confirmExportWithErrors: "\u5f53\u524d\u6709 {count} \u6761 error \u64cd\u4f5c\uff0c\u53ef\u80fd\u5bfc\u81f4 Excel \u5199\u5165\u7f3a\u5931\u6216\u5931\u8d25\u3002\u4ecd\u7136\u7ee7\u7eed\u5bfc\u51fa\u5417\uff1f",
+                exportCancelledDueToErrors: "\u5df2\u53d6\u6d88\u5bfc\u51fa\uff1a\u8bf7\u5148\u68c0\u67e5 error \u64cd\u4f5c\u3002",
                 exportTemplateRuleExcelWithPreview: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel",
                 exportTemplateRuleExcelWithPreviewSucceeded: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel \u6210\u529f\uff1a{filename}",
                 exportTemplateRuleExcelWithPreviewFailed: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel \u5931\u8d25",
@@ -1656,8 +1726,24 @@
                 rule_id: String(item.rule_id ?? ""),
                 type: String(item.type ?? ""),
                 target_cell: String(item.target_cell ?? ""),
-                value: operationValueText(item.value)
+                value: operationValueText(item.value),
+                status: ["ok", "warning", "error"].includes(item.status) ? item.status : "ok",
+                status_reasons: Array.isArray(item.status_reasons) ? item.status_reasons.map(String) : []
             };
+        }
+
+        function countOperationStatuses(operations) {
+            return operations.reduce((counts, operation) => {
+                const status = ["ok", "warning", "error"].includes(operation.status) ? operation.status : "ok";
+                counts[status] += 1;
+                counts.total += 1;
+                return counts;
+            }, {
+                total: 0,
+                ok: 0,
+                warning: 0,
+                error: 0
+            });
         }
 
         function getFilteredOperations() {
@@ -1703,13 +1789,22 @@
         function renderOperationPreviewList() {
             const count = document.getElementById("operationPreviewCount");
             const list = document.getElementById("operationPreviewList");
-            const total = operationPreviewState.operations.length;
+            const normalizedOperations = operationPreviewState.operations.map(normalizeOperation);
+            const counts = countOperationStatuses(normalizedOperations);
+            const total = normalizedOperations.length;
             const operations = getFilteredOperations();
 
             if (count) {
-                count.textContent = operations.length === total
+                const totalText = operations.length === total
                     ? t("operationCount").replace("{count}", total)
                     : t("filteredOperationCount").replace("{total}", total).replace("{visible}", operations.length);
+                count.innerHTML = `
+                    <div class="operation-preview-counts">
+                        <span class="operation-count-pill">${escapeHtml(totalText)}</span>
+                        <span class="operation-count-pill warning">${escapeHtml(t("warningCount").replace("{count}", counts.warning))}</span>
+                        <span class="operation-count-pill error">${escapeHtml(t("errorCount").replace("{count}", counts.error))}</span>
+                    </div>
+                `;
             }
 
             if (!list) {
@@ -1727,12 +1822,15 @@
 
             list.innerHTML = operations.map(operation => {
                 const expanded = Boolean(operationPreviewState.expanded[operation.id]);
+                const status = ["ok", "warning", "error"].includes(operation.status) ? operation.status : "ok";
+                const reasonText = operation.status_reasons.length ? operation.status_reasons.join("\n") : "";
                 return `
-                    <article class="operation-item">
+                    <article class="operation-item ${escapeHtml(status)}">
                         <button class="operation-summary" type="button" data-operation-id="${escapeHtml(operation.id)}" aria-expanded="${expanded ? "true" : "false"}">
                             <span class="operation-summary-cell">
                                 <span class="operation-summary-label">rule_id</span>
                                 ${escapeHtml(operation.rule_id)}
+                                <span class="operation-status ${escapeHtml(status)}">${escapeHtml(status)}</span>
                             </span>
                             <span class="operation-summary-cell">
                                 <span class="operation-summary-label">type</span>
@@ -1748,7 +1846,12 @@
                             </span>
                             <span class="operation-toggle">${escapeHtml(expanded ? t("collapse") : t("expand"))}</span>
                         </button>
-                        ${expanded ? `<div class="operation-detail">${escapeHtml(operation.value)}</div>` : ""}
+                        ${expanded ? `
+                            <div class="operation-detail">
+                                ${reasonText ? `status_reasons:\n${escapeHtml(reasonText)}\n\n` : ""}
+                                value:\n${escapeHtml(operation.value)}
+                            </div>
+                        ` : ""}
                     </article>
                 `;
             }).join("");
@@ -1810,6 +1913,15 @@
 
             hideOperationPreviewStatus();
             renderOperationPreviewPanel();
+        }
+
+        function expandRiskOperations() {
+            operationPreviewState.operations.map(normalizeOperation).forEach(operation => {
+                if (operation.status === "warning" || operation.status === "error") {
+                    operationPreviewState.expanded[operation.id] = true;
+                }
+            });
+            renderOperationPreviewList();
         }
 
         function buildTemplateRuleExcelResultMessage(result) {
@@ -3724,6 +3836,31 @@
             showOperationPreviewStatus(t("exportingRendererJson"), "");
 
             try {
+                const previewResponse = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/excel-rule-preview?template_key=${encodeURIComponent(templateKey)}`);
+                const previewResult = await previewResponse.json();
+
+                if (!previewResponse.ok || !previewResult.success) {
+                    throw new Error(previewResult.error || t("previewWriteRulesFailed"));
+                }
+
+                const previewData = previewResult.data && typeof previewResult.data === "object" && !Array.isArray(previewResult.data)
+                    ? previewResult.data
+                    : {};
+                if (previewData.success === false) {
+                    throw new Error(previewData.error || t("previewWriteRulesFailed"));
+                }
+
+                setOperationPreviewFromResult(previewData);
+                const previewCounts = countOperationStatuses(operationPreviewState.operations.map(normalizeOperation));
+                if (previewCounts.error > 0) {
+                    const confirmed = window.confirm(t("confirmExportWithErrors").replace("{count}", previewCounts.error));
+                    if (!confirmed) {
+                        showOperationPreviewStatus(t("exportCancelledDueToErrors"), "warning-message");
+                        return;
+                    }
+                }
+
+                showOperationPreviewStatus(t("exportingRendererJson"), "");
                 const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-template-rule-excel-with-preview?template_key=${encodeURIComponent(templateKey)}`, {
                     method: "POST",
                     headers: {
@@ -3891,6 +4028,7 @@
             operationPreviewState.sortBy = event.target.value;
             renderOperationPreviewList();
         });
+        document.getElementById("expandRiskOperationsButton").addEventListener("click", expandRiskOperations);
         document.getElementById("operationPreviewList").addEventListener("click", event => {
             const button = event.target.closest(".operation-summary");
             if (!button) {

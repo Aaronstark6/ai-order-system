@@ -217,6 +217,7 @@ def execute_rules_to_template_excel_with_preview(
                 "error": executor_result.get("error", "V4 template rule executor failed"),
                 "operations": operations,
                 "warnings": warnings + executor_result.get("warnings", []),
+                "validation": preview_result.get("validation", {}),
             }
 
         warnings.extend(executor_result.get("warnings", []))
@@ -234,6 +235,7 @@ def execute_rules_to_template_excel_with_preview(
             "operations_written": executor_result.get("operations_written", 0),
             "operations": operations,
             "warnings": warnings,
+            "validation": preview_result.get("validation", {}),
         }
     except Exception as exc:
         logger.exception(
