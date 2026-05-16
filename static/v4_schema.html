@@ -683,6 +683,36 @@
                 </select>
                 <button id="editExampleButton" class="button" type="button" disabled>&#32534;&#36753;&#31034;&#20363;&#35746;&#21333;</button>
             </div>
+            <article id="exampleOrderEditor" class="card add-product-card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">&#22522;&#30784;&#35746;&#21333;&#20449;&#24687;&#32534;&#36753;</h3>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="exampleCustomerName">&#23458;&#25143;&#21517;&#31216;</label>
+                        <input id="exampleCustomerName" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleQuantity">&#25968;&#37327;</label>
+                        <input id="exampleQuantity" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleOrderDate">&#35746;&#21333;&#26085;&#26399;</label>
+                        <input id="exampleOrderDate" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleCustomerType">&#23458;&#25143;&#24615;&#36136;</label>
+                        <input id="exampleCustomerType" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleSalesOwner">&#36127;&#36131;&#20154;</label>
+                        <input id="exampleSalesOwner" type="text">
+                    </div>
+                </div>
+                <div class="add-product-actions">
+                    <button id="updateExampleOrderButton" class="button" type="button">&#26356;&#26032;&#22522;&#30784;&#35746;&#21333;&#20449;&#24687;</button>
+                </div>
+            </article>
             <section id="exampleEditor" class="example-editor" style="display: none;">
                 <textarea id="exampleTextarea" spellcheck="false"></textarea>
                 <div class="editor-actions">
@@ -776,7 +806,8 @@
                 exampleMustBeObject: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u662f JSON object",
                 exampleMustNotBeEmpty: "\u793a\u4f8b\u8ba2\u5355\u4e0d\u80fd\u662f\u7a7a\u5bf9\u8c61",
                 exampleOrderRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b order",
-                exampleProductRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b product"
+                exampleProductRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b product",
+                exampleOrderUpdated: "\u57fa\u7840\u8ba2\u5355\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548"
             };
             return messages[key] || key;
         }
@@ -985,6 +1016,42 @@
                 return t("exampleProductRequired");
             }
             return "";
+        }
+
+        function fillExampleOrderForm(example) {
+            const order = example && example.order && typeof example.order === "object" && !Array.isArray(example.order)
+                ? example.order
+                : {};
+            document.getElementById("exampleCustomerName").value = displayValue(order.customer_name);
+            document.getElementById("exampleQuantity").value = displayValue(order.quantity);
+            document.getElementById("exampleOrderDate").value = displayValue(order.order_date);
+            document.getElementById("exampleCustomerType").value = displayValue(order.customer_type);
+            document.getElementById("exampleSalesOwner").value = displayValue(order.sales_owner);
+        }
+
+        function updateExampleOrderJsonTextarea() {
+            if (document.getElementById("exampleEditor").style.display !== "none") {
+                document.getElementById("exampleTextarea").value = JSON.stringify(currentExampleOrder || {}, null, 2);
+            }
+        }
+
+        function updateExampleOrderFromForm() {
+            if (!currentExampleOrder || typeof currentExampleOrder !== "object" || Array.isArray(currentExampleOrder)) {
+                currentExampleOrder = {};
+            }
+            if (!currentExampleOrder.order || typeof currentExampleOrder.order !== "object" || Array.isArray(currentExampleOrder.order)) {
+                currentExampleOrder.order = {};
+            }
+
+            currentExampleOrder.order.customer_name = document.getElementById("exampleCustomerName").value;
+            currentExampleOrder.order.quantity = document.getElementById("exampleQuantity").value;
+            currentExampleOrder.order.order_date = document.getElementById("exampleOrderDate").value;
+            currentExampleOrder.order.customer_type = document.getElementById("exampleCustomerType").value;
+            currentExampleOrder.order.sales_owner = document.getElementById("exampleSalesOwner").value;
+
+            renderExample(currentExampleOrder, null, false);
+            updateExampleOrderJsonTextarea();
+            showExampleEditorMessage(t("exampleOrderUpdated"), "success");
         }
 
         function formatValidationMessage(template, values) {
@@ -2094,6 +2161,7 @@
             status.textContent = `${t("example")} ${exampleName} loading...`;
             content.style.display = "none";
             editButton.disabled = true;
+            document.getElementById("exampleOrderEditor").style.display = "none";
 
             try {
                 const [exampleResponse, validateResponse] = await Promise.all([
@@ -2120,12 +2188,14 @@
                 }
 
                 currentExampleOrder = result.data || {};
+                fillExampleOrderForm(currentExampleOrder);
                 renderExample(currentExampleOrder, validationResult, validationRequestFailed);
                 if (document.getElementById("exampleEditor").style.display !== "none") {
                     document.getElementById("exampleTextarea").value = JSON.stringify(currentExampleOrder, null, 2);
                 }
                 status.style.display = "none";
                 content.style.display = "block";
+                document.getElementById("exampleOrderEditor").style.display = "block";
                 editButton.disabled = false;
             } catch (error) {
                 status.classList.add("error");
@@ -2228,6 +2298,7 @@
         document.getElementById("editExampleButton").addEventListener("click", showExampleEditor);
         document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
+        document.getElementById("updateExampleOrderButton").addEventListener("click", updateExampleOrderFromForm);
         document.getElementById("addProductFormButton").addEventListener("click", addProductFormToEditor);
         document.getElementById("updateProductFormButton").addEventListener("click", updateProductFormInEditor);
         document.getElementById("addProductFieldButton").addEventListener("click", addProductFieldToEditor);
