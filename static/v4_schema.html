@@ -233,6 +233,12 @@
             background: #f0fdf4;
         }
 
+        .warning-message {
+            border-color: #fde68a;
+            color: #92400e;
+            background: #fffbeb;
+        }
+
         .notice {
             margin-bottom: 12px;
             border-color: #bfdbfe;
@@ -270,6 +276,10 @@
 
         .add-product-card {
             margin-bottom: 14px;
+        }
+
+        .editor-tool-title {
+            margin: 0 0 14px;
         }
 
         .form-grid {
@@ -445,6 +455,7 @@
 
         <div class="state notice">&#24403;&#21069;&#20026; V4 &#23454;&#39564;&#21151;&#33021;&#65292;&#20445;&#23384;&#21069;&#20250;&#33258;&#21160;&#22791;&#20221;&#26087; schema&#12290;</div>
         <section id="schemaEditor" class="schema-editor" style="display: none;">
+            <h2 class="editor-tool-title">V4 Schema &#32534;&#36753;&#24037;&#20855;</h2>
             <article class="card add-product-card">
                 <div class="card-header">
                     <h3 class="card-title">&#26032;&#22686;&#20135;&#21697;&#31867;&#22411;</h3>
@@ -529,6 +540,20 @@
                     <button id="deleteProductFieldButton" class="button" type="button">&#21024;&#38500;&#23383;&#27573;</button>
                 </div>
             </article>
+            <article class="card add-product-card">
+                <div class="card-header">
+                    <h3 class="card-title">&#21024;&#38500;&#20135;&#21697;&#31867;&#22411;</h3>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="deleteProductFormKey">&#20135;&#21697;&#31867;&#22411;</label>
+                        <select id="deleteProductFormKey"></select>
+                    </div>
+                </div>
+                <div class="add-product-actions">
+                    <button id="deleteProductFormButton" class="button" type="button">&#21024;&#38500;&#20135;&#21697;&#31867;&#22411;</button>
+                </div>
+            </article>
             <textarea id="schemaTextarea" spellcheck="false"></textarea>
             <div class="editor-actions">
                 <button id="saveSchemaButton" class="button primary" type="button">&#20445;&#23384; Schema</button>
@@ -558,6 +583,7 @@
     <script>
         const DEFAULT_EXAMPLE = "soft_capsule_order_example";
         let currentProductSchema = {};
+        let currentExampleOrder = null;
 
         function t(key) {
             const messages = {
@@ -607,7 +633,10 @@
                 confirmDeleteField: "\u786e\u5b9a\u5220\u9664\u8be5\u5b57\u6bb5\u5417\uff1f",
                 confirmDeleteLastField: "\u5220\u9664\u540e\u8be5\u4ea7\u54c1\u7c7b\u578b\u5c06\u6ca1\u6709\u5b57\u6bb5\uff0c\u786e\u5b9a\u7ee7\u7eed\u5417\uff1f",
                 productFieldDeleted: "\u4ea7\u54c1\u5b57\u6bb5\u5df2\u5220\u9664\uff0c\u70b9\u51fb\u4fdd\u5b58 Schema \u540e\u751f\u6548",
-                fieldNotFound: "\u5b57\u6bb5\u4e0d\u5b58\u5728"
+                fieldNotFound: "\u5b57\u6bb5\u4e0d\u5b58\u5728",
+                confirmDeleteProductForm: "\u786e\u5b9a\u5220\u9664\u4ea7\u54c1\u7c7b\u578b {formKey} \u5417\uff1f\n\u8be5\u4ea7\u54c1\u4e0b\u6240\u6709\u5b57\u6bb5\u90fd\u4f1a\u88ab\u5220\u9664\u3002",
+                productFormDeleted: "\u4ea7\u54c1\u7c7b\u578b\u5df2\u5220\u9664\uff0c\u70b9\u51fb\u4fdd\u5b58 Schema \u540e\u751f\u6548",
+                deletedProductUsedByExample: "\u5f53\u524d\u793a\u4f8b\u8ba2\u5355\u53ef\u80fd\u5f15\u7528\u4e86\u5df2\u5220\u9664\u4ea7\u54c1\u7c7b\u578b"
             };
             return messages[key] || key;
         }
@@ -756,7 +785,7 @@
 
         function showSchemaEditorMessage(message, type) {
             const messageBox = document.getElementById("schemaEditorMessage");
-            messageBox.classList.remove("error", "success");
+            messageBox.classList.remove("error", "success", "warning-message");
             if (type) {
                 messageBox.classList.add(type);
             }
@@ -766,7 +795,7 @@
 
         function clearSchemaEditorMessage() {
             const messageBox = document.getElementById("schemaEditorMessage");
-            messageBox.classList.remove("error", "success");
+            messageBox.classList.remove("error", "success", "warning-message");
             messageBox.textContent = "";
             messageBox.style.display = "none";
         }
@@ -777,6 +806,7 @@
             textarea.value = JSON.stringify(currentProductSchema || {}, null, 2);
             syncProductFormSelect(currentProductSchema || {});
             syncDeleteProductFormSelect(currentProductSchema || {});
+            syncDeleteProductTypeSelect(currentProductSchema || {});
             editor.style.display = "block";
             clearSchemaEditorMessage();
             textarea.focus();
@@ -903,11 +933,41 @@
             }
         }
 
+        function syncDeleteProductTypeSelect(schema) {
+            const select = document.getElementById("deleteProductFormKey");
+            const button = document.getElementById("deleteProductFormButton");
+            const productForms = schema && schema.product_forms && typeof schema.product_forms === "object" && !Array.isArray(schema.product_forms)
+                ? schema.product_forms
+                : {};
+            const previousValue = select.value;
+            const entries = Object.entries(productForms);
+
+            if (!entries.length) {
+                select.innerHTML = `<option value="">${t("noProductForms")}</option>`;
+                select.disabled = true;
+                button.disabled = true;
+                return;
+            }
+
+            select.innerHTML = [
+                `<option value="">${t("selectProductRequired")}</option>`,
+                ...entries.map(([key, form]) => `
+                    <option value="${escapeHtml(key)}">${escapeHtml(form.label || key)}\uff08${escapeHtml(key)}\uff09</option>
+                `)
+            ].join("");
+            select.disabled = false;
+            button.disabled = false;
+            if (previousValue && Object.prototype.hasOwnProperty.call(productForms, previousValue)) {
+                select.value = previousValue;
+            }
+        }
+
         function syncProductFormSelectFromTextarea() {
             try {
                 const schema = readSchemaFromTextarea();
                 syncProductFormSelect(schema);
                 syncDeleteProductFormSelect(schema);
+                syncDeleteProductTypeSelect(schema);
             } catch (error) {
                 // Keep the current options while the JSON is incomplete or invalid.
             }
@@ -933,6 +993,7 @@
             renderSchema(currentProductSchema);
             syncProductFormSelect(currentProductSchema);
             syncDeleteProductFormSelect(currentProductSchema);
+            syncDeleteProductTypeSelect(currentProductSchema);
             document.getElementById("schemaStatus").style.display = "none";
             document.getElementById("schemaContent").style.display = "block";
         }
@@ -996,6 +1057,7 @@
             writeSchemaToEditor(schema);
             document.getElementById("newFieldProductKey").value = productKey;
             document.getElementById("deleteFieldProductKey").value = productKey;
+            document.getElementById("deleteProductFormKey").value = productKey;
             syncDeleteFieldSelect(currentProductSchema);
             resetAddProductForm();
             showSchemaEditorMessage(`${t("productTypeAdded")}: ${productKey}`, "success");
@@ -1076,6 +1138,7 @@
             document.getElementById("newFieldProductKey").value = productKey;
             document.getElementById("deleteFieldProductKey").value = productKey;
             document.getElementById("deleteFieldKey").value = fieldKey;
+            document.getElementById("deleteProductFormKey").value = productKey;
             resetAddProductFieldForm();
             showSchemaEditorMessage(`${t("productFieldAdded")}: ${productKey}.${fieldKey}`, "success");
         }
@@ -1125,6 +1188,47 @@
             document.getElementById("deleteFieldProductKey").value = productKey;
             syncDeleteFieldSelect(currentProductSchema);
             showSchemaEditorMessage(`${t("productFieldDeleted")}: ${productKey}.${fieldKey}`, "success");
+        }
+
+        function deleteProductFormFromEditor() {
+            const productKey = document.getElementById("deleteProductFormKey").value;
+            let schema;
+
+            if (!productKey) {
+                showSchemaEditorMessage(t("selectProductRequired"), "error");
+                return;
+            }
+
+            try {
+                schema = readSchemaFromTextarea();
+            } catch (error) {
+                showSchemaEditorMessage(`${t("invalidJson")}: ${error.message || error}`, "error");
+                return;
+            }
+
+            const productForms = schema.product_forms;
+            if (!productForms || typeof productForms !== "object" || Array.isArray(productForms) || !productForms[productKey]) {
+                showSchemaEditorMessage(`${t("productFormNotFound")}: ${productKey}`, "error");
+                return;
+            }
+
+            const confirmMessage = t("confirmDeleteProductForm").replace("{formKey}", productKey);
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            delete productForms[productKey];
+            writeSchemaToEditor(schema);
+
+            const exampleProductForm = currentExampleOrder && currentExampleOrder.product
+                ? currentExampleOrder.product.form
+                : "";
+            if (exampleProductForm === productKey) {
+                showSchemaEditorMessage(`${t("productFormDeleted")}: ${productKey}. ${t("deletedProductUsedByExample")}`, "warning-message");
+                return;
+            }
+
+            showSchemaEditorMessage(`${t("productFormDeleted")}: ${productKey}`, "success");
         }
 
         async function saveSchemaFromEditor() {
@@ -1339,6 +1443,7 @@
                 renderSchema(currentProductSchema);
                 syncProductFormSelect(currentProductSchema);
                 syncDeleteProductFormSelect(currentProductSchema);
+                syncDeleteProductTypeSelect(currentProductSchema);
                 status.style.display = "none";
                 content.style.display = "block";
                 document.getElementById("editSchemaButton").disabled = false;
@@ -1380,7 +1485,8 @@
                     validationRequestFailed = true;
                 }
 
-                renderExample(result.data || {}, validationResult, validationRequestFailed);
+                currentExampleOrder = result.data || {};
+                renderExample(currentExampleOrder, validationResult, validationRequestFailed);
                 status.style.display = "none";
                 content.style.display = "block";
             } catch (error) {
@@ -1432,6 +1538,7 @@
         document.getElementById("addProductFormButton").addEventListener("click", addProductFormToEditor);
         document.getElementById("addProductFieldButton").addEventListener("click", addProductFieldToEditor);
         document.getElementById("deleteProductFieldButton").addEventListener("click", deleteProductFieldFromEditor);
+        document.getElementById("deleteProductFormButton").addEventListener("click", deleteProductFormFromEditor);
         document.getElementById("newFieldType").addEventListener("change", toggleNewFieldOptions);
         document.getElementById("deleteFieldProductKey").addEventListener("change", syncDeleteFieldSelectFromTextarea);
         document.getElementById("schemaTextarea").addEventListener("blur", syncProductFormSelectFromTextarea);
