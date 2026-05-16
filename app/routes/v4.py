@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
+from app.v4_batch_template_executor import execute_batch_template_to_excel
 from app.v4_excel_rule_executor import execute_excel_rule_preview_to_workbook
 from app.v4_excel_renderer import export_description_fields_to_debug_excel
 from app.v4_excel_rule_preview import build_excel_rule_preview
@@ -21,6 +22,7 @@ from app.v4_template_rule_executor import (
     execute_ai_template_to_excel,
     execute_rules_to_template_excel,
     execute_rules_to_template_excel_with_preview,
+    执行模板规则并生成Excel,
 )
 from app.v4_validator import validate_example_order
 
@@ -702,6 +704,90 @@ def api_v4_example_export_ai_template_excel(example_name: str, payload: Any = Bo
         return {
             "success": False,
             "error": str(exc),
+        }
+
+
+@router.post("/api/v4/examples/{example_name}/export-ai-template-excel-cn")
+def api_v4_example_export_ai_template_excel_cn(example_name: str, payload: Any = Body(None)):
+    if not isinstance(payload, dict):
+        return {
+            "成功": False,
+            "错误": "模板路径不能为空",
+        }
+
+    template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
+    if template_path_error:
+        return {
+            "成功": False,
+            "错误": template_path_error,
+        }
+
+    try:
+        logger.info(
+            "V4 example export AI template Excel CN requested: example_name=%s template_path=%s",
+            example_name,
+            template_path,
+        )
+        result = 执行模板规则并生成Excel(example_name, str(template_path))
+        if not result.get("成功"):
+            logger.info(
+                "V4 example export AI template Excel CN failed: example_name=%s error=%s",
+                example_name,
+                result.get("错误", ""),
+            )
+        return result
+    except Exception as exc:
+        logger.exception("V4 example export AI template Excel CN failed: example_name=%s", example_name)
+        return {
+            "成功": False,
+            "错误": str(exc),
+        }
+
+
+@router.post("/api/v4/examples/{example_name}/export-batch-ai-excel")
+def api_v4_example_export_batch_ai_excel(example_name: str, payload: Any = Body(None)):
+    if not isinstance(payload, dict):
+        return {
+            "成功": False,
+            "错误": "模板路径列表不能为空",
+        }
+
+    template_paths = payload.get("template_paths")
+    if not isinstance(template_paths, list) or not template_paths:
+        return {
+            "成功": False,
+            "错误": "模板路径列表不能为空",
+        }
+
+    resolved_template_paths = []
+    for template_path in template_paths:
+        resolved_path, template_path_error = _resolve_template_path(template_path)
+        if template_path_error:
+            return {
+                "成功": False,
+                "错误": f"模板缺失：{template_path or '未命名模板'}；{template_path_error}",
+            }
+        resolved_template_paths.append(str(resolved_path))
+
+    try:
+        logger.info(
+            "V4 example export batch AI Excel requested: example_name=%s templates=%s",
+            example_name,
+            len(resolved_template_paths),
+        )
+        result = execute_batch_template_to_excel(example_name, resolved_template_paths)
+        if not result.get("成功"):
+            logger.info(
+                "V4 example export batch AI Excel finished with issues: example_name=%s error=%s",
+                example_name,
+                result.get("错误", ""),
+            )
+        return result
+    except Exception as exc:
+        logger.exception("V4 example export batch AI Excel failed: example_name=%s", example_name)
+        return {
+            "成功": False,
+            "错误": str(exc),
         }
 
 

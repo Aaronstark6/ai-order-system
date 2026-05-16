@@ -935,6 +935,12 @@
                         </select>
                     </div>
                     <div class="form-field">
+                        <label for="batchTemplateRuleExcelPaths">批量模板</label>
+                        <select id="batchTemplateRuleExcelPaths" multiple size="4" disabled>
+                            <option value="">正在加载模板...</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
                         <label>&#24403;&#21069;&#35268;&#21017;&#27169;&#26495;</label>
                         <div class="value" id="templateRuleExcelCurrentTemplate">-</div>
                     </div>
@@ -942,6 +948,7 @@
                 <div class="add-product-actions">
                     <button id="previewTemplateRuleOperationsButton" class="button" type="button" disabled>&#39044;&#35272;&#20889;&#20837;&#35268;&#21017;</button>
                     <button id="exportAiTemplateExcelButton" class="button primary" type="button" disabled>AI 自动导出 Excel</button>
+                    <button id="exportBatchAiTemplateExcelButton" class="button primary" type="button" disabled>批量 AI 生成 Excel</button>
                     <button id="exportTemplateRuleExcelWithPreviewButton" class="button primary" type="button" disabled>&#23548;&#20986;&#24182;&#39044;&#35272; Excel</button>
                     <button id="exportTemplateRuleExcelButton" class="button" type="button" disabled>&#23548;&#20986;&#30495;&#23454;&#27169;&#26495; Excel</button>
                 </div>
@@ -955,12 +962,12 @@
                 <div id="operationPreviewWarnings" class="operation-preview-warnings" style="display: none;"></div>
                 <div id="operationPreviewStatus" class="state" style="display: none;"></div>
                 <div class="operation-preview-toolbar">
-                    <input id="operationPreviewSearch" type="search" placeholder="&#25628;&#32034; rule_id / target_cell / value">
+                    <input id="operationPreviewSearch" type="search" placeholder="搜索规则 ID / 目标单元格 / 值">
                     <select id="operationPreviewSort">
-                        <option value="rule_id">按 rule_id 排序</option>
-                        <option value="target_cell">按 target_cell 排序</option>
+                        <option value="rule_id">按规则 ID 排序</option>
+                        <option value="target_cell">按目标单元格排序</option>
                     </select>
-                    <button id="expandRiskOperationsButton" class="button" type="button">展开全部 warning/error</button>
+                    <button id="expandRiskOperationsButton" class="button" type="button">展开全部警告/错误</button>
                 </div>
                 <div id="operationPreviewList" class="operation-list"></div>
             </article>
@@ -1195,13 +1202,18 @@
                 noMatchedOperations: "\u6ca1\u6709\u5339\u914d\u7684\u64cd\u4f5c",
                 expand: "\u5c55\u5f00",
                 collapse: "\u6298\u53e0",
-                warningCount: "warning {count}",
-                errorCount: "error {count}",
-                confirmExportWithErrors: "\u5f53\u524d\u6709 {count} \u6761 error \u64cd\u4f5c\uff0c\u53ef\u80fd\u5bfc\u81f4 Excel \u5199\u5165\u7f3a\u5931\u6216\u5931\u8d25\u3002\u4ecd\u7136\u7ee7\u7eed\u5bfc\u51fa\u5417\uff1f",
-                exportCancelledDueToErrors: "\u5df2\u53d6\u6d88\u5bfc\u51fa\uff1a\u8bf7\u5148\u68c0\u67e5 error \u64cd\u4f5c\u3002",
+                warningCount: "警告 {count}",
+                errorCount: "错误 {count}",
+                confirmExportWithErrors: "\u5f53\u524d\u6709 {count} \u6761错误操作\uff0c\u53ef\u80fd\u5bfc\u81f4 Excel \u5199\u5165\u7f3a\u5931\u6216\u5931\u8d25\u3002\u4ecd\u7136\u7ee7\u7eed\u5bfc\u51fa\u5417\uff1f",
+                exportCancelledDueToErrors: "\u5df2\u53d6\u6d88\u5bfc\u51fa\uff1a\u8bf7\u5148\u68c0\u67e5错误操作\u3002",
                 exportAiTemplateExcel: "AI \u81ea\u52a8\u5bfc\u51fa Excel",
                 exportAiTemplateExcelSucceeded: "AI \u81ea\u52a8\u5bfc\u51fa Excel \u6210\u529f\uff1a{filename}",
                 exportAiTemplateExcelFailed: "AI \u81ea\u52a8\u5bfc\u51fa Excel \u5931\u8d25",
+                exportBatchAiTemplateExcel: "批量 AI 生成 Excel",
+                exportingBatchAiTemplateExcel: "生成中...",
+                exportBatchAiTemplateExcelSucceeded: "批量 AI 生成 Excel 成功",
+                exportBatchAiTemplateExcelFailed: "批量 AI 生成 Excel 失败",
+                batchTemplatePathRequired: "请至少选择一个批量模板",
                 exportTemplateRuleExcelWithPreview: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel",
                 exportTemplateRuleExcelWithPreviewSucceeded: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel \u6210\u529f\uff1a{filename}",
                 exportTemplateRuleExcelWithPreviewFailed: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel \u5931\u8d25",
@@ -1593,12 +1605,23 @@
             }
         }
 
+        function selectedBatchTemplatePaths() {
+            const batchSelect = document.getElementById("batchTemplateRuleExcelPaths");
+            if (!batchSelect) {
+                return [];
+            }
+            return Array.from(batchSelect.selectedOptions)
+                .map(option => option.value)
+                .filter(Boolean);
+        }
+
         function updateTemplateRuleExcelState() {
             const templateSelect = document.getElementById("excelRuleTemplateSelect");
             const currentTemplate = document.getElementById("templateRuleExcelCurrentTemplate");
             const exportButton = document.getElementById("exportTemplateRuleExcelButton");
             const exportWithPreviewButton = document.getElementById("exportTemplateRuleExcelWithPreviewButton");
             const exportAiButton = document.getElementById("exportAiTemplateExcelButton");
+            const exportBatchAiButton = document.getElementById("exportBatchAiTemplateExcelButton");
             const previewButton = document.getElementById("previewTemplateRuleOperationsButton");
             const templatePathSelect = document.getElementById("templateRuleExcelPath");
             const exampleSelect = document.getElementById("exampleSelect");
@@ -1613,6 +1636,9 @@
             if (exportAiButton) {
                 exportAiButton.disabled = !templatePathSelect.value || !exampleSelect.value;
             }
+            if (exportBatchAiButton) {
+                exportBatchAiButton.disabled = !selectedBatchTemplatePaths().length || !exampleSelect.value;
+            }
             if (previewButton) {
                 previewButton.disabled = !templateKey || !exampleSelect.value;
             }
@@ -1620,18 +1646,26 @@
 
         function syncTemplateProfileSelect() {
             const select = document.getElementById("templateRuleExcelPath");
+            const batchSelect = document.getElementById("batchTemplateRuleExcelPaths");
             const previousValue = select.value;
+            const previousBatchValues = batchSelect
+                ? selectedBatchTemplatePaths()
+                : [];
             const profiles = Array.isArray(currentTemplateProfiles) ? currentTemplateProfiles : [];
             const usableProfiles = profiles.filter(profile => profile && profile.template_file);
 
             if (!usableProfiles.length) {
                 select.innerHTML = `<option value="">${t("noUploadedTemplates")}</option>`;
                 select.disabled = true;
+                if (batchSelect) {
+                    batchSelect.innerHTML = `<option value="">${t("noUploadedTemplates")}</option>`;
+                    batchSelect.disabled = true;
+                }
                 updateTemplateRuleExcelState();
                 return;
             }
 
-            select.innerHTML = usableProfiles.map(profile => {
+            const templateOptions = usableProfiles.map(profile => {
                 const templateFile = String(profile.template_file || "").split(/[\\/]/).pop();
                 const templatePath = `templates/uploads/${templateFile}`;
                 const profileName = profile.name || profile.id || "template";
@@ -1639,10 +1673,26 @@
                 return `<option value="${escapeHtml(templatePath)}">${escapeHtml(profileName)} - ${escapeHtml(displayName)}</option>`;
             }).join("");
 
+            select.innerHTML = templateOptions;
+            if (batchSelect) {
+                batchSelect.innerHTML = templateOptions;
+            }
+
             if (previousValue && usableProfiles.some(profile => `templates/uploads/${String(profile.template_file || "").split(/[\\/]/).pop()}` === previousValue)) {
                 select.value = previousValue;
             }
+            if (batchSelect) {
+                Array.from(batchSelect.options).forEach(option => {
+                    option.selected = previousBatchValues.includes(option.value);
+                });
+                if (!selectedBatchTemplatePaths().length && batchSelect.options.length) {
+                    batchSelect.options[0].selected = true;
+                }
+            }
             select.disabled = false;
+            if (batchSelect) {
+                batchSelect.disabled = false;
+            }
             updateTemplateRuleExcelState();
         }
 
@@ -1703,6 +1753,24 @@
             return `${message}<br><a href="${downloadHref}" target="_blank" rel="noopener">${escapeHtml(t("downloadFile"))}</a>`;
         }
 
+        function buildBatchOutputDownloadMessage(filenames) {
+            const files = Array.isArray(filenames) ? filenames.filter(Boolean) : [];
+            if (!files.length) {
+                return "";
+            }
+            return `
+                <div>${escapeHtml(t("exportBatchAiTemplateExcelSucceeded"))}：共 ${escapeHtml(files.length)} 个文件</div>
+                <ul class="validation-list">
+                    ${files.map(filename => `
+                        <li>
+                            ${escapeHtml(filename)}
+                            <a href="/api/v4/output/${encodeURIComponent(filename)}" target="_blank" rel="noopener">${escapeHtml(t("downloadFile"))}</a>
+                        </li>
+                    `).join("")}
+                </ul>
+            `;
+        }
+
         function previewText(value, maxLength = 120) {
             const text = String(value ?? "");
             if (text.length <= maxLength) {
@@ -1725,6 +1793,23 @@
             return String(value);
         }
 
+        function normalizeLocalizedOperation(operation, groupName = "") {
+            const item = operation && typeof operation === "object" && !Array.isArray(operation)
+                ? operation
+                : {};
+            const ruleId = item["规则 ID"] || item.rule_id || "";
+            const operationType = item["类型"] || item.type || "";
+            const statusText = item["状态"] || item.status || "";
+            return {
+                rule_id: groupName ? `${groupName} / ${ruleId}` : ruleId,
+                type: operationType === "勾选框" ? "checkbox" : operationType === "文本" ? "text" : operationType,
+                target_cell: item["目标单元格"] || item.target_cell || "",
+                value: item["值"] ?? item["写入内容"] ?? item.value ?? "",
+                status: statusText === "警告" || statusText === "warning" ? "warning" : statusText === "错误" || statusText === "error" ? "error" : "ok",
+                status_reasons: Array.isArray(item["异常原因"]) ? item["异常原因"] : (Array.isArray(item.status_reasons) ? item.status_reasons : [])
+            };
+        }
+
         function normalizeOperation(operation, index) {
             const item = operation && typeof operation === "object" && !Array.isArray(operation)
                 ? operation
@@ -1738,6 +1823,29 @@
                 status: ["ok", "warning", "error"].includes(item.status) ? item.status : "ok",
                 status_reasons: Array.isArray(item.status_reasons) ? item.status_reasons.map(String) : []
             };
+        }
+
+        function displayOperationType(value) {
+            if (value === "checkbox") {
+                return "勾选框";
+            }
+            if (value === "text") {
+                return "文本";
+            }
+            return value || "-";
+        }
+
+        function displayOperationStatus(value) {
+            if (value === "ok") {
+                return "正常";
+            }
+            if (value === "warning") {
+                return "警告";
+            }
+            if (value === "error") {
+                return "错误";
+            }
+            return value || "-";
         }
 
         function countOperationStatuses(operations) {
@@ -1836,28 +1944,28 @@
                     <article class="operation-item ${escapeHtml(status)}">
                         <button class="operation-summary" type="button" data-operation-id="${escapeHtml(operation.id)}" aria-expanded="${expanded ? "true" : "false"}">
                             <span class="operation-summary-cell">
-                                <span class="operation-summary-label">rule_id</span>
+                                <span class="operation-summary-label">规则 ID</span>
                                 ${escapeHtml(operation.rule_id)}
-                                <span class="operation-status ${escapeHtml(status)}">${escapeHtml(status)}</span>
+                                <span class="operation-status ${escapeHtml(status)}">${escapeHtml(displayOperationStatus(status))}</span>
                             </span>
                             <span class="operation-summary-cell">
-                                <span class="operation-summary-label">type</span>
-                                ${escapeHtml(operation.type)}
+                                <span class="operation-summary-label">类型</span>
+                                ${escapeHtml(displayOperationType(operation.type))}
                             </span>
                             <span class="operation-summary-cell">
-                                <span class="operation-summary-label">target_cell</span>
+                                <span class="operation-summary-label">目标单元格</span>
                                 ${escapeHtml(operation.target_cell)}
                             </span>
                             <span class="operation-summary-cell">
-                                <span class="operation-summary-label">value</span>
+                                <span class="operation-summary-label">值</span>
                                 ${escapeHtml(previewText(operation.value, 120))}
                             </span>
                             <span class="operation-toggle">${escapeHtml(expanded ? t("collapse") : t("expand"))}</span>
                         </button>
                         ${expanded ? `
                             <div class="operation-detail">
-                                ${reasonText ? `status_reasons:\n${escapeHtml(reasonText)}\n\n` : ""}
-                                value:\n${escapeHtml(operation.value)}
+                                ${reasonText ? `异常原因：\n${escapeHtml(reasonText)}\n\n` : ""}
+                                值：\n${escapeHtml(operation.value)}
                             </div>
                         ` : ""}
                     </article>
@@ -3477,6 +3585,7 @@
 
         async function loadTemplateProfilesForV4() {
             const select = document.getElementById("templateRuleExcelPath");
+            const batchSelect = document.getElementById("batchTemplateRuleExcelPaths");
             try {
                 const response = await fetch("/api/template-profiles");
                 const result = await response.json();
@@ -3491,6 +3600,10 @@
                 currentTemplateProfiles = [];
                 select.innerHTML = `<option value="">${t("loadTemplateProfilesFailed")}</option>`;
                 select.disabled = true;
+                if (batchSelect) {
+                    batchSelect.innerHTML = `<option value="">${t("loadTemplateProfilesFailed")}</option>`;
+                    batchSelect.disabled = true;
+                }
                 showTemplateRuleExcelMessage(`${t("loadTemplateProfilesFailed")}\uff1a${error.message || error}`, "error");
                 updateTemplateRuleExcelState();
             }
@@ -3939,7 +4052,7 @@
             showOperationPreviewStatus(t("exportingRendererJson"), "");
 
             try {
-                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-ai-template-excel`, {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-ai-template-excel-cn`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
@@ -3950,16 +4063,33 @@
                 });
                 const result = await response.json();
 
-                if (!response.ok || !result.success) {
-                    throw new Error(result.error || t("exportAiTemplateExcelFailed"));
+                if (!response.ok || !result["成功"]) {
+                    throw new Error(result["错误"] || t("exportAiTemplateExcelFailed"));
                 }
 
-                setOperationPreviewFromResult(result);
+                const normalizedResult = {
+                    filename: result["文件名"] || "",
+                    output_path: result["输出路径"] || "",
+                    operations_written: result["写入操作数"] || 0,
+                    warnings: Array.isArray(result["警告"]) ? result["警告"] : [],
+                    operations: Array.isArray(result["操作列表"]) ? result["操作列表"].map(operation => ({
+                        rule_id: operation["规则 ID"] || "",
+                        type: operation["类型"] === "勾选框" ? "checkbox" : operation["类型"] === "文本" ? "text" : operation["类型"] || "",
+                        target_cell: operation["目标单元格"] || "",
+                        value: operation["写入内容"] || "",
+                        status: operation["状态"] === "警告" ? "warning" : operation["状态"] === "错误" ? "error" : "ok",
+                        status_reasons: Array.isArray(operation["异常原因"]) ? operation["异常原因"] : []
+                    })) : [],
+                    validation: result["校验统计"] || {},
+                    template_key: result["模板键"] || ""
+                };
+
+                setOperationPreviewFromResult(normalizedResult);
                 showTemplateRuleExcelMessage(
                     `
-                        <div>${buildOutputDownloadMessage("exportAiTemplateExcelSucceeded", result.filename || "")}</div>
-                        <div style="margin-top: 8px;">写入规则数量：${escapeHtml(result.operations_written ?? 0)}</div>
-                        <div style="margin-top: 8px;">AI 规则模板：${escapeHtml(result.template_key || "")}</div>
+                        <div>${buildOutputDownloadMessage("exportAiTemplateExcelSucceeded", normalizedResult.filename || "")}</div>
+                        <div style="margin-top: 8px;">写入规则数量：${escapeHtml(normalizedResult.operations_written ?? 0)}</div>
+                        <div style="margin-top: 8px;">AI 规则模板：${escapeHtml(normalizedResult.template_key || "")}</div>
                     `,
                     "success",
                     true
@@ -3978,6 +4108,103 @@
             } finally {
                 if (exportButton) {
                     exportButton.textContent = t("exportAiTemplateExcel");
+                    updateTemplateRuleExcelState();
+                }
+            }
+        }
+
+        async function exportBatchAiTemplateExcel() {
+            const exampleSelect = document.getElementById("exampleSelect");
+            const exampleName = exampleSelect.value;
+            const templatePaths = selectedBatchTemplatePaths();
+            const exportButton = document.getElementById("exportBatchAiTemplateExcelButton");
+            const panel = document.getElementById("operationPreviewPanel");
+
+            if (!exampleName) {
+                showTemplateRuleExcelMessage(t("selectExampleRequired"), "error");
+                return;
+            }
+            if (!templatePaths.length) {
+                showTemplateRuleExcelMessage(t("batchTemplatePathRequired"), "error");
+                return;
+            }
+
+            if (exportButton) {
+                exportButton.disabled = true;
+                exportButton.textContent = t("exportingBatchAiTemplateExcel");
+            }
+            if (panel) {
+                panel.style.display = "block";
+            }
+            showOperationPreviewStatus(t("exportingBatchAiTemplateExcel"), "");
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-batch-ai-excel`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        template_paths: templatePaths
+                    })
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result["成功"]) {
+                    throw new Error(result["错误"] || t("exportBatchAiTemplateExcelFailed"));
+                }
+
+                const operationGroups = result["操作列表"] && typeof result["操作列表"] === "object" && !Array.isArray(result["操作列表"])
+                    ? result["操作列表"]
+                    : {};
+                const operations = Object.entries(operationGroups).flatMap(([groupName, groupOperations]) => {
+                    const items = Array.isArray(groupOperations) ? groupOperations : [];
+                    return items.map(operation => normalizeLocalizedOperation(operation, groupName));
+                });
+                const warnings = Array.isArray(result["警告"]) ? result["警告"] : [];
+                const files = Array.isArray(result["生成文件列表"]) ? result["生成文件列表"] : [];
+
+                setOperationPreviewFromResult({
+                    operations,
+                    warnings
+                });
+
+                const templateResults = Array.isArray(result["模板结果列表"]) ? result["模板结果列表"] : [];
+                const resultRows = templateResults.length ? `
+                    <div style="margin-top: 8px;">模板结果：</div>
+                    <ul class="validation-list">
+                        ${templateResults.map(item => `
+                            <li>
+                                ${escapeHtml(item["模板"] || "")}：
+                                ${escapeHtml(item["成功"] ? `已生成 ${item["文件名"] || ""}，写入 ${item["写入操作数"] ?? 0} 条` : item["错误"] || "失败")}
+                            </li>
+                        `).join("")}
+                    </ul>
+                ` : "";
+
+                showTemplateRuleExcelMessage(
+                    `
+                        ${buildBatchOutputDownloadMessage(files)}
+                        <div style="margin-top: 8px;">操作列表已按生成文件分组展示，共 ${escapeHtml(operations.length)} 条。</div>
+                        ${resultRows}
+                    `,
+                    "success",
+                    true
+                );
+            } catch (error) {
+                operationPreviewState = {
+                    operations: [],
+                    warnings: [],
+                    search: "",
+                    sortBy: "rule_id",
+                    expanded: {}
+                };
+                renderOperationPreviewPanel();
+                showOperationPreviewStatus(`${t("exportBatchAiTemplateExcelFailed")}\uff1a${error.message || error}`, "error");
+                showTemplateRuleExcelMessage(`${t("exportBatchAiTemplateExcelFailed")}\uff1a${error.message || error}`, "error");
+            } finally {
+                if (exportButton) {
+                    exportButton.textContent = t("exportBatchAiTemplateExcel");
                     updateTemplateRuleExcelState();
                 }
             }
@@ -4090,6 +4317,7 @@
         document.getElementById("exportRuleExcelButton").addEventListener("click", exportRuleExcel);
         document.getElementById("previewTemplateRuleOperationsButton").addEventListener("click", previewTemplateRuleOperations);
         document.getElementById("exportAiTemplateExcelButton").addEventListener("click", exportAiTemplateExcel);
+        document.getElementById("exportBatchAiTemplateExcelButton").addEventListener("click", exportBatchAiTemplateExcel);
         document.getElementById("exportTemplateRuleExcelWithPreviewButton").addEventListener("click", exportTemplateRuleExcelWithPreview);
         document.getElementById("exportTemplateRuleExcelButton").addEventListener("click", exportTemplateRuleExcel);
         document.getElementById("excelRuleTemplateSelect").addEventListener("change", () => {
@@ -4097,6 +4325,10 @@
             updateTemplateRuleExcelState();
         });
         document.getElementById("templateRuleExcelPath").addEventListener("change", () => {
+            resetOperationPreviewPanel();
+            updateTemplateRuleExcelState();
+        });
+        document.getElementById("batchTemplateRuleExcelPaths").addEventListener("change", () => {
             resetOperationPreviewPanel();
             updateTemplateRuleExcelState();
         });

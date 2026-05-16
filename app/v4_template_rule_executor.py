@@ -375,3 +375,44 @@ def execute_ai_template_to_excel(example_name: str, template_path: str) -> dict:
             "warnings": warnings,
             "operations": [],
         }
+
+
+def _localized_operation(operation):
+    if not isinstance(operation, dict):
+        return {}
+
+    status = operation.get("status", "ok")
+    status_label = {
+        "ok": "正常",
+        "warning": "警告",
+        "error": "错误",
+    }.get(status, status)
+
+    return {
+        "规则 ID": operation.get("rule_id", ""),
+        "类型": "勾选框" if operation.get("type") == "checkbox" else "文本" if operation.get("type") == "text" else operation.get("type", ""),
+        "目标单元格": operation.get("target_cell", ""),
+        "写入内容": operation.get("value", ""),
+        "状态": status_label,
+        "异常原因": operation.get("status_reasons", []),
+    }
+
+
+def _localized_ai_template_result(result):
+    localized = {
+        "成功": bool(result.get("success")) if isinstance(result, dict) else False,
+        "文件名": result.get("filename", "") if isinstance(result, dict) else "",
+        "输出路径": result.get("output_path", "") if isinstance(result, dict) else "",
+        "写入操作数": result.get("operations_written", 0) if isinstance(result, dict) else 0,
+        "警告": result.get("warnings", []) if isinstance(result, dict) else [],
+        "操作列表": [_localized_operation(operation) for operation in result.get("operations", [])] if isinstance(result, dict) else [],
+        "模板键": result.get("template_key", "") if isinstance(result, dict) else "",
+        "校验统计": result.get("validation", {}) if isinstance(result, dict) else {},
+    }
+    if isinstance(result, dict) and result.get("error"):
+        localized["错误"] = result.get("error")
+    return localized
+
+
+def 执行模板规则并生成Excel(example_name: str, template_path: str) -> dict:
+    return _localized_ai_template_result(execute_ai_template_to_excel(example_name, template_path))

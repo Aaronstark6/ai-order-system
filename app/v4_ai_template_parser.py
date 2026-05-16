@@ -258,3 +258,136 @@ def analyze_template(template_path: str, field_library: dict) -> dict:
             "error": str(exc),
             "warnings": warnings,
         }
+
+
+def _unique_template_key(template_key, used_keys):
+    base_key = str(template_key or "ai_template").strip() or "ai_template"
+    if base_key not in used_keys:
+        used_keys.add(base_key)
+        return base_key
+
+    index = 2
+    while f"{base_key}_{index}" in used_keys:
+        index += 1
+
+    unique_key = f"{base_key}_{index}"
+    used_keys.add(unique_key)
+    return unique_key
+
+
+def analyze_templates(template_paths: list, field_library: dict) -> dict:
+    warnings = []
+    parsed_templates = []
+    used_keys = set()
+    rules_config = {
+        "version": "v4.16-ai-batch-template",
+        "description": "AI batch template parser generated Excel render rules",
+        "templates": {},
+    }
+
+    if not isinstance(template_paths, list) or not template_paths:
+        return {
+            "success": False,
+            "error": "template_paths 不能为空",
+            "rules_config": rules_config,
+            "templates": [],
+            "warnings": warnings,
+        }
+
+    for template_path in template_paths:
+        template_label = Path(str(template_path or "")).name or str(template_path or "")
+        result = analyze_template(str(template_path or ""), field_library)
+        if not result.get("success"):
+            warning = f"模板 {template_label} 解析失败：{result.get('error', '未知错误')}"
+            warnings.append(warning)
+            parsed_templates.append({
+                "success": False,
+                "template_path": str(template_path or ""),
+                "template_key": "",
+                "rules_count": 0,
+                "warnings": result.get("warnings", []),
+                "error": result.get("error", "未知错误"),
+            })
+            continue
+
+        source_config = result.get("rules_config", {})
+        source_templates = source_config.get("templates") if isinstance(source_config, dict) else {}
+        source_key = result.get("template_key", "")
+        source_template = source_templates.get(source_key, {}) if isinstance(source_templates, dict) else {}
+        template_key = _unique_template_key(source_key, used_keys)
+        if template_key != source_key:
+            warnings.append(f"模板 {template_label} 的规则键重复，已自动调整为 {template_key}")
+
+        rules_config["templates"][template_key] = source_template
+        template_warnings = result.get("warnings", [])
+        warnings.extend([f"{template_label}：{warning}" for warning in template_warnings])
+        parsed_templates.append({
+            "success": True,
+            "template_path": str(template_path or ""),
+            "template_key": template_key,
+            "rules_count": result.get("rules_count", 0),
+            "warnings": template_warnings,
+        })
+
+    return {
+        "success": bool(rules_config["templates"]),
+        "rules_config": rules_config,
+        "templates": parsed_templates,
+        "warnings": warnings,
+    }
+
+
+def _localized_rule(rule):
+    if not isinstance(rule, dict):
+        return {}
+
+    rule_type = rule.get("type") or ""
+    target = rule.get("target") if isinstance(rule.get("target"), dict) else {}
+    source = rule.get("source") if isinstance(rule.get("source"), dict) else {}
+    condition = rule.get("condition") if isinstance(rule.get("condition"), dict) else {}
+
+    return {
+        "规则 ID": rule.get("id", ""),
+        "类型": "勾选框" if rule_type == "checkbox" else "文本" if rule_type == "text" else rule_type,
+        "目标单元格": target.get("cell", ""),
+        "来源字段": source.get("description_field", ""),
+        "条件": condition,
+        "勾选状态文本": rule.get("checked_text", ""),
+        "未勾状态文本": rule.get("unchecked_text", ""),
+    }
+
+
+def 分析模板(template_path: str, 字段库: dict) -> dict:
+    result = analyze_template(template_path, 字段库)
+    rules_config = result.get("rules_config", {}) if isinstance(result, dict) else {}
+    template_key = result.get("template_key", "") if isinstance(result, dict) else ""
+    template = {}
+    if isinstance(rules_config, dict):
+        templates = rules_config.get("templates")
+        if isinstance(templates, dict):
+            template = templates.get(template_key, {}) if template_key else {}
+    rules = template.get("rules", []) if isinstance(template, dict) else []
+
+    localized = {
+        "成功": bool(result.get("success")) if isinstance(result, dict) else False,
+        "模板键": template_key,
+        "规则配置": rules_config,
+        "规则数量": result.get("rules_count", len(rules)) if isinstance(result, dict) else 0,
+        "规则列表": [_localized_rule(rule) for rule in rules if isinstance(rule, dict)],
+        "警告": result.get("warnings", []) if isinstance(result, dict) else [],
+    }
+    if isinstance(result, dict) and result.get("error"):
+        localized["错误"] = result.get("error")
+
+    return localized
+
+
+def 批量分析模板(template_paths: list, 字段库: dict) -> dict:
+    result = analyze_templates(template_paths, 字段库)
+    return {
+        "成功": bool(result.get("success")) if isinstance(result, dict) else False,
+        "规则配置": result.get("rules_config", {}) if isinstance(result, dict) else {},
+        "模板列表": result.get("templates", []) if isinstance(result, dict) else [],
+        "警告": result.get("warnings", []) if isinstance(result, dict) else [],
+        "错误": result.get("error", "") if isinstance(result, dict) else "",
+    }
