@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
 from app.v4_excel_renderer import export_description_fields_to_debug_excel
+from app.v4_excel_rule_preview import build_excel_rule_preview
 from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save_excel_render_rules
 from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
@@ -261,6 +262,63 @@ def api_v4_example_render_description(example_name: str):
         "success": True,
         "data": render_example_to_description_fields(example, load_product_schema()),
     }
+
+
+@router.get("/api/v4/examples/{example_name}/excel-rule-preview")
+def api_v4_example_excel_rule_preview(example_name: str, template_key: str = ""):
+    if not str(template_key or "").strip():
+        return {
+            "success": False,
+            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
+        }
+
+    example = load_example(example_name)
+    if not example:
+        logger.info("V4 example Excel rule preview not found: example_name=%s", example_name)
+        return {
+            "success": False,
+            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+        }
+
+    try:
+        logger.info(
+            "V4 example Excel rule preview requested: example_name=%s template_key=%s",
+            example_name,
+            template_key,
+        )
+        render_result = render_example_to_description_fields(example, load_product_schema())
+        if not render_result.get("success"):
+            return {
+                "success": False,
+                "error": render_result.get("error", "V4 renderer failed"),
+            }
+
+        preview_result = build_excel_rule_preview(
+            example,
+            render_result.get("description_fields", {}),
+            load_excel_render_rules(),
+            template_key,
+        )
+        if not preview_result.get("success"):
+            return {
+                "success": False,
+                "error": preview_result.get("error", "V4 Excel rule preview failed"),
+            }
+
+        return {
+            "success": True,
+            "data": preview_result,
+        }
+    except Exception as exc:
+        logger.exception(
+            "V4 example Excel rule preview failed: example_name=%s template_key=%s",
+            example_name,
+            template_key,
+        )
+        return {
+            "success": False,
+            "error": str(exc),
+        }
 
 
 @router.post("/api/v4/examples/{example_name}/export-render-json")
