@@ -713,6 +713,40 @@
                     <button id="updateExampleOrderButton" class="button" type="button">&#26356;&#26032;&#22522;&#30784;&#35746;&#21333;&#20449;&#24687;</button>
                 </div>
             </article>
+            <article id="exampleDocumentEditor" class="card add-product-card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">&#25991;&#26723;&#20449;&#24687;&#32534;&#36753;</h3>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="exampleSalesName">&#19994;&#21153;&#21592;&#33521;&#25991;&#21517;</label>
+                        <input id="exampleSalesName" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleSalespersonCode">&#19994;&#21153;&#21592;&#20195;&#21495;</label>
+                        <input id="exampleSalespersonCode" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleCompanyCode">&#20844;&#21496;&#31616;&#31216;</label>
+                        <input id="exampleCompanyCode" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleSequence">&#24207;&#21495;</label>
+                        <input id="exampleSequence" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleIngredientInitials">&#25104;&#20998;&#32553;&#20889;</label>
+                        <input id="exampleIngredientInitials" type="text">
+                    </div>
+                    <div class="form-field">
+                        <label for="exampleProductForm">&#20135;&#21697;&#24418;&#24335;</label>
+                        <select id="exampleProductForm"></select>
+                    </div>
+                </div>
+                <div class="add-product-actions">
+                    <button id="updateExampleDocumentButton" class="button" type="button">&#26356;&#26032;&#25991;&#26723;&#20449;&#24687;</button>
+                </div>
+            </article>
             <section id="exampleEditor" class="example-editor" style="display: none;">
                 <textarea id="exampleTextarea" spellcheck="false"></textarea>
                 <div class="editor-actions">
@@ -807,7 +841,8 @@
                 exampleMustNotBeEmpty: "\u793a\u4f8b\u8ba2\u5355\u4e0d\u80fd\u662f\u7a7a\u5bf9\u8c61",
                 exampleOrderRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b order",
                 exampleProductRequired: "\u793a\u4f8b\u8ba2\u5355\u5fc5\u987b\u5305\u542b product",
-                exampleOrderUpdated: "\u57fa\u7840\u8ba2\u5355\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548"
+                exampleOrderUpdated: "\u57fa\u7840\u8ba2\u5355\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548",
+                exampleDocumentUpdated: "\u6587\u6863\u4fe1\u606f\u5df2\u66f4\u65b0\uff0c\u70b9\u51fb\u4fdd\u5b58\u793a\u4f8b\u8ba2\u5355\u540e\u751f\u6548"
             };
             return messages[key] || key;
         }
@@ -1035,6 +1070,43 @@
             }
         }
 
+        function syncExampleProductFormSelect() {
+            const select = document.getElementById("exampleProductForm");
+            const productForms = currentProductSchema && currentProductSchema.product_forms && typeof currentProductSchema.product_forms === "object" && !Array.isArray(currentProductSchema.product_forms)
+                ? currentProductSchema.product_forms
+                : {};
+            const documentInfo = currentExampleOrder && currentExampleOrder.document && typeof currentExampleOrder.document === "object" && !Array.isArray(currentExampleOrder.document)
+                ? currentExampleOrder.document
+                : {};
+            const currentValue = documentInfo.product_form || select.value;
+            const entries = Object.entries(productForms);
+
+            select.innerHTML = [
+                `<option value=""></option>`,
+                ...entries.map(([key, form]) => `
+                    <option value="${escapeHtml(key)}">${escapeHtml(form.label || key)}\uff08${escapeHtml(key)}\uff09</option>
+                `)
+            ].join("");
+            select.disabled = entries.length === 0;
+            if (currentValue && Object.prototype.hasOwnProperty.call(productForms, currentValue)) {
+                select.value = currentValue;
+            } else {
+                select.value = "";
+            }
+        }
+
+        function fillExampleDocumentForm(example) {
+            const documentInfo = example && example.document && typeof example.document === "object" && !Array.isArray(example.document)
+                ? example.document
+                : {};
+            document.getElementById("exampleSalesName").value = displayValue(documentInfo.sales_name);
+            document.getElementById("exampleSalespersonCode").value = displayValue(documentInfo.salesperson_code);
+            document.getElementById("exampleCompanyCode").value = displayValue(documentInfo.company_code);
+            document.getElementById("exampleSequence").value = displayValue(documentInfo.sequence);
+            document.getElementById("exampleIngredientInitials").value = displayValue(documentInfo.ingredient_initials);
+            syncExampleProductFormSelect();
+        }
+
         function updateExampleOrderFromForm() {
             if (!currentExampleOrder || typeof currentExampleOrder !== "object" || Array.isArray(currentExampleOrder)) {
                 currentExampleOrder = {};
@@ -1052,6 +1124,26 @@
             renderExample(currentExampleOrder, null, false);
             updateExampleOrderJsonTextarea();
             showExampleEditorMessage(t("exampleOrderUpdated"), "success");
+        }
+
+        function updateExampleDocumentFromForm() {
+            if (!currentExampleOrder || typeof currentExampleOrder !== "object" || Array.isArray(currentExampleOrder)) {
+                currentExampleOrder = {};
+            }
+            if (!currentExampleOrder.document || typeof currentExampleOrder.document !== "object" || Array.isArray(currentExampleOrder.document)) {
+                currentExampleOrder.document = {};
+            }
+
+            currentExampleOrder.document.sales_name = document.getElementById("exampleSalesName").value;
+            currentExampleOrder.document.salesperson_code = document.getElementById("exampleSalespersonCode").value;
+            currentExampleOrder.document.company_code = document.getElementById("exampleCompanyCode").value;
+            currentExampleOrder.document.sequence = document.getElementById("exampleSequence").value;
+            currentExampleOrder.document.ingredient_initials = document.getElementById("exampleIngredientInitials").value;
+            currentExampleOrder.document.product_form = document.getElementById("exampleProductForm").value;
+
+            renderExample(currentExampleOrder, null, false);
+            updateExampleOrderJsonTextarea();
+            showExampleEditorMessage(t("exampleDocumentUpdated"), "success");
         }
 
         function formatValidationMessage(template, values) {
@@ -2143,6 +2235,7 @@
                 syncEditProductFormSelect(currentProductSchema);
                 syncDeleteProductFormSelect(currentProductSchema);
                 syncDeleteProductTypeSelect(currentProductSchema);
+                syncExampleProductFormSelect();
                 status.style.display = "none";
                 content.style.display = "block";
                 document.getElementById("editSchemaButton").disabled = false;
@@ -2162,6 +2255,7 @@
             content.style.display = "none";
             editButton.disabled = true;
             document.getElementById("exampleOrderEditor").style.display = "none";
+            document.getElementById("exampleDocumentEditor").style.display = "none";
 
             try {
                 const [exampleResponse, validateResponse] = await Promise.all([
@@ -2189,6 +2283,7 @@
 
                 currentExampleOrder = result.data || {};
                 fillExampleOrderForm(currentExampleOrder);
+                fillExampleDocumentForm(currentExampleOrder);
                 renderExample(currentExampleOrder, validationResult, validationRequestFailed);
                 if (document.getElementById("exampleEditor").style.display !== "none") {
                     document.getElementById("exampleTextarea").value = JSON.stringify(currentExampleOrder, null, 2);
@@ -2196,6 +2291,7 @@
                 status.style.display = "none";
                 content.style.display = "block";
                 document.getElementById("exampleOrderEditor").style.display = "block";
+                document.getElementById("exampleDocumentEditor").style.display = "block";
                 editButton.disabled = false;
             } catch (error) {
                 status.classList.add("error");
@@ -2299,6 +2395,7 @@
         document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
         document.getElementById("updateExampleOrderButton").addEventListener("click", updateExampleOrderFromForm);
+        document.getElementById("updateExampleDocumentButton").addEventListener("click", updateExampleDocumentFromForm);
         document.getElementById("addProductFormButton").addEventListener("click", addProductFormToEditor);
         document.getElementById("updateProductFormButton").addEventListener("click", updateProductFormInEditor);
         document.getElementById("addProductFieldButton").addEventListener("click", addProductFieldToEditor);
