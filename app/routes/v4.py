@@ -1,8 +1,10 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 from app.logger import get_logger
 from app.v4_examples import list_examples, load_example
-from app.v4_schema import get_product_form, get_product_forms, load_product_schema
+from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
 from app.v4_validator import validate_example_order
 
 
@@ -16,6 +18,21 @@ def api_v4_product_schema():
     return {
         "success": True,
         "data": load_product_schema(),
+    }
+
+
+@router.post("/api/v4/product-schema")
+def api_v4_save_product_schema(schema: Any):
+    result = save_product_schema(schema)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "V4 product schema save failed"),
+        }
+
+    return {
+        "success": True,
+        "data": result.get("data", {}),
     }
 
 

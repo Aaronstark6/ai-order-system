@@ -1,4 +1,6 @@
 import json
+import shutil
+from datetime import datetime
 from json import JSONDecodeError
 
 from app.logger import get_logger
@@ -32,6 +34,43 @@ def load_product_schema():
         return {}
 
     return schema
+
+
+def save_product_schema(schema: dict) -> dict:
+    schema_path = _get_product_schema_path()
+    backup_dir = schema_path.parent / "backups"
+
+    logger.info("V4 product schema save started: path=%s", schema_path)
+    try:
+        if not isinstance(schema, dict):
+            raise ValueError("schema must be a dict")
+
+        schema_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        if schema_path.exists():
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = backup_dir / f"product_schema_{timestamp}.json"
+            logger.info("V4 product schema backup path: path=%s", backup_path)
+            shutil.copy2(schema_path, backup_path)
+        else:
+            logger.info("V4 product schema backup path: no existing schema to backup")
+
+        with schema_path.open("w", encoding="utf-8") as f:
+            json.dump(schema, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+
+        logger.info("V4 product schema save succeeded: path=%s", schema_path)
+        return {
+            "success": True,
+            "data": schema,
+        }
+    except Exception as exc:
+        logger.exception("V4 product schema save failed: path=%s", schema_path)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
 
 
 def get_product_forms():
