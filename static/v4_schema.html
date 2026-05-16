@@ -268,6 +268,47 @@
             margin-top: 10px;
         }
 
+        .add-product-card {
+            margin-bottom: 14px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .form-field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #374151;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .form-field input {
+            width: 100%;
+            height: 36px;
+            padding: 6px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #111827;
+            font-size: 14px;
+        }
+
+        .form-field input:focus {
+            border-color: #1677ff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+        }
+
+        .add-product-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 12px;
+        }
+
         #schemaEditorMessage {
             margin-top: 10px;
         }
@@ -383,6 +424,10 @@
             .field-row {
                 grid-template-columns: 1fr;
             }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -398,6 +443,32 @@
 
         <div class="state notice">&#24403;&#21069;&#20026; V4 &#23454;&#39564;&#21151;&#33021;&#65292;&#20445;&#23384;&#21069;&#20250;&#33258;&#21160;&#22791;&#20221;&#26087; schema&#12290;</div>
         <section id="schemaEditor" class="schema-editor" style="display: none;">
+            <article class="card add-product-card">
+                <div class="card-header">
+                    <h3 class="card-title">&#26032;&#22686;&#20135;&#21697;&#31867;&#22411;</h3>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="newProductKey">&#20135;&#21697; key</label>
+                        <input id="newProductKey" type="text" placeholder="soft_capsule_plus">
+                    </div>
+                    <div class="form-field">
+                        <label for="newProductLabel">&#20013;&#25991;&#21517;&#31216;</label>
+                        <input id="newProductLabel" type="text" placeholder="&#21152;&#24378;&#36719;&#33014;&#22218;">
+                    </div>
+                    <div class="form-field">
+                        <label for="newProductFieldKey">&#40664;&#35748;&#23383;&#27573;&#21517;&#31216;</label>
+                        <input id="newProductFieldKey" type="text" placeholder="extra_requirements">
+                    </div>
+                    <div class="form-field">
+                        <label for="newProductFieldLabel">&#40664;&#35748;&#23383;&#27573;&#20013;&#25991;&#21517;</label>
+                        <input id="newProductFieldLabel" type="text" placeholder="&#20854;&#20182;&#35201;&#27714;">
+                    </div>
+                </div>
+                <div class="add-product-actions">
+                    <button id="addProductFormButton" class="button" type="button">&#26032;&#22686;&#20135;&#21697;&#31867;&#22411;</button>
+                </div>
+            </article>
             <textarea id="schemaTextarea" spellcheck="false"></textarea>
             <div class="editor-actions">
                 <button id="saveSchemaButton" class="button primary" type="button">&#20445;&#23384; Schema</button>
@@ -455,7 +526,15 @@
                 invalidJson: "JSON \u4e0d\u5408\u6cd5",
                 saveSchemaFailed: "Schema \u4fdd\u5b58\u5931\u8d25",
                 saveSchemaSucceeded: "\u4fdd\u5b58\u6210\u529f",
-                saving: "\u6b63\u5728\u4fdd\u5b58..."
+                saving: "\u6b63\u5728\u4fdd\u5b58...",
+                productKeyRequired: "\u4ea7\u54c1 key \u4e0d\u80fd\u4e3a\u7a7a",
+                productKeyInvalid: "\u4ea7\u54c1 key \u53ea\u80fd\u4f7f\u7528\u82f1\u6587\u3001\u6570\u5b57\u3001\u4e0b\u5212\u7ebf",
+                productLabelRequired: "\u4e2d\u6587\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a",
+                productKeyExists: "\u5df2\u5b58\u5728\u540c\u540d\u4ea7\u54c1 key",
+                fieldKeyRequired: "\u9ed8\u8ba4\u5b57\u6bb5\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a",
+                fieldKeyInvalid: "\u9ed8\u8ba4\u5b57\u6bb5 key \u53ea\u80fd\u4f7f\u7528\u82f1\u6587\u3001\u6570\u5b57\u3001\u4e0b\u5212\u7ebf",
+                schemaRootInvalid: "Schema \u6839\u8282\u70b9\u5fc5\u987b\u662f JSON object",
+                productTypeAdded: "\u65b0\u589e\u4ea7\u54c1\u7c7b\u578b\u5df2\u52a0\u5165\uff0c\u70b9\u51fb\u4fdd\u5b58 Schema \u540e\u751f\u6548"
             };
             return messages[key] || key;
         }
@@ -633,13 +712,94 @@
             clearSchemaEditorMessage();
         }
 
+        function readSchemaFromTextarea() {
+            const textarea = document.getElementById("schemaTextarea");
+            const schema = JSON.parse(textarea.value);
+            if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+                throw new Error(t("schemaRootInvalid"));
+            }
+            return schema;
+        }
+
+        function resetAddProductForm() {
+            document.getElementById("newProductKey").value = "";
+            document.getElementById("newProductLabel").value = "";
+            document.getElementById("newProductFieldKey").value = "";
+            document.getElementById("newProductFieldLabel").value = "";
+        }
+
+        function addProductFormToEditor() {
+            const productKey = document.getElementById("newProductKey").value.trim();
+            const productLabel = document.getElementById("newProductLabel").value.trim();
+            const fieldKey = document.getElementById("newProductFieldKey").value.trim();
+            const fieldLabel = document.getElementById("newProductFieldLabel").value.trim();
+            const keyPattern = /^[A-Za-z0-9_]+$/;
+            let schema;
+
+            if (!productKey) {
+                showSchemaEditorMessage(t("productKeyRequired"), "error");
+                return;
+            }
+            if (!keyPattern.test(productKey)) {
+                showSchemaEditorMessage(t("productKeyInvalid"), "error");
+                return;
+            }
+            if (!productLabel) {
+                showSchemaEditorMessage(t("productLabelRequired"), "error");
+                return;
+            }
+            if (!fieldKey) {
+                showSchemaEditorMessage(t("fieldKeyRequired"), "error");
+                return;
+            }
+            if (!keyPattern.test(fieldKey)) {
+                showSchemaEditorMessage(t("fieldKeyInvalid"), "error");
+                return;
+            }
+
+            try {
+                schema = readSchemaFromTextarea();
+            } catch (error) {
+                showSchemaEditorMessage(`${t("invalidJson")}: ${error.message || error}`, "error");
+                return;
+            }
+
+            if (!schema.product_forms || typeof schema.product_forms !== "object" || Array.isArray(schema.product_forms)) {
+                schema.product_forms = {};
+            }
+            if (Object.prototype.hasOwnProperty.call(schema.product_forms, productKey)) {
+                showSchemaEditorMessage(`${t("productKeyExists")}: ${productKey}`, "error");
+                return;
+            }
+
+            schema.product_forms[productKey] = {
+                label: productLabel,
+                enabled_field: `${productKey}.enabled`,
+                fields: {
+                    [fieldKey]: {
+                        label: fieldLabel,
+                        type: "textarea",
+                        example: ""
+                    }
+                }
+            };
+
+            currentProductSchema = schema;
+            document.getElementById("schemaTextarea").value = JSON.stringify(currentProductSchema, null, 2);
+            renderSchema(currentProductSchema);
+            document.getElementById("schemaStatus").style.display = "none";
+            document.getElementById("schemaContent").style.display = "block";
+            resetAddProductForm();
+            showSchemaEditorMessage(`${t("productTypeAdded")}: ${productKey}`, "success");
+        }
+
         async function saveSchemaFromEditor() {
             const textarea = document.getElementById("schemaTextarea");
             const saveButton = document.getElementById("saveSchemaButton");
             let parsedSchema;
 
             try {
-                parsedSchema = JSON.parse(textarea.value);
+                parsedSchema = readSchemaFromTextarea();
             } catch (error) {
                 showSchemaEditorMessage(`${t("invalidJson")}: ${error.message || error}`, "error");
                 return;
@@ -933,6 +1093,7 @@
         }
 
         document.getElementById("editSchemaButton").addEventListener("click", showSchemaEditor);
+        document.getElementById("addProductFormButton").addEventListener("click", addProductFormToEditor);
         document.getElementById("saveSchemaButton").addEventListener("click", saveSchemaFromEditor);
         document.getElementById("cancelSchemaButton").addEventListener("click", hideSchemaEditor);
 
