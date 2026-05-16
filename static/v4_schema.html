@@ -24,6 +24,8 @@
         }
 
         .topbar,
+        .top-actions,
+        .editor-actions,
         .section-header,
         .example-toolbar {
             display: flex;
@@ -34,6 +36,12 @@
 
         .topbar {
             margin-bottom: 22px;
+        }
+
+        .top-actions,
+        .editor-actions {
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
 
         h1 {
@@ -59,6 +67,38 @@
 
         .home-link:hover {
             text-decoration: underline;
+        }
+
+        .button {
+            height: 36px;
+            padding: 0 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #111827;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            border-color: #94a3b8;
+            background: #f8fafc;
+        }
+
+        .button.primary {
+            border-color: #1677ff;
+            background: #1677ff;
+            color: #fff;
+        }
+
+        .button.primary:hover {
+            border-color: #0958d9;
+            background: #0958d9;
+        }
+
+        .button:disabled {
+            cursor: not-allowed;
+            opacity: 0.65;
         }
 
         .summary {
@@ -187,6 +227,51 @@
             background: #fff5f5;
         }
 
+        .success {
+            border-color: #bbf7d0;
+            color: #15803d;
+            background: #f0fdf4;
+        }
+
+        .notice {
+            margin-bottom: 12px;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+            background: #eff6ff;
+        }
+
+        .schema-editor {
+            margin-bottom: 20px;
+        }
+
+        .schema-editor textarea {
+            width: 100%;
+            min-height: 400px;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            color: #111827;
+            background: #fff;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+
+        .schema-editor textarea:focus {
+            border-color: #1677ff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+        }
+
+        .editor-actions {
+            margin-top: 10px;
+        }
+
+        #schemaEditorMessage {
+            margin-top: 10px;
+        }
+
         .example-toolbar {
             justify-content: flex-start;
             margin-bottom: 12px;
@@ -282,9 +367,13 @@
                 display: block;
             }
 
+            .top-actions {
+                justify-content: flex-start;
+                margin-top: 10px;
+            }
+
             .home-link {
                 display: inline-block;
-                margin-top: 10px;
             }
 
             .summary-item + .summary-item {
@@ -301,8 +390,21 @@
     <main class="page">
         <div class="topbar">
             <h1>V4 &#20135;&#21697;&#32467;&#26500;&#27169;&#22411;&#39044;&#35272;</h1>
-            <a class="home-link" href="/">&#36820;&#22238;&#39318;&#39029;</a>
+            <div class="top-actions">
+                <button id="editSchemaButton" class="button" type="button" disabled>&#32534;&#36753; Schema</button>
+                <a class="home-link" href="/">&#36820;&#22238;&#39318;&#39029;</a>
+            </div>
         </div>
+
+        <div class="state notice">&#24403;&#21069;&#20026; V4 &#23454;&#39564;&#21151;&#33021;&#65292;&#20445;&#23384;&#21069;&#20250;&#33258;&#21160;&#22791;&#20221;&#26087; schema&#12290;</div>
+        <section id="schemaEditor" class="schema-editor" style="display: none;">
+            <textarea id="schemaTextarea" spellcheck="false"></textarea>
+            <div class="editor-actions">
+                <button id="saveSchemaButton" class="button primary" type="button">&#20445;&#23384; Schema</button>
+                <button id="cancelSchemaButton" class="button" type="button">&#21462;&#28040;&#32534;&#36753;</button>
+            </div>
+            <div id="schemaEditorMessage" class="state" style="display: none;"></div>
+        </section>
 
         <div id="schemaStatus" class="state">&#27491;&#22312;&#21152;&#36733; V4 Product Schema...</div>
         <div id="schemaContent" style="display: none;"></div>
@@ -324,6 +426,7 @@
 
     <script>
         const DEFAULT_EXAMPLE = "soft_capsule_order_example";
+        let currentProductSchema = {};
 
         function t(key) {
             const messages = {
@@ -348,7 +451,11 @@
                 validationFailed: "\u7ed3\u6784\u6821\u9a8c\u5931\u8d25",
                 validationRequestFailed: "\u6821\u9a8c\u63a5\u53e3\u8bf7\u6c42\u5931\u8d25",
                 warnings: "\u8b66\u544a",
-                errors: "\u9519\u8bef"
+                errors: "\u9519\u8bef",
+                invalidJson: "JSON \u4e0d\u5408\u6cd5",
+                saveSchemaFailed: "Schema \u4fdd\u5b58\u5931\u8d25",
+                saveSchemaSucceeded: "\u4fdd\u5b58\u6210\u529f",
+                saving: "\u6b63\u5728\u4fdd\u5b58..."
             };
             return messages[key] || key;
         }
@@ -493,6 +600,83 @@
                     ${renderTargets(schema.render_targets || {})}
                 </section>
             `;
+        }
+
+        function showSchemaEditorMessage(message, type) {
+            const messageBox = document.getElementById("schemaEditorMessage");
+            messageBox.classList.remove("error", "success");
+            if (type) {
+                messageBox.classList.add(type);
+            }
+            messageBox.textContent = message;
+            messageBox.style.display = "block";
+        }
+
+        function clearSchemaEditorMessage() {
+            const messageBox = document.getElementById("schemaEditorMessage");
+            messageBox.classList.remove("error", "success");
+            messageBox.textContent = "";
+            messageBox.style.display = "none";
+        }
+
+        function showSchemaEditor() {
+            const editor = document.getElementById("schemaEditor");
+            const textarea = document.getElementById("schemaTextarea");
+            textarea.value = JSON.stringify(currentProductSchema || {}, null, 2);
+            editor.style.display = "block";
+            clearSchemaEditorMessage();
+            textarea.focus();
+        }
+
+        function hideSchemaEditor() {
+            document.getElementById("schemaEditor").style.display = "none";
+            clearSchemaEditorMessage();
+        }
+
+        async function saveSchemaFromEditor() {
+            const textarea = document.getElementById("schemaTextarea");
+            const saveButton = document.getElementById("saveSchemaButton");
+            let parsedSchema;
+
+            try {
+                parsedSchema = JSON.parse(textarea.value);
+            } catch (error) {
+                showSchemaEditorMessage(`${t("invalidJson")}: ${error.message || error}`, "error");
+                return;
+            }
+
+            saveButton.disabled = true;
+            showSchemaEditorMessage(t("saving"), "");
+
+            try {
+                const response = await fetch("/api/v4/product-schema", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(parsedSchema)
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || t("saveSchemaFailed"));
+                }
+
+                currentProductSchema = result.data || {};
+                textarea.value = JSON.stringify(currentProductSchema, null, 2);
+                await loadSchema();
+
+                const select = document.getElementById("exampleSelect");
+                if (select.value) {
+                    await loadExample(select.value);
+                }
+
+                showSchemaEditorMessage(t("saveSchemaSucceeded"), "success");
+            } catch (error) {
+                showSchemaEditorMessage(`${t("saveSchemaFailed")}: ${error.message || error}`, "error");
+            } finally {
+                saveButton.disabled = false;
+            }
         }
 
         function renderKeyValueCard(title, data, keys) {
@@ -657,9 +841,11 @@
                     throw new Error(result.error || t("loadingFailed"));
                 }
 
-                renderSchema(result.data || {});
+                currentProductSchema = result.data || {};
+                renderSchema(currentProductSchema);
                 status.style.display = "none";
                 content.style.display = "block";
+                document.getElementById("editSchemaButton").disabled = false;
             } catch (error) {
                 status.classList.add("error");
                 status.textContent = `${t("loadSchemaFailed")}: ${error.message || error}`;
@@ -745,6 +931,10 @@
                 status.textContent = `${t("loadExamplesFailed")}: ${error.message || error}`;
             }
         }
+
+        document.getElementById("editSchemaButton").addEventListener("click", showSchemaEditor);
+        document.getElementById("saveSchemaButton").addEventListener("click", saveSchemaFromEditor);
+        document.getElementById("cancelSchemaButton").addEventListener("click", hideSchemaEditor);
 
         loadSchema();
         loadExamples();
