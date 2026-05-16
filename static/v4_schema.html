@@ -470,6 +470,116 @@
             word-break: break-word;
         }
 
+        .operation-preview-panel {
+            margin-top: 12px;
+        }
+
+        .operation-preview-meta {
+            color: #64748b;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .operation-preview-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .operation-preview-toolbar input,
+        .operation-preview-toolbar select {
+            height: 34px;
+            padding: 6px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #111827;
+            font-size: 14px;
+        }
+
+        .operation-preview-toolbar input {
+            min-width: min(360px, 100%);
+            flex: 1 1 260px;
+        }
+
+        .operation-preview-toolbar select {
+            flex: 0 0 180px;
+        }
+
+        .operation-preview-warnings {
+            margin-bottom: 12px;
+        }
+
+        .operation-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .operation-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .operation-summary {
+            width: 100%;
+            border: 0;
+            padding: 10px 12px;
+            display: grid;
+            grid-template-columns: minmax(120px, 1.1fr) minmax(86px, 0.7fr) minmax(86px, 0.7fr) minmax(180px, 2fr) auto;
+            gap: 10px;
+            align-items: start;
+            background: #fff;
+            color: #111827;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .operation-summary:hover {
+            background: #f8fafc;
+        }
+
+        .operation-summary-cell {
+            min-width: 0;
+            word-break: break-word;
+        }
+
+        .operation-summary-label {
+            display: block;
+            margin-bottom: 3px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .operation-toggle {
+            color: #1677ff;
+            white-space: nowrap;
+        }
+
+        .operation-detail {
+            padding: 10px 12px 12px;
+            border-top: 1px solid #eef0f4;
+            background: #f8fafc;
+            color: #111827;
+            font-size: 13px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        @media (max-width: 760px) {
+            .operation-summary {
+                grid-template-columns: 1fr;
+            }
+
+            .operation-toggle {
+                justify-self: start;
+            }
+        }
+
         .validation-card {
             border-left: 4px solid #16a34a;
         }
@@ -765,9 +875,26 @@
                     </div>
                 </div>
                 <div class="add-product-actions">
+                    <button id="previewTemplateRuleOperationsButton" class="button" type="button" disabled>&#39044;&#35272;&#20889;&#20837;&#35268;&#21017;</button>
                     <button id="exportTemplateRuleExcelButton" class="button" type="button" disabled>&#23548;&#20986;&#30495;&#23454;&#27169;&#26495; Excel</button>
                 </div>
                 <div id="templateRuleExcelMessage" class="state" style="display: none;"></div>
+            </article>
+            <article id="operationPreviewPanel" class="card operation-preview-panel" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">&#25805;&#20316;&#21015;&#34920;&#39044;&#35272;</h3>
+                    <div id="operationPreviewCount" class="operation-preview-meta"></div>
+                </div>
+                <div id="operationPreviewWarnings" class="operation-preview-warnings" style="display: none;"></div>
+                <div id="operationPreviewStatus" class="state" style="display: none;"></div>
+                <div class="operation-preview-toolbar">
+                    <input id="operationPreviewSearch" type="search" placeholder="&#25628;&#32034; rule_id / target_cell / value">
+                    <select id="operationPreviewSort">
+                        <option value="rule_id">按 rule_id 排序</option>
+                        <option value="target_cell">按 target_cell 排序</option>
+                    </select>
+                </div>
+                <div id="operationPreviewList" class="operation-list"></div>
             </article>
             <div id="excelRulesStatus" class="state">&#27491;&#22312;&#21152;&#36733; Excel &#28210;&#26579;&#35268;&#21017;...</div>
             <div id="excelRulesContent" style="display: none;"></div>
@@ -882,6 +1009,13 @@
         let currentExampleOrder = null;
         let currentExcelRenderRules = {};
         let currentTemplateProfiles = [];
+        let operationPreviewState = {
+            operations: [],
+            warnings: [],
+            search: "",
+            sortBy: "rule_id",
+            expanded: {}
+        };
 
         function t(key) {
             const messages = {
@@ -984,6 +1118,15 @@
                 templatePathRequired: "\u6a21\u677f\u8def\u5f84\u4e0d\u80fd\u4e3a\u7a7a",
                 noUploadedTemplates: "\u6682\u65e0\u5df2\u4e0a\u4f20\u6a21\u677f\uff0c\u8bf7\u5148\u5230\u914d\u7f6e\u4e2d\u5fc3\u4e0a\u4f20\u6a21\u677f\u3002",
                 loadTemplateProfilesFailed: "\u6a21\u677f\u5217\u8868\u52a0\u8f7d\u5931\u8d25",
+                previewWriteRules: "\u9884\u89c8\u5199\u5165\u89c4\u5219",
+                previewingWriteRules: "\u9884\u89c8\u4e2d...",
+                previewWriteRulesFailed: "\u5199\u5165\u89c4\u5219\u9884\u89c8\u5931\u8d25",
+                operationCount: "\u5171 {count} \u6761\u64cd\u4f5c",
+                filteredOperationCount: "\u5171 {total} \u6761\u64cd\u4f5c\uff0c\u5f53\u524d\u663e\u793a {visible} \u6761",
+                noOperations: "\u6682\u65e0\u64cd\u4f5c",
+                noMatchedOperations: "\u6ca1\u6709\u5339\u914d\u7684\u64cd\u4f5c",
+                expand: "\u5c55\u5f00",
+                collapse: "\u6298\u53e0",
                 exportTemplateRuleExcel: "\u5bfc\u51fa\u771f\u5b9e\u6a21\u677f Excel",
                 exportTemplateRuleExcelSucceeded: "\u771f\u5b9e\u6a21\u677f Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
                 exportTemplateRuleExcelFailed: "\u771f\u5b9e\u6a21\u677f Excel \u5bfc\u51fa\u5931\u8d25",
@@ -1352,16 +1495,41 @@
             messageBox.style.display = "block";
         }
 
+        function showOperationPreviewStatus(message, type) {
+            const status = document.getElementById("operationPreviewStatus");
+            if (!status) {
+                return;
+            }
+            status.classList.remove("error", "success", "warning-message");
+            if (type) {
+                status.classList.add(type);
+            }
+            status.textContent = message;
+            status.style.display = "block";
+        }
+
+        function hideOperationPreviewStatus() {
+            const status = document.getElementById("operationPreviewStatus");
+            if (status) {
+                status.style.display = "none";
+            }
+        }
+
         function updateTemplateRuleExcelState() {
             const templateSelect = document.getElementById("excelRuleTemplateSelect");
             const currentTemplate = document.getElementById("templateRuleExcelCurrentTemplate");
             const exportButton = document.getElementById("exportTemplateRuleExcelButton");
+            const previewButton = document.getElementById("previewTemplateRuleOperationsButton");
             const templatePathSelect = document.getElementById("templateRuleExcelPath");
+            const exampleSelect = document.getElementById("exampleSelect");
             const templateKey = templateSelect.value;
             const selectedOption = templateSelect.options[templateSelect.selectedIndex];
 
             currentTemplate.textContent = selectedOption && templateKey ? selectedOption.textContent : "-";
             exportButton.disabled = !templateKey || !templatePathSelect.value;
+            if (previewButton) {
+                previewButton.disabled = !templateKey || !exampleSelect.value;
+            }
         }
 
         function syncTemplateProfileSelect() {
@@ -1449,12 +1617,166 @@
             return `${message}<br><a href="${downloadHref}" target="_blank" rel="noopener">${escapeHtml(t("downloadFile"))}</a>`;
         }
 
-        function previewText(value, maxLength = 80) {
+        function previewText(value, maxLength = 120) {
             const text = String(value ?? "");
             if (text.length <= maxLength) {
                 return text;
             }
             return `${text.slice(0, maxLength)}...`;
+        }
+
+        function operationValueText(value) {
+            if (value === null || value === undefined) {
+                return "";
+            }
+            if (typeof value === "object") {
+                try {
+                    return JSON.stringify(value, null, 2);
+                } catch (error) {
+                    return String(value);
+                }
+            }
+            return String(value);
+        }
+
+        function normalizeOperation(operation, index) {
+            const item = operation && typeof operation === "object" && !Array.isArray(operation)
+                ? operation
+                : {};
+            return {
+                id: `${item.rule_id || "operation"}-${index}`,
+                rule_id: String(item.rule_id ?? ""),
+                type: String(item.type ?? ""),
+                target_cell: String(item.target_cell ?? ""),
+                value: operationValueText(item.value)
+            };
+        }
+
+        function getFilteredOperations() {
+            const keyword = operationPreviewState.search.trim().toLowerCase();
+            const operations = operationPreviewState.operations.map(normalizeOperation);
+            const filtered = keyword
+                ? operations.filter(operation => [
+                    operation.rule_id,
+                    operation.type,
+                    operation.target_cell,
+                    operation.value
+                ].some(value => String(value).toLowerCase().includes(keyword)))
+                : operations;
+            const sortBy = operationPreviewState.sortBy === "target_cell" ? "target_cell" : "rule_id";
+            return filtered.sort((a, b) => {
+                const left = String(a[sortBy] || "");
+                const right = String(b[sortBy] || "");
+                return left.localeCompare(right, "zh-CN", { numeric: true, sensitivity: "base" });
+            });
+        }
+
+        function renderOperationPreviewWarnings() {
+            const warningBox = document.getElementById("operationPreviewWarnings");
+            const warnings = Array.isArray(operationPreviewState.warnings) ? operationPreviewState.warnings : [];
+            if (!warningBox) {
+                return;
+            }
+            if (!warnings.length) {
+                warningBox.style.display = "none";
+                warningBox.innerHTML = "";
+                return;
+            }
+            warningBox.className = "state warning-message operation-preview-warnings";
+            warningBox.innerHTML = `
+                <div>${escapeHtml(t("warnings"))}:</div>
+                <ul class="validation-list">
+                    ${warnings.map(warning => `<li>${escapeHtml(warning)}</li>`).join("")}
+                </ul>
+            `;
+            warningBox.style.display = "block";
+        }
+
+        function renderOperationPreviewList() {
+            const count = document.getElementById("operationPreviewCount");
+            const list = document.getElementById("operationPreviewList");
+            const total = operationPreviewState.operations.length;
+            const operations = getFilteredOperations();
+
+            if (count) {
+                count.textContent = operations.length === total
+                    ? t("operationCount").replace("{count}", total)
+                    : t("filteredOperationCount").replace("{total}", total).replace("{visible}", operations.length);
+            }
+
+            if (!list) {
+                return;
+            }
+
+            if (!total) {
+                list.innerHTML = `<div class="state">${escapeHtml(t("noOperations"))}</div>`;
+                return;
+            }
+            if (!operations.length) {
+                list.innerHTML = `<div class="state">${escapeHtml(t("noMatchedOperations"))}</div>`;
+                return;
+            }
+
+            list.innerHTML = operations.map(operation => {
+                const expanded = Boolean(operationPreviewState.expanded[operation.id]);
+                return `
+                    <article class="operation-item">
+                        <button class="operation-summary" type="button" data-operation-id="${escapeHtml(operation.id)}" aria-expanded="${expanded ? "true" : "false"}">
+                            <span class="operation-summary-cell">
+                                <span class="operation-summary-label">rule_id</span>
+                                ${escapeHtml(operation.rule_id)}
+                            </span>
+                            <span class="operation-summary-cell">
+                                <span class="operation-summary-label">type</span>
+                                ${escapeHtml(operation.type)}
+                            </span>
+                            <span class="operation-summary-cell">
+                                <span class="operation-summary-label">target_cell</span>
+                                ${escapeHtml(operation.target_cell)}
+                            </span>
+                            <span class="operation-summary-cell">
+                                <span class="operation-summary-label">value</span>
+                                ${escapeHtml(previewText(operation.value, 120))}
+                            </span>
+                            <span class="operation-toggle">${escapeHtml(expanded ? t("collapse") : t("expand"))}</span>
+                        </button>
+                        ${expanded ? `<div class="operation-detail">${escapeHtml(operation.value)}</div>` : ""}
+                    </article>
+                `;
+            }).join("");
+        }
+
+        function renderOperationPreviewPanel() {
+            const panel = document.getElementById("operationPreviewPanel");
+            if (!panel) {
+                return;
+            }
+            panel.style.display = "block";
+            renderOperationPreviewWarnings();
+            renderOperationPreviewList();
+        }
+
+        function resetOperationPreviewPanel() {
+            operationPreviewState = {
+                operations: [],
+                warnings: [],
+                search: "",
+                sortBy: "rule_id",
+                expanded: {}
+            };
+            const panel = document.getElementById("operationPreviewPanel");
+            const search = document.getElementById("operationPreviewSearch");
+            const sort = document.getElementById("operationPreviewSort");
+            if (search) {
+                search.value = "";
+            }
+            if (sort) {
+                sort.value = "rule_id";
+            }
+            if (panel) {
+                panel.style.display = "none";
+            }
+            hideOperationPreviewStatus();
         }
 
         function buildTemplateRuleExcelResultMessage(result) {
@@ -3270,6 +3592,90 @@
             }
         }
 
+        async function previewTemplateRuleOperations() {
+            const exampleSelect = document.getElementById("exampleSelect");
+            const templateSelect = document.getElementById("excelRuleTemplateSelect");
+            const exampleName = exampleSelect.value;
+            const templateKey = templateSelect.value;
+            const previewButton = document.getElementById("previewTemplateRuleOperationsButton");
+            const panel = document.getElementById("operationPreviewPanel");
+
+            if (!exampleName) {
+                if (panel) {
+                    panel.style.display = "block";
+                }
+                showOperationPreviewStatus(t("selectExampleRequired"), "error");
+                return;
+            }
+            if (!templateKey) {
+                if (panel) {
+                    panel.style.display = "block";
+                }
+                showOperationPreviewStatus(t("selectTemplateRequired"), "error");
+                return;
+            }
+
+            if (previewButton) {
+                previewButton.disabled = true;
+                previewButton.textContent = t("previewingWriteRules");
+            }
+            if (panel) {
+                panel.style.display = "block";
+            }
+            showOperationPreviewStatus(t("previewingWriteRules"), "");
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/excel-rule-preview?template_key=${encodeURIComponent(templateKey)}`);
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("previewWriteRulesFailed"));
+                }
+
+                const previewData = result.data && typeof result.data === "object" && !Array.isArray(result.data)
+                    ? result.data
+                    : {};
+                if (previewData.success === false) {
+                    throw new Error(previewData.error || t("previewWriteRulesFailed"));
+                }
+
+                operationPreviewState = {
+                    operations: Array.isArray(previewData.operations) ? previewData.operations : [],
+                    warnings: Array.isArray(previewData.warnings) ? previewData.warnings : [],
+                    search: "",
+                    sortBy: "rule_id",
+                    expanded: {}
+                };
+
+                const search = document.getElementById("operationPreviewSearch");
+                const sort = document.getElementById("operationPreviewSort");
+                if (search) {
+                    search.value = "";
+                }
+                if (sort) {
+                    sort.value = "rule_id";
+                }
+
+                hideOperationPreviewStatus();
+                renderOperationPreviewPanel();
+            } catch (error) {
+                operationPreviewState = {
+                    operations: [],
+                    warnings: [],
+                    search: "",
+                    sortBy: "rule_id",
+                    expanded: {}
+                };
+                renderOperationPreviewPanel();
+                showOperationPreviewStatus(`${t("previewWriteRulesFailed")}\uff1a${error.message || error}`, "error");
+            } finally {
+                if (previewButton) {
+                    previewButton.textContent = t("previewWriteRules");
+                    updateTemplateRuleExcelState();
+                }
+            }
+        }
+
         async function exportTemplateRuleExcel() {
             const exampleSelect = document.getElementById("exampleSelect");
             const templateSelect = document.getElementById("excelRuleTemplateSelect");
@@ -3356,6 +3762,7 @@
                 select.value = defaultExists ? DEFAULT_EXAMPLE : examples[0].name;
                 select.disabled = false;
                 select.addEventListener("change", () => {
+                    resetOperationPreviewPanel();
                     if (select.value) {
                         hideExampleEditor();
                         loadExample(select.value);
@@ -3374,9 +3781,30 @@
         document.getElementById("saveExcelRulesButton").addEventListener("click", saveExcelRulesFromEditor);
         document.getElementById("cancelExcelRulesButton").addEventListener("click", hideExcelRulesEditor);
         document.getElementById("exportRuleExcelButton").addEventListener("click", exportRuleExcel);
+        document.getElementById("previewTemplateRuleOperationsButton").addEventListener("click", previewTemplateRuleOperations);
         document.getElementById("exportTemplateRuleExcelButton").addEventListener("click", exportTemplateRuleExcel);
-        document.getElementById("excelRuleTemplateSelect").addEventListener("change", updateTemplateRuleExcelState);
+        document.getElementById("excelRuleTemplateSelect").addEventListener("change", () => {
+            resetOperationPreviewPanel();
+            updateTemplateRuleExcelState();
+        });
         document.getElementById("templateRuleExcelPath").addEventListener("change", updateTemplateRuleExcelState);
+        document.getElementById("operationPreviewSearch").addEventListener("input", event => {
+            operationPreviewState.search = event.target.value;
+            renderOperationPreviewList();
+        });
+        document.getElementById("operationPreviewSort").addEventListener("change", event => {
+            operationPreviewState.sortBy = event.target.value;
+            renderOperationPreviewList();
+        });
+        document.getElementById("operationPreviewList").addEventListener("click", event => {
+            const button = event.target.closest(".operation-summary");
+            if (!button) {
+                return;
+            }
+            const operationId = button.dataset.operationId;
+            operationPreviewState.expanded[operationId] = !operationPreviewState.expanded[operationId];
+            renderOperationPreviewList();
+        });
         document.getElementById("editExampleButton").addEventListener("click", showExampleEditor);
         document.getElementById("saveExampleButton").addEventListener("click", saveExampleFromEditor);
         document.getElementById("cancelExampleButton").addEventListener("click", hideExampleEditor);
