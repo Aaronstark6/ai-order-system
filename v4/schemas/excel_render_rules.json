@@ -1,0 +1,58 @@
+{
+  "version": "v4.7-dev-001",
+  "description": "V4 Excel 渲染规则实验配置",
+  "templates": {
+    "soft_capsule_template": {
+      "label": "软胶囊模板",
+      "rules": [
+        {
+          "id": "soft_capsule_checkbox",
+          "type": "checkbox",
+          "condition": {
+            "path": "product.form",
+            "equals": "soft_capsule"
+          },
+          "target": {
+            "sheet": "active",
+            "cell": "A10"
+          },
+          "checked_text": "☑",
+          "unchecked_text": "☐"
+        },
+        {
+          "id": "soft_capsule_product_requirements",
+          "type": "text",
+          "source": {
+            "description_field": "产品要求"
+          },
+          "target": {
+            "sheet": "active",
+            "cell": "B10"
+          }
+        },
+        {
+          "id": "formula_requirements",
+          "type": "text",
+          "source": {
+            "description_field": "配方要求"
+          },
+          "target": {
+            "sheet": "active",
+            "cell": "B14"
+          }
+        },
+        {
+          "id": "packaging_requirements",
+          "type": "text",
+          "source": {
+            "description_field": "包装要求"
+          },
+          "target": {
+            "sheet": "active",
+            "cell": "B18"
+          }
+        }
+      ]
+    }
+  }
+}
