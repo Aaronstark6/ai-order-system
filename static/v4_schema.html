@@ -876,6 +876,7 @@
                 </div>
                 <div class="add-product-actions">
                     <button id="previewTemplateRuleOperationsButton" class="button" type="button" disabled>&#39044;&#35272;&#20889;&#20837;&#35268;&#21017;</button>
+                    <button id="exportTemplateRuleExcelWithPreviewButton" class="button primary" type="button" disabled>&#23548;&#20986;&#24182;&#39044;&#35272; Excel</button>
                     <button id="exportTemplateRuleExcelButton" class="button" type="button" disabled>&#23548;&#20986;&#30495;&#23454;&#27169;&#26495; Excel</button>
                 </div>
                 <div id="templateRuleExcelMessage" class="state" style="display: none;"></div>
@@ -1127,6 +1128,9 @@
                 noMatchedOperations: "\u6ca1\u6709\u5339\u914d\u7684\u64cd\u4f5c",
                 expand: "\u5c55\u5f00",
                 collapse: "\u6298\u53e0",
+                exportTemplateRuleExcelWithPreview: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel",
+                exportTemplateRuleExcelWithPreviewSucceeded: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel \u6210\u529f\uff1a{filename}",
+                exportTemplateRuleExcelWithPreviewFailed: "\u5bfc\u51fa\u5e76\u9884\u89c8 Excel \u5931\u8d25",
                 exportTemplateRuleExcel: "\u5bfc\u51fa\u771f\u5b9e\u6a21\u677f Excel",
                 exportTemplateRuleExcelSucceeded: "\u771f\u5b9e\u6a21\u677f Excel \u5bfc\u51fa\u6210\u529f\uff1a{filename}",
                 exportTemplateRuleExcelFailed: "\u771f\u5b9e\u6a21\u677f Excel \u5bfc\u51fa\u5931\u8d25",
@@ -1519,6 +1523,7 @@
             const templateSelect = document.getElementById("excelRuleTemplateSelect");
             const currentTemplate = document.getElementById("templateRuleExcelCurrentTemplate");
             const exportButton = document.getElementById("exportTemplateRuleExcelButton");
+            const exportWithPreviewButton = document.getElementById("exportTemplateRuleExcelWithPreviewButton");
             const previewButton = document.getElementById("previewTemplateRuleOperationsButton");
             const templatePathSelect = document.getElementById("templateRuleExcelPath");
             const exampleSelect = document.getElementById("exampleSelect");
@@ -1527,6 +1532,9 @@
 
             currentTemplate.textContent = selectedOption && templateKey ? selectedOption.textContent : "-";
             exportButton.disabled = !templateKey || !templatePathSelect.value;
+            if (exportWithPreviewButton) {
+                exportWithPreviewButton.disabled = !templateKey || !templatePathSelect.value || !exampleSelect.value;
+            }
             if (previewButton) {
                 previewButton.disabled = !templateKey || !exampleSelect.value;
             }
@@ -1777,6 +1785,31 @@
                 panel.style.display = "none";
             }
             hideOperationPreviewStatus();
+        }
+
+        function setOperationPreviewFromResult(result) {
+            const operations = Array.isArray(result.operations)
+                ? result.operations
+                : (Array.isArray(result.details) ? result.details : []);
+            operationPreviewState = {
+                operations,
+                warnings: Array.isArray(result.warnings) ? result.warnings : [],
+                search: "",
+                sortBy: "rule_id",
+                expanded: {}
+            };
+
+            const search = document.getElementById("operationPreviewSearch");
+            const sort = document.getElementById("operationPreviewSort");
+            if (search) {
+                search.value = "";
+            }
+            if (sort) {
+                sort.value = "rule_id";
+            }
+
+            hideOperationPreviewStatus();
+            renderOperationPreviewPanel();
         }
 
         function buildTemplateRuleExcelResultMessage(result) {
@@ -3639,25 +3672,7 @@
                     throw new Error(previewData.error || t("previewWriteRulesFailed"));
                 }
 
-                operationPreviewState = {
-                    operations: Array.isArray(previewData.operations) ? previewData.operations : [],
-                    warnings: Array.isArray(previewData.warnings) ? previewData.warnings : [],
-                    search: "",
-                    sortBy: "rule_id",
-                    expanded: {}
-                };
-
-                const search = document.getElementById("operationPreviewSearch");
-                const sort = document.getElementById("operationPreviewSort");
-                if (search) {
-                    search.value = "";
-                }
-                if (sort) {
-                    sort.value = "rule_id";
-                }
-
-                hideOperationPreviewStatus();
-                renderOperationPreviewPanel();
+                setOperationPreviewFromResult(previewData);
             } catch (error) {
                 operationPreviewState = {
                     operations: [],
@@ -3671,6 +3686,82 @@
             } finally {
                 if (previewButton) {
                     previewButton.textContent = t("previewWriteRules");
+                    updateTemplateRuleExcelState();
+                }
+            }
+        }
+
+        async function exportTemplateRuleExcelWithPreview() {
+            const exampleSelect = document.getElementById("exampleSelect");
+            const templateSelect = document.getElementById("excelRuleTemplateSelect");
+            const pathInput = document.getElementById("templateRuleExcelPath");
+            const exampleName = exampleSelect.value;
+            const templateKey = templateSelect.value;
+            const templatePath = pathInput.value;
+            const exportButton = document.getElementById("exportTemplateRuleExcelWithPreviewButton");
+            const panel = document.getElementById("operationPreviewPanel");
+
+            if (!exampleName) {
+                showTemplateRuleExcelMessage(t("selectExampleRequired"), "error");
+                return;
+            }
+            if (!templateKey) {
+                showTemplateRuleExcelMessage(t("selectTemplateRequired"), "error");
+                return;
+            }
+            if (!templatePath) {
+                showTemplateRuleExcelMessage(t("templatePathRequired"), "error");
+                return;
+            }
+
+            if (exportButton) {
+                exportButton.disabled = true;
+                exportButton.textContent = t("exportingRendererJson");
+            }
+            if (panel) {
+                panel.style.display = "block";
+            }
+            showOperationPreviewStatus(t("exportingRendererJson"), "");
+
+            try {
+                const response = await fetch(`/api/v4/examples/${encodeURIComponent(exampleName)}/export-template-rule-excel-with-preview?template_key=${encodeURIComponent(templateKey)}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        template_path: templatePath
+                    })
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("exportTemplateRuleExcelWithPreviewFailed"));
+                }
+
+                setOperationPreviewFromResult(result);
+                showTemplateRuleExcelMessage(
+                    `
+                        <div>${buildOutputDownloadMessage("exportTemplateRuleExcelWithPreviewSucceeded", result.filename || "")}</div>
+                        <div style="margin-top: 8px;">写入规则数量：${escapeHtml(result.operations_written ?? 0)}</div>
+                    `,
+                    "success",
+                    true
+                );
+            } catch (error) {
+                operationPreviewState = {
+                    operations: [],
+                    warnings: [],
+                    search: "",
+                    sortBy: "rule_id",
+                    expanded: {}
+                };
+                renderOperationPreviewPanel();
+                showOperationPreviewStatus(`${t("exportTemplateRuleExcelWithPreviewFailed")}\uff1a${error.message || error}`, "error");
+                showTemplateRuleExcelMessage(`${t("exportTemplateRuleExcelWithPreviewFailed")}\uff1a${error.message || error}`, "error");
+            } finally {
+                if (exportButton) {
+                    exportButton.textContent = t("exportTemplateRuleExcelWithPreview");
                     updateTemplateRuleExcelState();
                 }
             }
@@ -3782,12 +3873,16 @@
         document.getElementById("cancelExcelRulesButton").addEventListener("click", hideExcelRulesEditor);
         document.getElementById("exportRuleExcelButton").addEventListener("click", exportRuleExcel);
         document.getElementById("previewTemplateRuleOperationsButton").addEventListener("click", previewTemplateRuleOperations);
+        document.getElementById("exportTemplateRuleExcelWithPreviewButton").addEventListener("click", exportTemplateRuleExcelWithPreview);
         document.getElementById("exportTemplateRuleExcelButton").addEventListener("click", exportTemplateRuleExcel);
         document.getElementById("excelRuleTemplateSelect").addEventListener("change", () => {
             resetOperationPreviewPanel();
             updateTemplateRuleExcelState();
         });
-        document.getElementById("templateRuleExcelPath").addEventListener("change", updateTemplateRuleExcelState);
+        document.getElementById("templateRuleExcelPath").addEventListener("change", () => {
+            resetOperationPreviewPanel();
+            updateTemplateRuleExcelState();
+        });
         document.getElementById("operationPreviewSearch").addEventListener("input", event => {
             operationPreviewState.search = event.target.value;
             renderOperationPreviewList();
