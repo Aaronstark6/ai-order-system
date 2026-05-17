@@ -263,6 +263,86 @@
             background: #166534;
         }
 
+        .history-panel {
+            margin-top: 22px;
+            padding: 22px;
+            border: 1px solid #d9e2ec;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .history-title {
+            margin: 0;
+            color: #0f172a;
+            font-size: 20px;
+        }
+
+        .secondary-button {
+            min-width: 96px;
+            height: 38px;
+            border-color: #cbd5e1;
+            background: #fff;
+            color: #1e293b;
+            font-size: 14px;
+        }
+
+        .secondary-button:hover {
+            border-color: #94a3b8;
+            background: #f8fafc;
+        }
+
+        .history-table-wrap {
+            overflow-x: auto;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+        }
+
+        .history-table th,
+        .history-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #edf2f7;
+            text-align: left;
+            vertical-align: top;
+            white-space: nowrap;
+        }
+
+        .history-table th {
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 700;
+            background: #f8fafc;
+        }
+
+        .history-table td {
+            color: #1f2937;
+            font-size: 14px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #ecfdf5;
+            color: #15803d;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
         details {
             margin-top: 18px;
             border: 1px solid #e2e8f0;
@@ -307,7 +387,8 @@
             .flow-list,
             .result-grid,
             .upload-row,
-            .export-header {
+            .export-header,
+            .history-header {
                 grid-template-columns: 1fr;
                 display: grid;
             }
@@ -353,6 +434,15 @@
             <div id="message" class="state" style="display: none;"></div>
             <div id="resultArea" style="display: none;"></div>
         </section>
+
+        <section class="history-panel">
+            <div class="history-header">
+                <h2 class="history-title">已学习模板</h2>
+                <button id="refreshTemplateHistoryButton" class="button secondary-button" type="button">刷新列表</button>
+            </div>
+            <div id="templateHistoryMessage" class="state" style="display: none;"></div>
+            <div id="templateHistoryContent"></div>
+        </section>
     </main>
 
     <script>
@@ -361,6 +451,9 @@
         const startButton = document.getElementById("startButton");
         const message = document.getElementById("message");
         const resultArea = document.getElementById("resultArea");
+        const templateHistoryMessage = document.getElementById("templateHistoryMessage");
+        const templateHistoryContent = document.getElementById("templateHistoryContent");
+        const refreshTemplateHistoryButton = document.getElementById("refreshTemplateHistoryButton");
         let currentWorkbenchResult = null;
         let currentExportResult = null;
 
@@ -388,6 +481,87 @@
 
         function sourceLabel(source) {
             return source === "cache" ? "缓存" : "AI解析";
+        }
+
+        function templateSourceLabel(source) {
+            if (source === "cache") {
+                return "缓存";
+            }
+            if (source === "ai_template_parser") {
+                return "AI自动解析";
+            }
+            return source ? String(source) : "-";
+        }
+
+        function setTemplateHistoryMessage(text, type) {
+            templateHistoryMessage.className = `state ${type || ""}`.trim();
+            templateHistoryMessage.textContent = text;
+            templateHistoryMessage.style.display = "block";
+        }
+
+        function hideTemplateHistoryMessage() {
+            templateHistoryMessage.textContent = "";
+            templateHistoryMessage.style.display = "none";
+        }
+
+        function renderTemplateHistory(templates) {
+            const rows = Array.isArray(templates) ? templates : [];
+            if (!rows.length) {
+                templateHistoryContent.innerHTML = `
+                    <div class="state">暂无已学习模板，请先上传模板进行智能解析。</div>
+                `;
+                return;
+            }
+
+            templateHistoryContent.innerHTML = `
+                <div class="history-table-wrap">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>模板编号</th>
+                                <th>规则数量</th>
+                                <th>来源</th>
+                                <th>创建时间</th>
+                                <th>更新时间</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.short_hash || "-")}</td>
+                                    <td>${Number(item.rules_count || 0)}</td>
+                                    <td>${escapeHtml(templateSourceLabel(item.source))}</td>
+                                    <td>${escapeHtml(item.created_at || "-")}</td>
+                                    <td>${escapeHtml(item.updated_at || "-")}</td>
+                                    <td><span class="status-pill">${item.warning ? "需检查" : "已学习"}</span></td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        async function loadTemplateHistory() {
+            hideTemplateHistoryMessage();
+            refreshTemplateHistoryButton.disabled = true;
+            refreshTemplateHistoryButton.textContent = "刷新中...";
+
+            try {
+                const response = await fetch("/api/v4/template/cache-list");
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "已学习模板列表加载失败");
+                }
+                renderTemplateHistory(result.templates || []);
+            } catch (error) {
+                templateHistoryContent.innerHTML = "";
+                setTemplateHistoryMessage(`已学习模板列表加载失败：${error.message || error}`, "error");
+            } finally {
+                refreshTemplateHistoryButton.disabled = false;
+                refreshTemplateHistoryButton.textContent = "刷新列表";
+            }
         }
 
         function renderResult(data) {
@@ -580,6 +754,7 @@
                     throw new Error(result.error || "智能解析失败");
                 }
                 renderResult(result.data || result);
+                loadTemplateHistory();
             } catch (error) {
                 setMessage(`智能解析失败：${error.message || error}`, "error");
             } finally {
@@ -603,7 +778,9 @@
             }
         });
 
+        refreshTemplateHistoryButton.addEventListener("click", loadTemplateHistory);
         startButton.addEventListener("click", startSmartParse);
+        loadTemplateHistory();
     </script>
 </body>
 </html>

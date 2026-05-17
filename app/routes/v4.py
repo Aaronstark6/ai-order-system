@@ -22,7 +22,7 @@ from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
-from app.v4_template_cache import save_fingerprint
+from app.v4_template_cache import list_cached_templates, save_fingerprint
 from app.v4_template_fingerprint import SUPPORTED_SUFFIXES, build_template_fingerprint
 from app.v4_template_matcher import match_or_parse_template, match_template
 from app.v4_template_rule_executor import (
@@ -420,6 +420,23 @@ def api_v4_template_match_or_parse(file: Optional[UploadFile] = File(None)):
         }
     finally:
         _remove_v4_uploaded_template(temp_path)
+
+
+@router.get("/api/v4/template/cache-list")
+def api_v4_template_cache_list():
+    try:
+        templates = list_cached_templates()
+        return {
+            "success": True,
+            "templates": templates,
+        }
+    except Exception as exc:
+        logger.exception("V4 template cache list failed")
+        return {
+            "success": False,
+            "error": f"已学习模板列表加载失败：{exc}",
+            "templates": [],
+        }
 
 
 def _load_workbench_example_order(example_order_text: str = ""):

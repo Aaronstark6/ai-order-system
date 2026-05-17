@@ -3,14 +3,15 @@
 import json
 import re
 from datetime import datetime
-from pathlib import Path
 
+from app.logger import get_logger
 from app.runtime_paths import get_base_dir
 
 
 LAYOUT_HASH_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 TEMPLATE_CACHE_SOURCE = "ai_template_parser"
 TEMPLATE_CACHE_PARSER_VERSION = "V4.17"
+logger = get_logger(__name__)
 
 
 def _now_text():
@@ -120,3 +121,76 @@ def save_meta(layout_hash, meta):
     meta_path = get_cache_path(layout_hash) / "meta.json"
     _write_json(meta_path, payload)
     return payload
+
+
+def _safe_read_cache_json(path, default=None):
+    try:
+        return _read_json(path, default)
+    except Exception as exc:
+        logger.warning("V4 template cache JSON read failed: path=%s error=%s", path, exc)
+        return default
+
+
+def _cached_template_item(cache_path):
+    layout_hash = cache_path.name
+    warning = ""
+
+    if not LAYOUT_HASH_PATTERN.fullmatch(layout_hash):
+        warning = "缓存目录名称不是合法 layout_hash"
+
+    meta = _safe_read_cache_json(cache_path / "meta.json", {}) or {}
+    fingerprint = _safe_read_cache_json(cache_path / "fingerprint.json", {}) or {}
+    rules = _safe_read_cache_json(cache_path / "rules.json", None)
+
+    if not isinstance(meta, dict):
+        meta = {}
+        warning = warning or "meta.json 不是对象"
+    if not isinstance(fingerprint, dict):
+        fingerprint = {}
+        warning = warning or "fingerprint.json 不是对象"
+
+    if rules is None:
+        rules_count = int(meta.get("rules_count") or 0)
+        warning = warning or "rules.json 不存在或读取失败"
+    elif isinstance(rules, list):
+        rules_count = len(rules)
+    else:
+        rules_count = int(meta.get("rules_count") or 0)
+        warning = warning or "rules.json 不是数组"
+
+    sheet_names = fingerprint.get("sheet_names")
+    sheet_count = len(sheet_names) if isinstance(sheet_names, list) else 0
+
+    item = {
+        "layout_hash": layout_hash,
+        "short_hash": layout_hash[:8],
+        "created_at": meta.get("created_at", ""),
+        "updated_at": meta.get("updated_at", ""),
+        "source": meta.get("source", ""),
+        "parser_version": meta.get("parser_version", ""),
+        "rules_count": rules_count,
+        "sheet_count": sheet_count,
+        "cached": True,
+    }
+    if warning:
+        item["warning"] = warning
+    return item
+
+
+def list_cached_templates():
+    cache_dir = ensure_cache_dir()
+    templates = []
+
+    for cache_path in sorted(cache_dir.iterdir(), key=lambda item: item.name):
+        if not cache_path.is_dir():
+            continue
+        try:
+            templates.append(_cached_template_item(cache_path))
+        except Exception as exc:
+            logger.warning("V4 template cache directory skipped: path=%s error=%s", cache_path, exc)
+
+    return sorted(
+        templates,
+        key=lambda item: (item.get("updated_at") or item.get("created_at") or "", item.get("layout_hash", "")),
+        reverse=True,
+    )
