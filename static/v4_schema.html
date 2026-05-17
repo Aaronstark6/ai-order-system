@@ -538,6 +538,51 @@
             margin-bottom: 12px;
         }
 
+        .template-fingerprint-card {
+            display: grid;
+            gap: 14px;
+        }
+
+        .template-fingerprint-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .template-fingerprint-controls input[type="file"] {
+            min-width: min(360px, 100%);
+            height: 36px;
+            padding: 6px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #111827;
+            font-size: 14px;
+        }
+
+        .template-fingerprint-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .template-fingerprint-json {
+            max-height: 320px;
+            margin: 0;
+            padding: 12px;
+            overflow: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #f8fafc;
+            color: #111827;
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            font-size: 13px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         .operation-list {
             display: grid;
             gap: 8px;
@@ -726,6 +771,33 @@
         </div>
 
         <div class="state notice">&#24403;&#21069;&#20026; V4 &#23454;&#39564;&#21151;&#33021;&#65292;&#20445;&#23384;&#21069;&#20250;&#33258;&#21160;&#22791;&#20221;&#26087; schema&#12290;</div>
+        <section class="section" id="templateFingerprintSection">
+            <div class="section-header">
+                <h2>模板指纹与缓存测试</h2>
+            </div>
+            <article class="card template-fingerprint-card">
+                <div class="template-fingerprint-controls">
+                    <input id="templateFingerprintFile" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
+                    <button id="generateTemplateFingerprintButton" class="button primary" type="button">生成模板指纹</button>
+                    <button id="checkTemplateCacheButton" class="button" type="button">检查模板缓存</button>
+                </div>
+                <div id="templateFingerprintMessage" class="state" style="display: none;"></div>
+                <div id="templateFingerprintSummary" class="template-fingerprint-summary" style="display: none;"></div>
+                <article id="templateKeywordPreviewPanel" style="display: none;">
+                    <div class="card-header">
+                        <h3 class="card-title">关键词单元格预览</h3>
+                    </div>
+                    <div id="templateKeywordPreview"></div>
+                </article>
+                <article id="templateCacheResultPanel" style="display: none;">
+                    <div class="card-header">
+                        <h3 class="card-title">缓存检查结果</h3>
+                    </div>
+                    <div id="templateCacheResult"></div>
+                </article>
+            </article>
+        </section>
+
         <section id="schemaEditor" class="schema-editor" style="display: none;">
             <h2 class="editor-tool-title">V4 Schema &#32534;&#36753;&#24037;&#20855;</h2>
             <div id="schemaValidationResult" class="state" style="display: none;"></div>
@@ -1245,6 +1317,172 @@
                 return JSON.stringify(value);
             }
             return String(value);
+        }
+
+        function getTemplateFingerprintFile() {
+            const input = document.getElementById("templateFingerprintFile");
+            if (!input.files || !input.files.length) {
+                throw new Error("请先选择 Excel 模板文件");
+            }
+            return input.files[0];
+        }
+
+        function showTemplateFingerprintMessage(message, type) {
+            const box = document.getElementById("templateFingerprintMessage");
+            box.classList.remove("error", "success", "warning-message");
+            if (type) {
+                box.classList.add(type);
+            }
+            box.textContent = message;
+            box.style.display = "block";
+        }
+
+        function resetTemplateFingerprintPanels() {
+            document.getElementById("templateFingerprintSummary").style.display = "none";
+            document.getElementById("templateFingerprintSummary").innerHTML = "";
+            document.getElementById("templateKeywordPreviewPanel").style.display = "none";
+            document.getElementById("templateKeywordPreview").innerHTML = "";
+            document.getElementById("templateCacheResultPanel").style.display = "none";
+            document.getElementById("templateCacheResult").innerHTML = "";
+            const message = document.getElementById("templateFingerprintMessage");
+            message.classList.remove("error", "success", "warning-message");
+            message.textContent = "";
+            message.style.display = "none";
+        }
+
+        function renderTemplateFingerprintSummary(fingerprint) {
+            const summary = document.getElementById("templateFingerprintSummary");
+            const sheetCount = Array.isArray(fingerprint.sheet_names) ? fingerprint.sheet_names.length : 0;
+            const mergedCount = Array.isArray(fingerprint.merged_ranges) ? fingerprint.merged_ranges.length : 0;
+            const nonEmptyCount = Number(fingerprint.non_empty_cells_count || 0);
+            const truncatedText = fingerprint.non_empty_cells_truncated ? "（已按 1000 个限制截断）" : "";
+
+            summary.innerHTML = `
+                <div class="summary-item">
+                    <div class="label">模板哈希（layout_hash）</div>
+                    <div class="value code">${escapeHtml(fingerprint.layout_hash || "")}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">工作表数量</div>
+                    <div class="value">${sheetCount}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">合并单元格数量</div>
+                    <div class="value">${mergedCount}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">非空单元格数量</div>
+                    <div class="value">${nonEmptyCount}${truncatedText}</div>
+                </div>
+            `;
+            summary.style.display = "grid";
+        }
+
+        function renderTemplateKeywordPreview(fingerprint) {
+            const panel = document.getElementById("templateKeywordPreviewPanel");
+            const content = document.getElementById("templateKeywordPreview");
+            const keywordCells = Array.isArray(fingerprint.keyword_cells) ? fingerprint.keyword_cells.slice(0, 30) : [];
+
+            if (!keywordCells.length) {
+                content.innerHTML = `<div class="state">未发现关键词单元格</div>`;
+                panel.style.display = "block";
+                return;
+            }
+
+            content.innerHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>工作表</th>
+                            <th>单元格</th>
+                            <th>内容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${keywordCells.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.sheet || "")}</td>
+                                <td>${escapeHtml(item.cell || "")}</td>
+                                <td>${escapeHtml(item.value || "")}</td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            `;
+            panel.style.display = "block";
+        }
+
+        function renderTemplateCacheResult(matchResult) {
+            const panel = document.getElementById("templateCacheResultPanel");
+            const content = document.getElementById("templateCacheResult");
+            const cacheHit = Boolean(matchResult.cache_hit);
+            const cachedRules = matchResult.cached_rules;
+
+            if (cacheHit) {
+                content.innerHTML = `
+                    <div class="state success">命中缓存，已找到可复用规则。</div>
+                    <pre class="template-fingerprint-json">${escapeHtml(JSON.stringify(cachedRules, null, 2))}</pre>
+                `;
+            } else {
+                content.innerHTML = `<div class="state warning-message">未命中缓存，可进入 AI 自动解析流程</div>`;
+            }
+            panel.style.display = "block";
+        }
+
+        async function postTemplateFingerprintFile(url) {
+            const formData = new FormData();
+            formData.append("file", getTemplateFingerprintFile());
+
+            const response = await fetch(url, {
+                method: "POST",
+                body: formData
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || "模板处理失败");
+            }
+            return result.data || result;
+        }
+
+        async function generateTemplateFingerprint() {
+            const button = document.getElementById("generateTemplateFingerprintButton");
+            resetTemplateFingerprintPanels();
+            button.disabled = true;
+            button.textContent = "生成中...";
+            showTemplateFingerprintMessage("正在生成模板指纹...", "");
+
+            try {
+                const fingerprint = await postTemplateFingerprintFile("/api/v4/template/fingerprint");
+                renderTemplateFingerprintSummary(fingerprint);
+                renderTemplateKeywordPreview(fingerprint);
+                showTemplateFingerprintMessage("模板指纹生成成功", "success");
+            } catch (error) {
+                showTemplateFingerprintMessage(`模板指纹生成失败：${error.message || error}`, "error");
+            } finally {
+                button.disabled = false;
+                button.textContent = "生成模板指纹";
+            }
+        }
+
+        async function checkTemplateCache() {
+            const button = document.getElementById("checkTemplateCacheButton");
+            resetTemplateFingerprintPanels();
+            button.disabled = true;
+            button.textContent = "检查中...";
+            showTemplateFingerprintMessage("正在检查模板缓存...", "");
+
+            try {
+                const matchResult = await postTemplateFingerprintFile("/api/v4/template/match");
+                renderTemplateFingerprintSummary(matchResult.fingerprint || {});
+                renderTemplateKeywordPreview(matchResult.fingerprint || {});
+                renderTemplateCacheResult(matchResult);
+                showTemplateFingerprintMessage("模板缓存检查完成", matchResult.cache_hit ? "success" : "warning-message");
+            } catch (error) {
+                showTemplateFingerprintMessage(`模板缓存检查失败：${error.message || error}`, "error");
+            } finally {
+                button.disabled = false;
+                button.textContent = "检查模板缓存";
+            }
         }
 
         function formatExample(field) {
@@ -4311,6 +4549,9 @@
         }
 
         document.getElementById("editSchemaButton").addEventListener("click", showSchemaEditor);
+        document.getElementById("templateFingerprintFile").addEventListener("change", resetTemplateFingerprintPanels);
+        document.getElementById("generateTemplateFingerprintButton").addEventListener("click", generateTemplateFingerprint);
+        document.getElementById("checkTemplateCacheButton").addEventListener("click", checkTemplateCache);
         document.getElementById("editExcelRulesButton").addEventListener("click", showExcelRulesEditor);
         document.getElementById("saveExcelRulesButton").addEventListener("click", saveExcelRulesFromEditor);
         document.getElementById("cancelExcelRulesButton").addEventListener("click", hideExcelRulesEditor);

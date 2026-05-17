@@ -1,10 +1,12 @@
 import json
 import re
+import shutil
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, File, UploadFile
 from fastapi.responses import FileResponse
 
 from app.logger import get_logger
@@ -18,6 +20,9 @@ from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
+from app.v4_template_cache import save_fingerprint
+from app.v4_template_fingerprint import SUPPORTED_SUFFIXES, build_template_fingerprint
+from app.v4_template_matcher import match_template
 from app.v4_template_rule_executor import (
     execute_ai_template_to_excel,
     execute_rules_to_template_excel,
@@ -29,6 +34,35 @@ from app.v4_validator import validate_example_order
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+def _save_v4_uploaded_template(file: UploadFile):
+    original_name = Path(file.filename or "").name
+    suffix = Path(original_name).suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise ValueError("仅支持 .xlsx、.xlsm、.xltx、.xltm 格式的 Excel 模板")
+
+    upload_dir = get_base_dir() / "data" / "v4_template_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    stem = _safe_output_filename_part(Path(original_name).stem or "template")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{stem}_{timestamp}_{uuid.uuid4().hex[:8]}{suffix}"
+    output_path = upload_dir / filename
+
+    with output_path.open("wb") as buffer:
+        file.file.seek(0)
+        shutil.copyfileobj(file.file, buffer)
+
+    return output_path
+
+
+def _remove_v4_uploaded_template(path):
+    if not path:
+        return
+    try:
+        Path(path).unlink(missing_ok=True)
+    except Exception:
+        logger.warning("V4 temporary template cleanup failed: path=%s", path, exc_info=True)
 
 
 @router.get("/api/v4/health")
@@ -184,6 +218,67 @@ def api_v4_download_output_file(filename: str):
         filename=output_path.name,
         media_type=media_type,
     )
+
+
+@router.post("/api/v4/template/fingerprint")
+def api_v4_template_fingerprint(file: UploadFile = File(...)):
+    temp_path = None
+    try:
+        logger.info("V4 template fingerprint requested: filename=%s", file.filename)
+        temp_path = _save_v4_uploaded_template(file)
+        fingerprint = build_template_fingerprint(temp_path)
+        save_fingerprint(fingerprint)
+        return {
+            "success": True,
+            "data": fingerprint,
+            "fingerprint": fingerprint,
+            "layout_hash": fingerprint.get("layout_hash", ""),
+        }
+    except ValueError as exc:
+        logger.info("V4 template fingerprint rejected: filename=%s error=%s", file.filename, exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except Exception as exc:
+        logger.exception("V4 template fingerprint failed: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": f"模板指纹生成失败：{exc}",
+        }
+    finally:
+        _remove_v4_uploaded_template(temp_path)
+
+
+@router.post("/api/v4/template/match")
+def api_v4_template_match(file: UploadFile = File(...)):
+    temp_path = None
+    try:
+        logger.info("V4 template match requested: filename=%s", file.filename)
+        temp_path = _save_v4_uploaded_template(file)
+        result = match_template(temp_path)
+        return {
+            "success": True,
+            "data": result,
+            "cache_hit": result.get("cache_hit", False),
+            "layout_hash": result.get("layout_hash", ""),
+            "fingerprint": result.get("fingerprint"),
+            "cached_rules": result.get("cached_rules"),
+        }
+    except ValueError as exc:
+        logger.info("V4 template match rejected: filename=%s error=%s", file.filename, exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except Exception as exc:
+        logger.exception("V4 template match failed: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": f"模板缓存检查失败：{exc}",
+        }
+    finally:
+        _remove_v4_uploaded_template(temp_path)
 
 
 @router.get("/api/v4/excel-render-rules")

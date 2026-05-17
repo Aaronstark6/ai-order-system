@@ -1,0 +1,393 @@
+{
+  "sheet_names": [
+    "AN113GLMS"
+  ],
+  "merged_ranges": [
+    {
+      "sheet": "AN113GLMS",
+      "range": "B3:F3"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C4:D4"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C5:D5"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C6:D6"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "B7:F7"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "B13:F13"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C15:F15"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C16:F16"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "D17:F17"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "D18:F18"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "D19:F19"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C21:F21"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C23:F23"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C24:F24"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "B8:B12"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "B14:B15"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "B20:B21"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "B22:B23"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "G3:K7"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "range": "C11:F12"
+    }
+  ],
+  "non_empty_cells_count": 60,
+  "non_empty_cells_limit": 1000,
+  "non_empty_cells_truncated": false,
+  "keyword_cells": [
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B3",
+      "value": "定制品订单生产要求"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "G3",
+      "value": "产品代号命名原则，\n备货单号--业务员简写+产品序列+产品英文首字母\n如：1. 姜黄素胶囊\n2. 苹果醋胶囊\n编号1：AMY-GS20240117A1--AY1CU\n编号2：AMY-GS20240117A1--AY2AC"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B4",
+      "value": "文档编号:"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C4",
+      "value": "Anna-GS20260113A01--AN113GLMS"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E4",
+      "value": "日期:"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "F4",
+      "value": "2026.01.13"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B5",
+      "value": "客户名称:"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C5",
+      "value": "Zahola Károly"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E5",
+      "value": "客户性质:"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "F5",
+      "value": "零售"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B6",
+      "value": "数量："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C6",
+      "value": "1666瓶"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E6",
+      "value": "负责人:"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "F6",
+      "value": "李娜"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B7",
+      "value": "产品描述"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B8",
+      "value": "产品详细\n要求"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C8",
+      "value": "       软胶囊"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D8",
+      "value": "       片剂"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E8",
+      "value": "       固体饮料"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "F8",
+      "value": "       软糖"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C9",
+      "value": "胶囊壳大小：毛重700mg"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D9",
+      "value": "大小/克重："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E9",
+      "value": "大小/克重："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "F9",
+      "value": "大小/克重："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C10",
+      "value": "胶囊壳颜色：透明（软胶囊）"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D10",
+      "value": "是否包衣：是/否\n包衣颜色："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E10",
+      "value": "其他要求："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "F10",
+      "value": "其他要求："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "G10",
+      "value": "瓶子、胶囊壳等附图片"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C11",
+      "value": "名称：绿唇贻贝油软胶囊\n代码：AN113GLMS（软胶囊---新品）\n数量：1666瓶\n规格：30 粒/瓶\n形状：小椭圆（如图 橄榄型 毛重700mg）\n颜色：透明软壳\n\n配方要求：\n300 mg New Zealand Green-Lipped Mussel Oil (Perna canaliculus oil) lipid extract (PCSO-524® type)\n300毫克新西兰绿唇贻贝油（Perna canaliculus油）脂质提取物（PCSO-524®型）\n\n199.55 mg organic extra virgin olive oil\n199.55毫克有机特级初榨橄榄油\n\n0.45 mg organic vitamin E\n0.45毫克有机维生素E\n(Total content per softgel capsule: 500 mg liquid)\n（每粒软胶囊总含量：500毫克;毛重需要做到700mg）"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B13",
+      "value": "包装要求"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B14",
+      "value": "容器要求"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C14",
+      "value": "       瓶装"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D14",
+      "value": "       袋装"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E14",
+      "value": "       其他"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C15",
+      "value": "容量 100ml 颜色：琥珀色（如图） 盖子：黑色（如图）"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B16",
+      "value": "装量要求"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C16",
+      "value": "30粒/瓶"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B17",
+      "value": "容器内填充物要求"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C17",
+      "value": "瓶内放置物："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D17",
+      "value": "默认干燥剂"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B18",
+      "value": "瓶口密封方式"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C18",
+      "value": "瓶子密封："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D18",
+      "value": "铝箔密封"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "J18",
+      "value": "                                        "
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B19",
+      "value": "盖子密封方式"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C19",
+      "value": "袋口密封："
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D19",
+      "value": "瓶口热塑封"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B20",
+      "value": "标签要求"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C20",
+      "value": "   客户设计制作"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D20",
+      "value": "   我司设计制作"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E20",
+      "value": "   不贴标签"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "F20",
+      "value": "   其他"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C21",
+      "value": "我们负责打印制作"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B22",
+      "value": "生产日期/批号"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "C22",
+      "value": "   不打批号日期"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "D22",
+      "value": "   瓶底打批号日期"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "E22",
+      "value": "   标签打批号日期"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "F22",
+      "value": "   其他"
+    },
+    {
+      "sheet": "AN113GLMS",
+      "cell": "B24",
+      "value": "其他要求"
+    }
+  ],
+  "layout_hash": "b16d36586a4a4776178f1dd3315c0146cbe1d823b2e8291c1b62aba56f6b66a7"
+}
