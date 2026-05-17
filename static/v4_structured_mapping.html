@@ -332,6 +332,38 @@
 
         <section class="panel">
             <div class="panel-header">
+                <div class="panel-title">模板区块分析</div>
+            </div>
+            <div class="panel-body">
+                <div class="locator-row">
+                    <label class="file-control">
+                        上传 Excel 模板
+                        <input id="blockTemplateInput" type="file" accept=".xlsx" onchange="handleBlockTemplateChange(event)">
+                    </label>
+                    <div class="locator-file-name" id="blockTemplateName">当前模板：未选择</div>
+                    <button class="btn-secondary" type="button" onclick="scanTemplateBlocks()">扫描模板区块</button>
+                </div>
+                <div id="blockMessageBox"></div>
+                <div class="table-wrap">
+                    <table class="mapping-table">
+                        <thead>
+                            <tr>
+                                <th>区块名称</th>
+                                <th>Sheet</th>
+                                <th>命中标签</th>
+                                <th>范围</th>
+                            </tr>
+                        </thead>
+                        <tbody id="blockRows">
+                            <tr><td colspan="4">尚未扫描模板区块。</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
                 <div class="panel-title">映射列表</div>
             </div>
             <div class="panel-body">
@@ -387,6 +419,8 @@
         };
         let locatorTemplateFile = null;
         let locatorResult = null;
+        let blockTemplateFile = null;
+        let blockResult = null;
 
         function setStatus(text) {
             document.getElementById('statusText').textContent = text;
@@ -399,6 +433,11 @@
 
         function showLocatorMessage(text, type) {
             const box = document.getElementById('locatorMessageBox');
+            box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
+        }
+
+        function showBlockMessage(text, type) {
+            const box = document.getElementById('blockMessageBox');
             box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
         }
 
@@ -660,6 +699,95 @@
             updatePreview();
             showLocatorMessage(`已应用 ${updatedCount} 条定位结果，请保存映射。`, 'success');
             setStatus('定位结果已应用');
+        }
+
+        function handleBlockTemplateChange(event) {
+            blockTemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
+            document.getElementById('blockTemplateName').textContent = blockTemplateFile
+                ? `当前模板：${blockTemplateFile.name}`
+                : '当前模板：未选择';
+            showBlockMessage('', '');
+            setStatus(blockTemplateFile ? `已选择模板：${blockTemplateFile.name}` : '请先上传 Excel 模板');
+        }
+
+        async function scanTemplateBlocks() {
+            if (!blockTemplateFile) {
+                showBlockMessage('请先上传 Excel 模板', 'error');
+                setStatus('请先上传 Excel 模板');
+                return;
+            }
+
+            setStatus('正在扫描模板区块');
+            showBlockMessage('', '');
+            try {
+                const formData = new FormData();
+                formData.append('template_file', blockTemplateFile);
+
+                const response = await fetch('/api/v4/scan-template-blocks', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                blockResult = result;
+                renderBlockRows();
+                if (!result.success) {
+                    showBlockMessage(result.error || '模板区块扫描失败', 'error');
+                    setStatus(result.error || '模板区块扫描失败');
+                    return;
+                }
+
+                const blocks = Array.isArray(result.blocks) ? result.blocks : [];
+                if (!blocks.length) {
+                    showBlockMessage('未识别到模板区块', 'error');
+                    setStatus('未识别到模板区块');
+                    return;
+                }
+
+                const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+                showBlockMessage(warnings.length ? `模板区块扫描完成，存在 ${warnings.length} 条提示。` : '模板区块扫描完成', 'success');
+                setStatus('模板区块扫描完成');
+            } catch (error) {
+                blockResult = null;
+                renderBlockRows();
+                showBlockMessage('模板区块扫描失败', 'error');
+                setStatus('模板区块扫描失败');
+            }
+        }
+
+        function renderBlockRows() {
+            const rows = document.getElementById('blockRows');
+            const blocks = Array.isArray(blockResult?.blocks) ? blockResult.blocks : [];
+            const warnings = Array.isArray(blockResult?.warnings) ? blockResult.warnings : [];
+
+            if (!blocks.length) {
+                rows.innerHTML = '<tr><td colspan="4">尚未扫描模板区块。</td></tr>';
+                if (warnings.length) {
+                    showBlockMessage(warnings.join('；'), 'error');
+                }
+                return;
+            }
+
+            rows.innerHTML = blocks.map(block => {
+                const labels = Array.isArray(block.matched_labels)
+                    ? block.matched_labels.map(item => `${item.label || ''}(${item.cell || ''})`).join('、')
+                    : '';
+                return `
+                    <tr>
+                        <td>${escapeHtml(block.block_name || '')}</td>
+                        <td>${escapeHtml(block.sheet || '')}</td>
+                        <td>${escapeHtml(labels)}</td>
+                        <td>${escapeHtml(block.range || '')}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (warnings.length) {
+                showBlockMessage(warnings.join('；'), 'success');
+            }
         }
 
         function collectMapping() {

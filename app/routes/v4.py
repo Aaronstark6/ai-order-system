@@ -1030,6 +1030,44 @@ def api_v4_scan_template_labels(
         _remove_v4_uploaded_template(template_path)
 
 
+@router.post("/api/v4/scan-template-blocks")
+def api_v4_scan_template_blocks(template_file: UploadFile = File(...)):
+    from app.v4_block_locator import load_block_rules, scan_template_blocks
+
+    logger.info("[BlockLocator] Template block scan requested: filename=%s", template_file.filename)
+    template_path = None
+    try:
+        template_path = _save_v4_core_excel_template(template_file)
+        result = scan_template_blocks(template_path, load_block_rules())
+        if not result.get("success"):
+            return {
+                "success": False,
+                "blocks": result.get("blocks", []),
+                "warnings": result.get("warnings", []),
+                "error": (result.get("warnings") or ["模板区块扫描失败"])[0],
+            }
+
+        return result
+    except ValueError as exc:
+        logger.info("[BlockLocator] Template block scan rejected: error=%s", exc)
+        return {
+            "success": False,
+            "blocks": [],
+            "warnings": [str(exc) or "请先上传 Excel 模板"],
+            "error": str(exc) or "请先上传 Excel 模板",
+        }
+    except Exception as exc:
+        logger.exception("[BlockLocator] Template block scan failed")
+        return {
+            "success": False,
+            "blocks": [],
+            "warnings": [str(exc) or "模板区块扫描失败"],
+            "error": str(exc) or "模板区块扫描失败",
+        }
+    finally:
+        _remove_v4_uploaded_template(template_path)
+
+
 @router.post("/api/v4/core-pipeline/export-real-excel")
 def api_v4_core_pipeline_export_real_excel(
     template_file: UploadFile = File(...),

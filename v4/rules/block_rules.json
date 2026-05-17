@@ -1,0 +1,27 @@
+{
+  "version": "V4-Core.13",
+  "blocks": [
+    {
+      "block_name": "产品信息",
+      "anchor_labels": [
+        "产品名称",
+        "产品类型"
+      ]
+    },
+    {
+      "block_name": "配方要求",
+      "anchor_labels": [
+        "配方要求",
+        "原料名",
+        "含量"
+      ]
+    },
+    {
+      "block_name": "包装要求",
+      "anchor_labels": [
+        "包装规格",
+        "包装要求"
+      ]
+    }
+  ]
+}
