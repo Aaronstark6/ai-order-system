@@ -65,6 +65,12 @@ def execute_operations_to_excel(template_path, operations):
             "warnings": warnings,
         }
 
+    table_operations_count = sum(
+        1
+        for operation in operations
+        if isinstance(operation, dict) and str(operation.get("table_name") or "").strip()
+    )
+
     try:
         wb = load_workbook(template)
     except (InvalidFileException, OSError, ValueError) as exc:
@@ -120,9 +126,10 @@ def execute_operations_to_excel(template_path, operations):
         wb.save(output_path)
 
         logger.info(
-            "[CoreExcelExecutor] Real Excel generated: path=%s operations=%s warnings=%s",
+            "[CoreExcelExecutor] Real Excel generated: path=%s operations=%s table_operations=%s warnings=%s",
             output_path,
             operations_written,
+            table_operations_count,
             len(warnings),
         )
         return {

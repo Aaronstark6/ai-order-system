@@ -1,0 +1,27 @@
+{
+  "version": "V4-Core.14",
+  "tables": [
+    {
+      "table_name": "配方表",
+      "source_path": "product.tables.formula_items",
+      "start_cell": "A10",
+      "columns": [
+        {
+          "label": "原料名",
+          "field": "name",
+          "target_col": "A"
+        },
+        {
+          "label": "含量",
+          "field": "amount",
+          "target_col": "B"
+        },
+        {
+          "label": "百分比",
+          "field": "percentage",
+          "target_col": "C"
+        }
+      ]
+    }
+  ]
+}

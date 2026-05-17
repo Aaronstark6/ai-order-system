@@ -27,6 +27,7 @@ DEFAULT_ORDER_OBJECT = {
         "product_type": "",
         "product_name": "",
         "fields": {},
+        "tables": {},
     },
     "document": {
         "salesperson_code": "",
@@ -97,7 +98,7 @@ def _normalize_order_object(data):
 
         for key, default_value in defaults.items():
             value = source_section.get(key, default_value)
-            if section == "product" and key == "fields":
+            if section == "product" and key in {"fields", "tables"}:
                 normalized[section][key] = value if isinstance(value, dict) else {}
             else:
                 normalized[section][key] = "" if value is None else str(value)
