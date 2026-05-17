@@ -135,6 +135,24 @@ def _safe_read_cache_json(path, default=None):
         return default
 
 
+def _calculate_template_quality(rules_count, warning_text):
+    rules_count = int(rules_count or 0)
+    warning_text = str(warning_text or "")
+    warning_count = len(warning_text.split("；")) if warning_text else 0
+
+    if rules_count >= 4 and warning_count == 0:
+        quality_level = "优秀"
+        quality_message = "规则数量充足，未发现明显警告。"
+    elif rules_count >= 2 and warning_count <= 3:
+        quality_level = "可用"
+        quality_message = "规则基本可用，建议人工检查生成结果。"
+    else:
+        quality_level = "需检查"
+        quality_message = "规则数量较少或警告较多，建议查看详情或重新学习。"
+
+    return quality_level, quality_message, warning_count
+
+
 def _cached_template_item(cache_path):
     layout_hash = cache_path.name
     warning = ""
@@ -165,6 +183,8 @@ def _cached_template_item(cache_path):
     sheet_names = fingerprint.get("sheet_names")
     sheet_count = len(sheet_names) if isinstance(sheet_names, list) else 0
 
+    quality_level, quality_message, warning_count = _calculate_template_quality(rules_count, warning)
+
     item = {
         "layout_hash": layout_hash,
         "short_hash": layout_hash[:8],
@@ -177,6 +197,9 @@ def _cached_template_item(cache_path):
         "cached": True,
         "template_name": meta.get("template_name") or f"模板-{layout_hash[:8]}",
         "template_note": meta.get("template_note") or "",
+        "warning_count": warning_count,
+        "quality_level": quality_level,
+        "quality_message": quality_message,
     }
     if warning:
         item["warning"] = warning
@@ -230,6 +253,9 @@ def get_cached_template_detail(layout_hash):
     sheet_names = fingerprint.get("sheet_names")
     sheet_count = len(sheet_names) if isinstance(sheet_names, list) else 0
 
+    warning_text = "；".join(warnings)
+    quality_level, quality_message, warning_count = _calculate_template_quality(len(rules), warning_text)
+
     detail = {
         "layout_hash": hash_text,
         "short_hash": hash_text[:8],
@@ -238,7 +264,10 @@ def get_cached_template_detail(layout_hash):
         "rules": rules,
         "rules_count": len(rules),
         "sheet_count": sheet_count,
-        "warning": "；".join(warnings),
+        "warning": warning_text,
+        "warning_count": warning_count,
+        "quality_level": quality_level,
+        "quality_message": quality_message,
     }
     return detail
 

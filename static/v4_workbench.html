@@ -343,6 +343,42 @@
             font-weight: 700;
         }
 
+        .quality-pill-excellent {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: #dcfce7;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .quality-pill-usable {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .quality-pill-check {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: #fee2e2;
+            color: #991b1b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
         .table-action-button {
             height: 30px;
             min-width: 80px;
@@ -852,6 +888,16 @@
                 return;
             }
 
+            function getQualityPillClass(qualityLevel) {
+                if (qualityLevel === "优秀") {
+                    return "quality-pill-excellent";
+                } else if (qualityLevel === "可用") {
+                    return "quality-pill-usable";
+                } else {
+                    return "quality-pill-check";
+                }
+            }
+
             templateHistoryContent.innerHTML = `
                 <div class="history-table-wrap">
                     <table class="history-table">
@@ -860,6 +906,7 @@
                                 <th>模板名称</th>
                                 <th>模板编号</th>
                                 <th>规则数量</th>
+                                <th>解析质量</th>
                                 <th>来源</th>
                                 <th>创建时间</th>
                                 <th>更新时间</th>
@@ -873,6 +920,7 @@
                                     <td>${escapeHtml(item.template_name || `模板-${item.short_hash || "-"}`)}</td>
                                     <td>${escapeHtml(item.short_hash || "-")}</td>
                                     <td>${Number(item.rules_count || 0)}</td>
+                                    <td><span class="${getQualityPillClass(item.quality_level)}">${escapeHtml(item.quality_level || "-")}</span></td>
                                     <td>${escapeHtml(templateSourceLabel(item.source))}</td>
                                     <td>${escapeHtml(item.created_at || "-")}</td>
                                     <td>${escapeHtml(item.updated_at || "-")}</td>
@@ -930,6 +978,16 @@
             const currentTemplateName = meta.template_name || `模板-${detail.short_hash}`;
             const currentTemplateNote = meta.template_note || "";
 
+            function getQualityPillClass(qualityLevel) {
+                if (qualityLevel === "优秀") {
+                    return "quality-pill-excellent";
+                } else if (qualityLevel === "可用") {
+                    return "quality-pill-usable";
+                } else {
+                    return "quality-pill-check";
+                }
+            }
+
             templateDetailArea.innerHTML = `
                 <section class="detail-panel">
                     <h2 class="detail-title">模板详情</h2>
@@ -949,6 +1007,17 @@
                             保存模板信息
                         </button>
                         <div id="templateInfoMessage" class="state" style="display: none; margin-top: 10px;"></div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>解析质量说明</h3>
+                        <div class="detail-grid">
+                            ${renderDetailItem("质量等级", `<span class="${getQualityPillClass(detail.quality_level)}">${escapeHtml(detail.quality_level || "-")}</span>`)}
+                            ${renderDetailItem("警告数量", String(detail.warning_count ?? 0))}
+                        </div>
+                        <div class="state" style="margin-top: 8px; background: #f8fafc;">
+                            ${escapeHtml(detail.quality_message || "-")}
+                        </div>
                     </div>
 
                     <div class="detail-section">
