@@ -109,6 +109,22 @@
             background: #eef2f6;
         }
 
+        .btn-download {
+            background: #ffffff;
+            border: 1px solid #7ca58e;
+            color: #176039;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+            padding: 8px 14px;
+            text-decoration: none;
+        }
+
+        .btn-download:hover {
+            background: #eef8f1;
+        }
+
         .section-grid {
             display: grid;
             gap: 16px;
@@ -176,6 +192,18 @@
         .warning {
             background: #fff3cc;
             color: #8a5a00;
+        }
+
+        .success {
+            background: #dff5e6;
+            color: #176039;
+        }
+
+        .export-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .empty {
@@ -300,6 +328,7 @@
     <script>
         let currentOrderObject = null;
         let currentPipelineResult = null;
+        let currentExportResult = null;
 
         function setStatus(text) {
             document.getElementById('statusText').textContent = text;
@@ -344,6 +373,7 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 currentPipelineResult = await response.json();
+                currentExportResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentPipelineResult.success ? '核心流水线执行完成' : '核心流水线校验失败');
             } catch (error) {
@@ -357,6 +387,7 @@
                     },
                     render: null
                 };
+                currentExportResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('核心流水线执行失败');
             }
@@ -407,6 +438,7 @@
             badge.textContent = render.success ? '已渲染' : '渲染失败';
             body.innerHTML = `
                 ${renderWarnings(render.warnings || [])}
+                ${renderExportControls(fields)}
                 <div class="render-grid">
                     ${renderFieldCard('product_form', fields.product_form)}
                     ${renderFieldCard('product_requirements', fields.product_requirements)}
@@ -414,6 +446,63 @@
                     ${renderFieldCard('packaging_requirements', fields.packaging_requirements)}
                 </div>
             `;
+        }
+
+        function renderExportControls(fields) {
+            const hasDescriptionFields = fields && Object.keys(fields).length > 0;
+            if (!hasDescriptionFields) {
+                return '';
+            }
+
+            const downloadLink = currentExportResult?.download_url
+                ? `<a class="btn-download" href="${escapeHtml(currentExportResult.download_url)}" target="_blank" rel="noopener">下载调试 Excel</a>`
+                : '';
+            const successMessage = currentExportResult?.download_url
+                ? '<div class="message success">调试 Excel 已生成</div>'
+                : '';
+
+            return `
+                <div class="export-actions">
+                    <button class="btn-secondary" type="button" onclick="exportDebugExcel()">导出调试 Excel</button>
+                    ${downloadLink}
+                </div>
+                ${successMessage}
+            `;
+        }
+
+        async function exportDebugExcel() {
+            const descriptionFields = currentPipelineResult?.render?.description_fields;
+            if (!descriptionFields) {
+                setStatus('暂无渲染结果，无法导出');
+                return;
+            }
+
+            setStatus('正在生成调试 Excel');
+            try {
+                const response = await fetch('/api/v4/core-pipeline/export-debug-excel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(descriptionFields)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || 'Excel 生成失败');
+                    return;
+                }
+                if (!result.download_url) {
+                    setStatus('下载链接生成失败');
+                    return;
+                }
+
+                currentExportResult = result;
+                setStatus('调试 Excel 已生成');
+                renderPipelineResult(currentPipelineResult);
+            } catch (error) {
+                setStatus('Excel 生成失败');
+            }
         }
 
         function renderWarnings(warnings) {
@@ -435,7 +524,8 @@
         function updatePreview() {
             document.getElementById('jsonPreview').textContent = JSON.stringify({
                 order_object: currentOrderObject,
-                pipeline_result: currentPipelineResult
+                pipeline_result: currentPipelineResult,
+                export_result: currentExportResult
             }, null, 2);
         }
 

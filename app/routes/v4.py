@@ -841,6 +841,31 @@ def api_v4_core_pipeline(order_object: Optional[dict] = Body(None)):
     return run_core_pipeline(order_object)
 
 
+@router.post("/api/v4/core-pipeline/export-debug-excel")
+def api_v4_core_pipeline_export_debug_excel(description_fields: dict = Body(...)):
+    from app.v4_core_excel_debug import export_description_fields_to_debug_excel
+    logger.info("[CorePipeline] Debug Excel export requested")
+
+    result = export_description_fields_to_debug_excel(description_fields)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "Excel 生成失败"),
+        }
+
+    if not result.get("download_url"):
+        return {
+            "success": False,
+            "error": "下载链接生成失败",
+        }
+
+    return {
+        "success": True,
+        "filename": result.get("filename", ""),
+        "download_url": result.get("download_url", ""),
+    }
+
+
 @router.get("/api/v4/product-type/{product_type_key}")
 def api_v4_product_type(product_type_key: str):
     from app.v4_schema import get_product_type

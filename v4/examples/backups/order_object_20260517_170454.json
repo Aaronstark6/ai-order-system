@@ -1,0 +1,30 @@
+{
+  "customer": {
+    "name": "Anna",
+    "country": "美国",
+    "type": "山姆"
+  },
+  "order": {
+    "order_no": "",
+    "quantity": "",
+    "order_date": "",
+    "sales_owner": ""
+  },
+  "product": {
+    "product_type": "固体饮料",
+    "product_name": "益生菌固体饮料",
+    "fields": {
+      "field_b916f282": "赤藓糖醇",
+      "field_602cf02f": "草莓味",
+      "field_c20ee7b6": "3g/袋",
+      "field_776fa203": "英文标签",
+      "field_568840e2": "低糖"
+    }
+  },
+  "document": {
+    "salesperson_code": "",
+    "company_code": "",
+    "sequence": "",
+    "ingredient_initials": ""
+  }
+}
