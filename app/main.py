@@ -96,6 +96,11 @@ def v4_renderer_core_page():
     return FileResponse(STATIC_DIR / "v4_renderer_core.html")
 
 
+@app.get("/v4-core-pipeline")
+def v4_core_pipeline_page():
+    return FileResponse(STATIC_DIR / "v4_core_pipeline.html")
+
+
 # ====================
 # Health Check
 # ====================

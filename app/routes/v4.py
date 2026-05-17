@@ -826,6 +826,21 @@ def api_v4_render_order_object(order_object: Optional[dict] = Body(None)):
     return render_order_object(order_object)
 
 
+@router.post("/api/v4/core-pipeline")
+def api_v4_core_pipeline(order_object: Optional[dict] = Body(None)):
+    from app.v4_core_pipeline import run_core_pipeline
+    from app.v4_order_object import load_order_object
+    logger.info("[CorePipeline] Run requested")
+
+    if not order_object:
+        order_object = load_order_object()
+        logger.info("[CorePipeline] Loaded Order Object from saved file")
+    else:
+        logger.info("[CorePipeline] Using submitted Order Object")
+
+    return run_core_pipeline(order_object)
+
+
 @router.get("/api/v4/product-type/{product_type_key}")
 def api_v4_product_type(product_type_key: str):
     from app.v4_schema import get_product_type
