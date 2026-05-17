@@ -27,6 +27,7 @@ from app.v4_template_cache import (
     get_cached_template_detail,
     list_cached_templates,
     save_fingerprint,
+    update_template_info,
 )
 from app.v4_template_fingerprint import SUPPORTED_SUFFIXES, build_template_fingerprint
 from app.v4_template_matcher import match_or_parse_template, match_template
@@ -497,6 +498,38 @@ def api_v4_template_cache_delete(layout_hash: str):
         return {
             "success": False,
             "error": f"模板缓存删除失败：{exc}",
+        }
+
+
+@router.post("/api/v4/template/cache-update/{layout_hash}")
+def api_v4_template_cache_update(layout_hash: str, payload: Any = Body(None)):
+    if not isinstance(payload, dict):
+        payload = {}
+    try:
+        template_name = payload.get("template_name")
+        template_note = payload.get("template_note")
+        meta = update_template_info(layout_hash, template_name=template_name, template_note=template_note)
+        return {
+            "success": True,
+            "meta": meta,
+        }
+    except FileNotFoundError:
+        logger.info("V4 template cache update not found: layout_hash=%s", layout_hash)
+        return {
+            "success": False,
+            "error": "模板缓存不存在",
+        }
+    except ValueError as exc:
+        logger.info("V4 template cache update rejected: layout_hash=%s error=%s", layout_hash, exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except Exception as exc:
+        logger.exception("V4 template cache update failed: layout_hash=%s", layout_hash)
+        return {
+            "success": False,
+            "error": f"模板信息更新失败：{exc}",
         }
 
 

@@ -51,6 +51,7 @@ def _touch_meta(layout_hash, values=None):
     meta_path = cache_path / "meta.json"
     existing_meta = _read_json(meta_path, {}) or {}
     now_text = _now_text()
+    short_hash = str(layout_hash or "").strip().lower()[:8]
     meta = {
         "layout_hash": str(layout_hash or "").strip().lower(),
         "created_at": existing_meta.get("created_at") or now_text,
@@ -58,6 +59,8 @@ def _touch_meta(layout_hash, values=None):
         "source": existing_meta.get("source") or TEMPLATE_CACHE_SOURCE,
         "rules_count": existing_meta.get("rules_count") or 0,
         "parser_version": existing_meta.get("parser_version") or TEMPLATE_CACHE_PARSER_VERSION,
+        "template_name": existing_meta.get("template_name") or f"模板-{short_hash}",
+        "template_note": existing_meta.get("template_note") or "",
     }
     if isinstance(existing_meta, dict):
         meta.update(existing_meta)
@@ -172,6 +175,8 @@ def _cached_template_item(cache_path):
         "rules_count": rules_count,
         "sheet_count": sheet_count,
         "cached": True,
+        "template_name": meta.get("template_name") or f"模板-{layout_hash[:8]}",
+        "template_note": meta.get("template_note") or "",
     }
     if warning:
         item["warning"] = warning
@@ -253,3 +258,27 @@ def delete_cached_template(layout_hash):
 
     shutil.rmtree(cache_path)
     return True
+
+
+def update_template_info(layout_hash, template_name=None, template_note=None):
+    cache_path = get_cache_path(layout_hash)
+    if not cache_path.is_dir():
+        raise FileNotFoundError("模板缓存不存在")
+
+    meta_path = cache_path / "meta.json"
+    existing_meta = _read_json(meta_path, {}) or {}
+
+    if template_name is not None:
+        template_name = str(template_name or "").strip()
+        if len(template_name) > 100:
+            raise ValueError("模板名称不能超过 100 个字符")
+        existing_meta["template_name"] = template_name or f"模板-{layout_hash[:8]}"
+
+    if template_note is not None:
+        template_note = str(template_note or "").strip()
+        if len(template_note) > 500:
+            raise ValueError("模板备注不能超过 500 个字符")
+        existing_meta["template_note"] = template_note
+
+    _touch_meta(layout_hash, existing_meta)
+    return load_meta(layout_hash)

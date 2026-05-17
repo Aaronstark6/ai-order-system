@@ -371,6 +371,64 @@
             background: #fff5f5;
         }
 
+        .inline-edit-group {
+            margin-bottom: 12px;
+        }
+
+        .inline-edit-label {
+            display: block;
+            margin-bottom: 6px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .inline-edit-input {
+            width: 100%;
+            padding: 9px 11px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: #fff;
+            color: #0f172a;
+            font-size: 14px;
+            line-height: 1.5;
+            outline: none;
+        }
+
+        .inline-edit-input:focus {
+            border-color: #1d4ed8;
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+        }
+
+        .inline-edit-textarea {
+            min-height: 70px;
+            resize: vertical;
+        }
+
+        .save-info-button {
+            margin-top: 4px;
+            height: 34px;
+            min-width: 100px;
+            padding: 0 12px;
+            border: 1px solid #1d4ed8;
+            border-radius: 6px;
+            background: #1d4ed8;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .save-info-button:hover {
+            background: #1e40af;
+            border-color: #1e40af;
+        }
+
+        .save-info-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
         .detail-panel {
             margin-top: 16px;
             padding: 18px;
@@ -608,6 +666,7 @@
                     <table class="history-table">
                         <thead>
                             <tr>
+                                <th>模板名称</th>
                                 <th>模板编号</th>
                                 <th>规则数量</th>
                                 <th>来源</th>
@@ -620,6 +679,7 @@
                         <tbody>
                             ${rows.map(item => `
                                 <tr>
+                                    <td>${escapeHtml(item.template_name || `模板-${item.short_hash || "-"}`)}</td>
                                     <td>${escapeHtml(item.short_hash || "-")}</td>
                                     <td>${Number(item.rules_count || 0)}</td>
                                     <td>${escapeHtml(templateSourceLabel(item.source))}</td>
@@ -676,11 +736,29 @@
             const warningHtml = detail.warning
                 ? `<div class="state warning">${escapeHtml(detail.warning)}</div>`
                 : "";
+            const currentTemplateName = meta.template_name || `模板-${detail.short_hash}`;
+            const currentTemplateNote = meta.template_note || "";
 
             templateDetailArea.innerHTML = `
                 <section class="detail-panel">
                     <h2 class="detail-title">模板详情</h2>
                     ${warningHtml}
+
+                    <div class="detail-section">
+                        <h3>模板信息</h3>
+                        <div class="inline-edit-group">
+                            <label class="inline-edit-label" for="templateNameInput">模板名称</label>
+                            <input id="templateNameInput" class="inline-edit-input" type="text" value="${escapeHtml(currentTemplateName)}" maxlength="100">
+                        </div>
+                        <div class="inline-edit-group">
+                            <label class="inline-edit-label" for="templateNoteInput">模板备注</label>
+                            <textarea id="templateNoteInput" class="inline-edit-input inline-edit-textarea" maxlength="500">${escapeHtml(currentTemplateNote)}</textarea>
+                        </div>
+                        <button id="saveTemplateInfoButton" class="save-info-button" type="button" data-layout-hash="${escapeHtml(detail.layout_hash || "")}">
+                            保存模板信息
+                        </button>
+                        <div id="templateInfoMessage" class="state" style="display: none; margin-top: 10px;"></div>
+                    </div>
 
                     <div class="detail-section">
                         <h3>基础信息</h3>
@@ -760,6 +838,75 @@
             startButton.disabled = false;
             startButton.textContent = "开始智能解析";
             setMessage("该模板缓存已删除，可重新进行智能解析。", "success");
+        }
+
+        function setTemplateInfoMessage(text, type) {
+            const box = document.getElementById("templateInfoMessage");
+            if (!box) {
+                return;
+            }
+            box.className = `state ${type || ""}`.trim();
+            box.textContent = text;
+            box.style.display = "block";
+        }
+
+        function hideTemplateInfoMessage() {
+            const box = document.getElementById("templateInfoMessage");
+            if (box) {
+                box.style.display = "none";
+                box.textContent = "";
+            }
+        }
+
+        async function saveTemplateInfo(layoutHash) {
+            if (!layoutHash) {
+                return;
+            }
+
+            const nameInput = document.getElementById("templateNameInput");
+            const noteInput = document.getElementById("templateNoteInput");
+            const saveButton = document.getElementById("saveTemplateInfoButton");
+
+            if (!nameInput || !noteInput || !saveButton) {
+                return;
+            }
+
+            const templateName = nameInput.value.trim();
+            const templateNote = noteInput.value.trim();
+
+            saveButton.disabled = true;
+            saveButton.textContent = "保存中...";
+            hideTemplateInfoMessage();
+
+            try {
+                const response = await fetch(`/api/v4/template/cache-update/${encodeURIComponent(layoutHash)}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        template_name: templateName,
+                        template_note: templateNote
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "模板信息保存失败");
+                }
+
+                setTemplateInfoMessage("模板信息已保存。", "success");
+                await loadTemplateHistory();
+                await loadTemplateDetail(layoutHash);
+            } catch (error) {
+                setTemplateInfoMessage(`模板信息保存失败：${error.message || error}`, "error");
+            } finally {
+                const buttonAfter = document.getElementById("saveTemplateInfoButton");
+                if (buttonAfter) {
+                    buttonAfter.disabled = false;
+                    buttonAfter.textContent = "保存模板信息";
+                }
+            }
         }
 
         async function deleteTemplateCache(layoutHash) {
@@ -1039,6 +1186,16 @@
             } else {
                 loadTemplateDetail(detailButton.dataset.layoutHash);
             }
+        });
+
+        templateDetailArea.addEventListener("click", event => {
+            const saveButton = event.target && event.target.id === "saveTemplateInfoButton"
+                ? event.target
+                : null;
+            if (!saveButton) {
+                return;
+            }
+            saveTemplateInfo(saveButton.dataset.layoutHash);
         });
 
         refreshTemplateHistoryButton.addEventListener("click", loadTemplateHistory);
