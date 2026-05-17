@@ -101,6 +101,11 @@ def v4_core_pipeline_page():
     return FileResponse(STATIC_DIR / "v4_core_pipeline.html")
 
 
+@app.get("/v4-structured-mapping")
+def v4_structured_mapping_page():
+    return FileResponse(STATIC_DIR / "v4_structured_mapping.html")
+
+
 # ====================
 # Health Check
 # ====================

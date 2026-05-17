@@ -739,6 +739,7 @@
             const warnings = Array.isArray(currentStructuredOperationsResult.warnings) ? currentStructuredOperationsResult.warnings : [];
             const operations = Array.isArray(currentStructuredOperationsResult.operations) ? currentStructuredOperationsResult.operations : [];
             return `
+                <div class="message success">当前 target_cell 来源：手动配置 / 标签自动定位（取自结构化映射配置）</div>
                 ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
                 <table class="operations-table">
                     <thead>

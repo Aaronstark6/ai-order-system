@@ -28,6 +28,75 @@ def load_structured_excel_mapping():
     return mapping if isinstance(mapping, dict) else {}
 
 
+def _normalize_mapping_item(item):
+    if not isinstance(item, dict):
+        return None
+
+    source_path = str(item.get("source_path") or "").strip()
+    target_cell = str(item.get("target_cell") or "").strip()
+    label = str(item.get("label") or source_path).strip()
+    if not source_path and not target_cell and not label:
+        return None
+
+    return {
+        "source_path": source_path,
+        "target_cell": target_cell,
+        "operation": "write_text",
+        "label": label or source_path or target_cell,
+    }
+
+
+def normalize_structured_excel_mapping(mapping):
+    current = load_structured_excel_mapping()
+    source = mapping if isinstance(mapping, dict) else {}
+    raw_mappings = source.get("mappings", [])
+    if not isinstance(raw_mappings, list):
+        raw_mappings = []
+
+    normalized_items = []
+    for item in raw_mappings:
+        normalized_item = _normalize_mapping_item(item)
+        if normalized_item:
+            normalized_items.append(normalized_item)
+
+    return {
+        "mapping_name": str(
+            current.get("mapping_name")
+            or source.get("mapping_name")
+            or "结构化字段映射"
+        ).strip() or "结构化字段映射",
+        "version": "V4-Core.10",
+        "target": str(source.get("target") or current.get("target") or "real_excel").strip() or "real_excel",
+        "mappings": normalized_items,
+    }
+
+
+def save_structured_excel_mapping(mapping):
+    mapping_path = _get_structured_excel_mapping_path()
+    normalized = normalize_structured_excel_mapping(mapping)
+    try:
+        mapping_path.parent.mkdir(parents=True, exist_ok=True)
+        with mapping_path.open("w", encoding="utf-8") as f:
+            json.dump(normalized, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+    except OSError as exc:
+        logger.exception("[StructuredExcelMapping] Mapping save failed: path=%s", mapping_path)
+        return {
+            "success": False,
+            "error": str(exc) or "结构化映射保存失败",
+        }
+
+    logger.info(
+        "[StructuredExcelMapping] Mapping saved: path=%s mappings=%s",
+        mapping_path,
+        len(normalized.get("mappings", [])),
+    )
+    return {
+        "success": True,
+        "data": normalized,
+    }
+
+
 def _find_product_type(product_type_value):
     product_type_value = str(product_type_value or "").strip()
     if not product_type_value:

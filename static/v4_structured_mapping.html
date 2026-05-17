@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 结构化映射配置</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #2d3542;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1180px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #dfe7ee;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        main {
+            padding: 24px;
+        }
+
+        .toolbar,
+        .panel,
+        details {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+        }
+
+        .status {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-primary {
+            background: #3e5f8a;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #314f76;
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: #bcc8c3;
+            color: #2d3542;
+        }
+
+        .btn-secondary:hover {
+            background: #eef2f6;
+        }
+
+        .panel {
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: #fbfcfb;
+            border-bottom: 1px solid #d9e1dc;
+            padding: 14px 16px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .panel-body {
+            display: grid;
+            gap: 14px;
+            padding: 16px;
+        }
+
+        .locator-row {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .file-control {
+            align-items: center;
+            border: 1px dashed #aebbb5;
+            border-radius: 6px;
+            color: #2d3542;
+            display: inline-flex;
+            font-size: 14px;
+            gap: 8px;
+            min-height: 36px;
+            padding: 7px 10px;
+        }
+
+        .file-control input {
+            max-width: 260px;
+        }
+
+        .locator-file-name {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        .mapping-table {
+            border-collapse: collapse;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .mapping-table th,
+        .mapping-table td {
+            border: 1px solid #d9e1dc;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .mapping-table th {
+            background: #fbfcfb;
+            font-weight: 700;
+        }
+
+        input,
+        select {
+            border: 1px solid #bcc8c3;
+            border-radius: 6px;
+            color: #1f2933;
+            font-size: 14px;
+            min-height: 34px;
+            padding: 7px 9px;
+            width: 100%;
+        }
+
+        .cell-target {
+            max-width: 110px;
+        }
+
+        .operation-select {
+            max-width: 130px;
+        }
+
+        .delete-button {
+            background: #fff5f3;
+            border-color: #ebb0a8;
+            color: #a8201a;
+            min-width: 70px;
+        }
+
+        .hint-list {
+            color: #58665f;
+            display: flex;
+            flex-wrap: wrap;
+            font-size: 13px;
+            gap: 8px;
+        }
+
+        .hint-item {
+            background: #eef2f6;
+            border: 1px solid #d9e1dc;
+            border-radius: 999px;
+            cursor: pointer;
+            padding: 5px 9px;
+        }
+
+        .message {
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.55;
+            padding: 12px;
+        }
+
+        .success {
+            background: #dff5e6;
+            color: #176039;
+        }
+
+        .error {
+            background: #ffe2e0;
+            color: #a8201a;
+        }
+
+        details {
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        summary {
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 14px 16px;
+        }
+
+        pre {
+            background: #172126;
+            color: #d7eef5;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 360px;
+            overflow: auto;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 860px) {
+            main {
+                padding: 16px;
+            }
+
+            .header-inner,
+            .locator-row,
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .mapping-table {
+                min-width: 760px;
+            }
+
+            .table-wrap {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 结构化映射配置</h1>
+            <a class="home-link" href="/">返回首页</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="toolbar">
+            <div class="status" id="statusText">准备加载结构化映射</div>
+            <div class="actions">
+                <button class="btn-secondary" type="button" onclick="loadMapping()">重新加载</button>
+                <button class="btn-secondary" type="button" onclick="addMappingRow()">新增映射</button>
+                <button class="btn-primary" type="button" onclick="saveMapping()">保存映射</button>
+            </div>
+        </div>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">从模板自动定位</div>
+            </div>
+            <div class="panel-body">
+                <div class="locator-row">
+                    <label class="file-control">
+                        上传 Excel 模板
+                        <input id="locatorTemplateInput" type="file" accept=".xlsx" onchange="handleLocatorTemplateChange(event)">
+                    </label>
+                    <div class="locator-file-name" id="locatorTemplateName">当前模板：未选择</div>
+                    <button class="btn-secondary" type="button" onclick="scanTemplateLabels()">扫描标签位置</button>
+                    <button class="btn-primary" type="button" onclick="applyLocatorMatches()">应用定位结果</button>
+                </div>
+                <div id="locatorMessageBox"></div>
+                <div class="table-wrap">
+                    <table class="mapping-table">
+                        <thead>
+                            <tr>
+                                <th>字段名称</th>
+                                <th>标签单元格</th>
+                                <th>目标单元格</th>
+                            </tr>
+                        </thead>
+                        <tbody id="locatorRows">
+                            <tr><td colspan="3">尚未扫描模板。</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">映射列表</div>
+            </div>
+            <div class="panel-body">
+                <div class="hint-list" id="sourceHints"></div>
+                <div id="messageBox"></div>
+                <div class="table-wrap">
+                    <table class="mapping-table">
+                        <thead>
+                            <tr>
+                                <th>字段名称</th>
+                                <th>来源路径</th>
+                                <th>目标单元格</th>
+                                <th>操作类型</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mappingRows"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <datalist id="sourcePathOptions"></datalist>
+
+        <details>
+            <summary>高级信息</summary>
+            <pre id="jsonPreview">{}</pre>
+        </details>
+    </main>
+
+    <script>
+        const sourcePathHints = [
+            'customer.name',
+            'customer.country',
+            'customer.type',
+            'order.order_no',
+            'order.quantity',
+            'order.order_date',
+            'order.sales_owner',
+            'product.product_type',
+            'product.product_name',
+            'product.fields.甜味剂',
+            'product.fields.口味',
+            'product.fields.包装规格'
+        ];
+
+        let currentMapping = {
+            mapping_name: '结构化字段映射',
+            version: 'V4-Core.10',
+            target: 'real_excel',
+            mappings: []
+        };
+        let locatorTemplateFile = null;
+        let locatorResult = null;
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function showMessage(text, type) {
+            const box = document.getElementById('messageBox');
+            box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
+        }
+
+        function showLocatorMessage(text, type) {
+            const box = document.getElementById('locatorMessageBox');
+            box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
+        }
+
+        function renderHints() {
+            document.getElementById('sourcePathOptions').innerHTML = sourcePathHints
+                .map(item => `<option value="${escapeHtml(item)}"></option>`)
+                .join('');
+            document.getElementById('sourceHints').innerHTML = sourcePathHints
+                .map(item => `<button class="hint-item" type="button" onclick="addMappingRow('${escapeJs(item)}')">${escapeHtml(item)}</button>`)
+                .join('');
+        }
+
+        async function loadMapping() {
+            setStatus('正在加载结构化映射');
+            showMessage('', '');
+            try {
+                const response = await fetch('/api/v4/structured-mapping');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || '加载失败');
+                    showMessage(result.error || '加载失败', 'error');
+                    return;
+                }
+                currentMapping = normalizeMapping(result.data || {});
+                renderRows();
+                updatePreview();
+                setStatus('结构化映射已加载');
+            } catch (error) {
+                setStatus('加载失败');
+                showMessage('结构化映射加载失败', 'error');
+            }
+        }
+
+        function normalizeMapping(mapping) {
+            const mappings = Array.isArray(mapping.mappings) ? mapping.mappings : [];
+            return {
+                mapping_name: mapping.mapping_name || '结构化字段映射',
+                version: mapping.version || 'V4-Core.10',
+                target: mapping.target || 'real_excel',
+                mappings: mappings.map(item => ({
+                    label: item.label || '',
+                    source_path: item.source_path || '',
+                    target_cell: item.target_cell || '',
+                    operation: item.operation || 'write_text'
+                }))
+            };
+        }
+
+        function addMappingRow(sourcePath) {
+            currentMapping.mappings.push({
+                label: '',
+                source_path: sourcePath || '',
+                target_cell: '',
+                operation: 'write_text'
+            });
+            renderRows();
+            updatePreview();
+            setStatus('已新增映射');
+        }
+
+        function deleteMappingRow(index) {
+            currentMapping.mappings.splice(index, 1);
+            renderRows();
+            updatePreview();
+            setStatus('已删除映射');
+        }
+
+        function updateMappingField(index, field, value) {
+            currentMapping.mappings[index][field] = value;
+            updatePreview();
+        }
+
+        function renderRows() {
+            const rows = document.getElementById('mappingRows');
+            if (!currentMapping.mappings.length) {
+                rows.innerHTML = '<tr><td colspan="5">暂无映射，请新增。</td></tr>';
+                return;
+            }
+
+            rows.innerHTML = currentMapping.mappings.map((item, index) => `
+                <tr>
+                    <td>
+                        <input value="${escapeAttr(item.label)}" oninput="updateMappingField(${index}, 'label', this.value)" placeholder="产品名称">
+                    </td>
+                    <td>
+                        <input list="sourcePathOptions" value="${escapeAttr(item.source_path)}" oninput="updateMappingField(${index}, 'source_path', this.value)" placeholder="product.product_name">
+                    </td>
+                    <td>
+                        <input class="cell-target" value="${escapeAttr(item.target_cell)}" oninput="updateMappingField(${index}, 'target_cell', this.value)" placeholder="B2">
+                    </td>
+                    <td>
+                        <select class="operation-select" onchange="updateMappingField(${index}, 'operation', this.value)">
+                            <option value="write_text" ${item.operation === 'write_text' ? 'selected' : ''}>write_text</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button class="delete-button" type="button" onclick="deleteMappingRow(${index})">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function handleLocatorTemplateChange(event) {
+            locatorTemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
+            document.getElementById('locatorTemplateName').textContent = locatorTemplateFile
+                ? `当前模板：${locatorTemplateFile.name}`
+                : '当前模板：未选择';
+            showLocatorMessage('', '');
+            setStatus(locatorTemplateFile ? `已选择模板：${locatorTemplateFile.name}` : '请先上传 Excel 模板');
+        }
+
+        function getScannableLabels() {
+            return currentMapping.mappings
+                .map(item => String(item.label || '').trim())
+                .filter((label, index, labels) => label && labels.indexOf(label) === index);
+        }
+
+        async function scanTemplateLabels() {
+            if (!locatorTemplateFile) {
+                showLocatorMessage('请先上传 Excel 模板', 'error');
+                setStatus('请先上传 Excel 模板');
+                return;
+            }
+
+            const labels = getScannableLabels();
+            if (!labels.length) {
+                showLocatorMessage('没有可扫描的字段标签', 'error');
+                setStatus('没有可扫描的字段标签');
+                return;
+            }
+
+            setStatus('正在扫描模板标签');
+            showLocatorMessage('', '');
+            try {
+                const formData = new FormData();
+                formData.append('template_file', locatorTemplateFile);
+                formData.append('labels_json', JSON.stringify(labels));
+
+                const response = await fetch('/api/v4/scan-template-labels', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (!result.success) {
+                    locatorResult = result;
+                    renderLocatorRows();
+                    showLocatorMessage(result.error || '模板扫描失败', 'error');
+                    setStatus(result.error || '模板扫描失败');
+                    return;
+                }
+
+                locatorResult = result;
+                renderLocatorRows();
+                if (!Array.isArray(result.matches) || !result.matches.length) {
+                    showLocatorMessage('未找到任何匹配标签', 'error');
+                    setStatus('未找到任何匹配标签');
+                    return;
+                }
+
+                const warningText = Array.isArray(result.warnings) && result.warnings.length
+                    ? `扫描完成，存在 ${result.warnings.length} 条提示。`
+                    : '标签位置扫描完成';
+                showLocatorMessage(warningText, 'success');
+                setStatus('标签位置扫描完成');
+            } catch (error) {
+                locatorResult = null;
+                renderLocatorRows();
+                showLocatorMessage('模板扫描失败', 'error');
+                setStatus('模板扫描失败');
+            }
+        }
+
+        function renderLocatorRows() {
+            const rows = document.getElementById('locatorRows');
+            const matches = Array.isArray(locatorResult?.matches) ? locatorResult.matches : [];
+            const unmatched = Array.isArray(locatorResult?.unmatched_labels) ? locatorResult.unmatched_labels : [];
+            const warnings = Array.isArray(locatorResult?.warnings) ? locatorResult.warnings : [];
+
+            const matchRows = matches.map(match => `
+                <tr>
+                    <td>${escapeHtml(match.label || '')}</td>
+                    <td>${escapeHtml(`${match.sheet || ''}!${match.label_cell || ''}`)}</td>
+                    <td>${escapeHtml(match.target_cell || '')}</td>
+                </tr>
+            `);
+            const unmatchedRows = unmatched.map(label => `
+                <tr>
+                    <td>${escapeHtml(label)}</td>
+                    <td>未匹配</td>
+                    <td></td>
+                </tr>
+            `);
+
+            rows.innerHTML = matchRows.concat(unmatchedRows).join('') || '<tr><td colspan="3">尚未扫描模板。</td></tr>';
+            if (warnings.length) {
+                showLocatorMessage(warnings.join('；'), 'success');
+            }
+        }
+
+        function applyLocatorMatches() {
+            const matches = Array.isArray(locatorResult?.matches) ? locatorResult.matches : [];
+            if (!matches.length) {
+                showLocatorMessage('未找到任何匹配标签', 'error');
+                setStatus('未找到任何匹配标签');
+                return;
+            }
+
+            const targetByLabel = {};
+            matches.forEach(match => {
+                if (match.label && match.target_cell) {
+                    targetByLabel[match.label] = match.target_cell;
+                }
+            });
+
+            let updatedCount = 0;
+            currentMapping.mappings.forEach(item => {
+                const label = String(item.label || '').trim();
+                if (targetByLabel[label]) {
+                    item.target_cell = targetByLabel[label];
+                    updatedCount += 1;
+                }
+            });
+
+            renderRows();
+            updatePreview();
+            showLocatorMessage(`已应用 ${updatedCount} 条定位结果，请保存映射。`, 'success');
+            setStatus('定位结果已应用');
+        }
+
+        function collectMapping() {
+            const mappings = currentMapping.mappings
+                .map(item => ({
+                    label: String(item.label || '').trim(),
+                    source_path: String(item.source_path || '').trim(),
+                    target_cell: String(item.target_cell || '').trim(),
+                    operation: 'write_text'
+                }))
+                .filter(item => item.label || item.source_path || item.target_cell);
+
+            return {
+                mapping_name: currentMapping.mapping_name || '结构化字段映射',
+                target: currentMapping.target || 'real_excel',
+                mappings
+            };
+        }
+
+        async function saveMapping() {
+            const payload = collectMapping();
+            setStatus('正在保存结构化映射');
+            showMessage('', '');
+            try {
+                const response = await fetch('/api/v4/structured-mapping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || '保存失败');
+                    showMessage(result.error || '保存失败', 'error');
+                    return;
+                }
+                currentMapping = normalizeMapping(result.data || {});
+                renderRows();
+                updatePreview();
+                setStatus('结构化映射已保存');
+                showMessage('结构化映射已保存', 'success');
+            } catch (error) {
+                setStatus('保存失败');
+                showMessage('结构化映射保存失败', 'error');
+            }
+        }
+
+        function updatePreview() {
+            document.getElementById('jsonPreview').textContent = JSON.stringify(collectMapping(), null, 2);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeAttr(text) {
+            return escapeHtml(text).replace(/"/g, '&quot;');
+        }
+
+        function escapeJs(text) {
+            return String(text).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderHints();
+            loadMapping();
+        });
+    </script>
+</body>
+</html>

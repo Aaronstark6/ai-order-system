@@ -922,6 +922,99 @@ def api_v4_core_pipeline_structured_operations_preview(order_object: Optional[di
     return order_object_to_structured_operations(order_object, mapping)
 
 
+@router.get("/api/v4/structured-mapping")
+def api_v4_structured_mapping():
+    from app.v4_structured_excel_mapping import load_structured_excel_mapping
+
+    logger.info("[StructuredExcelMapping] Mapping requested")
+    return {
+        "success": True,
+        "data": load_structured_excel_mapping(),
+    }
+
+
+@router.post("/api/v4/structured-mapping")
+def api_v4_save_structured_mapping(mapping: dict = Body(...)):
+    from app.v4_structured_excel_mapping import save_structured_excel_mapping
+
+    logger.info("[StructuredExcelMapping] Mapping save requested")
+    result = save_structured_excel_mapping(mapping)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "结构化映射保存失败"),
+        }
+
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.post("/api/v4/scan-template-labels")
+def api_v4_scan_template_labels(
+    template_file: UploadFile = File(...),
+    labels_json: str = Form(...),
+):
+    from app.v4_label_locator import scan_labels_in_excel
+
+    logger.info("[LabelLocator] Template label scan requested: filename=%s", template_file.filename)
+    template_path = None
+    try:
+        try:
+            labels = json.loads(labels_json or "")
+        except json.JSONDecodeError:
+            return {
+                "success": False,
+                "matches": [],
+                "unmatched_labels": [],
+                "warnings": ["没有可扫描的字段标签"],
+                "error": "没有可扫描的字段标签",
+            }
+
+        if not isinstance(labels, list) or not [str(label or "").strip() for label in labels if str(label or "").strip()]:
+            return {
+                "success": False,
+                "matches": [],
+                "unmatched_labels": [],
+                "warnings": ["没有可扫描的字段标签"],
+                "error": "没有可扫描的字段标签",
+            }
+
+        template_path = _save_v4_core_excel_template(template_file)
+        result = scan_labels_in_excel(template_path, labels)
+        if not result.get("success"):
+            return {
+                "success": False,
+                "matches": result.get("matches", []),
+                "unmatched_labels": result.get("unmatched_labels", []),
+                "warnings": result.get("warnings", []),
+                "error": (result.get("warnings") or ["模板扫描失败"])[0],
+            }
+
+        return result
+    except ValueError as exc:
+        logger.info("[LabelLocator] Template label scan rejected: error=%s", exc)
+        return {
+            "success": False,
+            "matches": [],
+            "unmatched_labels": [],
+            "warnings": [str(exc) or "请先上传 Excel 模板"],
+            "error": str(exc) or "请先上传 Excel 模板",
+        }
+    except Exception as exc:
+        logger.exception("[LabelLocator] Template label scan failed")
+        return {
+            "success": False,
+            "matches": [],
+            "unmatched_labels": [],
+            "warnings": [str(exc) or "模板扫描失败"],
+            "error": str(exc) or "模板扫描失败",
+        }
+    finally:
+        _remove_v4_uploaded_template(template_path)
+
+
 @router.post("/api/v4/core-pipeline/export-real-excel")
 def api_v4_core_pipeline_export_real_excel(
     template_file: UploadFile = File(...),
