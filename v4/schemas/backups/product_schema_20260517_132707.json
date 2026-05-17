@@ -1,5 +1,5 @@
 {
-  "version": "v4-dev-001",
+  "version": "v4-core.1",
   "description": "V4 产品结构模型实验配置",
   "product_forms": {
     "soft_capsule": {
@@ -175,19 +175,6 @@
     {
       "key": "固体饮料",
       "name": "固体饮料",
-      "description": "",
-      "fields": [
-        {
-          "key": "field_b916f282",
-          "name": "甜味剂",
-          "type": "string",
-          "required": false
-        }
-      ]
-    },
-    {
-      "key": "软胶囊",
-      "name": "软胶囊",
       "description": "",
       "fields": []
     }

@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 产品类型中心</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 28px;
+        }
+
+        .home-link {
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .home-link:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 20px;
+            min-height: calc(100vh - 100px);
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .panel-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .type-list {
+            list-style: none;
+        }
+
+        .type-item {
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .type-item:hover {
+            border-color: #667eea;
+            background: #f9fafb;
+        }
+
+        .type-item.active {
+            border-color: #667eea;
+            background: #eef2ff;
+        }
+
+        .type-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .type-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        .type-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .type-description {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .field-list {
+            list-style: none;
+        }
+
+        .field-item {
+            padding: 14px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .field-item:hover {
+            border-color: #667eea;
+            background: #f9fafb;
+        }
+
+        .field-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .field-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .field-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        .field-type {
+            font-size: 12px;
+            padding: 2px 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            color: #6b7280;
+        }
+
+        .field-required {
+            font-size: 11px;
+            padding: 2px 6px;
+            background: #fef3c7;
+            border-radius: 4px;
+            color: #92400e;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        .btn-danger {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .btn-danger:hover {
+            background: #fecaca;
+        }
+
+        .btn-sm {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #9ca3af;
+        }
+
+        .modal-close:hover {
+            color: #4b5563;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-checkbox input {
+            width: 18px;
+            height: 18px;
+        }
+
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 2000;
+            animation: slideUp 0.3s ease;
+        }
+
+        .toast-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .toast-error {
+            background: #ef4444;
+            color: white;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .field-count {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>V4 产品类型中心</h1>
+            <a href="/" class="home-link">← 返回首页</a>
+        </div>
+
+        <div class="main-layout">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">产品类型</span>
+                    <button class="btn btn-primary btn-sm" onclick="openTypeModal()">新增类型</button>
+                </div>
+                <div class="panel-body">
+                    <ul class="type-list" id="typeList"></ul>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title" id="fieldsTitle">字段管理</span>
+                    <button class="btn btn-primary btn-sm" id="addFieldBtn" onclick="openFieldModal()" disabled>新增字段</button>
+                </div>
+                <div class="panel-body">
+                    <div id="fieldsContent">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-text">请选择一个产品类型</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="typeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="typeModalTitle">新增产品类型</span>
+                <button class="modal-close" onclick="closeTypeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="typeKey">
+                <div class="form-group">
+                    <label class="form-label">名称 *</label>
+                    <input type="text" class="form-input" id="typeName" placeholder="请输入类型名称">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <input type="text" class="form-input" id="typeDescription" placeholder="请输入类型描述">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeTypeModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveType()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="fieldModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="fieldModalTitle">新增字段</span>
+                <button class="modal-close" onclick="closeFieldModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="fieldKey">
+                <div class="form-group">
+                    <label class="form-label">字段名称 *</label>
+                    <input type="text" class="form-input" id="fieldName" placeholder="请输入字段名称">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">字段类型</label>
+                    <select class="form-select" id="fieldType">
+                        <option value="string">字符串</option>
+                        <option value="number">数字</option>
+                        <option value="boolean">布尔值</option>
+                        <option value="date">日期</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-checkbox">
+                        <input type="checkbox" id="fieldRequired">
+                        <span>必填字段</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeFieldModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveField()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let productTypes = [];
+        let selectedTypeKey = null;
+        let fields = [];
+
+        async function loadProductTypes() {
+            try {
+                const response = await fetch('/api/v4/product-types');
+                const result = await response.json();
+                if (result.success) {
+                    productTypes = (result.data || []).map(normalizeProductType);
+                    renderTypeList();
+                }
+            } catch (error) {
+                showToast('加载产品类型失败', 'error');
+            }
+        }
+
+        function normalizeProductType(type) {
+            return {
+                ...type,
+                key: type.key || '',
+                name: type.name || '未命名产品类型',
+                description: type.description || '',
+                fields: Array.isArray(type.fields) ? type.fields : []
+            };
+        }
+
+        function normalizeField(field, index) {
+            return {
+                ...field,
+                key: field.key || '',
+                name: field.name || field.field_name || `未命名字段${index + 1}`,
+                type: field.type || field.field_type || 'string',
+                required: Boolean(field.required)
+            };
+        }
+
+        function renderTypeList() {
+            const typeList = document.getElementById('typeList');
+            if (productTypes.length === 0) {
+                typeList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📦</div>
+                        <div class="empty-state-text">暂无产品类型，点击上方按钮新增</div>
+                    </div>
+                `;
+                return;
+            }
+
+            typeList.innerHTML = productTypes.map(type => `
+                <li class="type-item ${selectedTypeKey === type.key ? 'active' : ''}" onclick="selectType('${type.key}')">
+                    <div class="type-item-header">
+                        <span class="type-name">${escapeHtml(type.name)}</span>
+                        <div class="type-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); editType('${type.key}')">编辑</button>
+                            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteType('${type.key}')">删除</button>
+                        </div>
+                    </div>
+                    ${type.description ? `<div class="type-description">${escapeHtml(type.description)}</div>` : ''}
+                    <div class="field-count">${type.fields ? type.fields.length : 0} 个字段</div>
+                </li>
+            `).join('');
+        }
+
+        async function selectType(key) {
+            selectedTypeKey = key;
+            renderTypeList();
+
+            document.getElementById('addFieldBtn').disabled = false;
+            document.getElementById('fieldsTitle').textContent = getTypeName(key) + ' - 字段管理';
+
+            await loadFields(key);
+        }
+
+        function getTypeName(key) {
+            const type = productTypes.find(t => t.key === key);
+            return type ? type.name : '';
+        }
+
+        async function loadFields(typeKey) {
+            try {
+                const response = await fetch(`/api/v4/product-type/${encodeURIComponent(typeKey)}/fields`);
+                const result = await response.json();
+                if (result.success) {
+                    fields = (result.data || []).map(normalizeField);
+                    renderFields();
+                } else {
+                    showToast(result.error || '加载字段失败', 'error');
+                }
+            } catch (error) {
+                showToast('加载字段失败', 'error');
+            }
+        }
+
+        function renderFields() {
+            const content = document.getElementById('fieldsContent');
+            if (!selectedTypeKey) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <div class="empty-state-text">请选择一个产品类型</div>
+                    </div>
+                `;
+                return;
+            }
+
+            if (fields.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔧</div>
+                        <div class="empty-state-text">暂无字段，点击上方按钮新增</div>
+                    </div>
+                `;
+                return;
+            }
+
+            content.innerHTML = `
+                <ul class="field-list">
+                    ${fields.map(field => {
+                        const fieldKey = field.key || '';
+                        return `
+                        <li class="field-item">
+                            <div class="field-item-header">
+                                <div class="field-info">
+                                    <span class="field-name">${escapeHtml(field.name || '未命名字段')}</span>
+                                    <span class="field-type">${getFieldTypeName(field.type || 'string')}</span>
+                                    ${field.required ? '<span class="field-required">必填</span>' : ''}
+                                </div>
+                                <div class="type-actions">
+                                    <button class="btn btn-secondary btn-sm" onclick="editField('${fieldKey}')" ${fieldKey ? '' : 'disabled'}>编辑</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteField('${fieldKey}')" ${fieldKey ? '' : 'disabled'}>删除</button>
+                                </div>
+                            </div>
+                        </li>
+                    `}).join('')}
+                </ul>
+            `;
+        }
+
+        function getFieldTypeName(type) {
+            const typeMap = {
+                'string': '字符串',
+                'number': '数字',
+                'boolean': '布尔值',
+                'date': '日期'
+            };
+            return typeMap[type] || type;
+        }
+
+        function openTypeModal(key = null) {
+            document.getElementById('typeModal').classList.remove('hidden');
+            document.getElementById('typeKey').value = key || '';
+            document.getElementById('typeName').value = '';
+            document.getElementById('typeDescription').value = '';
+            document.getElementById('typeModalTitle').textContent = key ? '编辑产品类型' : '新增产品类型';
+
+            if (key) {
+                const type = productTypes.find(t => t.key === key);
+                if (type) {
+                    document.getElementById('typeName').value = type.name || '';
+                    document.getElementById('typeDescription').value = type.description || '';
+                }
+            }
+        }
+
+        function closeTypeModal() {
+            document.getElementById('typeModal').classList.add('hidden');
+        }
+
+        async function saveType() {
+            const key = document.getElementById('typeKey').value;
+            const name = document.getElementById('typeName').value.trim();
+            const description = document.getElementById('typeDescription').value.trim();
+
+            if (!name) {
+                showToast('请输入类型名称', 'error');
+                return;
+            }
+
+            try {
+                let response;
+                if (key) {
+                    response = await fetch(`/api/v4/product-type/${encodeURIComponent(key)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, description })
+                    });
+                } else {
+                    response = await fetch('/api/v4/product-types', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, description })
+                    });
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast(key ? '更新成功' : '新增成功', 'success');
+                    closeTypeModal();
+                    await loadProductTypes();
+                    if (key) {
+                        selectType(key);
+                    }
+                } else {
+                    showToast(result.error || '操作失败', 'error');
+                }
+            } catch (error) {
+                showToast('操作失败', 'error');
+            }
+        }
+
+        function editType(key) {
+            openTypeModal(key);
+        }
+
+        async function deleteType(key) {
+            if (!confirm('确定要删除该产品类型吗？删除后无法恢复。')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/v4/product-type/${encodeURIComponent(key)}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('删除成功', 'success');
+                    if (selectedTypeKey === key) {
+                        selectedTypeKey = null;
+                        fields = [];
+                        document.getElementById('addFieldBtn').disabled = true;
+                        document.getElementById('fieldsTitle').textContent = '字段管理';
+                        renderFields();
+                    }
+                    await loadProductTypes();
+                } else {
+                    showToast(result.error || '删除失败', 'error');
+                }
+            } catch (error) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        function openFieldModal(key = null) {
+            document.getElementById('fieldModal').classList.remove('hidden');
+            document.getElementById('fieldKey').value = key || '';
+            document.getElementById('fieldName').value = '';
+            document.getElementById('fieldType').value = 'string';
+            document.getElementById('fieldRequired').checked = false;
+            document.getElementById('fieldModalTitle').textContent = key ? '编辑字段' : '新增字段';
+
+            if (key) {
+                const field = fields.find(f => f.key === key);
+                if (field) {
+                    document.getElementById('fieldName').value = field.name || '';
+                    document.getElementById('fieldType').value = field.type || 'string';
+                    document.getElementById('fieldRequired').checked = field.required || false;
+                } else {
+                    showToast('字段不存在，请刷新后重试', 'error');
+                    closeFieldModal();
+                }
+            }
+        }
+
+        function closeFieldModal() {
+            document.getElementById('fieldModal').classList.add('hidden');
+        }
+
+        async function saveField() {
+            const key = document.getElementById('fieldKey').value;
+            const field_name = document.getElementById('fieldName').value.trim();
+            const field_type = document.getElementById('fieldType').value;
+            const required = document.getElementById('fieldRequired').checked;
+
+            if (!field_name) {
+                showToast('请输入字段名称', 'error');
+                return;
+            }
+
+            try {
+                let response;
+                if (key) {
+                    response = await fetch(`/api/v4/product-type/${encodeURIComponent(selectedTypeKey)}/field/${encodeURIComponent(key)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ field_name, field_type, required })
+                    });
+                } else {
+                    response = await fetch(`/api/v4/product-type/${encodeURIComponent(selectedTypeKey)}/fields`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ field_name, field_type, required })
+                    });
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast(key ? '更新成功' : '新增成功', 'success');
+                    closeFieldModal();
+                    await loadFields(selectedTypeKey);
+                    await loadProductTypes();
+                } else {
+                    showToast(result.error || '操作失败', 'error');
+                }
+            } catch (error) {
+                showToast('操作失败', 'error');
+            }
+        }
+
+        function editField(key) {
+            if (!key) {
+                showToast('字段缺少内部标识，请刷新后重试', 'error');
+                return;
+            }
+            openFieldModal(key);
+        }
+
+        async function deleteField(key) {
+            if (!key) {
+                showToast('字段缺少内部标识，请刷新后重试', 'error');
+                return;
+            }
+            if (!confirm('确定要删除该字段吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/v4/product-type/${encodeURIComponent(selectedTypeKey)}/field/${encodeURIComponent(key)}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast('删除成功', 'success');
+                    await loadFields(selectedTypeKey);
+                    await loadProductTypes();
+                } else {
+                    showToast(result.error || '删除失败', 'error');
+                }
+            } catch (error) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProductTypes();
+        });
+
+        document.getElementById('typeModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeTypeModal();
+            }
+        });
+
+        document.getElementById('fieldModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeFieldModal();
+            }
+        });
+    </script>
+</body>
+</html>

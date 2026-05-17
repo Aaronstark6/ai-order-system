@@ -164,32 +164,5 @@
       "status": "planned",
       "description": "未来由 Excel 或 Word 转换 PDF"
     }
-  },
-  "product_types": [
-    {
-      "key": "default",
-      "name": "默认产品类型",
-      "description": "从旧版迁移的默认产品类型",
-      "fields": []
-    },
-    {
-      "key": "固体饮料",
-      "name": "固体饮料",
-      "description": "",
-      "fields": [
-        {
-          "key": "field_b916f282",
-          "name": "甜味剂",
-          "type": "string",
-          "required": false
-        }
-      ]
-    },
-    {
-      "key": "软胶囊",
-      "name": "软胶囊",
-      "description": "",
-      "fields": []
-    }
-  ]
+  }
 }

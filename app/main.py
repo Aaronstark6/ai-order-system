@@ -76,6 +76,11 @@ def v4_workbench_page():
     return FileResponse(STATIC_DIR / "v4_workbench.html")
 
 
+@app.get("/v4-product-types")
+def v4_product_types_page():
+    return FileResponse(STATIC_DIR / "v4_product_types.html")
+
+
 # ====================
 # Health Check
 # ====================

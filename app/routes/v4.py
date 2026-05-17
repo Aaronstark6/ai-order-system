@@ -759,6 +759,147 @@ def api_v4_excel_render_template_rules(template_key: str):
     }
 
 
+@router.get("/api/v4/product-types")
+def api_v4_product_types():
+    from app.v4_schema import get_product_types
+    logger.info("V4 product types requested")
+    return {
+        "success": True,
+        "data": get_product_types(),
+    }
+
+
+@router.get("/api/v4/product-type/{product_type_key}")
+def api_v4_product_type(product_type_key: str):
+    from app.v4_schema import get_product_type
+    product_type = get_product_type(product_type_key)
+    if not product_type:
+        logger.info("V4 product type not found: key=%s", product_type_key)
+        return {
+            "success": False,
+            "error": f"产品类型 '{product_type_key}' 不存在",
+        }
+    logger.info("V4 product type requested: key=%s", product_type_key)
+    return {
+        "success": True,
+        "data": product_type,
+    }
+
+
+@router.post("/api/v4/product-types")
+def api_v4_add_product_type(name: str = Body(...), description: str = Body("")):
+    from app.v4_schema import add_product_type
+    logger.info("V4 product type add requested: name=%s", name)
+    result = add_product_type(name, description)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "新增产品类型失败"),
+        }
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.put("/api/v4/product-type/{product_type_key}")
+def api_v4_update_product_type(product_type_key: str, name: str = Body(None), description: str = Body(None)):
+    from app.v4_schema import update_product_type
+    logger.info("V4 product type update requested: key=%s", product_type_key)
+    result = update_product_type(product_type_key, name, description)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "更新产品类型失败"),
+        }
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.delete("/api/v4/product-type/{product_type_key}")
+def api_v4_delete_product_type(product_type_key: str):
+    from app.v4_schema import delete_product_type
+    logger.info("V4 product type delete requested: key=%s", product_type_key)
+    result = delete_product_type(product_type_key)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "删除产品类型失败"),
+        }
+    return {
+        "success": True,
+        "message": f"产品类型 '{product_type_key}' 已删除",
+    }
+
+
+@router.get("/api/v4/product-type/{product_type_key}/fields")
+def api_v4_product_type_fields(product_type_key: str):
+    from app.v4_schema import get_product_type, get_product_type_fields
+    product_type = get_product_type(product_type_key)
+    if not product_type:
+        logger.info("V4 product type not found: key=%s", product_type_key)
+        return {
+            "success": False,
+            "error": f"产品类型 '{product_type_key}' 不存在",
+        }
+    fields = get_product_type_fields(product_type_key)
+    logger.info("V4 product type fields requested: key=%s count=%s", product_type_key, len(fields))
+    return {
+        "success": True,
+        "data": fields,
+    }
+
+
+@router.post("/api/v4/product-type/{product_type_key}/fields")
+def api_v4_add_field(product_type_key: str, field_name: str = Body(...), field_type: str = Body("string"), required: bool = Body(False)):
+    from app.v4_schema import add_field_to_product_type
+    logger.info("V4 field add requested: product_type=%s field=%s", product_type_key, field_name)
+    result = add_field_to_product_type(product_type_key, field_name, field_type, required)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "新增字段失败"),
+        }
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.put("/api/v4/product-type/{product_type_key}/field/{field_key}")
+def api_v4_update_field(product_type_key: str, field_key: str, field_name: str = Body(None), field_type: str = Body(None), required: bool = Body(None)):
+    from app.v4_schema import update_field_in_product_type
+    logger.info("V4 field update requested: product_type=%s field=%s", product_type_key, field_key)
+    result = update_field_in_product_type(product_type_key, field_key, field_name, field_type, required)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "更新字段失败"),
+        }
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.delete("/api/v4/product-type/{product_type_key}/field/{field_key}")
+def api_v4_delete_field(product_type_key: str, field_key: str):
+    from app.v4_schema import delete_field_from_product_type
+    logger.info("V4 field delete requested: product_type=%s field=%s", product_type_key, field_key)
+    result = delete_field_from_product_type(product_type_key, field_key)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "删除字段失败"),
+        }
+    return {
+        "success": True,
+        "message": f"字段 '{field_key}' 已删除",
+    }
+
+
 @router.get("/api/v4/product-forms")
 def api_v4_product_forms():
     logger.info("V4 product forms requested")
