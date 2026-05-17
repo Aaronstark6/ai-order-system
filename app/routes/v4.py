@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 from zipfile import BadZipFile
 
-from fastapi import APIRouter, Body, File, UploadFile
+from fastapi import APIRouter, Body, File, Form, UploadFile
 from fastapi.responses import FileResponse
 from openpyxl.utils.exceptions import InvalidFileException
 
@@ -417,6 +417,167 @@ def api_v4_template_match_or_parse(file: Optional[UploadFile] = File(None)):
         return {
             "success": False,
             "error": f"AI 解析失败：{exc}",
+        }
+    finally:
+        _remove_v4_uploaded_template(temp_path)
+
+
+def _load_workbench_example_order(example_order_text: str = ""):
+    if not isinstance(example_order_text, str):
+        example_order_text = ""
+    if str(example_order_text or "").strip():
+        payload = json.loads(example_order_text)
+        if not isinstance(payload, dict):
+            raise ValueError("example_order 必须是 JSON object")
+        return payload
+
+    example = load_example("soft_capsule_order_example")
+    if not example:
+        raise ValueError("默认示例订单不存在")
+    return example
+
+
+def _build_workbench_rules_config(rules):
+    if not isinstance(rules, list) or not rules:
+        raise ValueError("rules 为空")
+
+    template_key = "workbench_template"
+    return template_key, {
+        "version": "v4.19-workbench",
+        "description": "Workbench generated temporary rules config",
+        "templates": {
+            template_key: {
+                "label": "Workbench 智能模板规则",
+                "rules": rules,
+            }
+        },
+    }
+
+
+@router.post("/api/v4/workbench/export")
+def api_v4_workbench_export(
+    file: Optional[UploadFile] = File(None),
+    rules: str = Form(""),
+    example_order: str = Form(""),
+):
+    temp_path = None
+    if file is None:
+        return {
+            "success": False,
+            "error": "尚未上传模板",
+        }
+
+    try:
+        if not str(rules or "").strip():
+            return {
+                "success": False,
+                "error": "尚未完成智能解析",
+            }
+
+        parsed_rules = json.loads(rules)
+        if not isinstance(parsed_rules, list) or not parsed_rules:
+            return {
+                "success": False,
+                "error": "rules 为空",
+            }
+
+        logger.info("V4 workbench export requested: filename=%s rules=%s", file.filename, len(parsed_rules))
+        temp_path = _save_v4_uploaded_template(file)
+        example = _load_workbench_example_order(example_order)
+        template_key, rules_config = _build_workbench_rules_config(parsed_rules)
+
+        render_result = render_example_to_description_fields(example, load_product_schema())
+        if not render_result.get("success"):
+            return {
+                "success": False,
+                "error": render_result.get("error", "Excel 生成失败：Renderer 失败"),
+            }
+
+        preview_result = build_excel_rule_preview(
+            example,
+            render_result.get("description_fields", {}),
+            rules_config,
+            template_key,
+        )
+        if not preview_result.get("success"):
+            return {
+                "success": False,
+                "error": preview_result.get("error", "Excel 生成失败：规则预览失败"),
+            }
+
+        operations = preview_result.get("operations", [])
+        if not isinstance(operations, list):
+            operations = []
+
+        output_dir = get_base_dir() / "v4" / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_template_name = _safe_output_filename_part(Path(file.filename or "template").stem)
+        filename = f"workbench_{safe_template_name}_{timestamp}.xlsx"
+        output_path = output_dir / filename
+
+        executor_result = execute_rules_to_template_excel(
+            str(temp_path),
+            operations,
+            str(output_path),
+        )
+        if not executor_result.get("success"):
+            return {
+                "success": False,
+                "error": executor_result.get("error", "Excel 生成失败"),
+                "warnings": preview_result.get("warnings", []) + executor_result.get("warnings", []),
+                "operations_count": len(operations),
+            }
+
+        download_url = f"/api/v4/output/{filename}"
+        if not download_url:
+            return {
+                "success": False,
+                "error": "下载链接生成失败",
+            }
+
+        warnings = []
+        warnings.extend(render_result.get("warnings", []))
+        warnings.extend(preview_result.get("warnings", []))
+        warnings.extend(executor_result.get("warnings", []))
+
+        logger.info(
+            "V4 workbench export succeeded: filename=%s operations=%s warnings=%s",
+            filename,
+            len(operations),
+            len(warnings),
+        )
+        return {
+            "success": True,
+            "filename": filename,
+            "download_url": download_url,
+            "warnings": warnings,
+            "operations_count": len(operations),
+            "operations_written": executor_result.get("operations_written", 0),
+        }
+    except json.JSONDecodeError as exc:
+        logger.info("V4 workbench export rejected by invalid JSON: filename=%s error=%s", file.filename, exc)
+        return {
+            "success": False,
+            "error": f"Excel 生成失败：rules JSON 不合法",
+        }
+    except ValueError as exc:
+        logger.info("V4 workbench export rejected: filename=%s error=%s", file.filename, exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except (BadZipFile, InvalidFileException):
+        logger.info("V4 workbench export rejected as non Excel: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": "文件不是 Excel",
+        }
+    except Exception as exc:
+        logger.exception("V4 workbench export failed: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": f"Excel 生成失败：{exc}",
         }
     finally:
         _remove_v4_uploaded_template(temp_path)

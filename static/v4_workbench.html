@@ -217,6 +217,52 @@
             line-height: 1.45;
         }
 
+        .export-panel {
+            margin-top: 18px;
+            padding: 18px;
+            border: 1px solid #dbe4ef;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .export-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 10px;
+        }
+
+        .export-title {
+            margin: 0;
+            color: #0f172a;
+            font-size: 18px;
+        }
+
+        .export-text {
+            margin: 0;
+            color: #475569;
+            line-height: 1.6;
+        }
+
+        .download-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            margin-top: 12px;
+            padding: 0 16px;
+            border-radius: 7px;
+            background: #15803d;
+            color: #fff;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .download-link:hover {
+            background: #166534;
+        }
+
         details {
             margin-top: 18px;
             border: 1px solid #e2e8f0;
@@ -260,8 +306,10 @@
         @media (max-width: 820px) {
             .flow-list,
             .result-grid,
-            .upload-row {
+            .upload-row,
+            .export-header {
                 grid-template-columns: 1fr;
+                display: grid;
             }
 
             h1 {
@@ -313,6 +361,8 @@
         const startButton = document.getElementById("startButton");
         const message = document.getElementById("message");
         const resultArea = document.getElementById("resultArea");
+        let currentWorkbenchResult = null;
+        let currentExportResult = null;
 
         function escapeHtml(value) {
             return String(value ?? "")
@@ -341,6 +391,8 @@
         }
 
         function renderResult(data) {
+            currentWorkbenchResult = data;
+            currentExportResult = null;
             const rules = Array.isArray(data.rules) ? data.rules : [];
             const warnings = Array.isArray(data.warnings) ? data.warnings : [];
             const layoutHash = String(data.layout_hash || "");
@@ -368,10 +420,23 @@
                         <p class="result-value">${escapeHtml(statusText)}</p>
                     </article>
                 </div>
+                <section class="export-panel">
+                    <div class="export-header">
+                        <div>
+                            <h2 class="export-title">生成 Excel</h2>
+                            <p class="export-text">当前模板已解析完成。rules 数量：${rules.length}；warning 数量：${warnings.length}。</p>
+                        </div>
+                        <button id="generateExcelButton" class="button" type="button">生成 Excel 文件</button>
+                    </div>
+                    <div id="exportMessage" class="state" style="display: none;"></div>
+                    <div id="exportResult" style="display: none;"></div>
+                </section>
                 <details>
                     <summary>高级信息（开发调试）</summary>
-                    <div class="advanced-body">
+                    <div id="advancedInfo" class="advanced-body">
                         <p class="advanced-item">layout_hash：${escapeHtml(layoutHash || "-")}</p>
+                        <p class="advanced-item">operations 数量：尚未生成 Excel</p>
+                        <p class="advanced-item">download_url：尚未生成 Excel</p>
                         <p class="advanced-item">warning 详情：</p>
                         ${advancedWarnings}
                         <p class="advanced-item">rules JSON：</p>
@@ -383,8 +448,112 @@
             setMessage(cacheHit ? "已自动识别历史模板" : "系统已学习该模板，下次会更快", "success");
         }
 
+        function setExportMessage(text, type) {
+            const box = document.getElementById("exportMessage");
+            if (!box) {
+                return;
+            }
+            box.className = `state ${type || ""}`.trim();
+            box.textContent = text;
+            box.style.display = "block";
+        }
+
+        function refreshAdvancedInfo() {
+            const advancedInfo = document.getElementById("advancedInfo");
+            if (!advancedInfo || !currentWorkbenchResult) {
+                return;
+            }
+
+            const rules = Array.isArray(currentWorkbenchResult.rules) ? currentWorkbenchResult.rules : [];
+            const parseWarnings = Array.isArray(currentWorkbenchResult.warnings) ? currentWorkbenchResult.warnings : [];
+            const exportWarnings = currentExportResult && Array.isArray(currentExportResult.warnings)
+                ? currentExportResult.warnings
+                : [];
+            const allWarnings = parseWarnings.concat(exportWarnings);
+            const warningsHtml = allWarnings.length
+                ? `<pre class="json-preview">${escapeHtml(JSON.stringify(allWarnings, null, 2))}</pre>`
+                : `<div class="advanced-item">暂无 warning 详情</div>`;
+            const operationsCount = currentExportResult ? currentExportResult.operations_count : "尚未生成 Excel";
+            const downloadUrl = currentExportResult ? currentExportResult.download_url : "尚未生成 Excel";
+
+            advancedInfo.innerHTML = `
+                <p class="advanced-item">layout_hash：${escapeHtml(currentWorkbenchResult.layout_hash || "-")}</p>
+                <p class="advanced-item">operations 数量：${escapeHtml(operationsCount)}</p>
+                <p class="advanced-item">download_url：${escapeHtml(downloadUrl || "-")}</p>
+                <p class="advanced-item">warning 详情：</p>
+                ${warningsHtml}
+                <p class="advanced-item">rules JSON：</p>
+                <pre class="json-preview">${escapeHtml(JSON.stringify(rules, null, 2))}</pre>
+            `;
+        }
+
+        function renderExportResult(result) {
+            currentExportResult = result;
+            const exportResult = document.getElementById("exportResult");
+            if (!exportResult) {
+                return;
+            }
+
+            const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+            exportResult.innerHTML = `
+                <div class="state success">Excel 已生成。操作数量：${Number(result.operations_count || 0)}；warning 数量：${warnings.length}。</div>
+                <a class="download-link" href="${escapeHtml(result.download_url || "#")}" target="_blank" rel="noopener">下载 Excel</a>
+            `;
+            exportResult.style.display = "block";
+            refreshAdvancedInfo();
+        }
+
+        async function exportExcelFile() {
+            if (!fileInput.files || !fileInput.files.length) {
+                setMessage("尚未上传模板", "error");
+                return;
+            }
+            if (!currentWorkbenchResult) {
+                setMessage("尚未完成智能解析", "error");
+                return;
+            }
+
+            const rules = Array.isArray(currentWorkbenchResult.rules) ? currentWorkbenchResult.rules : [];
+            if (!rules.length) {
+                setExportMessage("rules 为空", "error");
+                return;
+            }
+
+            const button = document.getElementById("generateExcelButton");
+            if (button) {
+                button.disabled = true;
+                button.textContent = "生成中...";
+            }
+            setExportMessage("正在生成 Excel 文件，请稍候。", "");
+
+            try {
+                const formData = new FormData();
+                formData.append("file", selectedFile());
+                formData.append("rules", JSON.stringify(rules));
+                const response = await fetch("/api/v4/workbench/export", {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "Excel 生成失败");
+                }
+                setExportMessage("Excel 已生成", "success");
+                renderExportResult(result);
+            } catch (error) {
+                setExportMessage(`Excel 生成失败：${error.message || error}`, "error");
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = "生成 Excel 文件";
+                }
+            }
+        }
+
         async function startSmartParse() {
             resultArea.style.display = "none";
+            currentWorkbenchResult = null;
+            currentExportResult = null;
             startButton.disabled = true;
             startButton.textContent = "解析中...";
             setMessage("系统正在自动处理模板，请稍候。", "");
@@ -414,6 +583,14 @@
             fileName.textContent = file ? file.name : "尚未选择文件";
             resultArea.style.display = "none";
             message.style.display = "none";
+            currentWorkbenchResult = null;
+            currentExportResult = null;
+        });
+
+        resultArea.addEventListener("click", event => {
+            if (event.target && event.target.id === "generateExcelButton") {
+                exportExcelFile();
+            }
         });
 
         startButton.addEventListener("click", startSmartParse);
