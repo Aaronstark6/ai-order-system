@@ -1,43 +1,49 @@
 {
   "mapping_name": "结构化字段映射",
-  "version": "V4-Core.10",
+  "version": "V4-Core.12",
   "target": "real_excel",
   "mappings": [
     {
       "source_path": "product.product_name",
       "target_cell": "B1",
       "operation": "write_text",
-      "label": "产品名称"
+      "label": "产品名称",
+      "target_direction": "right"
     },
     {
       "source_path": "product.product_type",
       "target_cell": "B2",
       "operation": "write_text",
-      "label": "产品类型"
+      "label": "产品类型",
+      "target_direction": "right"
     },
     {
       "source_path": "product.fields.甜味剂",
       "target_cell": "B3",
       "operation": "write_text",
-      "label": "甜味剂"
+      "label": "甜味剂",
+      "target_direction": "right"
     },
     {
       "source_path": "product.fields.口味",
       "target_cell": "B4",
       "operation": "write_text",
-      "label": "口味"
+      "label": "口味",
+      "target_direction": "right"
     },
     {
       "source_path": "product.fields.包装规格",
-      "target_cell": "B5",
+      "target_cell": "A6",
       "operation": "write_text",
-      "label": "包装规格"
+      "label": "包装规格",
+      "target_direction": "below"
     },
     {
       "source_path": "customer.name",
       "target_cell": "B6",
       "operation": "write_text",
-      "label": "客户名称"
+      "label": "客户名称",
+      "target_direction": "right"
     }
   ]
 }

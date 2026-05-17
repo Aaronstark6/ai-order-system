@@ -319,10 +319,11 @@
                                 <th>字段名称</th>
                                 <th>标签单元格</th>
                                 <th>目标单元格</th>
+                                <th>推导结果</th>
                             </tr>
                         </thead>
                         <tbody id="locatorRows">
-                            <tr><td colspan="3">尚未扫描模板。</td></tr>
+                            <tr><td colspan="4">尚未扫描模板。</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -343,6 +344,7 @@
                                 <th>字段名称</th>
                                 <th>来源路径</th>
                                 <th>目标单元格</th>
+                                <th>目标位置方向</th>
                                 <th>操作类型</th>
                                 <th>操作</th>
                             </tr>
@@ -379,7 +381,7 @@
 
         let currentMapping = {
             mapping_name: '结构化字段映射',
-            version: 'V4-Core.10',
+            version: 'V4-Core.12',
             target: 'real_excel',
             mappings: []
         };
@@ -437,12 +439,13 @@
             const mappings = Array.isArray(mapping.mappings) ? mapping.mappings : [];
             return {
                 mapping_name: mapping.mapping_name || '结构化字段映射',
-                version: mapping.version || 'V4-Core.10',
+                version: mapping.version || 'V4-Core.12',
                 target: mapping.target || 'real_excel',
                 mappings: mappings.map(item => ({
                     label: item.label || '',
                     source_path: item.source_path || '',
                     target_cell: item.target_cell || '',
+                    target_direction: item.target_direction === 'below' ? 'below' : 'right',
                     operation: item.operation || 'write_text'
                 }))
             };
@@ -453,6 +456,7 @@
                 label: '',
                 source_path: sourcePath || '',
                 target_cell: '',
+                target_direction: 'right',
                 operation: 'write_text'
             });
             renderRows();
@@ -475,7 +479,7 @@
         function renderRows() {
             const rows = document.getElementById('mappingRows');
             if (!currentMapping.mappings.length) {
-                rows.innerHTML = '<tr><td colspan="5">暂无映射，请新增。</td></tr>';
+                rows.innerHTML = '<tr><td colspan="6">暂无映射，请新增。</td></tr>';
                 return;
             }
 
@@ -489,6 +493,12 @@
                     </td>
                     <td>
                         <input class="cell-target" value="${escapeAttr(item.target_cell)}" oninput="updateMappingField(${index}, 'target_cell', this.value)" placeholder="B2">
+                    </td>
+                    <td>
+                        <select class="operation-select" onchange="updateMappingField(${index}, 'target_direction', this.value)">
+                            <option value="right" ${item.target_direction !== 'below' ? 'selected' : ''}>右侧一格</option>
+                            <option value="below" ${item.target_direction === 'below' ? 'selected' : ''}>下方一格</option>
+                        </select>
                     </td>
                     <td>
                         <select class="operation-select" onchange="updateMappingField(${index}, 'operation', this.value)">
@@ -511,10 +521,25 @@
             setStatus(locatorTemplateFile ? `已选择模板：${locatorTemplateFile.name}` : '请先上传 Excel 模板');
         }
 
-        function getScannableLabels() {
+        function getDirectionText(direction) {
+            return direction === 'below' ? '下方一格' : '右侧一格';
+        }
+
+        function getMatchKey(label, direction) {
+            return `${label}::${direction === 'below' ? 'below' : 'right'}`;
+        }
+
+        function getScannableMappings() {
             return currentMapping.mappings
-                .map(item => String(item.label || '').trim())
-                .filter((label, index, labels) => label && labels.indexOf(label) === index);
+                .map(item => ({
+                    label: String(item.label || '').trim(),
+                    target_direction: item.target_direction === 'below' ? 'below' : 'right'
+                }))
+                .filter(item => item.label)
+                .filter((item, index, mappings) => {
+                    const key = getMatchKey(item.label, item.target_direction);
+                    return mappings.findIndex(candidate => getMatchKey(candidate.label, candidate.target_direction) === key) === index;
+                });
         }
 
         async function scanTemplateLabels() {
@@ -524,8 +549,8 @@
                 return;
             }
 
-            const labels = getScannableLabels();
-            if (!labels.length) {
+            const mappings = getScannableMappings();
+            if (!mappings.length) {
                 showLocatorMessage('没有可扫描的字段标签', 'error');
                 setStatus('没有可扫描的字段标签');
                 return;
@@ -536,7 +561,7 @@
             try {
                 const formData = new FormData();
                 formData.append('template_file', locatorTemplateFile);
-                formData.append('labels_json', JSON.stringify(labels));
+                formData.append('mappings_json', JSON.stringify(mappings));
 
                 const response = await fetch('/api/v4/scan-template-labels', {
                     method: 'POST',
@@ -587,6 +612,7 @@
                     <td>${escapeHtml(match.label || '')}</td>
                     <td>${escapeHtml(`${match.sheet || ''}!${match.label_cell || ''}`)}</td>
                     <td>${escapeHtml(match.target_cell || '')}</td>
+                    <td>${escapeHtml(`${match.label || ''}：${match.label_cell || ''} → ${match.target_cell || ''}（${getDirectionText(match.target_direction)}）`)}</td>
                 </tr>
             `);
             const unmatchedRows = unmatched.map(label => `
@@ -594,10 +620,11 @@
                     <td>${escapeHtml(label)}</td>
                     <td>未匹配</td>
                     <td></td>
+                    <td></td>
                 </tr>
             `);
 
-            rows.innerHTML = matchRows.concat(unmatchedRows).join('') || '<tr><td colspan="3">尚未扫描模板。</td></tr>';
+            rows.innerHTML = matchRows.concat(unmatchedRows).join('') || '<tr><td colspan="4">尚未扫描模板。</td></tr>';
             if (warnings.length) {
                 showLocatorMessage(warnings.join('；'), 'success');
             }
@@ -611,18 +638,20 @@
                 return;
             }
 
-            const targetByLabel = {};
+            const targetByKey = {};
             matches.forEach(match => {
                 if (match.label && match.target_cell) {
-                    targetByLabel[match.label] = match.target_cell;
+                    targetByKey[getMatchKey(match.label, match.target_direction)] = match.target_cell;
                 }
             });
 
             let updatedCount = 0;
             currentMapping.mappings.forEach(item => {
                 const label = String(item.label || '').trim();
-                if (targetByLabel[label]) {
-                    item.target_cell = targetByLabel[label];
+                const direction = item.target_direction === 'below' ? 'below' : 'right';
+                const key = getMatchKey(label, direction);
+                if (targetByKey[key]) {
+                    item.target_cell = targetByKey[key];
                     updatedCount += 1;
                 }
             });
@@ -639,6 +668,7 @@
                     label: String(item.label || '').trim(),
                     source_path: String(item.source_path || '').trim(),
                     target_cell: String(item.target_cell || '').trim(),
+                    target_direction: item.target_direction === 'below' ? 'below' : 'right',
                     operation: 'write_text'
                 }))
                 .filter(item => item.label || item.source_path || item.target_cell);

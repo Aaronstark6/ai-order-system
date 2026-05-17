@@ -13,6 +13,10 @@ def _get_structured_excel_mapping_path():
     return get_base_dir() / "v4" / "rules" / "structured_excel_mapping.json"
 
 
+def _normalize_target_direction(value):
+    return "below" if str(value or "").strip() == "below" else "right"
+
+
 def load_structured_excel_mapping():
     mapping_path = _get_structured_excel_mapping_path()
     try:
@@ -35,6 +39,7 @@ def _normalize_mapping_item(item):
     source_path = str(item.get("source_path") or "").strip()
     target_cell = str(item.get("target_cell") or "").strip()
     label = str(item.get("label") or source_path).strip()
+    target_direction = _normalize_target_direction(item.get("target_direction"))
     if not source_path and not target_cell and not label:
         return None
 
@@ -43,6 +48,7 @@ def _normalize_mapping_item(item):
         "target_cell": target_cell,
         "operation": "write_text",
         "label": label or source_path or target_cell,
+        "target_direction": target_direction,
     }
 
 
@@ -65,7 +71,7 @@ def normalize_structured_excel_mapping(mapping):
             or source.get("mapping_name")
             or "结构化字段映射"
         ).strip() or "结构化字段映射",
-        "version": "V4-Core.10",
+        "version": "V4-Core.12",
         "target": str(source.get("target") or current.get("target") or "real_excel").strip() or "real_excel",
         "mappings": normalized_items,
     }
@@ -224,6 +230,7 @@ def order_object_to_structured_operations(order_object, mapping):
             "source_path": source_path,
             "target_cell": target_cell,
             "label": label,
+            "target_direction": _normalize_target_direction(item.get("target_direction")),
             "value": "" if value is None else str(value),
         })
 

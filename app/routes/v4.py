@@ -954,7 +954,8 @@ def api_v4_save_structured_mapping(mapping: dict = Body(...)):
 @router.post("/api/v4/scan-template-labels")
 def api_v4_scan_template_labels(
     template_file: UploadFile = File(...),
-    labels_json: str = Form(...),
+    mappings_json: Optional[str] = Form(None),
+    labels_json: Optional[str] = Form(None),
 ):
     from app.v4_label_locator import scan_labels_in_excel
 
@@ -962,7 +963,8 @@ def api_v4_scan_template_labels(
     template_path = None
     try:
         try:
-            labels = json.loads(labels_json or "")
+            raw_payload = mappings_json if mappings_json is not None else labels_json
+            mappings = json.loads(raw_payload or "")
         except json.JSONDecodeError:
             return {
                 "success": False,
@@ -972,7 +974,20 @@ def api_v4_scan_template_labels(
                 "error": "没有可扫描的字段标签",
             }
 
-        if not isinstance(labels, list) or not [str(label or "").strip() for label in labels if str(label or "").strip()]:
+        if not isinstance(mappings, list):
+            return {
+                "success": False,
+                "matches": [],
+                "unmatched_labels": [],
+                "warnings": ["没有可扫描的字段标签"],
+                "error": "没有可扫描的字段标签",
+            }
+
+        if not [
+            str(item.get("label") if isinstance(item, dict) else item or "").strip()
+            for item in mappings
+            if str(item.get("label") if isinstance(item, dict) else item or "").strip()
+        ]:
             return {
                 "success": False,
                 "matches": [],
@@ -982,7 +997,7 @@ def api_v4_scan_template_labels(
             }
 
         template_path = _save_v4_core_excel_template(template_file)
-        result = scan_labels_in_excel(template_path, labels)
+        result = scan_labels_in_excel(template_path, mappings)
         if not result.get("success"):
             return {
                 "success": False,
