@@ -96,10 +96,23 @@ def _normalize_field(field, index, used_keys):
     field_type = str(normalized.get("type") or normalized.get("field_type") or "string").strip()
     normalized["type"] = field_type or "string"
     normalized["required"] = bool(normalized.get("required", False))
+    normalized["description"] = str(normalized.get("description") or "").strip()
+    normalized["allowed_values"] = _normalize_value_list(normalized.get("allowed_values"))
+    normalized["forbidden_values"] = _normalize_value_list(normalized.get("forbidden_values"))
     normalized.pop("field_key", None)
     normalized.pop("field_name", None)
 
     return normalized
+
+
+def _normalize_value_list(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [line.strip() for line in value.splitlines() if line.strip()]
+    return []
 
 
 def _normalize_product_types_schema(schema):
@@ -304,7 +317,15 @@ def delete_product_type(product_type_key):
     return save_product_schema(schema)
 
 
-def add_field_to_product_type(product_type_key, field_name, field_type="string", required=False):
+def add_field_to_product_type(
+    product_type_key,
+    field_name,
+    field_type="string",
+    required=False,
+    description="",
+    allowed_values=None,
+    forbidden_values=None,
+):
     """Add a field to a specific product type."""
     if not field_name or not field_name.strip():
         return {"success": False, "error": "字段名称不能为空"}
@@ -327,6 +348,9 @@ def add_field_to_product_type(product_type_key, field_name, field_type="string",
         "name": field_name.strip(),
         "type": field_type if field_type else "string",
         "required": bool(required),
+        "description": description.strip() if description else "",
+        "allowed_values": _normalize_value_list(allowed_values),
+        "forbidden_values": _normalize_value_list(forbidden_values),
     }
 
     fields.append(new_field)
@@ -343,7 +367,16 @@ def add_field_to_product_type(product_type_key, field_name, field_type="string",
     return {"success": False, "error": f"产品类型 '{product_type_key}' 不存在"}
 
 
-def update_field_in_product_type(product_type_key, field_key, field_name=None, field_type=None, required=None):
+def update_field_in_product_type(
+    product_type_key,
+    field_key,
+    field_name=None,
+    field_type=None,
+    required=None,
+    description=None,
+    allowed_values=None,
+    forbidden_values=None,
+):
     """Update a field in a product type."""
     product_type = get_product_type(product_type_key)
     if not product_type:
@@ -358,6 +391,12 @@ def update_field_in_product_type(product_type_key, field_key, field_name=None, f
                 f["type"] = field_type
             if required is not None:
                 f["required"] = bool(required)
+            if description is not None:
+                f["description"] = description.strip() if description else ""
+            if allowed_values is not None:
+                f["allowed_values"] = _normalize_value_list(allowed_values)
+            if forbidden_values is not None:
+                f["forbidden_values"] = _normalize_value_list(forbidden_values)
             fields[i] = f
             schema = load_product_schema()
             product_types = schema.get("product_types", [])

@@ -172,20 +172,56 @@
         }
 
         .field-row {
-            align-items: center;
+            align-items: end;
+            border: 1px solid #dbe3df;
+            border-radius: 8px;
             display: grid;
             gap: 8px;
-            grid-template-columns: minmax(120px, 1fr) minmax(160px, 2fr) auto;
+            grid-template-columns: minmax(150px, 1fr) minmax(180px, 2fr);
+            padding: 12px;
         }
 
-        .btn-ghost {
-            background: #fff8f4;
-            border-color: #efc5ae;
-            color: #9a4b22;
+        .field-label {
+            color: #1f2933;
+            font-size: 14px;
+            font-weight: 700;
         }
 
-        .btn-ghost:hover {
-            background: #ffefe6;
+        .field-hint {
+            color: #66736d;
+            font-size: 12px;
+            line-height: 1.5;
+            margin-top: 6px;
+        }
+
+        .field-hint strong {
+            color: #43514b;
+        }
+
+        .required-badge {
+            background: #fff3cc;
+            border-radius: 4px;
+            color: #8a5a00;
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 700;
+            margin-left: 6px;
+            padding: 2px 6px;
+        }
+
+        .field-empty {
+            color: #7a8781;
+            font-size: 14px;
+        }
+
+        .unknown-note {
+            background: #fff8e5;
+            border: 1px solid #f1d492;
+            border-radius: 8px;
+            color: #775100;
+            font-size: 13px;
+            line-height: 1.5;
+            padding: 10px 12px;
         }
 
         details {
@@ -313,9 +349,6 @@
                     <div class="form-row">
                         <label>产品字段</label>
                         <div class="field-list" id="productFields"></div>
-                        <div>
-                            <button class="btn btn-secondary" type="button" onclick="addProductField()">新增字段</button>
-                        </div>
                     </div>
                 </div>
             </section>
@@ -352,8 +385,9 @@
     </main>
 
     <script>
-        const defaultProductTypes = [{ key: 'default', name: '默认产品类型' }];
+        const defaultProductTypes = [{ key: 'default', name: '默认产品类型', fields: [] }];
         let productTypes = defaultProductTypes;
+        let unknownProductFields = {};
 
         function setStatus(text) {
             document.getElementById('statusText').textContent = text;
@@ -401,10 +435,7 @@
                 const response = await fetch('/api/v4/product-types');
                 const result = await response.json();
                 if (result.success && Array.isArray(result.data) && result.data.length > 0) {
-                    productTypes = result.data.map(type => ({
-                        key: type.key || type.name || 'default',
-                        name: type.name || '默认产品类型'
-                    }));
+                    productTypes = result.data.map(normalizeProductType);
                 } else {
                     productTypes = defaultProductTypes;
                 }
@@ -414,18 +445,44 @@
             renderProductTypeOptions();
         }
 
+        function normalizeProductType(type) {
+            return {
+                key: type.key || type.name || 'default',
+                name: type.name || '默认产品类型',
+                fields: Array.isArray(type.fields) ? type.fields.map(normalizeProductField) : []
+            };
+        }
+
+        function normalizeProductField(field) {
+            return {
+                key: field.key || field.name || '',
+                name: field.name || field.key || '未命名字段',
+                required: Boolean(field.required),
+                type: field.type || 'string',
+                description: field.description || '',
+                allowed_values: Array.isArray(field.allowed_values) ? field.allowed_values : [],
+                forbidden_values: Array.isArray(field.forbidden_values) ? field.forbidden_values : []
+            };
+        }
+
+        function findProductType(value) {
+            return productTypes.find(type => type.key === value || type.name === value) || null;
+        }
+
         function renderProductTypeOptions(selectedValue = '') {
             const select = document.getElementById('productType');
             const options = [...productTypes];
-            if (selectedValue && !options.some(type => type.key === selectedValue)) {
-                options.push({ key: selectedValue, name: selectedValue });
+            const selectedType = findProductType(selectedValue);
+            const selectedKey = selectedType ? selectedType.key : selectedValue;
+            if (selectedValue && !selectedType) {
+                options.push({ key: selectedValue, name: selectedValue, fields: [] });
             }
 
             select.innerHTML = options.map(type => (
                 `<option value="${escapeHtml(type.key)}">${escapeHtml(type.name)}</option>`
             )).join('');
 
-            select.value = selectedValue || options[0]?.key || 'default';
+            select.value = selectedKey || options[0]?.key || 'default';
         }
 
         function fillForm(orderObject) {
@@ -439,7 +496,7 @@
             setValue('salesOwner', data.order.sales_owner);
             renderProductTypeOptions(data.product.product_type);
             setValue('productName', data.product.product_name);
-            renderProductFields(data.product.fields);
+            renderProductFields(data.product.fields, { preserveUnknown: true });
             setValue('salespersonCode', data.document.salesperson_code);
             setValue('companyCode', data.document.company_code);
             setValue('sequence', data.document.sequence);
@@ -474,32 +531,50 @@
             };
         }
 
-        function renderProductFields(fields) {
+        function renderProductFields(fields, options = {}) {
+            const preserveUnknown = Boolean(options.preserveUnknown);
             const container = document.getElementById('productFields');
-            const entries = Object.entries(fields || {});
+            const sourceFields = fields || {};
+            const selectedType = findProductType(getValue('productType'));
+            const fieldDefs = selectedType ? selectedType.fields : [];
             container.innerHTML = '';
+            unknownProductFields = {};
 
-            if (entries.length === 0) {
-                addProductField('', '');
+            if (fieldDefs.length === 0) {
+                container.innerHTML = '<div class="field-empty">当前产品类型暂无字段定义</div>';
+                if (preserveUnknown) {
+                    unknownProductFields = collectUnknownFields(sourceFields, fieldDefs);
+                    renderUnknownFieldNote(container);
+                }
                 return;
             }
 
-            entries.forEach(([name, value]) => addProductField(name, value));
+            fieldDefs.forEach(field => {
+                const value = fieldValueFromSource(field, sourceFields);
+                addProductField(field, value);
+            });
+
+            if (preserveUnknown) {
+                unknownProductFields = collectUnknownFields(sourceFields, fieldDefs);
+                renderUnknownFieldNote(container);
+            }
         }
 
-        function addProductField(name = '', value = '') {
+        function addProductField(field, value = '') {
             const container = document.getElementById('productFields');
             const row = document.createElement('div');
             row.className = 'field-row';
+            row.dataset.fieldKey = field.key;
             row.innerHTML = `
-                <input class="field-name-input" type="text" placeholder="字段名" value="${escapeAttribute(name)}">
-                <input class="field-value-input" type="text" placeholder="字段值" value="${escapeAttribute(value)}">
-                <button class="btn btn-ghost" type="button">删除</button>
+                <div>
+                    <div class="field-label">
+                        ${escapeHtml(field.name)}
+                        ${field.required ? '<span class="required-badge">必填</span>' : ''}
+                    </div>
+                    ${renderFieldHints(field)}
+                </div>
+                <input class="field-value-input" type="text" placeholder="请输入${escapeAttribute(field.name)}" value="${escapeAttribute(value)}">
             `;
-            row.querySelector('button').addEventListener('click', () => {
-                row.remove();
-                updateJsonPreview();
-            });
             row.querySelectorAll('input').forEach(input => {
                 input.addEventListener('input', updateJsonPreview);
             });
@@ -507,13 +582,61 @@
             updateJsonPreview();
         }
 
+        function renderFieldHints(field) {
+            const hints = [];
+            if (field.description) {
+                hints.push(`<div>${escapeHtml(field.description)}</div>`);
+            }
+            if (field.allowed_values.length > 0) {
+                hints.push(`<div><strong>推荐/允许值：</strong>${escapeHtml(field.allowed_values.join('、'))}</div>`);
+            }
+            if (field.forbidden_values.length > 0) {
+                hints.push(`<div><strong>禁止值：</strong>${escapeHtml(field.forbidden_values.join('、'))}</div>`);
+            }
+            return hints.length ? `<div class="field-hint">${hints.join('')}</div>` : '';
+        }
+
+        function fieldValueFromSource(field, sourceFields) {
+            if (Object.prototype.hasOwnProperty.call(sourceFields, field.key)) {
+                return sourceFields[field.key];
+            }
+            if (Object.prototype.hasOwnProperty.call(sourceFields, field.name)) {
+                return sourceFields[field.name];
+            }
+            return '';
+        }
+
+        function collectUnknownFields(sourceFields, fieldDefs) {
+            const knownKeys = new Set();
+            fieldDefs.forEach(field => {
+                knownKeys.add(field.key);
+                knownKeys.add(field.name);
+            });
+
+            return Object.fromEntries(
+                Object.entries(sourceFields || {}).filter(([key]) => !knownKeys.has(key))
+            );
+        }
+
+        function renderUnknownFieldNote(container) {
+            const count = Object.keys(unknownProductFields).length;
+            if (count === 0) {
+                return;
+            }
+
+            const note = document.createElement('div');
+            note.className = 'unknown-note';
+            note.textContent = `检测到 ${count} 个旧数据中的未定义字段，保存时会保留，并由 Validator 给出提醒。`;
+            container.appendChild(note);
+        }
+
         function collectProductFields() {
-            const fields = {};
+            const fields = { ...unknownProductFields };
             document.querySelectorAll('.field-row').forEach(row => {
-                const name = row.querySelector('.field-name-input').value.trim();
+                const key = row.dataset.fieldKey;
                 const value = row.querySelector('.field-value-input').value.trim();
-                if (name) {
-                    fields[name] = value;
+                if (key) {
+                    fields[key] = value;
                 }
             });
             return fields;
@@ -575,6 +698,9 @@
             document.querySelectorAll('input, select').forEach(element => {
                 element.addEventListener('input', updateJsonPreview);
                 element.addEventListener('change', updateJsonPreview);
+            });
+            document.getElementById('productType').addEventListener('change', () => {
+                renderProductFields({}, { preserveUnknown: false });
             });
             loadOrderObject();
         });

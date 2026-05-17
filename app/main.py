@@ -86,6 +86,16 @@ def v4_order_object_page():
     return FileResponse(STATIC_DIR / "v4_order_object.html")
 
 
+@app.get("/v4-validator")
+def v4_validator_page():
+    return FileResponse(STATIC_DIR / "v4_validator.html")
+
+
+@app.get("/v4-renderer-core")
+def v4_renderer_core_page():
+    return FileResponse(STATIC_DIR / "v4_renderer_core.html")
+
+
 # ====================
 # Health Check
 # ====================

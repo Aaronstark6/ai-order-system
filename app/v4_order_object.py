@@ -41,6 +41,50 @@ def _get_order_object_path():
     return get_base_dir() / "v4" / "examples" / "order_object.json"
 
 
+def _find_product_type(product_type_value):
+    from app.v4_schema import get_product_types
+
+    product_type_value = str(product_type_value or "").strip()
+    if not product_type_value:
+        return {}
+
+    for product_type in get_product_types():
+        if not isinstance(product_type, dict):
+            continue
+        key = str(product_type.get("key") or "").strip()
+        name = str(product_type.get("name") or "").strip()
+        if product_type_value in {key, name}:
+            return product_type
+
+    return {}
+
+
+def _normalize_product_fields(product_type, source_fields):
+    if not isinstance(source_fields, dict):
+        return {}
+
+    fields = product_type.get("fields", []) if isinstance(product_type, dict) else []
+    field_key_by_identifier = {}
+    if isinstance(fields, list):
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            key = str(field.get("key") or "").strip()
+            name = str(field.get("name") or "").strip()
+            if key:
+                field_key_by_identifier[key] = key
+            if name and key:
+                field_key_by_identifier[name] = key
+
+    normalized_fields = {}
+    for source_key, value in source_fields.items():
+        normalized_key = field_key_by_identifier.get(str(source_key).strip(), str(source_key).strip())
+        if normalized_key:
+            normalized_fields[normalized_key] = "" if value is None else str(value)
+
+    return normalized_fields
+
+
 def _normalize_order_object(data):
     normalized = deepcopy(DEFAULT_ORDER_OBJECT)
     if not isinstance(data, dict):
@@ -57,6 +101,14 @@ def _normalize_order_object(data):
                 normalized[section][key] = value if isinstance(value, dict) else {}
             else:
                 normalized[section][key] = "" if value is None else str(value)
+
+    product_type = _find_product_type(normalized["product"]["product_type"])
+    if product_type:
+        normalized["product"]["product_type"] = str(product_type.get("key") or normalized["product"]["product_type"])
+    normalized["product"]["fields"] = _normalize_product_fields(
+        product_type,
+        normalized["product"]["fields"],
+    )
 
     return normalized
 

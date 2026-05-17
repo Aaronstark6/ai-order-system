@@ -796,6 +796,36 @@ def api_v4_save_order_object(order_object: dict = Body(...)):
     }
 
 
+@router.post("/api/v4/validate-order-object")
+def api_v4_validate_order_object(order_object: Optional[dict] = Body(None)):
+    from app.v4_order_object import load_order_object
+    from app.v4_validator import validate_order_object
+    logger.info("[Validator] Validation requested")
+
+    if not order_object:
+        order_object = load_order_object()
+        logger.info("[Validator] Loaded Order Object from saved file")
+    else:
+        logger.info("[Validator] Using submitted Order Object")
+
+    return validate_order_object(order_object)
+
+
+@router.post("/api/v4/render-order-object")
+def api_v4_render_order_object(order_object: Optional[dict] = Body(None)):
+    from app.v4_order_object import load_order_object
+    from app.v4_renderer_core import render_order_object
+    logger.info("[RendererCore] Render requested")
+
+    if not order_object:
+        order_object = load_order_object()
+        logger.info("[RendererCore] Loaded Order Object from saved file")
+    else:
+        logger.info("[RendererCore] Using submitted Order Object")
+
+    return render_order_object(order_object)
+
+
 @router.get("/api/v4/product-type/{product_type_key}")
 def api_v4_product_type(product_type_key: str):
     from app.v4_schema import get_product_type
@@ -880,10 +910,26 @@ def api_v4_product_type_fields(product_type_key: str):
 
 
 @router.post("/api/v4/product-type/{product_type_key}/fields")
-def api_v4_add_field(product_type_key: str, field_name: str = Body(...), field_type: str = Body("string"), required: bool = Body(False)):
+def api_v4_add_field(
+    product_type_key: str,
+    field_name: str = Body(...),
+    field_type: str = Body("string"),
+    required: bool = Body(False),
+    description: str = Body(""),
+    allowed_values: list[str] = Body(None),
+    forbidden_values: list[str] = Body(None),
+):
     from app.v4_schema import add_field_to_product_type
     logger.info("V4 field add requested: product_type=%s field=%s", product_type_key, field_name)
-    result = add_field_to_product_type(product_type_key, field_name, field_type, required)
+    result = add_field_to_product_type(
+        product_type_key,
+        field_name,
+        field_type,
+        required,
+        description,
+        allowed_values,
+        forbidden_values,
+    )
     if not result.get("success"):
         return {
             "success": False,
@@ -896,10 +942,28 @@ def api_v4_add_field(product_type_key: str, field_name: str = Body(...), field_t
 
 
 @router.put("/api/v4/product-type/{product_type_key}/field/{field_key}")
-def api_v4_update_field(product_type_key: str, field_key: str, field_name: str = Body(None), field_type: str = Body(None), required: bool = Body(None)):
+def api_v4_update_field(
+    product_type_key: str,
+    field_key: str,
+    field_name: str = Body(None),
+    field_type: str = Body(None),
+    required: bool = Body(None),
+    description: str = Body(None),
+    allowed_values: list[str] = Body(None),
+    forbidden_values: list[str] = Body(None),
+):
     from app.v4_schema import update_field_in_product_type
     logger.info("V4 field update requested: product_type=%s field=%s", product_type_key, field_key)
-    result = update_field_in_product_type(product_type_key, field_key, field_name, field_type, required)
+    result = update_field_in_product_type(
+        product_type_key,
+        field_key,
+        field_name,
+        field_type,
+        required,
+        description,
+        allowed_values,
+        forbidden_values,
+    )
     if not result.get("success"):
         return {
             "success": False,

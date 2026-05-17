@@ -12,13 +12,9 @@
   },
   "product": {
     "product_type": "固体饮料",
-    "product_name": "益生菌固体饮料",
+    "product_name": "",
     "fields": {
-      "field_b916f282": "木糖醇",
-      "field_602cf02f": "草莓味",
-      "field_c20ee7b6": "3g/袋",
-      "field_776fa203": "英文标签",
-      "field_568840e2": "低糖"
+      "field_b916f282": "赤藓糖醇"
     }
   },
   "document": {

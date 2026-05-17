@@ -181,55 +181,7 @@
           "key": "field_b916f282",
           "name": "甜味剂",
           "type": "string",
-          "required": true,
-          "description": "",
-          "allowed_values": [
-            "赤藓糖醇",
-            "木糖醇",
-            "三氯蔗糖",
-            "甜菊糖苷"
-          ],
-          "forbidden_values": [
-            "猪肉",
-            "牛肉",
-            "鸡肉"
-          ]
-        },
-        {
-          "key": "field_602cf02f",
-          "name": "口味",
-          "type": "string",
-          "required": true,
-          "description": "",
-          "allowed_values": [],
-          "forbidden_values": []
-        },
-        {
-          "key": "field_c20ee7b6",
-          "name": "包装规格",
-          "type": "string",
-          "required": true,
-          "description": "",
-          "allowed_values": [],
-          "forbidden_values": []
-        },
-        {
-          "key": "field_776fa203",
-          "name": "标签要求",
-          "type": "string",
-          "required": true,
-          "description": "",
-          "allowed_values": [],
-          "forbidden_values": []
-        },
-        {
-          "key": "field_568840e2",
-          "name": "其他要求",
-          "type": "string",
-          "required": true,
-          "description": "",
-          "allowed_values": [],
-          "forbidden_values": []
+          "required": false
         }
       ]
     },

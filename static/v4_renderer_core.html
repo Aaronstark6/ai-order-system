@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Renderer Core</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #253b44;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1120px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #d8e8ed;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .home-link:hover {
+            color: #ffffff;
+        }
+
+        main {
+            padding: 24px;
+        }
+
+        .toolbar,
+        .card,
+        details {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+        }
+
+        .status {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-primary {
+            background: #28677a;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #205566;
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: #bcc8c3;
+            color: #253b44;
+        }
+
+        .btn-secondary:hover {
+            background: #eef4f6;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .card {
+            overflow: hidden;
+        }
+
+        .card-title {
+            background: #fbfcfb;
+            border-bottom: 1px solid #d9e1dc;
+            font-size: 16px;
+            font-weight: 700;
+            padding: 14px 16px;
+        }
+
+        .field-output {
+            color: #243238;
+            font-size: 14px;
+            line-height: 1.7;
+            min-height: 118px;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
+
+        .empty {
+            color: #85918c;
+        }
+
+        .warnings {
+            background: #fff8e5;
+            border: 1px solid #f1d492;
+            border-radius: 8px;
+            color: #775100;
+            display: none;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 16px;
+            padding: 12px 14px;
+        }
+
+        .warnings.visible {
+            display: block;
+        }
+
+        details {
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        summary {
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 14px 16px;
+        }
+
+        pre {
+            background: #172126;
+            color: #d7eef5;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 360px;
+            overflow: auto;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 820px) {
+            main {
+                padding: 16px;
+            }
+
+            .header-inner,
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 Renderer Core</h1>
+            <a class="home-link" href="/">返回首页</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="toolbar">
+            <div class="status" id="statusText">准备加载当前 Order Object</div>
+            <div class="actions">
+                <button class="btn-secondary" type="button" onclick="loadOrderObject()">加载当前 Order Object</button>
+                <button class="btn-primary" type="button" onclick="runRender()">执行结构渲染</button>
+            </div>
+        </div>
+
+        <div class="warnings" id="warningsBox"></div>
+
+        <section class="grid">
+            <div class="card">
+                <div class="card-title">product_form</div>
+                <div class="field-output empty" id="productForm">尚未渲染</div>
+            </div>
+            <div class="card">
+                <div class="card-title">product_requirements</div>
+                <div class="field-output empty" id="productRequirements">尚未渲染</div>
+            </div>
+            <div class="card">
+                <div class="card-title">formula_requirements</div>
+                <div class="field-output empty" id="formulaRequirements">尚未渲染</div>
+            </div>
+            <div class="card">
+                <div class="card-title">packaging_requirements</div>
+                <div class="field-output empty" id="packagingRequirements">尚未渲染</div>
+            </div>
+        </section>
+
+        <details>
+            <summary>高级信息</summary>
+            <pre id="jsonPreview">{}</pre>
+        </details>
+    </main>
+
+    <script>
+        let currentOrderObject = null;
+        let currentRenderResult = null;
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        async function loadOrderObject() {
+            setStatus('正在加载 Order Object');
+            try {
+                const response = await fetch('/api/v4/order-object');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (result.success) {
+                    currentOrderObject = result.data;
+                    document.getElementById('jsonPreview').textContent = JSON.stringify({
+                        order_object: currentOrderObject,
+                        render_result: currentRenderResult
+                    }, null, 2);
+                    setStatus('已加载当前 Order Object');
+                    return currentOrderObject;
+                }
+                setStatus(result.error || '加载失败');
+            } catch (error) {
+                setStatus('加载失败');
+            }
+            return null;
+        }
+
+        async function runRender() {
+            const orderObject = await loadOrderObject();
+            if (!orderObject) {
+                setStatus('没有可渲染的 Order Object');
+                return;
+            }
+
+            setStatus('正在执行结构渲染');
+            try {
+                const response = await fetch('/api/v4/render-order-object', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderObject)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                currentRenderResult = result;
+                renderResult(result);
+                setStatus(result.success ? '结构渲染完成' : '结构渲染失败');
+            } catch (error) {
+                currentRenderResult = {
+                    success: false,
+                    description_fields: {},
+                    warnings: ['结构渲染请求失败']
+                };
+                renderResult(currentRenderResult);
+                setStatus('结构渲染失败');
+            }
+        }
+
+        function renderResult(result) {
+            const fields = result.description_fields || {};
+            setOutput('productForm', fields.product_form);
+            setOutput('productRequirements', fields.product_requirements);
+            setOutput('formulaRequirements', fields.formula_requirements);
+            setOutput('packagingRequirements', fields.packaging_requirements);
+            renderWarnings(result.warnings || []);
+            document.getElementById('jsonPreview').textContent = JSON.stringify({
+                order_object: currentOrderObject,
+                render_result: result
+            }, null, 2);
+        }
+
+        function setOutput(id, text) {
+            const element = document.getElementById(id);
+            if (text && String(text).trim()) {
+                element.className = 'field-output';
+                element.textContent = text;
+            } else {
+                element.className = 'field-output empty';
+                element.textContent = '无内容';
+            }
+        }
+
+        function renderWarnings(warnings) {
+            const box = document.getElementById('warningsBox');
+            if (!warnings.length) {
+                box.className = 'warnings';
+                box.textContent = '';
+                return;
+            }
+            box.className = 'warnings visible';
+            box.innerHTML = warnings.map(item => `<div>${escapeHtml(item)}</div>`).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', loadOrderObject);
+    </script>
+</body>
+</html>

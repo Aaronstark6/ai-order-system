@@ -212,24 +212,6 @@
           "description": "",
           "allowed_values": [],
           "forbidden_values": []
-        },
-        {
-          "key": "field_776fa203",
-          "name": "标签要求",
-          "type": "string",
-          "required": true,
-          "description": "",
-          "allowed_values": [],
-          "forbidden_values": []
-        },
-        {
-          "key": "field_568840e2",
-          "name": "其他要求",
-          "type": "string",
-          "required": true,
-          "description": "",
-          "allowed_values": [],
-          "forbidden_values": []
         }
       ]
     },
