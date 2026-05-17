@@ -401,7 +401,7 @@
             const statusText = cacheHit ? "已自动识别历史模板" : "系统已学习该模板，下次会更快";
             const advancedWarnings = warnings.length
                 ? `<pre class="json-preview">${escapeHtml(JSON.stringify(warnings, null, 2))}</pre>`
-                : `<div class="advanced-item">暂无 warning 详情</div>`;
+                : `<div class="advanced-item">暂无警告详情</div>`;
 
             resultArea.innerHTML = `
                 <div class="result-grid">
@@ -413,7 +413,7 @@
                     <article class="result-card">
                         <h2 class="result-title">规则结果</h2>
                         <p class="result-value">${rules.length} 条规则</p>
-                        <div class="result-note">warning 数量：${warnings.length}</div>
+                        <div class="result-note">警告数量：${warnings.length}</div>
                     </article>
                     <article class="result-card">
                         <h2 class="result-title">系统状态</h2>
@@ -424,7 +424,7 @@
                     <div class="export-header">
                         <div>
                             <h2 class="export-title">生成 Excel</h2>
-                            <p class="export-text">当前模板已解析完成。rules 数量：${rules.length}；warning 数量：${warnings.length}。</p>
+                            <p class="export-text">当前模板已解析完成。规则数量：${rules.length}；警告数量：${warnings.length}。</p>
                         </div>
                         <button id="generateExcelButton" class="button" type="button">生成 Excel 文件</button>
                     </div>
@@ -435,11 +435,11 @@
                     <summary>高级信息（开发调试）</summary>
                     <div id="advancedInfo" class="advanced-body">
                         <p class="advanced-item">layout_hash：${escapeHtml(layoutHash || "-")}</p>
-                        <p class="advanced-item">operations 数量：尚未生成 Excel</p>
+                        <p class="advanced-item">操作数量：尚未生成 Excel</p>
                         <p class="advanced-item">download_url：尚未生成 Excel</p>
-                        <p class="advanced-item">warning 详情：</p>
+                        <p class="advanced-item">警告详情：</p>
                         ${advancedWarnings}
-                        <p class="advanced-item">rules JSON：</p>
+                        <p class="advanced-item">规则 JSON：</p>
                         <pre class="json-preview">${escapeHtml(JSON.stringify(rules, null, 2))}</pre>
                     </div>
                 </details>
@@ -458,6 +458,14 @@
             box.style.display = "block";
         }
 
+        function hideExportMessage() {
+            const box = document.getElementById("exportMessage");
+            if (box) {
+                box.style.display = "none";
+                box.textContent = "";
+            }
+        }
+
         function refreshAdvancedInfo() {
             const advancedInfo = document.getElementById("advancedInfo");
             if (!advancedInfo || !currentWorkbenchResult) {
@@ -472,17 +480,17 @@
             const allWarnings = parseWarnings.concat(exportWarnings);
             const warningsHtml = allWarnings.length
                 ? `<pre class="json-preview">${escapeHtml(JSON.stringify(allWarnings, null, 2))}</pre>`
-                : `<div class="advanced-item">暂无 warning 详情</div>`;
+                : `<div class="advanced-item">暂无警告详情</div>`;
             const operationsCount = currentExportResult ? currentExportResult.operations_count : "尚未生成 Excel";
             const downloadUrl = currentExportResult ? currentExportResult.download_url : "尚未生成 Excel";
 
             advancedInfo.innerHTML = `
                 <p class="advanced-item">layout_hash：${escapeHtml(currentWorkbenchResult.layout_hash || "-")}</p>
-                <p class="advanced-item">operations 数量：${escapeHtml(operationsCount)}</p>
+                <p class="advanced-item">操作数量：${escapeHtml(operationsCount)}</p>
                 <p class="advanced-item">download_url：${escapeHtml(downloadUrl || "-")}</p>
-                <p class="advanced-item">warning 详情：</p>
+                <p class="advanced-item">警告详情：</p>
                 ${warningsHtml}
-                <p class="advanced-item">rules JSON：</p>
+                <p class="advanced-item">规则 JSON：</p>
                 <pre class="json-preview">${escapeHtml(JSON.stringify(rules, null, 2))}</pre>
             `;
         }
@@ -495,9 +503,10 @@
             }
 
             const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+            hideExportMessage();
             exportResult.innerHTML = `
-                <div class="state success">Excel 已生成。操作数量：${Number(result.operations_count || 0)}；warning 数量：${warnings.length}。</div>
-                <a class="download-link" href="${escapeHtml(result.download_url || "#")}" target="_blank" rel="noopener">下载 Excel</a>
+                <div class="state success">Excel 已生成。操作数量：${Number(result.operations_count || 0)}；警告数量：${warnings.length}。</div>
+                <a class="download-link" href="${escapeHtml(result.download_url || "#")}" target="_blank" rel="noopener">下载生成的 Excel 文件</a>
             `;
             exportResult.style.display = "block";
             refreshAdvancedInfo();
@@ -515,14 +524,15 @@
 
             const rules = Array.isArray(currentWorkbenchResult.rules) ? currentWorkbenchResult.rules : [];
             if (!rules.length) {
-                setExportMessage("rules 为空", "error");
+                setExportMessage("规则为空", "error");
                 return;
             }
 
             const button = document.getElementById("generateExcelButton");
+            let exported = false;
             if (button) {
                 button.disabled = true;
-                button.textContent = "生成中...";
+                button.textContent = "正在生成...";
             }
             setExportMessage("正在生成 Excel 文件，请稍候。", "");
 
@@ -538,14 +548,14 @@
                 if (!response.ok || !result.success) {
                     throw new Error(result.error || "Excel 生成失败");
                 }
-                setExportMessage("Excel 已生成", "success");
                 renderExportResult(result);
+                exported = true;
             } catch (error) {
                 setExportMessage(`Excel 生成失败：${error.message || error}`, "error");
             } finally {
                 if (button) {
                     button.disabled = false;
-                    button.textContent = "生成 Excel 文件";
+                    button.textContent = exported ? "重新生成 Excel" : "生成 Excel 文件";
                 }
             }
         }
@@ -555,7 +565,7 @@
             currentWorkbenchResult = null;
             currentExportResult = null;
             startButton.disabled = true;
-            startButton.textContent = "解析中...";
+            startButton.textContent = "正在解析...";
             setMessage("系统正在自动处理模板，请稍候。", "");
 
             try {
