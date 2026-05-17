@@ -56,11 +56,37 @@
         }
 
         .toolbar,
+        .template-upload,
         .panel,
         details {
             background: #ffffff;
             border: 1px solid #d9e1dc;
             border-radius: 8px;
+        }
+
+        .template-upload {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+        }
+
+        .template-upload-title {
+            color: #2d3542;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .template-upload-row {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .template-file-name {
+            color: #58665f;
+            font-size: 14px;
         }
 
         .toolbar {
@@ -206,6 +232,27 @@
             gap: 10px;
         }
 
+        .file-control {
+            align-items: center;
+            border: 1px dashed #aebbb5;
+            border-radius: 6px;
+            color: #2d3542;
+            display: inline-flex;
+            font-size: 14px;
+            gap: 8px;
+            min-height: 36px;
+            padding: 7px 10px;
+        }
+
+        .file-control input {
+            max-width: 260px;
+        }
+
+        .result-meta {
+            color: #58665f;
+            font-size: 13px;
+        }
+
         .empty {
             color: #7a8781;
             font-size: 14px;
@@ -292,6 +339,7 @@
             }
 
             .header-inner,
+            .template-upload-row,
             .toolbar {
                 align-items: flex-start;
                 flex-direction: column;
@@ -313,6 +361,17 @@
     </header>
 
     <main>
+        <section class="template-upload">
+            <div class="template-upload-title">Excel 模板上传</div>
+            <div class="template-upload-row">
+                <label class="file-control">
+                    选择 Excel 模板
+                    <input id="templateFileInput" type="file" accept=".xlsx" onchange="handleTemplateFileChange(event)">
+                </label>
+                <div class="template-file-name" id="templateFileName">当前模板：未选择</div>
+            </div>
+        </section>
+
         <div class="toolbar">
             <div class="status" id="statusText">准备加载当前 Order Object</div>
             <div class="actions">
@@ -354,6 +413,10 @@
         let currentPipelineResult = null;
         let currentExportResult = null;
         let currentOperationsResult = null;
+        let currentRealExcelResult = null;
+        let currentStructuredOperationsResult = null;
+        let currentStructuredExcelResult = null;
+        let currentTemplateFile = null;
 
         function setStatus(text) {
             document.getElementById('statusText').textContent = text;
@@ -400,6 +463,9 @@
                 currentPipelineResult = await response.json();
                 currentExportResult = null;
                 currentOperationsResult = null;
+                currentRealExcelResult = null;
+                currentStructuredOperationsResult = null;
+                currentStructuredExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentPipelineResult.success ? '核心流水线执行完成' : '核心流水线校验失败');
             } catch (error) {
@@ -415,6 +481,9 @@
                 };
                 currentExportResult = null;
                 currentOperationsResult = null;
+                currentRealExcelResult = null;
+                currentStructuredOperationsResult = null;
+                currentStructuredExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('核心流水线执行失败');
             }
@@ -468,6 +537,10 @@
                 ${renderExportControls(fields)}
                 ${renderOperationsControls(fields)}
                 ${renderOperationsPreview()}
+                ${renderRealExcelControls()}
+                ${renderStructuredOperationsControls()}
+                ${renderStructuredOperationsPreview()}
+                ${renderStructuredRealExcelControls()}
                 <div class="render-grid">
                     ${renderFieldCard('product_form', fields.product_form)}
                     ${renderFieldCard('product_requirements', fields.product_requirements)}
@@ -564,6 +637,7 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 currentOperationsResult = await response.json();
+                currentRealExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentOperationsResult.success ? 'Operations 预览已生成' : 'Operations 预览生成失败');
             } catch (error) {
@@ -572,8 +646,56 @@
                     operations: [],
                     warnings: ['Operations 预览请求失败']
                 };
+                currentRealExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('Operations 预览生成失败');
+            }
+        }
+
+        function renderStructuredOperationsControls() {
+            if (!currentPipelineResult?.render?.description_fields) {
+                return '';
+            }
+            return `
+                <div class="export-actions">
+                    <button class="btn-secondary" type="button" onclick="generateStructuredOperationsPreview()">生成结构化 Operations</button>
+                </div>
+            `;
+        }
+
+        async function generateStructuredOperationsPreview() {
+            let orderObject = currentOrderObject;
+            if (!orderObject) {
+                orderObject = await loadOrderObject();
+            }
+            if (!orderObject) {
+                setStatus('没有可用于结构化映射的 Order Object');
+                return;
+            }
+
+            setStatus('正在生成结构化 Operations');
+            try {
+                const response = await fetch('/api/v4/core-pipeline/structured-operations-preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderObject)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                currentStructuredOperationsResult = await response.json();
+                currentStructuredExcelResult = null;
+                renderPipelineResult(currentPipelineResult);
+                setStatus(currentStructuredOperationsResult.success ? '结构化 Operations 已生成' : '结构化 Operations 生成失败');
+            } catch (error) {
+                currentStructuredOperationsResult = {
+                    success: false,
+                    operations: [],
+                    warnings: ['结构化 Operations 请求失败']
+                };
+                currentStructuredExcelResult = null;
+                renderPipelineResult(currentPipelineResult);
+                setStatus('结构化 Operations 生成失败');
             }
         }
 
@@ -609,6 +731,162 @@
             `;
         }
 
+        function renderStructuredOperationsPreview() {
+            if (!currentStructuredOperationsResult) {
+                return '';
+            }
+
+            const warnings = Array.isArray(currentStructuredOperationsResult.warnings) ? currentStructuredOperationsResult.warnings : [];
+            const operations = Array.isArray(currentStructuredOperationsResult.operations) ? currentStructuredOperationsResult.operations : [];
+            return `
+                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>字段名称</th>
+                            <th>来源路径</th>
+                            <th>目标单元格</th>
+                            <th>值预览</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${operations.map(operation => `
+                            <tr>
+                                <td>${escapeHtml(operation.label || '')}</td>
+                                <td>${escapeHtml(operation.source_path || '')}</td>
+                                <td>${escapeHtml(operation.target_cell || '')}</td>
+                                <td class="value-preview">${escapeHtml(operation.value || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderRealExcelControls() {
+            const operations = Array.isArray(currentOperationsResult?.operations) ? currentOperationsResult.operations : [];
+            if (!operations.length) {
+                return '';
+            }
+
+            const warnings = Array.isArray(currentRealExcelResult?.warnings) ? currentRealExcelResult.warnings : [];
+            const downloadLink = currentRealExcelResult?.download_url
+                ? `<a class="btn-download" href="${escapeHtml(currentRealExcelResult.download_url)}" target="_blank" rel="noopener">下载真实 Excel</a>`
+                : '';
+            const successMessage = currentRealExcelResult?.download_url
+                ? `<div class="message success">真实 Excel 已生成</div>
+                   <div class="result-meta">operations_count：${escapeHtml(currentRealExcelResult.operations_count || 0)}，warnings_count：${escapeHtml(warnings.length)}</div>`
+                : '';
+
+            return `
+                <div class="export-actions">
+                    <button class="btn-primary" type="button" onclick="exportRealExcel()">生成真实 Excel</button>
+                    ${downloadLink}
+                </div>
+                ${successMessage}
+                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+            `;
+        }
+
+        function renderStructuredRealExcelControls() {
+            const operations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
+            if (!operations.length) {
+                return '';
+            }
+
+            const warnings = Array.isArray(currentStructuredExcelResult?.warnings) ? currentStructuredExcelResult.warnings : [];
+            const downloadLink = currentStructuredExcelResult?.download_url
+                ? `<a class="btn-download" href="${escapeHtml(currentStructuredExcelResult.download_url)}" target="_blank" rel="noopener">下载结构化 Excel</a>`
+                : '';
+            const successMessage = currentStructuredExcelResult?.download_url
+                ? `<div class="message success">结构化 Excel 已生成</div>
+                   <div class="result-meta">operations_count：${escapeHtml(currentStructuredExcelResult.operations_count || 0)}，warnings_count：${escapeHtml(warnings.length)}</div>`
+                : '';
+
+            return `
+                <div class="export-actions">
+                    <button class="btn-primary" type="button" onclick="exportStructuredRealExcel()">使用结构化 Operations 生成 Excel</button>
+                    ${downloadLink}
+                </div>
+                ${successMessage}
+                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+            `;
+        }
+
+        function handleTemplateFileChange(event) {
+            currentTemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
+            const fileNameNode = document.getElementById('templateFileName');
+            if (fileNameNode) {
+                fileNameNode.textContent = currentTemplateFile ? `当前模板：${currentTemplateFile.name}` : '当前模板：未选择';
+            }
+            setStatus(currentTemplateFile ? `已选择模板：${currentTemplateFile.name}` : '请先上传 Excel 模板。');
+        }
+
+        async function exportOperationsToRealExcel(operations) {
+            if (!currentTemplateFile) {
+                setStatus('请先上传 Excel 模板。');
+                return null;
+            }
+            if (!operations.length) {
+                setStatus('尚未生成 operations');
+                return null;
+            }
+
+            setStatus('正在生成真实 Excel');
+            try {
+                const formData = new FormData();
+                formData.append('template_file', currentTemplateFile);
+                formData.append('operations', JSON.stringify(operations));
+
+                const response = await fetch('/api/v4/core-pipeline/export-real-excel', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || 'Excel 写入失败');
+                    return;
+                }
+                if (!result.download_url) {
+                    setStatus('无法保存 Excel');
+                    return null;
+                }
+
+                return result;
+            } catch (error) {
+                setStatus('Excel 写入失败');
+                return null;
+            }
+        }
+
+        async function exportRealExcel() {
+            const operations = Array.isArray(currentOperationsResult?.operations) ? currentOperationsResult.operations : [];
+            const result = await exportOperationsToRealExcel(operations);
+            if (!result) {
+                return;
+            }
+
+            currentRealExcelResult = result;
+            setStatus('真实 Excel 已生成');
+            renderPipelineResult(currentPipelineResult);
+        }
+
+        async function exportStructuredRealExcel() {
+            const operations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
+            const result = await exportOperationsToRealExcel(operations);
+            if (!result) {
+                return;
+            }
+
+            currentStructuredExcelResult = result;
+            setStatus('结构化 Excel 已生成');
+            renderPipelineResult(currentPipelineResult);
+        }
+
         function renderWarnings(warnings) {
             if (!warnings.length) {
                 return '';
@@ -630,7 +908,11 @@
                 order_object: currentOrderObject,
                 pipeline_result: currentPipelineResult,
                 export_result: currentExportResult,
-                operations_result: currentOperationsResult
+                operations_result: currentOperationsResult,
+                real_excel_result: currentRealExcelResult,
+                structured_operations_result: currentStructuredOperationsResult,
+                structured_excel_result: currentStructuredExcelResult,
+                current_template_file: currentTemplateFile ? currentTemplateFile.name : ''
             }, null, 2);
         }
 

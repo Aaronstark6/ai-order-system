@@ -79,6 +79,33 @@ def _remove_v4_uploaded_template(path):
         logger.warning("V4 temporary template cleanup failed: path=%s", path, exc_info=True)
 
 
+def _save_v4_core_excel_template(file: UploadFile):
+    original_name = Path(file.filename or "").name
+    if not original_name:
+        raise ValueError("尚未上传模板")
+
+    suffix = Path(original_name).suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise ValueError("仅支持 .xlsx、.xlsm、.xltx、.xltm 格式的 Excel 模板")
+
+    upload_dir = get_base_dir() / "data" / "v4_core_excel_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    stem = _safe_output_filename_part(Path(original_name).stem or "template")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{stem}_{timestamp}_{uuid.uuid4().hex[:8]}{suffix}"
+    output_path = upload_dir / filename
+
+    with output_path.open("wb") as buffer:
+        file.file.seek(0)
+        shutil.copyfileobj(file.file, buffer)
+
+    if output_path.stat().st_size <= 0:
+        output_path.unlink(missing_ok=True)
+        raise ValueError("尚未上传模板")
+
+    return output_path
+
+
 @router.get("/api/v4/health")
 def api_v4_health():
     schema_loaded = False
@@ -876,6 +903,88 @@ def api_v4_core_pipeline_operations_preview(description_fields: dict = Body(...)
 
     mapping = load_core_excel_mapping()
     return description_fields_to_operations(description_fields, mapping)
+
+
+@router.post("/api/v4/core-pipeline/structured-operations-preview")
+def api_v4_core_pipeline_structured_operations_preview(order_object: Optional[dict] = Body(None)):
+    from app.v4_order_object import load_order_object
+    from app.v4_structured_excel_mapping import (
+        load_structured_excel_mapping,
+        order_object_to_structured_operations,
+    )
+
+    logger.info("[CorePipeline] Structured operations preview requested")
+    if not order_object:
+        order_object = load_order_object()
+        logger.info("[CorePipeline] Loaded Order Object for structured operations")
+
+    mapping = load_structured_excel_mapping()
+    return order_object_to_structured_operations(order_object, mapping)
+
+
+@router.post("/api/v4/core-pipeline/export-real-excel")
+def api_v4_core_pipeline_export_real_excel(
+    template_file: UploadFile = File(...),
+    operations: str = Form(...),
+):
+    from app.v4_core_excel_executor import execute_operations_to_excel
+
+    logger.info("[CorePipeline] Real Excel export requested: filename=%s", template_file.filename)
+    template_path = None
+    try:
+        try:
+            parsed_operations = json.loads(operations or "")
+        except json.JSONDecodeError:
+            return {
+                "success": False,
+                "error": "尚未生成 operations",
+            }
+
+        if not isinstance(parsed_operations, list) or not parsed_operations:
+            return {
+                "success": False,
+                "error": "尚未生成 operations",
+            }
+
+        template_path = _save_v4_core_excel_template(template_file)
+        result = execute_operations_to_excel(template_path, parsed_operations)
+        if not result.get("success"):
+            return {
+                "success": False,
+                "error": result.get("error", "Excel 写入失败"),
+                "warnings": result.get("warnings", []),
+                "operations_count": result.get("operations_count", 0),
+            }
+
+        if not result.get("download_url"):
+            return {
+                "success": False,
+                "error": "无法保存 Excel",
+                "warnings": result.get("warnings", []),
+                "operations_count": result.get("operations_count", 0),
+            }
+
+        return {
+            "success": True,
+            "filename": result.get("filename", ""),
+            "download_url": result.get("download_url", ""),
+            "operations_count": result.get("operations_count", 0),
+            "warnings": result.get("warnings", []),
+        }
+    except ValueError as exc:
+        logger.info("[CorePipeline] Real Excel export rejected: error=%s", exc)
+        return {
+            "success": False,
+            "error": str(exc) or "尚未上传模板",
+        }
+    except Exception as exc:
+        logger.exception("[CorePipeline] Real Excel export failed")
+        return {
+            "success": False,
+            "error": str(exc) or "Excel 写入失败",
+        }
+    finally:
+        _remove_v4_uploaded_template(template_path)
 
 
 @router.get("/api/v4/product-type/{product_type_key}")

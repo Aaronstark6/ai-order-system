@@ -1,0 +1,37 @@
+{
+  "mapping_name": "结构化字段映射",
+  "version": "V4-Core.9",
+  "target": "real_excel",
+  "mappings": [
+    {
+      "source_path": "product.product_name",
+      "target_cell": "B2",
+      "operation": "write_text",
+      "label": "产品名称"
+    },
+    {
+      "source_path": "product.product_type",
+      "target_cell": "B3",
+      "operation": "write_text",
+      "label": "产品类型"
+    },
+    {
+      "source_path": "product.fields.甜味剂",
+      "target_cell": "B4",
+      "operation": "write_text",
+      "label": "甜味剂"
+    },
+    {
+      "source_path": "product.fields.口味",
+      "target_cell": "B5",
+      "operation": "write_text",
+      "label": "口味"
+    },
+    {
+      "source_path": "product.fields.包装规格",
+      "target_cell": "B6",
+      "operation": "write_text",
+      "label": "包装规格"
+    }
+  ]
+}
