@@ -2,6 +2,7 @@
 
 import json
 import re
+import shutil
 from datetime import datetime
 
 from app.logger import get_logger
@@ -194,3 +195,61 @@ def list_cached_templates():
         key=lambda item: (item.get("updated_at") or item.get("created_at") or "", item.get("layout_hash", "")),
         reverse=True,
     )
+
+
+def get_cached_template_detail(layout_hash):
+    cache_path = get_cache_path(layout_hash)
+    if not cache_path.is_dir():
+        raise FileNotFoundError("模板缓存不存在")
+
+    hash_text = cache_path.name
+    warnings = []
+
+    meta = _safe_read_cache_json(cache_path / "meta.json", {}) or {}
+    fingerprint = _safe_read_cache_json(cache_path / "fingerprint.json", {}) or {}
+    rules = _safe_read_cache_json(cache_path / "rules.json", None)
+
+    if not isinstance(meta, dict):
+        meta = {}
+        warnings.append("meta.json 不是对象")
+    if not isinstance(fingerprint, dict):
+        fingerprint = {}
+        warnings.append("fingerprint.json 不是对象")
+    if rules is None:
+        rules = []
+        warnings.append("rules.json 不存在或读取失败")
+    elif not isinstance(rules, list):
+        rules = []
+        warnings.append("rules.json 不是数组")
+
+    sheet_names = fingerprint.get("sheet_names")
+    sheet_count = len(sheet_names) if isinstance(sheet_names, list) else 0
+
+    detail = {
+        "layout_hash": hash_text,
+        "short_hash": hash_text[:8],
+        "meta": meta,
+        "fingerprint": fingerprint,
+        "rules": rules,
+        "rules_count": len(rules),
+        "sheet_count": sheet_count,
+        "warning": "；".join(warnings),
+    }
+    return detail
+
+
+def delete_cached_template(layout_hash):
+    cache_dir = ensure_cache_dir().resolve()
+    cache_path = get_cache_path(layout_hash).resolve()
+
+    if cache_path.parent != cache_dir:
+        raise ValueError("缓存路径不合法")
+    if not LAYOUT_HASH_PATTERN.fullmatch(cache_path.name):
+        raise ValueError("layout_hash 不合法")
+    if not cache_path.exists():
+        raise FileNotFoundError("模板缓存不存在")
+    if not cache_path.is_dir():
+        raise ValueError("模板缓存路径不是目录")
+
+    shutil.rmtree(cache_path)
+    return True

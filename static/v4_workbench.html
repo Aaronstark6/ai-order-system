@@ -343,6 +343,93 @@
             font-weight: 700;
         }
 
+        .table-action-button {
+            height: 30px;
+            min-width: 80px;
+            padding: 0 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #1d4ed8;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .table-action-button:hover {
+            border-color: #1d4ed8;
+            background: #eff6ff;
+        }
+
+        .delete-cache-button {
+            margin-left: 8px;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+
+        .delete-cache-button:hover {
+            border-color: #dc2626;
+            background: #fff5f5;
+        }
+
+        .detail-panel {
+            margin-top: 16px;
+            padding: 18px;
+            border: 1px solid #dbe4ef;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .detail-title {
+            margin: 0 0 14px;
+            color: #0f172a;
+            font-size: 18px;
+        }
+
+        .detail-section {
+            margin-top: 16px;
+        }
+
+        .detail-section h3 {
+            margin: 0 0 10px;
+            color: #334155;
+            font-size: 15px;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .detail-item {
+            padding: 10px 12px;
+            border: 1px solid #edf2f7;
+            border-radius: 7px;
+            background: #f8fafc;
+            min-width: 0;
+        }
+
+        .detail-label {
+            margin-bottom: 4px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .detail-value {
+            color: #0f172a;
+            font-size: 14px;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+
+        .rule-summary-list {
+            margin: 0;
+            padding-left: 20px;
+            color: #334155;
+            line-height: 1.7;
+        }
+
         details {
             margin-top: 18px;
             border: 1px solid #e2e8f0;
@@ -388,7 +475,8 @@
             .result-grid,
             .upload-row,
             .export-header,
-            .history-header {
+            .history-header,
+            .detail-grid {
                 grid-template-columns: 1fr;
                 display: grid;
             }
@@ -442,6 +530,7 @@
             </div>
             <div id="templateHistoryMessage" class="state" style="display: none;"></div>
             <div id="templateHistoryContent"></div>
+            <div id="templateDetailArea" style="display: none;"></div>
         </section>
     </main>
 
@@ -453,6 +542,7 @@
         const resultArea = document.getElementById("resultArea");
         const templateHistoryMessage = document.getElementById("templateHistoryMessage");
         const templateHistoryContent = document.getElementById("templateHistoryContent");
+        const templateDetailArea = document.getElementById("templateDetailArea");
         const refreshTemplateHistoryButton = document.getElementById("refreshTemplateHistoryButton");
         let currentWorkbenchResult = null;
         let currentExportResult = null;
@@ -524,6 +614,7 @@
                                 <th>创建时间</th>
                                 <th>更新时间</th>
                                 <th>状态</th>
+                                <th>操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -535,6 +626,14 @@
                                     <td>${escapeHtml(item.created_at || "-")}</td>
                                     <td>${escapeHtml(item.updated_at || "-")}</td>
                                     <td><span class="status-pill">${item.warning ? "需检查" : "已学习"}</span></td>
+                                    <td>
+                                        <button class="table-action-button" type="button" data-cache-action="detail" data-layout-hash="${escapeHtml(item.layout_hash || "")}">
+                                            查看详情
+                                        </button>
+                                        <button class="table-action-button delete-cache-button" type="button" data-cache-action="delete" data-layout-hash="${escapeHtml(item.layout_hash || "")}">
+                                            删除缓存
+                                        </button>
+                                    </td>
                                 </tr>
                             `).join("")}
                         </tbody>
@@ -543,8 +642,145 @@
             `;
         }
 
+        function ruleTargetCell(rule) {
+            if (!rule || typeof rule !== "object") {
+                return "-";
+            }
+            if (rule.target && typeof rule.target === "object" && rule.target.cell) {
+                return rule.target.cell;
+            }
+            return rule.target_cell || rule.cell || "-";
+        }
+
+        function renderDetailItem(label, value) {
+            return `
+                <div class="detail-item">
+                    <div class="detail-label">${escapeHtml(label)}</div>
+                    <div class="detail-value">${escapeHtml(value || "-")}</div>
+                </div>
+            `;
+        }
+
+        function renderTemplateDetail(detail) {
+            const meta = detail && typeof detail.meta === "object" ? detail.meta : {};
+            const fingerprint = detail && typeof detail.fingerprint === "object" ? detail.fingerprint : {};
+            const rules = Array.isArray(detail.rules) ? detail.rules : [];
+            const sheetNames = Array.isArray(fingerprint.sheet_names) ? fingerprint.sheet_names : [];
+            const mergedRanges = Array.isArray(fingerprint.merged_ranges) ? fingerprint.merged_ranges : [];
+            const rulePreview = rules.slice(0, 5);
+            const ruleSummary = rulePreview.length
+                ? `<ol class="rule-summary-list">${rulePreview.map((rule, index) => `
+                    <li>${escapeHtml(rule.id || `规则 ${index + 1}`)}：${escapeHtml(ruleTargetCell(rule))}</li>
+                `).join("")}</ol>`
+                : `<div class="state">暂无规则摘要</div>`;
+            const warningHtml = detail.warning
+                ? `<div class="state warning">${escapeHtml(detail.warning)}</div>`
+                : "";
+
+            templateDetailArea.innerHTML = `
+                <section class="detail-panel">
+                    <h2 class="detail-title">模板详情</h2>
+                    ${warningHtml}
+
+                    <div class="detail-section">
+                        <h3>基础信息</h3>
+                        <div class="detail-grid">
+                            ${renderDetailItem("模板编号", detail.short_hash)}
+                            ${renderDetailItem("完整 layout_hash", detail.layout_hash)}
+                            ${renderDetailItem("来源", templateSourceLabel(meta.source))}
+                            ${renderDetailItem("parser_version", meta.parser_version)}
+                            ${renderDetailItem("创建时间", meta.created_at)}
+                            ${renderDetailItem("更新时间", meta.updated_at)}
+                            ${renderDetailItem("规则数量", String(detail.rules_count ?? rules.length))}
+                            ${renderDetailItem("sheet 数量", String(detail.sheet_count ?? sheetNames.length))}
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>结构摘要</h3>
+                        <div class="detail-grid">
+                            ${renderDetailItem("sheet 名称", sheetNames.length ? sheetNames.join("、") : "-")}
+                            ${renderDetailItem("合并单元格数量", String(mergedRanges.length))}
+                            ${renderDetailItem("非空单元格数量", String(fingerprint.non_empty_cells_count ?? 0))}
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>规则摘要</h3>
+                        <div class="detail-grid">
+                            ${renderDetailItem("rules 数量", String(rules.length))}
+                        </div>
+                        ${ruleSummary}
+                    </div>
+
+                    <details>
+                        <summary>高级信息</summary>
+                        <div class="advanced-body">
+                            <p class="advanced-item">fingerprint JSON：</p>
+                            <pre class="json-preview">${escapeHtml(JSON.stringify(fingerprint, null, 2))}</pre>
+                            <p class="advanced-item">rules JSON：</p>
+                            <pre class="json-preview">${escapeHtml(JSON.stringify(rules, null, 2))}</pre>
+                            <p class="advanced-item">meta JSON：</p>
+                            <pre class="json-preview">${escapeHtml(JSON.stringify(meta, null, 2))}</pre>
+                        </div>
+                    </details>
+                </section>
+            `;
+            templateDetailArea.style.display = "block";
+        }
+
+        async function loadTemplateDetail(layoutHash) {
+            if (!layoutHash) {
+                return;
+            }
+
+            templateDetailArea.innerHTML = `<div class="state">正在加载模板详情...</div>`;
+            templateDetailArea.style.display = "block";
+
+            try {
+                const response = await fetch(`/api/v4/template/cache-detail/${encodeURIComponent(layoutHash)}`);
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "模板详情读取失败");
+                }
+                renderTemplateDetail(result.detail || {});
+            } catch (error) {
+                templateDetailArea.innerHTML = `<div class="state error">模板详情读取失败：${escapeHtml(error.message || error)}</div>`;
+                templateDetailArea.style.display = "block";
+            }
+        }
+
+        async function deleteTemplateCache(layoutHash) {
+            if (!layoutHash) {
+                return;
+            }
+
+            const confirmed = window.confirm("确定要删除该模板缓存吗？\n删除后，下次上传同一模板将重新进行 AI 自动解析。");
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/v4/template/cache/${encodeURIComponent(layoutHash)}`, {
+                    method: "DELETE"
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "模板缓存删除失败");
+                }
+                templateDetailArea.innerHTML = "";
+                templateDetailArea.style.display = "none";
+                await loadTemplateHistory();
+                setTemplateHistoryMessage(result.message || "模板缓存已删除", "success");
+            } catch (error) {
+                setTemplateHistoryMessage(`模板缓存删除失败：${error.message || error}`, "error");
+            }
+        }
+
         async function loadTemplateHistory() {
             hideTemplateHistoryMessage();
+            templateDetailArea.innerHTML = "";
+            templateDetailArea.style.display = "none";
             refreshTemplateHistoryButton.disabled = true;
             refreshTemplateHistoryButton.textContent = "刷新中...";
 
@@ -775,6 +1011,22 @@
         resultArea.addEventListener("click", event => {
             if (event.target && event.target.id === "generateExcelButton") {
                 exportExcelFile();
+            }
+        });
+
+        templateHistoryContent.addEventListener("click", event => {
+            const detailButton = event.target && event.target.closest
+                ? event.target.closest(".table-action-button")
+                : null;
+            if (!detailButton) {
+                return;
+            }
+
+            const action = detailButton.dataset.cacheAction;
+            if (action === "delete") {
+                deleteTemplateCache(detailButton.dataset.layoutHash);
+            } else {
+                loadTemplateDetail(detailButton.dataset.layoutHash);
             }
         });
 

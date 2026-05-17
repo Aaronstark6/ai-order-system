@@ -22,7 +22,12 @@ from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
-from app.v4_template_cache import list_cached_templates, save_fingerprint
+from app.v4_template_cache import (
+    delete_cached_template,
+    get_cached_template_detail,
+    list_cached_templates,
+    save_fingerprint,
+)
 from app.v4_template_fingerprint import SUPPORTED_SUFFIXES, build_template_fingerprint
 from app.v4_template_matcher import match_or_parse_template, match_template
 from app.v4_template_rule_executor import (
@@ -436,6 +441,62 @@ def api_v4_template_cache_list():
             "success": False,
             "error": f"已学习模板列表加载失败：{exc}",
             "templates": [],
+        }
+
+
+@router.get("/api/v4/template/cache-detail/{layout_hash}")
+def api_v4_template_cache_detail(layout_hash: str):
+    try:
+        detail = get_cached_template_detail(layout_hash)
+        return {
+            "success": True,
+            "detail": detail,
+        }
+    except FileNotFoundError:
+        logger.info("V4 template cache detail not found: layout_hash=%s", layout_hash)
+        return {
+            "success": False,
+            "error": "模板缓存不存在",
+        }
+    except ValueError as exc:
+        logger.info("V4 template cache detail rejected: layout_hash=%s error=%s", layout_hash, exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except Exception as exc:
+        logger.exception("V4 template cache detail failed: layout_hash=%s", layout_hash)
+        return {
+            "success": False,
+            "error": f"模板详情读取失败：{exc}",
+        }
+
+
+@router.delete("/api/v4/template/cache/{layout_hash}")
+def api_v4_template_cache_delete(layout_hash: str):
+    try:
+        delete_cached_template(layout_hash)
+        return {
+            "success": True,
+            "message": "模板缓存已删除",
+        }
+    except FileNotFoundError:
+        logger.info("V4 template cache delete not found: layout_hash=%s", layout_hash)
+        return {
+            "success": False,
+            "error": "模板缓存不存在",
+        }
+    except ValueError as exc:
+        logger.info("V4 template cache delete rejected: layout_hash=%s error=%s", layout_hash, exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except Exception as exc:
+        logger.exception("V4 template cache delete failed: layout_hash=%s", layout_hash)
+        return {
+            "success": False,
+            "error": f"模板缓存删除失败：{exc}",
         }
 
 
