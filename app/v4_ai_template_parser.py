@@ -5,12 +5,14 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import get_column_letter
 
 from app.logger import get_logger
+from app.field_library import load_fields
 
 
 logger = get_logger(__name__)
 
 
 DEFAULT_TARGET_CELLS = ("B10", "B14", "B18", "B22", "B26", "B30")
+DEFAULT_DESCRIPTION_FIELDS = ("产品形式", "产品要求", "配方要求", "包装要求")
 
 
 def _normalize_text(value):
@@ -258,6 +260,56 @@ def analyze_template(template_path: str, field_library: dict) -> dict:
             "error": str(exc),
             "warnings": warnings,
         }
+
+
+def _extract_rules_from_parser_result(parser_result):
+    if not isinstance(parser_result, dict):
+        return []
+
+    rules_config = parser_result.get("rules_config")
+    template_key = parser_result.get("template_key", "")
+    if not isinstance(rules_config, dict):
+        return []
+
+    templates = rules_config.get("templates")
+    if not isinstance(templates, dict):
+        return []
+
+    template = templates.get(template_key) if template_key else None
+    if not isinstance(template, dict) and templates:
+        template = next((value for value in templates.values() if isinstance(value, dict)), {})
+
+    rules = template.get("rules", []) if isinstance(template, dict) else []
+    return rules if isinstance(rules, list) else []
+
+
+def parse_template_to_rules(excel_path, field_library=None):
+    effective_field_library = field_library if isinstance(field_library, dict) else {
+        "fields": load_fields(),
+        "description_fields": list(DEFAULT_DESCRIPTION_FIELDS),
+    }
+
+    parser_result = analyze_template(str(excel_path or ""), effective_field_library)
+    rules = _extract_rules_from_parser_result(parser_result)
+    warnings = parser_result.get("warnings", []) if isinstance(parser_result, dict) else []
+    if not isinstance(warnings, list):
+        warnings = []
+
+    if not isinstance(parser_result, dict) or not parser_result.get("success"):
+        return {
+            "success": False,
+            "error": parser_result.get("error", "AI 模板解析失败") if isinstance(parser_result, dict) else "AI 模板解析失败",
+            "rules": [],
+            "warnings": warnings,
+            "raw_result": parser_result,
+        }
+
+    return {
+        "success": True,
+        "rules": rules,
+        "warnings": warnings,
+        "raw_result": parser_result,
+    }
 
 
 def _unique_template_key(template_key, used_keys):

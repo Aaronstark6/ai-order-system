@@ -798,6 +798,26 @@
             </article>
         </section>
 
+        <section class="section" id="templateAiCacheSection">
+            <div class="section-header">
+                <h2>AI 模板解析与缓存闭环</h2>
+            </div>
+            <article class="card template-fingerprint-card">
+                <div class="template-fingerprint-controls">
+                    <input id="templateAiCacheFile" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
+                    <button id="matchOrParseTemplateButton" class="button primary" type="button">匹配或AI解析模板</button>
+                </div>
+                <div id="templateAiCacheMessage" class="state" style="display: none;"></div>
+                <div id="templateAiCacheSummary" class="template-fingerprint-summary" style="display: none;"></div>
+                <article id="templateAiCacheRulesPanel" style="display: none;">
+                    <div class="card-header">
+                        <h3 class="card-title">rules JSON 预览</h3>
+                    </div>
+                    <pre id="templateAiCacheRulesJson" class="template-fingerprint-json"></pre>
+                </article>
+            </article>
+        </section>
+
         <section id="schemaEditor" class="schema-editor" style="display: none;">
             <h2 class="editor-tool-title">V4 Schema &#32534;&#36753;&#24037;&#20855;</h2>
             <div id="schemaValidationResult" class="state" style="display: none;"></div>
@@ -1482,6 +1502,108 @@
             } finally {
                 button.disabled = false;
                 button.textContent = "检查模板缓存";
+            }
+        }
+
+        function getTemplateAiCacheFile() {
+            const input = document.getElementById("templateAiCacheFile");
+            if (!input.files || !input.files.length) {
+                throw new Error("请先选择 Excel 模板文件");
+            }
+            return input.files[0];
+        }
+
+        function showTemplateAiCacheMessage(message, type) {
+            const box = document.getElementById("templateAiCacheMessage");
+            box.classList.remove("error", "success", "warning-message");
+            if (type) {
+                box.classList.add(type);
+            }
+            box.textContent = message;
+            box.style.display = "block";
+        }
+
+        function resetTemplateAiCachePanels() {
+            document.getElementById("templateAiCacheSummary").style.display = "none";
+            document.getElementById("templateAiCacheSummary").innerHTML = "";
+            document.getElementById("templateAiCacheRulesPanel").style.display = "none";
+            document.getElementById("templateAiCacheRulesJson").textContent = "";
+            const message = document.getElementById("templateAiCacheMessage");
+            message.classList.remove("error", "success", "warning-message");
+            message.textContent = "";
+            message.style.display = "none";
+        }
+
+        async function postTemplateAiCacheFile(url) {
+            const formData = new FormData();
+            formData.append("file", getTemplateAiCacheFile());
+
+            const response = await fetch(url, {
+                method: "POST",
+                body: formData
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || "模板解析失败");
+            }
+            return result.data || result;
+        }
+
+        function renderTemplateAiCacheResult(result) {
+            const summary = document.getElementById("templateAiCacheSummary");
+            const rules = Array.isArray(result.rules) ? result.rules : [];
+            const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+            const sourceText = result.source === "cache" ? "缓存" : "AI自动解析";
+            const cacheText = result.cache_hit ? "命中缓存" : "未命中缓存";
+
+            summary.innerHTML = `
+                <div class="summary-item">
+                    <div class="label">是否命中缓存</div>
+                    <div class="value">${cacheText}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">来源</div>
+                    <div class="value">${sourceText}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">模板哈希（layout_hash）</div>
+                    <div class="value code">${escapeHtml(result.layout_hash || "")}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">rules 数量</div>
+                    <div class="value">${rules.length}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">warning 数量</div>
+                    <div class="value">${warnings.length}</div>
+                </div>
+            `;
+            summary.style.display = "grid";
+
+            document.getElementById("templateAiCacheRulesJson").textContent = JSON.stringify(rules, null, 2);
+            document.getElementById("templateAiCacheRulesPanel").style.display = "block";
+        }
+
+        async function matchOrParseTemplate() {
+            const button = document.getElementById("matchOrParseTemplateButton");
+            resetTemplateAiCachePanels();
+            button.disabled = true;
+            button.textContent = "处理中...";
+            showTemplateAiCacheMessage("正在匹配缓存或执行 AI 自动解析...", "");
+
+            try {
+                const result = await postTemplateAiCacheFile("/api/v4/template/match-or-parse");
+                renderTemplateAiCacheResult(result);
+                if (result.cache_hit) {
+                    showTemplateAiCacheMessage("已命中缓存，本次未调用 AI", "success");
+                } else {
+                    showTemplateAiCacheMessage("本次由 AI 自动解析，并已写入缓存", "success");
+                }
+            } catch (error) {
+                showTemplateAiCacheMessage(`模板匹配或 AI 解析失败：${error.message || error}`, "error");
+            } finally {
+                button.disabled = false;
+                button.textContent = "匹配或AI解析模板";
             }
         }
 
@@ -4552,6 +4674,8 @@
         document.getElementById("templateFingerprintFile").addEventListener("change", resetTemplateFingerprintPanels);
         document.getElementById("generateTemplateFingerprintButton").addEventListener("click", generateTemplateFingerprint);
         document.getElementById("checkTemplateCacheButton").addEventListener("click", checkTemplateCache);
+        document.getElementById("templateAiCacheFile").addEventListener("change", resetTemplateAiCachePanels);
+        document.getElementById("matchOrParseTemplateButton").addEventListener("click", matchOrParseTemplate);
         document.getElementById("editExcelRulesButton").addEventListener("click", showExcelRulesEditor);
         document.getElementById("saveExcelRulesButton").addEventListener("click", saveExcelRulesFromEditor);
         document.getElementById("cancelExcelRulesButton").addEventListener("click", hideExcelRulesEditor);

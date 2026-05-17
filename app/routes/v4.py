@@ -4,10 +4,12 @@ import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+from zipfile import BadZipFile
 
 from fastapi import APIRouter, Body, File, UploadFile
 from fastapi.responses import FileResponse
+from openpyxl.utils.exceptions import InvalidFileException
 
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
@@ -22,7 +24,7 @@ from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
 from app.v4_template_cache import save_fingerprint
 from app.v4_template_fingerprint import SUPPORTED_SUFFIXES, build_template_fingerprint
-from app.v4_template_matcher import match_template
+from app.v4_template_matcher import match_or_parse_template, match_template
 from app.v4_template_rule_executor import (
     execute_ai_template_to_excel,
     execute_rules_to_template_excel,
@@ -38,6 +40,8 @@ logger = get_logger(__name__)
 
 def _save_v4_uploaded_template(file: UploadFile):
     original_name = Path(file.filename or "").name
+    if not original_name:
+        raise ValueError("上传文件为空")
     suffix = Path(original_name).suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
         raise ValueError("仅支持 .xlsx、.xlsm、.xltx、.xltm 格式的 Excel 模板")
@@ -52,6 +56,10 @@ def _save_v4_uploaded_template(file: UploadFile):
     with output_path.open("wb") as buffer:
         file.file.seek(0)
         shutil.copyfileobj(file.file, buffer)
+
+    if output_path.stat().st_size <= 0:
+        output_path.unlink(missing_ok=True)
+        raise ValueError("上传文件为空")
 
     return output_path
 
@@ -240,6 +248,12 @@ def api_v4_template_fingerprint(file: UploadFile = File(...)):
             "success": False,
             "error": str(exc),
         }
+    except (BadZipFile, InvalidFileException):
+        logger.info("V4 template fingerprint rejected as non Excel: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": "文件不是 Excel",
+        }
     except Exception as exc:
         logger.exception("V4 template fingerprint failed: filename=%s", file.filename)
         return {
@@ -271,11 +285,88 @@ def api_v4_template_match(file: UploadFile = File(...)):
             "success": False,
             "error": str(exc),
         }
+    except (BadZipFile, InvalidFileException):
+        logger.info("V4 template match rejected as non Excel: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": "文件不是 Excel",
+        }
     except Exception as exc:
         logger.exception("V4 template match failed: filename=%s", file.filename)
         return {
             "success": False,
             "error": f"模板缓存检查失败：{exc}",
+        }
+    finally:
+        _remove_v4_uploaded_template(temp_path)
+
+
+@router.post("/api/v4/template/match-or-parse")
+def api_v4_template_match_or_parse(file: Optional[UploadFile] = File(None)):
+    temp_path = None
+    if file is None:
+        return {
+            "success": False,
+            "error": "上传文件为空",
+        }
+
+    try:
+        logger.info("V4 template match-or-parse requested: filename=%s", file.filename)
+        temp_path = _save_v4_uploaded_template(file)
+        result = match_or_parse_template(temp_path)
+        if result.get("success") is False:
+            return {
+                "success": False,
+                "error": result.get("error", "AI 解析失败"),
+                "cache_hit": result.get("cache_hit", False),
+                "source": result.get("source", "ai_template_parser"),
+                "layout_hash": result.get("layout_hash", ""),
+                "fingerprint": result.get("fingerprint"),
+                "rules": result.get("rules", []),
+                "warnings": result.get("warnings", []),
+                "meta": result.get("meta", {}),
+            }
+
+        return {
+            "success": True,
+            "data": result,
+            "cache_hit": result.get("cache_hit", False),
+            "source": result.get("source", ""),
+            "layout_hash": result.get("layout_hash", ""),
+            "fingerprint": result.get("fingerprint"),
+            "rules": result.get("rules", []),
+            "warnings": result.get("warnings", []),
+            "meta": result.get("meta", {}),
+        }
+    except ValueError as exc:
+        logger.info("V4 template match-or-parse rejected: filename=%s error=%s", file.filename, exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except (BadZipFile, InvalidFileException):
+        logger.info("V4 template match-or-parse rejected as non Excel: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": "文件不是 Excel",
+        }
+    except json.JSONDecodeError as exc:
+        logger.exception("V4 template cache read failed: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": f"缓存读取失败：{exc}",
+        }
+    except OSError as exc:
+        logger.exception("V4 template cache or rules save failed: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": f"rules 保存失败：{exc}",
+        }
+    except Exception as exc:
+        logger.exception("V4 template match-or-parse failed: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": f"AI 解析失败：{exc}",
         }
     finally:
         _remove_v4_uploaded_template(temp_path)
