@@ -925,18 +925,15 @@ def api_v4_core_pipeline_structured_operations_preview(order_object: Optional[di
 @router.post("/api/v4/core-pipeline/table-operations-preview")
 def api_v4_core_pipeline_table_operations_preview(order_object: Optional[dict] = Body(None)):
     from app.v4_order_object import load_order_object
-    from app.v4_dynamic_table_renderer import (
-        load_dynamic_table_mapping,
-        order_object_to_dynamic_table_operations,
-    )
+    from app.v4_table_renderer import load_table_mapping, order_object_to_table_operations
 
     logger.info("[CorePipeline] Table operations preview requested")
     if not order_object:
         order_object = load_order_object()
         logger.info("[CorePipeline] Loaded Order Object for table operations")
 
-    mapping = load_dynamic_table_mapping()
-    return order_object_to_dynamic_table_operations(order_object, mapping)
+    mapping = load_table_mapping()
+    return order_object_to_table_operations(order_object, mapping)
 
 
 @router.get("/api/v4/table-mapping")

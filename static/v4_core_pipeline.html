@@ -887,21 +887,23 @@
                 <table class="operations-table">
                     <thead>
                         <tr>
-                            <th>table_name</th>
-                            <th>target_cell</th>
-                            <th>field</th>
-                            <th>value</th>
+                            <th>表格名称</th>
+                            <th>行号</th>
+                            <th>字段名</th>
+                            <th>目标单元格</th>
+                            <th>值</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${operations.map(operation => `
                             <tr>
                                 <td>${escapeHtml(operation.table_name || '')}</td>
+                                <td>${escapeHtml(operation.row_number || ((operation.row_index || 0) + 1))}</td>
+                                <td>${escapeHtml(operation.label || operation.field || '')}</td>
                                 <td>${escapeHtml(operation.target_cell || '')}</td>
-                                <td>${escapeHtml(operation.field || '')}</td>
                                 <td class="value-preview">${escapeHtml(operation.value || '')}</td>
                             </tr>
-                        `).join('') || '<tr><td colspan="4">暂无动态表格 Operations</td></tr>'}
+                        `).join('') || '<tr><td colspan="5">暂无动态表格 Operations</td></tr>'}
                     </tbody>
                 </table>
             `;

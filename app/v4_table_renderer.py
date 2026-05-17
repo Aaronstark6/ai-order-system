@@ -1,7 +1,7 @@
 import json
 from json import JSONDecodeError
 
-from openpyxl.utils.cell import coordinate_to_tuple
+from openpyxl.utils.cell import coordinate_to_tuple, get_column_letter, column_index_from_string
 
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
@@ -26,7 +26,14 @@ def load_table_mapping():
         logger.error("[TableRenderer] Table mapping read failed: path=%s error=%s", mapping_path, exc)
         return {}
 
-    return mapping if isinstance(mapping, dict) else {}
+    return normalize_table_mapping(mapping)
+
+
+def _infer_table_key(source_path, table_name=""):
+    parts = [part for part in str(source_path or "").split(".") if part]
+    if parts:
+        return parts[-1]
+    return str(table_name or "").strip()
 
 
 def _normalize_column_rule(column):
@@ -52,6 +59,7 @@ def _normalize_table_rule(table):
 
     table_name = str(table.get("table_name") or "").strip()
     source_path = str(table.get("source_path") or "").strip()
+    table_key = str(table.get("table_key") or "").strip() or _infer_table_key(source_path, table_name)
     start_cell = str(table.get("start_cell") or "").strip().upper()
     raw_columns = table.get("columns", [])
     if not isinstance(raw_columns, list):
@@ -63,11 +71,12 @@ def _normalize_table_rule(table):
         if normalized_column:
             columns.append(normalized_column)
 
-    if not table_name and not source_path and not start_cell and not columns:
+    if not table_key and not table_name and not source_path and not start_cell and not columns:
         return None
 
     return {
-        "table_name": table_name or "未命名表格",
+        "table_key": table_key,
+        "table_name": table_name or table_key or "未命名表格",
         "source_path": source_path,
         "start_cell": start_cell,
         "columns": columns,
@@ -87,7 +96,7 @@ def normalize_table_mapping(mapping):
             tables.append(normalized_table)
 
     return {
-        "version": "V4-Core.17",
+        "version": "V4-Core.18",
         "tables": tables,
     }
 
@@ -130,8 +139,8 @@ def _resolve_source_path(data, source_path):
 
 
 def _normalize_tables(table_mapping):
-    tables = table_mapping.get("tables", []) if isinstance(table_mapping, dict) else []
-    return tables if isinstance(tables, list) else []
+    normalized = normalize_table_mapping(table_mapping)
+    return normalized.get("tables", [])
 
 
 def _normalize_columns(table):
@@ -141,16 +150,11 @@ def _normalize_columns(table):
 
     normalized = []
     for column in columns:
-        if not isinstance(column, dict):
+        normalized_column = _normalize_column_rule(column)
+        if not normalized_column:
             continue
-        field = str(column.get("field") or "").strip()
-        target_col = str(column.get("target_col") or "").strip().upper()
-        if field and target_col:
-            normalized.append({
-                "label": str(column.get("label") or field).strip(),
-                "field": field,
-                "target_col": target_col,
-            })
+        if normalized_column["field"] and normalized_column["target_col"]:
+            normalized.append(normalized_column)
     return normalized
 
 
@@ -162,14 +166,46 @@ def _start_row_from_cell(start_cell):
         return None
 
 
+def _validate_target_col(target_col):
+    try:
+        column_index_from_string(str(target_col or "").strip().upper())
+        return True
+    except ValueError:
+        return False
+
+
+def _build_table_range(start_cell, rows_count, columns):
+    if not rows_count or not columns:
+        return ""
+    try:
+        start_row, _ = coordinate_to_tuple(str(start_cell or "").strip())
+        target_col_indexes = [
+            column_index_from_string(column["target_col"])
+            for column in columns
+            if _validate_target_col(column.get("target_col"))
+        ]
+    except ValueError:
+        return ""
+
+    if not target_col_indexes:
+        return ""
+
+    start_col = get_column_letter(min(target_col_indexes))
+    end_col = get_column_letter(max(target_col_indexes))
+    end_row = start_row + rows_count - 1
+    return f"{start_col}{start_row}:{end_col}{end_row}"
+
+
 def order_object_to_table_operations(order_object, table_mapping):
     warnings = []
     operations = []
+    table_summaries = []
 
     if not isinstance(order_object, dict):
         return {
             "success": False,
             "operations": [],
+            "tables": [],
             "warnings": ["Order Object 必须是对象"],
         }
 
@@ -177,9 +213,10 @@ def order_object_to_table_operations(order_object, table_mapping):
         if not isinstance(table, dict):
             continue
 
-        table_name = str(table.get("table_name") or "").strip() or "未命名表格"
+        table_key = str(table.get("table_key") or "").strip()
+        table_name = str(table.get("table_name") or table_key or "").strip() or "未命名表格"
         source_path = str(table.get("source_path") or "").strip()
-        start_cell = str(table.get("start_cell") or "").strip()
+        start_cell = str(table.get("start_cell") or "").strip().upper()
         start_row = _start_row_from_cell(start_cell)
         columns = _normalize_columns(table)
 
@@ -193,37 +230,67 @@ def order_object_to_table_operations(order_object, table_mapping):
             warnings.append(f"{table_name} 缺少 columns，已跳过。")
             continue
 
-        rows, found = _resolve_source_path(order_object, source_path)
-        if not found:
-            warnings.append(f"未找到表格数据：{source_path}")
-            continue
-        if not isinstance(rows, list):
-            warnings.append(f"表格数据不是数组：{source_path}")
+        invalid_columns = [column["target_col"] for column in columns if not _validate_target_col(column["target_col"])]
+        if invalid_columns:
+            warnings.append(f"{table_name} 存在无效目标列：{', '.join(invalid_columns)}，已跳过。")
             continue
 
+        rows, found = _resolve_source_path(order_object, source_path)
+        if not found:
+            warnings.append(f"未找到表格数据：{table_name}")
+            continue
+        if not isinstance(rows, list):
+            warnings.append(f"表格数据不是数组：{table_name}")
+            continue
+
+        rows_count = 0
         for row_index, row_data in enumerate(rows):
+            row_number = row_index + 1
             if not isinstance(row_data, dict):
-                warnings.append(f"{table_name} 第 {row_index + 1} 行不是对象，已跳过。")
+                warnings.append(f"{table_name} 第 {row_number} 行不是对象，已跳过。")
                 continue
+
+            rows_count += 1
             excel_row = start_row + row_index
             for column in columns:
-                value = row_data.get(column["field"], "")
+                field = column["field"]
+                label = column["label"]
+                if field not in row_data:
+                    warnings.append(f"{table_name} 第 {row_number} 行缺少字段 {field}。")
+                value = row_data.get(field, "")
                 operations.append({
                     "operation": "write_text",
                     "target_cell": f"{column['target_col']}{excel_row}",
                     "value": "" if value is None else str(value),
+                    "table_key": table_key,
                     "table_name": table_name,
                     "row_index": row_index,
-                    "field": column["field"],
+                    "row_number": row_number,
+                    "field": field,
+                    "label": label,
                 })
 
+        if rows_count:
+            table_summaries.append({
+                "table_key": table_key,
+                "table_name": table_name,
+                "source_path": source_path,
+                "start_cell": start_cell,
+                "range": _build_table_range(start_cell, rows_count, columns),
+                "rows_count": rows_count,
+                "columns_count": len(columns),
+                "fields": [column["field"] for column in columns],
+            })
+
     logger.info(
-        "[TableRenderer] Table operations generated: operations=%s warnings=%s",
+        "[TableRenderer] Table operations generated: operations=%s tables=%s warnings=%s",
         len(operations),
+        len(table_summaries),
         len(warnings),
     )
     return {
         "success": True,
         "operations": operations,
+        "tables": table_summaries,
         "warnings": warnings,
     }

@@ -1,7 +1,8 @@
 {
-  "version": "V4-Core.17",
+  "version": "V4-Core.18",
   "tables": [
     {
+      "table_key": "formula_items",
       "table_name": "配方表",
       "source_path": "product.tables.formula_items",
       "start_cell": "A10",
@@ -19,6 +20,29 @@
         {
           "label": "百分比",
           "field": "percentage",
+          "target_col": "C"
+        }
+      ]
+    },
+    {
+      "table_key": "test_items",
+      "table_name": "检测项目表",
+      "source_path": "product.tables.test_items",
+      "start_cell": "A30",
+      "columns": [
+        {
+          "label": "项目名称",
+          "field": "name",
+          "target_col": "A"
+        },
+        {
+          "label": "标准",
+          "field": "standard",
+          "target_col": "B"
+        },
+        {
+          "label": "结果",
+          "field": "result",
           "target_col": "C"
         }
       ]

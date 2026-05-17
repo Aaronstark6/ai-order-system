@@ -141,7 +141,7 @@
             border-bottom: 1px solid #d9e1dc;
             display: grid;
             gap: 12px;
-            grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.3fr) 120px auto;
+            grid-template-columns: minmax(130px, .8fr) minmax(160px, 1fr) minmax(220px, 1.3fr) 120px auto;
             padding: 14px 16px;
         }
 
@@ -288,11 +288,12 @@
         const sourcePathHints = [
             'product.tables.formula_items',
             'product.tables.packaging_items',
+            'product.tables.nutrition_items',
             'product.tables.test_items'
         ];
 
         let currentMapping = {
-            version: 'V4-Core.17',
+            version: 'V4-Core.18',
             tables: []
         };
 
@@ -341,8 +342,9 @@
         function normalizeMapping(mapping) {
             const tables = Array.isArray(mapping.tables) ? mapping.tables : [];
             return {
-                version: mapping.version || 'V4-Core.17',
+                version: mapping.version || 'V4-Core.18',
                 tables: tables.map(table => ({
+                    table_key: table.table_key || inferTableKey(table.source_path) || '',
                     table_name: table.table_name || '',
                     source_path: table.source_path || '',
                     start_cell: table.start_cell || '',
@@ -357,8 +359,14 @@
             };
         }
 
+        function inferTableKey(sourcePath) {
+            const parts = String(sourcePath || '').split('.').filter(Boolean);
+            return parts.length ? parts[parts.length - 1] : '';
+        }
+
         function addTable(sourcePath) {
             currentMapping.tables.push({
+                table_key: inferTableKey(sourcePath),
                 table_name: '新建表格',
                 source_path: sourcePath || '',
                 start_cell: '',
@@ -396,6 +404,9 @@
 
         function updateTableField(tableIndex, field, value) {
             currentMapping.tables[tableIndex][field] = value;
+            if (field === 'source_path' && !String(currentMapping.tables[tableIndex].table_key || '').trim()) {
+                currentMapping.tables[tableIndex].table_key = inferTableKey(value);
+            }
             updatePreview();
         }
 
@@ -414,6 +425,7 @@
             list.innerHTML = currentMapping.tables.map((table, tableIndex) => `
                 <section class="table-card">
                     <div class="table-header">
+                        <input value="${escapeAttr(table.table_key)}" oninput="updateTableField(${tableIndex}, 'table_key', this.value)" placeholder="表格标识 formula_items">
                         <input value="${escapeAttr(table.table_name)}" oninput="updateTableField(${tableIndex}, 'table_name', this.value)" placeholder="表格名称">
                         <input list="sourcePathOptions" value="${escapeAttr(table.source_path)}" oninput="updateTableField(${tableIndex}, 'source_path', this.value)" placeholder="product.tables.formula_items">
                         <input value="${escapeAttr(table.start_cell)}" oninput="updateTableField(${tableIndex}, 'start_cell', this.value)" placeholder="起始单元格 A10">
@@ -468,11 +480,14 @@
 
         function collectMapping() {
             return {
-                version: 'V4-Core.17',
+                version: 'V4-Core.18',
                 tables: currentMapping.tables
-                    .map(table => ({
+                    .map(table => {
+                        const sourcePath = String(table.source_path || '').trim();
+                        return {
+                        table_key: String(table.table_key || '').trim() || inferTableKey(sourcePath),
                         table_name: String(table.table_name || '').trim(),
-                        source_path: String(table.source_path || '').trim(),
+                        source_path: sourcePath,
                         start_cell: String(table.start_cell || '').trim(),
                         columns: Array.isArray(table.columns)
                             ? table.columns
@@ -483,8 +498,9 @@
                                 }))
                                 .filter(column => column.label || column.field || column.target_col)
                             : []
-                    }))
-                    .filter(table => table.table_name || table.source_path || table.start_cell || table.columns.length)
+                    };
+                    })
+                    .filter(table => table.table_key || table.table_name || table.source_path || table.start_cell || table.columns.length)
             };
         }
 
