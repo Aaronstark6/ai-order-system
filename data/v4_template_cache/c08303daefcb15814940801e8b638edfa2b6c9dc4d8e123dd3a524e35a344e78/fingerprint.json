@@ -1,0 +1,110 @@
+{
+  "sheet_names": [
+    "固体饮料订单"
+  ],
+  "merged_ranges": [],
+  "non_empty_cells_count": 9,
+  "non_empty_cells_limit": 1000,
+  "non_empty_cells_truncated": false,
+  "keyword_cells": [
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A1",
+      "value": "固体饮料订单生产要求"
+    },
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A3",
+      "value": "客户名称"
+    },
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A4",
+      "value": "数量"
+    },
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A5",
+      "value": "产品名称"
+    },
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A6",
+      "value": "口味"
+    },
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A7",
+      "value": "净含量"
+    },
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A8",
+      "value": "包装方式"
+    },
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A9",
+      "value": "缺失信息"
+    },
+    {
+      "sheet": "固体饮料订单",
+      "cell": "A10",
+      "value": "是否可以生产"
+    }
+  ],
+  "layout_hash": "c08303daefcb15814940801e8b638edfa2b6c9dc4d8e123dd3a524e35a344e78",
+  "fingerprint_debug": {
+    "normalized_sheet_names": [
+      "固体饮料订单"
+    ],
+    "normalized_merged_ranges": [],
+    "normalized_keyword_cells": [
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A1",
+        "value": "固体饮料订单生产要求"
+      },
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A3",
+        "value": "客户名称"
+      },
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A4",
+        "value": "数量"
+      },
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A5",
+        "value": "产品名称"
+      },
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A6",
+        "value": "口味"
+      },
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A7",
+        "value": "净含量"
+      },
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A8",
+        "value": "包装方式"
+      },
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A9",
+        "value": "缺失信息"
+      },
+      {
+        "sheet": "固体饮料订单",
+        "cell": "A10",
+        "value": "是否可以生产"
+      }
+    ]
+  }
+}

@@ -750,6 +750,18 @@
             }
         }
 
+        function resetWorkbenchAfterCacheDelete() {
+            currentWorkbenchResult = null;
+            currentExportResult = null;
+            resultArea.innerHTML = "";
+            resultArea.style.display = "none";
+            templateDetailArea.innerHTML = "";
+            templateDetailArea.style.display = "none";
+            startButton.disabled = false;
+            startButton.textContent = "开始智能解析";
+            setMessage("该模板缓存已删除，可重新进行智能解析。", "success");
+        }
+
         async function deleteTemplateCache(layoutHash) {
             if (!layoutHash) {
                 return;
@@ -768,10 +780,9 @@
                 if (!response.ok || !result.success) {
                     throw new Error(result.error || "模板缓存删除失败");
                 }
-                templateDetailArea.innerHTML = "";
-                templateDetailArea.style.display = "none";
+                resetWorkbenchAfterCacheDelete();
                 await loadTemplateHistory();
-                setTemplateHistoryMessage(result.message || "模板缓存已删除", "success");
+                setTemplateHistoryMessage("模板缓存已删除。\n下次上传同一模板时，系统会重新进行 AI 自动解析。", "success");
             } catch (error) {
                 setTemplateHistoryMessage(`模板缓存删除失败：${error.message || error}`, "error");
             }
