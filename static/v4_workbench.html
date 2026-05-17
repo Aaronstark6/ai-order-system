@@ -907,6 +907,8 @@
                                 <th>模板编号</th>
                                 <th>规则数量</th>
                                 <th>解析质量</th>
+                                <th>使用次数</th>
+                                <th>最近使用</th>
                                 <th>来源</th>
                                 <th>创建时间</th>
                                 <th>更新时间</th>
@@ -921,6 +923,8 @@
                                     <td>${escapeHtml(item.short_hash || "-")}</td>
                                     <td>${Number(item.rules_count || 0)}</td>
                                     <td><span class="${getQualityPillClass(item.quality_level)}">${escapeHtml(item.quality_level || "-")}</span></td>
+                                    <td>${Number(item.usage_count || 0)}</td>
+                                    <td>${escapeHtml(item.last_used_at || "暂无使用记录")}</td>
                                     <td>${escapeHtml(templateSourceLabel(item.source))}</td>
                                     <td>${escapeHtml(item.created_at || "-")}</td>
                                     <td>${escapeHtml(item.updated_at || "-")}</td>
@@ -1017,6 +1021,14 @@
                         </div>
                         <div class="state" style="margin-top: 8px; background: #f8fafc;">
                             ${escapeHtml(detail.quality_message || "-")}
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>模板使用统计</h3>
+                        <div class="detail-grid">
+                            ${renderDetailItem("使用次数", String(detail.meta?.usage_count ?? 0))}
+                            ${renderDetailItem("最近使用时间", detail.meta?.last_used_at || "暂无使用记录")}
                         </div>
                     </div>
 

@@ -5,6 +5,7 @@ from app.v4_template_cache import (
     TEMPLATE_CACHE_PARSER_VERSION,
     TEMPLATE_CACHE_SOURCE,
     has_cached_rules,
+    increment_usage,
     load_meta,
     load_rules,
     save_fingerprint,
@@ -36,6 +37,7 @@ def match_or_parse_template(excel_path):
 
     if has_cached_rules(layout_hash):
         cached_rules = load_rules(layout_hash)
+        meta = increment_usage(layout_hash)
         return {
             "cache_hit": True,
             "layout_hash": layout_hash,
@@ -43,7 +45,7 @@ def match_or_parse_template(excel_path):
             "rules": cached_rules,
             "warnings": [],
             "source": "cache",
-            "meta": load_meta(layout_hash),
+            "meta": meta,
         }
 
     parser_result = parse_template_to_rules(excel_path)

@@ -61,6 +61,8 @@ def _touch_meta(layout_hash, values=None):
         "parser_version": existing_meta.get("parser_version") or TEMPLATE_CACHE_PARSER_VERSION,
         "template_name": existing_meta.get("template_name") or f"模板-{short_hash}",
         "template_note": existing_meta.get("template_note") or "",
+        "usage_count": existing_meta.get("usage_count") or 0,
+        "last_used_at": existing_meta.get("last_used_at"),
     }
     if isinstance(existing_meta, dict):
         meta.update(existing_meta)
@@ -69,6 +71,17 @@ def _touch_meta(layout_hash, values=None):
     meta["updated_at"] = now_text
     _write_json(meta_path, meta)
     return meta
+
+
+def increment_usage(layout_hash):
+    cache_path = get_cache_path(layout_hash)
+    meta_path = cache_path / "meta.json"
+    existing_meta = _read_json(meta_path, {}) or {}
+    now_text = _now_text()
+    usage_count = int(existing_meta.get("usage_count") or 0) + 1
+    existing_meta["usage_count"] = usage_count
+    existing_meta["last_used_at"] = now_text
+    return _touch_meta(layout_hash, existing_meta)
 
 
 def has_cached_rules(layout_hash):
@@ -90,13 +103,19 @@ def save_rules(layout_hash, rules):
     rules_count = len(rules) if isinstance(rules, list) else 0
     cache_path = get_cache_path(layout_hash)
     _write_json(cache_path / "rules.json", rules)
+    now_text = _now_text()
+    meta = load_meta(layout_hash)
+    existing_usage_count = meta.get("usage_count", 0)
+    existing_last_used = meta.get("last_used_at")
     _touch_meta(
         layout_hash,
         {
-            "rules_saved_at": _now_text(),
+            "rules_saved_at": now_text,
             "source": TEMPLATE_CACHE_SOURCE,
             "rules_count": rules_count,
             "parser_version": TEMPLATE_CACHE_PARSER_VERSION,
+            "usage_count": existing_usage_count if existing_usage_count > 0 else 1,
+            "last_used_at": existing_last_used if existing_last_used else now_text,
         },
     )
     return cache_path / "rules.json"
@@ -200,6 +219,8 @@ def _cached_template_item(cache_path):
         "warning_count": warning_count,
         "quality_level": quality_level,
         "quality_message": quality_message,
+        "usage_count": meta.get("usage_count", 0),
+        "last_used_at": meta.get("last_used_at"),
     }
     if warning:
         item["warning"] = warning
@@ -210,7 +231,7 @@ def list_cached_templates():
     cache_dir = ensure_cache_dir()
     templates = []
 
-    for cache_path in sorted(cache_dir.iterdir(), key=lambda item: item.name):
+    for cache_path in cache_dir.iterdir():
         if not cache_path.is_dir():
             continue
         try:
@@ -220,7 +241,10 @@ def list_cached_templates():
 
     return sorted(
         templates,
-        key=lambda item: (item.get("updated_at") or item.get("created_at") or "", item.get("layout_hash", "")),
+        key=lambda item: (
+            item.get("last_used_at") or item.get("updated_at") or item.get("created_at") or "",
+            item.get("layout_hash", "")
+        ),
         reverse=True,
     )
 
