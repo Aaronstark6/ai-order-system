@@ -939,6 +939,23 @@ def api_v4_core_pipeline_table_operations_preview(order_object: Optional[dict] =
     return order_object_to_table_operations(order_object, mapping)
 
 
+@router.post("/api/v4/core-pipeline/block-operations-preview")
+def api_v4_core_pipeline_block_operations_preview(order_object: Optional[dict] = Body(None)):
+    from app.v4_block_merge_engine import (
+        build_block_operations,
+        load_block_merge_rules,
+    )
+    from app.v4_order_object import load_order_object
+
+    logger.info("[CorePipeline] Block operations preview requested")
+    if not order_object:
+        order_object = load_order_object()
+        logger.info("[CorePipeline] Loaded Order Object for block operations")
+
+    rules = load_block_merge_rules()
+    return build_block_operations(order_object, rules)
+
+
 @router.get("/api/v4/structured-mapping")
 def api_v4_structured_mapping():
     from app.v4_structured_excel_mapping import load_structured_excel_mapping

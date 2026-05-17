@@ -417,6 +417,7 @@
         let currentStructuredOperationsResult = null;
         let currentStructuredExcelResult = null;
         let currentTableOperationsResult = null;
+        let currentBlockOperationsResult = null;
         let currentCombinedExcelResult = null;
         let currentTemplateFile = null;
 
@@ -469,6 +470,7 @@
                 currentStructuredOperationsResult = null;
                 currentStructuredExcelResult = null;
                 currentTableOperationsResult = null;
+                currentBlockOperationsResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentPipelineResult.success ? '核心流水线执行完成' : '核心流水线校验失败');
@@ -489,6 +491,7 @@
                 currentStructuredOperationsResult = null;
                 currentStructuredExcelResult = null;
                 currentTableOperationsResult = null;
+                currentBlockOperationsResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('核心流水线执行失败');
@@ -549,6 +552,8 @@
                 ${renderStructuredRealExcelControls()}
                 ${renderTableOperationsControls()}
                 ${renderTableOperationsPreview()}
+                ${renderBlockOperationsControls()}
+                ${renderBlockOperationsPreview()}
                 ${renderCombinedRealExcelControls()}
                 <div class="render-grid">
                     ${renderFieldCard('product_form', fields.product_form)}
@@ -755,6 +760,53 @@
             }
         }
 
+        function renderBlockOperationsControls() {
+            if (!currentPipelineResult?.render?.description_fields) {
+                return '';
+            }
+            return `
+                <div class="export-actions">
+                    <button class="btn-secondary" type="button" onclick="generateBlockOperationsPreview()">生成区块 Operations</button>
+                </div>
+            `;
+        }
+
+        async function generateBlockOperationsPreview() {
+            let orderObject = currentOrderObject;
+            if (!orderObject) {
+                orderObject = await loadOrderObject();
+            }
+            if (!orderObject) {
+                setStatus('没有可用于区块合并的 Order Object');
+                return;
+            }
+
+            setStatus('正在生成区块 Operations');
+            try {
+                const response = await fetch('/api/v4/core-pipeline/block-operations-preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderObject)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                currentBlockOperationsResult = await response.json();
+                currentCombinedExcelResult = null;
+                renderPipelineResult(currentPipelineResult);
+                setStatus(currentBlockOperationsResult.success ? '区块 Operations 已生成' : '区块 Operations 生成失败');
+            } catch (error) {
+                currentBlockOperationsResult = {
+                    success: false,
+                    operations: [],
+                    warnings: ['区块 Operations 请求失败']
+                };
+                currentCombinedExcelResult = null;
+                renderPipelineResult(currentPipelineResult);
+                setStatus('区块 Operations 生成失败');
+            }
+        }
+
         function renderOperationsPreview() {
             if (!currentOperationsResult) {
                 return '';
@@ -853,6 +905,37 @@
             `;
         }
 
+        function renderBlockOperationsPreview() {
+            if (!currentBlockOperationsResult) {
+                return '';
+            }
+
+            const warnings = Array.isArray(currentBlockOperationsResult.warnings) ? currentBlockOperationsResult.warnings : [];
+            const operations = Array.isArray(currentBlockOperationsResult.operations) ? currentBlockOperationsResult.operations : [];
+            return `
+                <div class="message success">区块 Operations</div>
+                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>block_name</th>
+                            <th>target_cell</th>
+                            <th>value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${operations.map(operation => `
+                            <tr>
+                                <td>${escapeHtml(operation.block_name || '')}</td>
+                                <td>${escapeHtml(operation.target_cell || '')}</td>
+                                <td class="value-preview">${escapeHtml(operation.value || '')}</td>
+                            </tr>
+                        `).join('') || '<tr><td colspan="3">暂无区块 Operations</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+        }
+
         function renderRealExcelControls() {
             const operations = Array.isArray(currentOperationsResult?.operations) ? currentOperationsResult.operations : [];
             if (!operations.length) {
@@ -906,7 +989,8 @@
         function renderCombinedRealExcelControls() {
             const structuredOperations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
             const tableOperations = Array.isArray(currentTableOperationsResult?.operations) ? currentTableOperationsResult.operations : [];
-            if (!structuredOperations.length && !tableOperations.length) {
+            const blockOperations = Array.isArray(currentBlockOperationsResult?.operations) ? currentBlockOperationsResult.operations : [];
+            if (!structuredOperations.length && !tableOperations.length && !blockOperations.length) {
                 return '';
             }
 
@@ -915,13 +999,13 @@
                 ? `<a class="btn-download" href="${escapeHtml(currentCombinedExcelResult.download_url)}" target="_blank" rel="noopener">下载结构化表格 Excel</a>`
                 : '';
             const successMessage = currentCombinedExcelResult?.download_url
-                ? `<div class="message success">结构化 + 动态表格 Excel 已生成</div>
+                ? `<div class="message success">结构化 + 动态表格 + 区块 Excel 已生成</div>
                    <div class="result-meta">operations_count：${escapeHtml(currentCombinedExcelResult.operations_count || 0)}，warnings_count：${escapeHtml(warnings.length)}</div>`
                 : '';
 
             return `
                 <div class="export-actions">
-                    <button class="btn-primary" type="button" onclick="exportCombinedRealExcel()">使用结构化 + 动态表格 Operations 生成 Excel</button>
+                    <button class="btn-primary" type="button" onclick="exportCombinedRealExcel()">使用结构化 + 动态表格 + 区块 Operations 生成 Excel</button>
                     ${downloadLink}
                 </div>
                 ${successMessage}
@@ -1006,18 +1090,19 @@
         async function exportCombinedRealExcel() {
             const structuredOperations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
             const tableOperations = Array.isArray(currentTableOperationsResult?.operations) ? currentTableOperationsResult.operations : [];
-            if (!structuredOperations.length && !tableOperations.length) {
-                setStatus('尚未生成结构化或动态表格 operations');
+            const blockOperations = Array.isArray(currentBlockOperationsResult?.operations) ? currentBlockOperationsResult.operations : [];
+            if (!structuredOperations.length && !tableOperations.length && !blockOperations.length) {
+                setStatus('尚未生成结构化、动态表格或区块 operations');
                 return;
             }
 
-            const result = await exportOperationsToRealExcel(structuredOperations.concat(tableOperations));
+            const result = await exportOperationsToRealExcel(structuredOperations.concat(tableOperations, blockOperations));
             if (!result) {
                 return;
             }
 
             currentCombinedExcelResult = result;
-            setStatus('结构化 + 动态表格 Excel 已生成');
+            setStatus('结构化 + 动态表格 + 区块 Excel 已生成');
             renderPipelineResult(currentPipelineResult);
         }
 
@@ -1047,6 +1132,7 @@
                 structured_operations_result: currentStructuredOperationsResult,
                 structured_excel_result: currentStructuredExcelResult,
                 table_operations_result: currentTableOperationsResult,
+                block_operations_result: currentBlockOperationsResult,
                 combined_excel_result: currentCombinedExcelResult,
                 current_template_file: currentTemplateFile ? currentTemplateFile.name : ''
             }, null, 2);
