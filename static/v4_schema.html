@@ -780,6 +780,7 @@
                     <input id="templateFingerprintFile" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
                     <button id="generateTemplateFingerprintButton" class="button primary" type="button">生成模板指纹</button>
                     <button id="checkTemplateCacheButton" class="button" type="button">检查模板缓存</button>
+                    <button id="testTemplateFingerprintButton" class="button" type="button">测试指纹稳定性</button>
                 </div>
                 <div id="templateFingerprintMessage" class="state" style="display: none;"></div>
                 <div id="templateFingerprintSummary" class="template-fingerprint-summary" style="display: none;"></div>
@@ -1449,6 +1450,39 @@
             panel.style.display = "block";
         }
 
+        function renderTemplateFingerprintTestResult(testResult) {
+            const panel = document.getElementById("templateCacheResultPanel");
+            const content = document.getElementById("templateCacheResult");
+            const hashes = Array.isArray(testResult.hashes) ? testResult.hashes : [];
+            const allEqual = Boolean(testResult.all_equal);
+
+            content.innerHTML = `
+                <div class="state ${allEqual ? "success" : "warning-message"}">
+                    ${allEqual ? "指纹稳定：3 次 layout_hash 完全一致" : "指纹不稳定：3 次 layout_hash 不完全一致"}
+                </div>
+                <table class="table" style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th>次数</th>
+                            <th>layout_hash</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${hashes.map((hash, index) => `
+                            <tr>
+                                <td>第 ${index + 1} 次</td>
+                                <td class="code">${escapeHtml(hash)}</td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+                <div class="state ${allEqual ? "success" : "warning-message"}" style="margin-top: 10px;">
+                    是否完全一致：${allEqual ? "是" : "否"}
+                </div>
+            `;
+            panel.style.display = "block";
+        }
+
         async function postTemplateFingerprintFile(url) {
             const formData = new FormData();
             formData.append("file", getTemplateFingerprintFile());
@@ -1502,6 +1536,33 @@
             } finally {
                 button.disabled = false;
                 button.textContent = "检查模板缓存";
+            }
+        }
+
+        async function testTemplateFingerprintStability() {
+            const button = document.getElementById("testTemplateFingerprintButton");
+            resetTemplateFingerprintPanels();
+            button.disabled = true;
+            button.textContent = "测试中...";
+            showTemplateFingerprintMessage("正在连续生成 3 次模板指纹...", "");
+
+            try {
+                const testResult = await postTemplateFingerprintFile("/api/v4/template/fingerprint-test");
+                const fingerprints = Array.isArray(testResult.fingerprints) ? testResult.fingerprints : [];
+                if (fingerprints.length) {
+                    renderTemplateFingerprintSummary(fingerprints[0]);
+                    renderTemplateKeywordPreview(fingerprints[0]);
+                }
+                renderTemplateFingerprintTestResult(testResult);
+                showTemplateFingerprintMessage(
+                    testResult.all_equal ? "指纹稳定性测试通过" : "指纹稳定性测试未通过",
+                    testResult.all_equal ? "success" : "warning-message"
+                );
+            } catch (error) {
+                showTemplateFingerprintMessage(`指纹稳定性测试失败：${error.message || error}`, "error");
+            } finally {
+                button.disabled = false;
+                button.textContent = "测试指纹稳定性";
             }
         }
 
@@ -4674,6 +4735,7 @@
         document.getElementById("templateFingerprintFile").addEventListener("change", resetTemplateFingerprintPanels);
         document.getElementById("generateTemplateFingerprintButton").addEventListener("click", generateTemplateFingerprint);
         document.getElementById("checkTemplateCacheButton").addEventListener("click", checkTemplateCache);
+        document.getElementById("testTemplateFingerprintButton").addEventListener("click", testTemplateFingerprintStability);
         document.getElementById("templateAiCacheFile").addEventListener("change", resetTemplateAiCachePanels);
         document.getElementById("matchOrParseTemplateButton").addEventListener("click", matchOrParseTemplate);
         document.getElementById("editExcelRulesButton").addEventListener("click", showExcelRulesEditor);

@@ -264,6 +264,56 @@ def api_v4_template_fingerprint(file: UploadFile = File(...)):
         _remove_v4_uploaded_template(temp_path)
 
 
+@router.post("/api/v4/template/fingerprint-test")
+def api_v4_template_fingerprint_test(file: Optional[UploadFile] = File(None)):
+    temp_path = None
+    if file is None:
+        return {
+            "success": False,
+            "error": "上传文件为空",
+        }
+
+    try:
+        logger.info("V4 template fingerprint stability test requested: filename=%s", file.filename)
+        temp_path = _save_v4_uploaded_template(file)
+        fingerprints = [build_template_fingerprint(temp_path) for _ in range(3)]
+        hashes = [fingerprint.get("layout_hash", "") for fingerprint in fingerprints]
+        all_equal = len(set(hashes)) == 1
+        result = {
+            "all_equal": all_equal,
+            "hashes": hashes,
+            "fingerprints": fingerprints,
+        }
+        if not all_equal:
+            result["warning"] = "同一个 Excel 连续 3 次生成的 layout_hash 不一致"
+
+        return {
+            "success": True,
+            "data": result,
+            **result,
+        }
+    except ValueError as exc:
+        logger.info("V4 template fingerprint stability test rejected: filename=%s error=%s", file.filename, exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except (BadZipFile, InvalidFileException):
+        logger.info("V4 template fingerprint stability test rejected as non Excel: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": "文件不是 Excel",
+        }
+    except Exception as exc:
+        logger.exception("V4 template fingerprint stability test failed: filename=%s", file.filename)
+        return {
+            "success": False,
+            "error": f"模板指纹稳定性测试失败：{exc}",
+        }
+    finally:
+        _remove_v4_uploaded_template(temp_path)
+
+
 @router.post("/api/v4/template/match")
 def api_v4_template_match(file: UploadFile = File(...)):
     temp_path = None

@@ -3,12 +3,14 @@
 import hashlib
 import json
 import posixpath
+import re
 import zipfile
 from datetime import date, datetime, time
 from pathlib import Path
 from xml.etree import ElementTree
 
 from openpyxl import load_workbook
+from openpyxl.utils.cell import coordinate_to_tuple
 
 
 MAX_KEYWORD_CELLS = 1000
@@ -18,12 +20,30 @@ REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 
-def _json_safe_value(value):
+def _normalize_text_value(value):
     if value is None:
         return ""
     if isinstance(value, (datetime, date, time)):
-        return value.isoformat()
-    return str(value)
+        text = value.isoformat()
+    else:
+        text = str(value)
+
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = "\n".join(re.sub(r"[ \t\f\v]+", " ", line).strip() for line in text.split("\n"))
+    return text.strip()
+
+
+def _normalize_sheet_name(sheet_name):
+    return str(sheet_name or "")
+
+
+def _cell_sort_key(cell):
+    cell_text = str(cell or "")
+    try:
+        row, column = coordinate_to_tuple(cell_text)
+        return row, column, cell_text
+    except Exception:
+        return 0, 0, cell_text
 
 
 def _validate_excel_path(excel_path):
@@ -80,7 +100,7 @@ def _read_merged_ranges_from_sheet(archive, sheet_name, zip_path):
                 if elem.tag == f"{{{WORKBOOK_NS}}}mergeCell":
                     cell_range = elem.attrib.get("ref")
                     if cell_range:
-                        merged_ranges.append({"sheet": sheet_name, "range": cell_range})
+                        merged_ranges.append(f"{_normalize_sheet_name(sheet_name)}!{str(cell_range)}")
                 elem.clear()
     except KeyError:
         return []
@@ -95,14 +115,15 @@ def _read_merged_ranges(excel_path):
                 merged_ranges.extend(_read_merged_ranges_from_sheet(archive, sheet_name, zip_path))
     except (zipfile.BadZipFile, ElementTree.ParseError):
         return []
-    return merged_ranges
+    return sorted(set(str(item) for item in merged_ranges))
 
 
 def _extract_keyword_cells(workbook, max_cells=MAX_KEYWORD_CELLS):
     keyword_cells = []
     truncated = False
 
-    for worksheet in workbook.worksheets:
+    worksheets = sorted(workbook.worksheets, key=lambda item: _normalize_sheet_name(item.title))
+    for worksheet in worksheets:
         for row in worksheet.iter_rows():
             for cell in row:
                 if cell.value is None:
@@ -111,30 +132,57 @@ def _extract_keyword_cells(workbook, max_cells=MAX_KEYWORD_CELLS):
                 keyword_cells.append(
                     {
                         "sheet": worksheet.title,
-                        "cell": cell.coordinate,
-                        "value": _json_safe_value(cell.value),
+                        "cell": str(cell.coordinate),
+                        "value": _normalize_text_value(cell.value),
                     }
                 )
                 if len(keyword_cells) >= max_cells:
                     truncated = True
-                    return keyword_cells, truncated
+                    return _normalize_keyword_cells(keyword_cells), truncated
 
-    return keyword_cells, truncated
+    return _normalize_keyword_cells(keyword_cells), truncated
 
 
-def _build_layout_hash(sheet_names, merged_ranges, keyword_cells):
-    hash_payload = {
-        "sheet_names": sheet_names,
-        "merged_ranges": merged_ranges,
-        "keyword_cells": [
+def _normalize_keyword_cells(keyword_cells):
+    normalized_cells = []
+    for item in keyword_cells:
+        if not isinstance(item, dict):
+            continue
+        normalized_cells.append(
             {
-                "cell": item.get("cell", ""),
-                "value": item.get("value", ""),
+                "sheet": _normalize_sheet_name(item.get("sheet", "")),
+                "cell": str(item.get("cell", "")),
+                "value": _normalize_text_value(item.get("value", "")),
             }
-            for item in keyword_cells
-        ],
+        )
+
+    return sorted(
+        normalized_cells,
+        key=lambda item: (
+            item.get("sheet", ""),
+            *_cell_sort_key(item.get("cell", "")),
+        ),
+    )
+
+
+def _normalize_fingerprint_parts(sheet_names, merged_ranges, keyword_cells):
+    normalized_sheet_names = sorted(_normalize_sheet_name(sheet_name) for sheet_name in sheet_names)
+    normalized_merged_ranges = sorted(str(item) for item in merged_ranges)
+    normalized_keyword_cells = _normalize_keyword_cells(keyword_cells)
+    return {
+        "normalized_sheet_names": normalized_sheet_names,
+        "normalized_merged_ranges": normalized_merged_ranges,
+        "normalized_keyword_cells": normalized_keyword_cells,
     }
-    hash_text = json.dumps(hash_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _build_layout_hash(fingerprint_debug):
+    hash_payload = {
+        "sheet_names": fingerprint_debug.get("normalized_sheet_names", []),
+        "merged_ranges": fingerprint_debug.get("normalized_merged_ranges", []),
+        "keyword_cells": fingerprint_debug.get("normalized_keyword_cells", []),
+    }
+    hash_text = json.dumps(hash_payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(hash_text.encode("utf-8")).hexdigest()
 
 
@@ -144,10 +192,11 @@ def build_template_fingerprint(excel_path, max_cells=MAX_KEYWORD_CELLS):
     workbook = None
     try:
         workbook = load_workbook(path, read_only=True, data_only=False, keep_links=False)
-        sheet_names = list(workbook.sheetnames)
+        sheet_names = sorted(_normalize_sheet_name(sheet_name) for sheet_name in workbook.sheetnames)
         merged_ranges = _read_merged_ranges(path)
         keyword_cells, truncated = _extract_keyword_cells(workbook, max_cells=max_cells)
-        layout_hash = _build_layout_hash(sheet_names, merged_ranges, keyword_cells)
+        fingerprint_debug = _normalize_fingerprint_parts(sheet_names, merged_ranges, keyword_cells)
+        layout_hash = _build_layout_hash(fingerprint_debug)
 
         return {
             "sheet_names": sheet_names,
@@ -157,6 +206,7 @@ def build_template_fingerprint(excel_path, max_cells=MAX_KEYWORD_CELLS):
             "non_empty_cells_truncated": truncated,
             "keyword_cells": keyword_cells,
             "layout_hash": layout_hash,
+            "fingerprint_debug": fingerprint_debug,
         }
     finally:
         if workbook is not None:

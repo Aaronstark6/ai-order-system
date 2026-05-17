@@ -1,0 +1,46 @@
+[
+  {
+    "id": "ai_产品形式_1",
+    "type": "text",
+    "source": {
+      "description_field": "产品形式"
+    },
+    "target": {
+      "sheet": "active",
+      "cell": "B10"
+    }
+  },
+  {
+    "id": "ai_产品要求_2",
+    "type": "text",
+    "source": {
+      "description_field": "产品要求"
+    },
+    "target": {
+      "sheet": "active",
+      "cell": "B14"
+    }
+  },
+  {
+    "id": "ai_配方要求_3",
+    "type": "text",
+    "source": {
+      "description_field": "配方要求"
+    },
+    "target": {
+      "sheet": "active",
+      "cell": "B18"
+    }
+  },
+  {
+    "id": "ai_包装要求_4",
+    "type": "text",
+    "source": {
+      "description_field": "包装要求"
+    },
+    "target": {
+      "sheet": "active",
+      "cell": "B22"
+    }
+  }
+]

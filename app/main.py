@@ -71,6 +71,11 @@ def v4_schema_page():
     return FileResponse(STATIC_DIR / "v4_schema.html")
 
 
+@app.get("/v4-workbench")
+def v4_workbench_page():
+    return FileResponse(STATIC_DIR / "v4_workbench.html")
+
+
 # ====================
 # Health Check
 # ====================
