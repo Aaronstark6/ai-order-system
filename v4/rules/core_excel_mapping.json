@@ -1,0 +1,27 @@
+{
+  "mapping_name": "核心调试映射",
+  "version": "V4-Core.7",
+  "target": "debug_excel",
+  "mappings": [
+    {
+      "source_field": "product_form",
+      "target_cell": "B2",
+      "operation": "write_text"
+    },
+    {
+      "source_field": "product_requirements",
+      "target_cell": "B3",
+      "operation": "write_text"
+    },
+    {
+      "source_field": "formula_requirements",
+      "target_cell": "B4",
+      "operation": "write_text"
+    },
+    {
+      "source_field": "packaging_requirements",
+      "target_cell": "B5",
+      "operation": "write_text"
+    }
+  ]
+}

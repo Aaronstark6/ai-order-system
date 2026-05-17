@@ -217,6 +217,30 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
+        .operations-table {
+            border-collapse: collapse;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .operations-table th,
+        .operations-table td {
+            border: 1px solid #d9e1dc;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .operations-table th {
+            background: #fbfcfb;
+            font-weight: 700;
+        }
+
+        .value-preview {
+            max-width: 420px;
+            white-space: pre-wrap;
+        }
+
         .render-card {
             border: 1px solid #d9e1dc;
             border-radius: 8px;
@@ -329,6 +353,7 @@
         let currentOrderObject = null;
         let currentPipelineResult = null;
         let currentExportResult = null;
+        let currentOperationsResult = null;
 
         function setStatus(text) {
             document.getElementById('statusText').textContent = text;
@@ -374,6 +399,7 @@
                 }
                 currentPipelineResult = await response.json();
                 currentExportResult = null;
+                currentOperationsResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentPipelineResult.success ? '核心流水线执行完成' : '核心流水线校验失败');
             } catch (error) {
@@ -388,6 +414,7 @@
                     render: null
                 };
                 currentExportResult = null;
+                currentOperationsResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('核心流水线执行失败');
             }
@@ -439,6 +466,8 @@
             body.innerHTML = `
                 ${renderWarnings(render.warnings || [])}
                 ${renderExportControls(fields)}
+                ${renderOperationsControls(fields)}
+                ${renderOperationsPreview()}
                 <div class="render-grid">
                     ${renderFieldCard('product_form', fields.product_form)}
                     ${renderFieldCard('product_requirements', fields.product_requirements)}
@@ -505,6 +534,81 @@
             }
         }
 
+        function renderOperationsControls(fields) {
+            const hasDescriptionFields = fields && Object.keys(fields).length > 0;
+            if (!hasDescriptionFields) {
+                return '';
+            }
+            return `
+                <div class="export-actions">
+                    <button class="btn-secondary" type="button" onclick="generateOperationsPreview()">生成 Operations 预览</button>
+                </div>
+            `;
+        }
+
+        async function generateOperationsPreview() {
+            const descriptionFields = currentPipelineResult?.render?.description_fields;
+            if (!descriptionFields) {
+                setStatus('暂无渲染结果，无法生成 Operations');
+                return;
+            }
+
+            setStatus('正在生成 Operations 预览');
+            try {
+                const response = await fetch('/api/v4/core-pipeline/operations-preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(descriptionFields)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                currentOperationsResult = await response.json();
+                renderPipelineResult(currentPipelineResult);
+                setStatus(currentOperationsResult.success ? 'Operations 预览已生成' : 'Operations 预览生成失败');
+            } catch (error) {
+                currentOperationsResult = {
+                    success: false,
+                    operations: [],
+                    warnings: ['Operations 预览请求失败']
+                };
+                renderPipelineResult(currentPipelineResult);
+                setStatus('Operations 预览生成失败');
+            }
+        }
+
+        function renderOperationsPreview() {
+            if (!currentOperationsResult) {
+                return '';
+            }
+
+            const warnings = Array.isArray(currentOperationsResult.warnings) ? currentOperationsResult.warnings : [];
+            const operations = Array.isArray(currentOperationsResult.operations) ? currentOperationsResult.operations : [];
+            return `
+                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>source_field</th>
+                            <th>target_cell</th>
+                            <th>operation</th>
+                            <th>value 预览</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${operations.map(operation => `
+                            <tr>
+                                <td>${escapeHtml(operation.source_field || '')}</td>
+                                <td>${escapeHtml(operation.target_cell || '')}</td>
+                                <td>${escapeHtml(operation.operation || '')}</td>
+                                <td class="value-preview">${escapeHtml(operation.value || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
         function renderWarnings(warnings) {
             if (!warnings.length) {
                 return '';
@@ -525,7 +629,8 @@
             document.getElementById('jsonPreview').textContent = JSON.stringify({
                 order_object: currentOrderObject,
                 pipeline_result: currentPipelineResult,
-                export_result: currentExportResult
+                export_result: currentExportResult,
+                operations_result: currentOperationsResult
             }, null, 2);
         }
 

@@ -866,6 +866,18 @@ def api_v4_core_pipeline_export_debug_excel(description_fields: dict = Body(...)
     }
 
 
+@router.post("/api/v4/core-pipeline/operations-preview")
+def api_v4_core_pipeline_operations_preview(description_fields: dict = Body(...)):
+    from app.v4_core_excel_mapping import (
+        description_fields_to_operations,
+        load_core_excel_mapping,
+    )
+    logger.info("[CorePipeline] Operations preview requested")
+
+    mapping = load_core_excel_mapping()
+    return description_fields_to_operations(description_fields, mapping)
+
+
 @router.get("/api/v4/product-type/{product_type_key}")
 def api_v4_product_type(product_type_key: str):
     from app.v4_schema import get_product_type
