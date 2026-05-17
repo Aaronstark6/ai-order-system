@@ -1,0 +1,24 @@
+{
+  "customer": {
+    "name": "",
+    "country": "",
+    "type": ""
+  },
+  "order": {
+    "order_no": "",
+    "quantity": "",
+    "order_date": "",
+    "sales_owner": ""
+  },
+  "product": {
+    "product_type": "",
+    "product_name": "",
+    "fields": {}
+  },
+  "document": {
+    "salesperson_code": "",
+    "company_code": "",
+    "sequence": "",
+    "ingredient_initials": ""
+  }
+}

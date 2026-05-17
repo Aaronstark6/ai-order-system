@@ -769,6 +769,33 @@ def api_v4_product_types():
     }
 
 
+@router.get("/api/v4/order-object")
+def api_v4_order_object():
+    from app.v4_order_object import load_order_object
+    logger.info("V4 order object requested")
+    return {
+        "success": True,
+        "data": load_order_object(),
+    }
+
+
+@router.post("/api/v4/order-object")
+def api_v4_save_order_object(order_object: dict = Body(...)):
+    from app.v4_order_object import save_order_object
+    logger.info("V4 order object save requested")
+    result = save_order_object(order_object)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "保存标准订单结构失败"),
+        }
+
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
 @router.get("/api/v4/product-type/{product_type_key}")
 def api_v4_product_type(product_type_key: str):
     from app.v4_schema import get_product_type

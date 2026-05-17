@@ -1,0 +1,24 @@
+{
+  "customer": {
+    "name": "Anna",
+    "country": "美国",
+    "type": "山姆"
+  },
+  "order": {
+    "order_no": "",
+    "quantity": "",
+    "order_date": "",
+    "sales_owner": ""
+  },
+  "product": {
+    "product_type": "default",
+    "product_name": "",
+    "fields": {}
+  },
+  "document": {
+    "salesperson_code": "",
+    "company_code": "",
+    "sequence": "",
+    "ingredient_initials": ""
+  }
+}

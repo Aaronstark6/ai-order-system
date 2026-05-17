@@ -81,6 +81,11 @@ def v4_product_types_page():
     return FileResponse(STATIC_DIR / "v4_product_types.html")
 
 
+@app.get("/v4-order-object")
+def v4_order_object_page():
+    return FileResponse(STATIC_DIR / "v4_order_object.html")
+
+
 # ====================
 # Health Check
 # ====================
