@@ -429,6 +429,116 @@
             opacity: 0.6;
         }
 
+        .search-filter-panel {
+            margin-bottom: 16px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .search-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .search-input-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-input-label {
+            display: block;
+            margin-bottom: 6px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 36px;
+            padding: 0 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #0f172a;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: #1d4ed8;
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+        }
+
+        .filter-select-group {
+            min-width: 140px;
+        }
+
+        .filter-select-label {
+            display: block;
+            margin-bottom: 6px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .filter-select {
+            width: 100%;
+            height: 36px;
+            padding: 0 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #0f172a;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .filter-select:focus {
+            border-color: #1d4ed8;
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+        }
+
+        .search-button {
+            height: 36px;
+            min-width: 80px;
+            padding: 0 14px;
+            border: 1px solid #1d4ed8;
+            border-radius: 6px;
+            background: #1d4ed8;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .search-button:hover {
+            background: #1e40af;
+            border-color: #1e40af;
+        }
+
+        .clear-search-button {
+            height: 36px;
+            min-width: 70px;
+            padding: 0 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            color: #1e293b;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .clear-search-button:hover {
+            border-color: #94a3b8;
+            background: #f8fafc;
+        }
+
         .detail-panel {
             margin-top: 16px;
             padding: 18px;
@@ -586,6 +696,32 @@
                 <h2 class="history-title">已学习模板</h2>
                 <button id="refreshTemplateHistoryButton" class="button secondary-button" type="button">刷新列表</button>
             </div>
+            <div class="search-filter-panel">
+                <div class="search-filter-row">
+                    <div class="search-input-group">
+                        <label class="search-input-label" for="searchKeywordInput">搜索模板名称 / 模板编号</label>
+                        <input id="searchKeywordInput" class="search-input" type="text" placeholder="输入模板名称或编号">
+                    </div>
+                    <div class="filter-select-group">
+                        <label class="filter-select-label" for="sourceFilterSelect">来源筛选</label>
+                        <select id="sourceFilterSelect" class="filter-select">
+                            <option value="">全部来源</option>
+                            <option value="ai_template_parser">AI自动解析</option>
+                            <option value="cache">缓存</option>
+                        </select>
+                    </div>
+                    <div class="filter-select-group">
+                        <label class="filter-select-label" for="statusFilterSelect">状态筛选</label>
+                        <select id="statusFilterSelect" class="filter-select">
+                            <option value="">全部状态</option>
+                            <option value="learned">已学习</option>
+                            <option value="warning">需检查</option>
+                        </select>
+                    </div>
+                    <button id="applySearchButton" class="search-button" type="button">搜索</button>
+                    <button id="clearSearchButton" class="clear-search-button" type="button">清空</button>
+                </div>
+            </div>
             <div id="templateHistoryMessage" class="state" style="display: none;"></div>
             <div id="templateHistoryContent"></div>
             <div id="templateDetailArea" style="display: none;"></div>
@@ -602,8 +738,17 @@
         const templateHistoryContent = document.getElementById("templateHistoryContent");
         const templateDetailArea = document.getElementById("templateDetailArea");
         const refreshTemplateHistoryButton = document.getElementById("refreshTemplateHistoryButton");
+        const searchKeywordInput = document.getElementById("searchKeywordInput");
+        const sourceFilterSelect = document.getElementById("sourceFilterSelect");
+        const statusFilterSelect = document.getElementById("statusFilterSelect");
+        const applySearchButton = document.getElementById("applySearchButton");
+        const clearSearchButton = document.getElementById("clearSearchButton");
         let currentWorkbenchResult = null;
         let currentExportResult = null;
+        let allTemplatesData = [];
+        let currentSearchKeyword = "";
+        let currentSourceFilter = "";
+        let currentStatusFilter = "";
 
         function escapeHtml(value) {
             return String(value ?? "")
@@ -652,12 +797,58 @@
             templateHistoryMessage.style.display = "none";
         }
 
-        function renderTemplateHistory(templates) {
+        function filterTemplates(templates, keyword, sourceFilter, statusFilter) {
+            const rows = Array.isArray(templates) ? templates : [];
+            const kw = String(keyword || "").trim().toLowerCase();
+            const srcFilter = String(sourceFilter || "").trim();
+            const stFilter = String(statusFilter || "").trim();
+
+            return rows.filter(item => {
+                const templateName = String(item.template_name || `模板-${item.short_hash || ""}`).toLowerCase();
+                const shortHash = String(item.short_hash || "").toLowerCase();
+                const source = String(item.source || "");
+                const hasWarning = Boolean(item.warning);
+
+                if (kw) {
+                    const matchName = templateName.includes(kw);
+                    const matchHash = shortHash.includes(kw);
+                    if (!matchName && !matchHash) {
+                        return false;
+                    }
+                }
+
+                if (srcFilter && source !== srcFilter) {
+                    return false;
+                }
+
+                if (stFilter === "learned" && hasWarning) {
+                    return false;
+                }
+                if (stFilter === "warning" && !hasWarning) {
+                    return false;
+                }
+
+                return true;
+            });
+        }
+
+        function applyCurrentFilters() {
+            const filtered = filterTemplates(allTemplatesData, currentSearchKeyword, currentSourceFilter, currentStatusFilter);
+            renderTemplateHistory(filtered, true);
+        }
+
+        function renderTemplateHistory(templates, isFilteredResult = false) {
             const rows = Array.isArray(templates) ? templates : [];
             if (!rows.length) {
-                templateHistoryContent.innerHTML = `
-                    <div class="state">暂无已学习模板，请先上传模板进行智能解析。</div>
-                `;
+                if (isFilteredResult) {
+                    templateHistoryContent.innerHTML = `
+                        <div class="state">没有找到匹配的模板。</div>
+                    `;
+                } else {
+                    templateHistoryContent.innerHTML = `
+                        <div class="state">暂无已学习模板，请先上传模板进行智能解析。</div>
+                    `;
+                }
                 return;
             }
 
@@ -948,8 +1139,10 @@
                 if (!response.ok || !result.success) {
                     throw new Error(result.error || "已学习模板列表加载失败");
                 }
-                renderTemplateHistory(result.templates || []);
+                allTemplatesData = Array.isArray(result.templates) ? result.templates : [];
+                applyCurrentFilters();
             } catch (error) {
+                allTemplatesData = [];
                 templateHistoryContent.innerHTML = "";
                 setTemplateHistoryMessage(`已学习模板列表加载失败：${error.message || error}`, "error");
             } finally {
@@ -1196,6 +1389,32 @@
                 return;
             }
             saveTemplateInfo(saveButton.dataset.layoutHash);
+        });
+
+        applySearchButton.addEventListener("click", () => {
+            currentSearchKeyword = searchKeywordInput.value.trim();
+            currentSourceFilter = sourceFilterSelect.value;
+            currentStatusFilter = statusFilterSelect.value;
+            applyCurrentFilters();
+        });
+
+        clearSearchButton.addEventListener("click", () => {
+            searchKeywordInput.value = "";
+            sourceFilterSelect.value = "";
+            statusFilterSelect.value = "";
+            currentSearchKeyword = "";
+            currentSourceFilter = "";
+            currentStatusFilter = "";
+            applyCurrentFilters();
+        });
+
+        searchKeywordInput.addEventListener("keydown", event => {
+            if (event.key === "Enter") {
+                currentSearchKeyword = searchKeywordInput.value.trim();
+                currentSourceFilter = sourceFilterSelect.value;
+                currentStatusFilter = statusFilterSelect.value;
+                applyCurrentFilters();
+            }
         });
 
         refreshTemplateHistoryButton.addEventListener("click", loadTemplateHistory);
