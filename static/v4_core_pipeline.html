@@ -879,8 +879,10 @@
 
             const warnings = Array.isArray(currentTableOperationsResult.warnings) ? currentTableOperationsResult.warnings : [];
             const operations = Array.isArray(currentTableOperationsResult.operations) ? currentTableOperationsResult.operations : [];
+            const tables = Array.isArray(currentTableOperationsResult.tables) ? currentTableOperationsResult.tables : [];
             return `
                 <div class="message success">动态表格 Operations</div>
+                ${renderDynamicTableStats(tables)}
                 ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
                 <table class="operations-table">
                     <thead>
@@ -900,6 +902,38 @@
                                 <td class="value-preview">${escapeHtml(operation.value || '')}</td>
                             </tr>
                         `).join('') || '<tr><td colspan="4">暂无动态表格 Operations</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderDynamicTableStats(tables) {
+            if (!tables.length) {
+                return '<div class="message warning">动态表统计：暂无可渲染表格</div>';
+            }
+
+            return `
+                <div class="message success">
+                    动态表统计：${tables.map(table => `${escapeHtml(table.table_name || table.table_key || '')}：${escapeHtml(table.range || '')}`).join('；')}
+                </div>
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>动态表</th>
+                            <th>范围</th>
+                            <th>行数</th>
+                            <th>列数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tables.map(table => `
+                            <tr>
+                                <td>${escapeHtml(table.table_name || table.table_key || '')}</td>
+                                <td>${escapeHtml(table.range || '')}</td>
+                                <td>${escapeHtml(table.rows_count || 0)}</td>
+                                <td>${escapeHtml(table.columns_count || 0)}</td>
+                            </tr>
+                        `).join('')}
                     </tbody>
                 </table>
             `;

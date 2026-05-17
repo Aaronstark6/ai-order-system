@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 动态表格规则配置</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #2d3542;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1180px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #dfe7ee;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        main {
+            padding: 24px;
+        }
+
+        .toolbar,
+        .hint-panel,
+        .table-card,
+        details {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+
+        .toolbar,
+        .hint-panel {
+            margin-bottom: 16px;
+            padding: 14px 16px;
+        }
+
+        .toolbar {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        .actions,
+        .table-actions,
+        .hint-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-primary {
+            background: #3e5f8a;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #314f76;
+        }
+
+        .btn-secondary,
+        .hint-item {
+            background: #ffffff;
+            border: 1px solid #bcc8c3;
+            color: #2d3542;
+        }
+
+        .btn-secondary:hover,
+        .hint-item:hover {
+            background: #eef2f6;
+        }
+
+        .btn-danger {
+            background: #fff5f3;
+            border-color: #ebb0a8;
+            color: #a8201a;
+        }
+
+        .hint-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .table-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .table-card {
+            overflow: hidden;
+        }
+
+        .table-header {
+            background: #fbfcfb;
+            border-bottom: 1px solid #d9e1dc;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.3fr) 120px auto;
+            padding: 14px 16px;
+        }
+
+        .table-body {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        input {
+            border: 1px solid #bcc8c3;
+            border-radius: 6px;
+            color: #1f2933;
+            font-size: 14px;
+            min-height: 34px;
+            padding: 7px 9px;
+            width: 100%;
+        }
+
+        .column-table {
+            border-collapse: collapse;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .column-table th,
+        .column-table td {
+            border: 1px solid #d9e1dc;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .column-table th {
+            background: #fbfcfb;
+            font-weight: 700;
+        }
+
+        .message {
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.55;
+            margin-bottom: 16px;
+            padding: 12px;
+        }
+
+        .success {
+            background: #dff5e6;
+            color: #176039;
+        }
+
+        .error {
+            background: #ffe2e0;
+            color: #a8201a;
+        }
+
+        .empty {
+            color: #7a8781;
+            font-size: 14px;
+        }
+
+        details {
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        summary {
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 14px 16px;
+        }
+
+        pre {
+            background: #172126;
+            color: #d7eef5;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 360px;
+            overflow: auto;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 920px) {
+            main {
+                padding: 16px;
+            }
+
+            .header-inner,
+            .toolbar,
+            .table-header {
+                align-items: flex-start;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .column-table {
+                min-width: 680px;
+            }
+
+            .table-wrap {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 动态表格规则配置</h1>
+            <a class="home-link" href="/">返回首页</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="toolbar">
+            <div class="status" id="statusText">准备加载动态表格规则</div>
+            <div class="actions">
+                <button class="btn-secondary" type="button" onclick="loadMapping()">重新加载</button>
+                <button class="btn-secondary" type="button" onclick="addTable()">新增表格规则</button>
+                <button class="btn-primary" type="button" onclick="saveMapping()">保存规则</button>
+            </div>
+        </div>
+
+        <section class="hint-panel">
+            <div class="hint-title">常用来源路径</div>
+            <div class="hint-list" id="sourcePathHints"></div>
+        </section>
+
+        <div id="messageBox"></div>
+        <div class="table-list" id="tableList"></div>
+
+        <datalist id="sourcePathOptions"></datalist>
+
+        <details>
+            <summary>高级信息</summary>
+            <pre id="jsonPreview">{}</pre>
+        </details>
+    </main>
+
+    <script>
+        const sourcePathHints = [
+            'product.tables.formula_items',
+            'product.tables.packaging_items',
+            'product.tables.test_items'
+        ];
+
+        let currentMapping = {
+            version: 'V4-Core.17',
+            tables: []
+        };
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function showMessage(text, type) {
+            const box = document.getElementById('messageBox');
+            box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
+        }
+
+        function renderHints() {
+            document.getElementById('sourcePathOptions').innerHTML = sourcePathHints
+                .map(item => `<option value="${escapeAttr(item)}"></option>`)
+                .join('');
+            document.getElementById('sourcePathHints').innerHTML = sourcePathHints
+                .map(item => `<button class="hint-item" type="button" onclick="addTable('${escapeJs(item)}')">${escapeHtml(item)}</button>`)
+                .join('');
+        }
+
+        async function loadMapping() {
+            setStatus('正在加载动态表格规则');
+            showMessage('', '');
+            try {
+                const response = await fetch('/api/v4/table-mapping');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || '加载失败');
+                    showMessage(result.error || '加载失败', 'error');
+                    return;
+                }
+                currentMapping = normalizeMapping(result.data || {});
+                renderTables();
+                updatePreview();
+                setStatus('动态表格规则已加载');
+            } catch (error) {
+                setStatus('加载失败');
+                showMessage('动态表格规则加载失败', 'error');
+            }
+        }
+
+        function normalizeMapping(mapping) {
+            const tables = Array.isArray(mapping.tables) ? mapping.tables : [];
+            return {
+                version: mapping.version || 'V4-Core.17',
+                tables: tables.map(table => ({
+                    table_name: table.table_name || '',
+                    source_path: table.source_path || '',
+                    start_cell: table.start_cell || '',
+                    columns: Array.isArray(table.columns)
+                        ? table.columns.map(column => ({
+                            label: column.label || '',
+                            field: column.field || '',
+                            target_col: column.target_col || ''
+                        }))
+                        : []
+                }))
+            };
+        }
+
+        function addTable(sourcePath) {
+            currentMapping.tables.push({
+                table_name: '新建表格',
+                source_path: sourcePath || '',
+                start_cell: '',
+                columns: []
+            });
+            renderTables();
+            updatePreview();
+            setStatus('已新增表格规则');
+        }
+
+        function deleteTable(tableIndex) {
+            currentMapping.tables.splice(tableIndex, 1);
+            renderTables();
+            updatePreview();
+            setStatus('已删除表格规则');
+        }
+
+        function addColumn(tableIndex) {
+            currentMapping.tables[tableIndex].columns.push({
+                label: '',
+                field: '',
+                target_col: ''
+            });
+            renderTables();
+            updatePreview();
+            setStatus('已新增列规则');
+        }
+
+        function deleteColumn(tableIndex, columnIndex) {
+            currentMapping.tables[tableIndex].columns.splice(columnIndex, 1);
+            renderTables();
+            updatePreview();
+            setStatus('已删除列规则');
+        }
+
+        function updateTableField(tableIndex, field, value) {
+            currentMapping.tables[tableIndex][field] = value;
+            updatePreview();
+        }
+
+        function updateColumnField(tableIndex, columnIndex, field, value) {
+            currentMapping.tables[tableIndex].columns[columnIndex][field] = value;
+            updatePreview();
+        }
+
+        function renderTables() {
+            const list = document.getElementById('tableList');
+            if (!currentMapping.tables.length) {
+                list.innerHTML = '<div class="table-card"><div class="table-body"><div class="empty">暂无表格规则，请新增。</div></div></div>';
+                return;
+            }
+
+            list.innerHTML = currentMapping.tables.map((table, tableIndex) => `
+                <section class="table-card">
+                    <div class="table-header">
+                        <input value="${escapeAttr(table.table_name)}" oninput="updateTableField(${tableIndex}, 'table_name', this.value)" placeholder="表格名称">
+                        <input list="sourcePathOptions" value="${escapeAttr(table.source_path)}" oninput="updateTableField(${tableIndex}, 'source_path', this.value)" placeholder="product.tables.formula_items">
+                        <input value="${escapeAttr(table.start_cell)}" oninput="updateTableField(${tableIndex}, 'start_cell', this.value)" placeholder="起始单元格 A10">
+                        <div class="table-actions">
+                            <button class="btn-secondary" type="button" onclick="addColumn(${tableIndex})">新增列规则</button>
+                            <button class="btn-danger" type="button" onclick="deleteTable(${tableIndex})">删除表格</button>
+                        </div>
+                    </div>
+                    <div class="table-body">
+                        <div class="table-wrap">
+                            <table class="column-table">
+                                <thead>
+                                    <tr>
+                                        <th>列名</th>
+                                        <th>数据字段</th>
+                                        <th>目标列</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${renderColumns(table, tableIndex)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            `).join('');
+        }
+
+        function renderColumns(table, tableIndex) {
+            if (!table.columns.length) {
+                return '<tr><td colspan="4">暂无列规则，请新增。</td></tr>';
+            }
+
+            return table.columns.map((column, columnIndex) => `
+                <tr>
+                    <td>
+                        <input value="${escapeAttr(column.label)}" oninput="updateColumnField(${tableIndex}, ${columnIndex}, 'label', this.value)" placeholder="原料名">
+                    </td>
+                    <td>
+                        <input value="${escapeAttr(column.field)}" oninput="updateColumnField(${tableIndex}, ${columnIndex}, 'field', this.value)" placeholder="name">
+                    </td>
+                    <td>
+                        <input value="${escapeAttr(column.target_col)}" oninput="updateColumnField(${tableIndex}, ${columnIndex}, 'target_col', this.value)" placeholder="A">
+                    </td>
+                    <td>
+                        <button class="btn-danger" type="button" onclick="deleteColumn(${tableIndex}, ${columnIndex})">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function collectMapping() {
+            return {
+                version: 'V4-Core.17',
+                tables: currentMapping.tables
+                    .map(table => ({
+                        table_name: String(table.table_name || '').trim(),
+                        source_path: String(table.source_path || '').trim(),
+                        start_cell: String(table.start_cell || '').trim(),
+                        columns: Array.isArray(table.columns)
+                            ? table.columns
+                                .map(column => ({
+                                    label: String(column.label || '').trim(),
+                                    field: String(column.field || '').trim(),
+                                    target_col: String(column.target_col || '').trim()
+                                }))
+                                .filter(column => column.label || column.field || column.target_col)
+                            : []
+                    }))
+                    .filter(table => table.table_name || table.source_path || table.start_cell || table.columns.length)
+            };
+        }
+
+        async function saveMapping() {
+            const payload = collectMapping();
+            setStatus('正在保存动态表格规则');
+            showMessage('', '');
+            try {
+                const response = await fetch('/api/v4/table-mapping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || '保存失败');
+                    showMessage(result.error || '保存失败', 'error');
+                    return;
+                }
+                currentMapping = normalizeMapping(result.data || {});
+                renderTables();
+                updatePreview();
+                setStatus('动态表格规则已保存');
+                showMessage('动态表格规则已保存', 'success');
+            } catch (error) {
+                setStatus('保存失败');
+                showMessage('动态表格规则保存失败', 'error');
+            }
+        }
+
+        function updatePreview() {
+            document.getElementById('jsonPreview').textContent = JSON.stringify(collectMapping(), null, 2);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeAttr(text) {
+            return escapeHtml(text).replace(/"/g, '&quot;');
+        }
+
+        function escapeJs(text) {
+            return String(text).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderHints();
+            loadMapping();
+        });
+    </script>
+</body>
+</html>

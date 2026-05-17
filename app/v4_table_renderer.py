@@ -29,6 +29,95 @@ def load_table_mapping():
     return mapping if isinstance(mapping, dict) else {}
 
 
+def _normalize_column_rule(column):
+    if not isinstance(column, dict):
+        return None
+
+    label = str(column.get("label") or "").strip()
+    field = str(column.get("field") or "").strip()
+    target_col = str(column.get("target_col") or "").strip().upper()
+    if not label and not field and not target_col:
+        return None
+
+    return {
+        "label": label or field or target_col,
+        "field": field,
+        "target_col": target_col,
+    }
+
+
+def _normalize_table_rule(table):
+    if not isinstance(table, dict):
+        return None
+
+    table_name = str(table.get("table_name") or "").strip()
+    source_path = str(table.get("source_path") or "").strip()
+    start_cell = str(table.get("start_cell") or "").strip().upper()
+    raw_columns = table.get("columns", [])
+    if not isinstance(raw_columns, list):
+        raw_columns = []
+
+    columns = []
+    for column in raw_columns:
+        normalized_column = _normalize_column_rule(column)
+        if normalized_column:
+            columns.append(normalized_column)
+
+    if not table_name and not source_path and not start_cell and not columns:
+        return None
+
+    return {
+        "table_name": table_name or "未命名表格",
+        "source_path": source_path,
+        "start_cell": start_cell,
+        "columns": columns,
+    }
+
+
+def normalize_table_mapping(mapping):
+    source = mapping if isinstance(mapping, dict) else {}
+    raw_tables = source.get("tables", [])
+    if not isinstance(raw_tables, list):
+        raw_tables = []
+
+    tables = []
+    for table in raw_tables:
+        normalized_table = _normalize_table_rule(table)
+        if normalized_table:
+            tables.append(normalized_table)
+
+    return {
+        "version": "V4-Core.17",
+        "tables": tables,
+    }
+
+
+def save_table_mapping(mapping):
+    mapping_path = _get_table_mapping_path()
+    normalized = normalize_table_mapping(mapping)
+    try:
+        mapping_path.parent.mkdir(parents=True, exist_ok=True)
+        with mapping_path.open("w", encoding="utf-8") as f:
+            json.dump(normalized, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+    except OSError as exc:
+        logger.exception("[TableRenderer] Table mapping save failed: path=%s", mapping_path)
+        return {
+            "success": False,
+            "error": str(exc) or "动态表格规则保存失败",
+        }
+
+    logger.info(
+        "[TableRenderer] Table mapping saved: path=%s tables=%s",
+        mapping_path,
+        len(normalized.get("tables", [])),
+    )
+    return {
+        "success": True,
+        "data": normalized,
+    }
+
+
 def _resolve_source_path(data, source_path):
     current = data
     for part in str(source_path or "").split("."):

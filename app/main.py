@@ -111,6 +111,11 @@ def v4_block_merge_rules_page():
     return FileResponse(STATIC_DIR / "v4_block_merge_rules.html")
 
 
+@app.get("/v4-table-mapping")
+def v4_table_mapping_page():
+    return FileResponse(STATIC_DIR / "v4_table_mapping.html")
+
+
 # ====================
 # Health Check
 # ====================

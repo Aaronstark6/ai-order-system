@@ -4,12 +4,14 @@
     "country": "美国",
     "type": "山姆"
   },
+
   "order": {
     "order_no": "",
     "quantity": "",
     "order_date": "",
     "sales_owner": ""
   },
+
   "product": {
     "product_type": "固体饮料",
     "product_name": "益生菌固体饮料",
@@ -23,6 +25,7 @@
     },
 
     "tables": {
+
       "formula_items": [
         {
           "name": "赤藓糖醇",
@@ -34,7 +37,21 @@
           "amount": "20mg",
           "percentage": "1%"
         }
+      ],
+
+      "test_items": [
+        {
+          "name": "水分",
+          "standard": "≤5%",
+          "result": "合格"
+        },
+        {
+          "name": "菌落总数",
+          "standard": "≤1000CFU/g",
+          "result": "合格"
+        }
       ]
+
     }
   },
 
