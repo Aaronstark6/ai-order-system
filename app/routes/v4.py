@@ -956,6 +956,35 @@ def api_v4_core_pipeline_block_operations_preview(order_object: Optional[dict] =
     return build_block_operations(order_object, rules)
 
 
+@router.get("/api/v4/block-merge-rules")
+def api_v4_block_merge_rules():
+    from app.v4_block_merge_engine import load_block_merge_rules
+
+    logger.info("[BlockMergeEngine] Rules requested")
+    return {
+        "success": True,
+        "data": load_block_merge_rules(),
+    }
+
+
+@router.post("/api/v4/block-merge-rules")
+def api_v4_save_block_merge_rules(rules: dict = Body(...)):
+    from app.v4_block_merge_engine import save_block_merge_rules
+
+    logger.info("[BlockMergeEngine] Rules save requested")
+    result = save_block_merge_rules(rules)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "区块合并规则保存失败"),
+        }
+
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
 @router.get("/api/v4/structured-mapping")
 def api_v4_structured_mapping():
     from app.v4_structured_excel_mapping import load_structured_excel_mapping

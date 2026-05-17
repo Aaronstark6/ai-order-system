@@ -106,6 +106,11 @@ def v4_structured_mapping_page():
     return FileResponse(STATIC_DIR / "v4_structured_mapping.html")
 
 
+@app.get("/v4-block-merge-rules")
+def v4_block_merge_rules_page():
+    return FileResponse(STATIC_DIR / "v4_block_merge_rules.html")
+
+
 # ====================
 # Health Check
 # ====================

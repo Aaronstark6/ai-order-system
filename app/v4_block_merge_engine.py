@@ -28,6 +28,88 @@ def load_block_merge_rules():
     return rules if isinstance(rules, dict) else {}
 
 
+def _normalize_line(line):
+    if not isinstance(line, dict):
+        return None
+
+    label = str(line.get("label") or "").strip()
+    field_id = str(line.get("field_id") or "").strip()
+    if not label and not field_id:
+        return None
+    return {
+        "label": label or field_id,
+        "field_id": field_id,
+    }
+
+
+def _normalize_block(block):
+    if not isinstance(block, dict):
+        return None
+
+    block_name = str(block.get("block_name") or "").strip()
+    target_cell = str(block.get("target_cell") or "").strip()
+    lines = []
+    raw_lines = block.get("lines", [])
+    if isinstance(raw_lines, list):
+        for line in raw_lines:
+            normalized_line = _normalize_line(line)
+            if normalized_line:
+                lines.append(normalized_line)
+
+    if not block_name and not target_cell and not lines:
+        return None
+
+    return {
+        "block_name": block_name or "未命名区块",
+        "target_cell": target_cell,
+        "lines": lines,
+    }
+
+
+def normalize_block_merge_rules(rules):
+    source = rules if isinstance(rules, dict) else {}
+    raw_blocks = source.get("blocks", [])
+    if not isinstance(raw_blocks, list):
+        raw_blocks = []
+
+    blocks = []
+    for block in raw_blocks:
+        normalized_block = _normalize_block(block)
+        if normalized_block:
+            blocks.append(normalized_block)
+
+    return {
+        "version": "V4-Core.16",
+        "blocks": blocks,
+    }
+
+
+def save_block_merge_rules(rules):
+    rules_path = _get_block_merge_rules_path()
+    normalized = normalize_block_merge_rules(rules)
+    try:
+        rules_path.parent.mkdir(parents=True, exist_ok=True)
+        with rules_path.open("w", encoding="utf-8") as f:
+            json.dump(normalized, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+    except OSError as exc:
+        logger.exception("[BlockMergeEngine] Rules save failed: path=%s", rules_path)
+        return {
+            "success": False,
+            "error": str(exc) or "区块合并规则保存失败",
+        }
+
+    logger.info(
+        "[BlockMergeEngine] Rules saved: path=%s blocks=%s",
+        rules_path,
+        len(normalized.get("blocks", [])),
+    )
+    return {
+        "success": True,
+        "data": normalized,
+    }
+
+
 def _find_product_type(product_type_value):
     product_type_value = str(product_type_value or "").strip()
     if not product_type_value:

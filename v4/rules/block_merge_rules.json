@@ -1,5 +1,5 @@
 {
-  "version": "V4-Core.15",
+  "version": "V4-Core.16",
   "blocks": [
     {
       "block_name": "产品说明块",
@@ -16,6 +16,20 @@
         {
           "label": "口味",
           "field_id": "field_602cf02f"
+        }
+      ]
+    },
+    {
+      "block_name": "包装说明块",
+      "target_cell": "B25",
+      "lines": [
+        {
+          "label": "包装规格",
+          "field_id": "field_c20ee7b6"
+        },
+        {
+          "label": "标签要求",
+          "field_id": "field_776fa203"
         }
       ]
     }

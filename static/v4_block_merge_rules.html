@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 区块合并规则配置</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #2d3542;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1180px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #dfe7ee;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        main {
+            padding: 24px;
+        }
+
+        .toolbar,
+        .block-card,
+        details {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+        }
+
+        .status {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        .actions,
+        .block-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-primary {
+            background: #3e5f8a;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #314f76;
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: #bcc8c3;
+            color: #2d3542;
+        }
+
+        .btn-secondary:hover {
+            background: #eef2f6;
+        }
+
+        .btn-danger {
+            background: #fff5f3;
+            border-color: #ebb0a8;
+            color: #a8201a;
+        }
+
+        .block-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .block-card {
+            overflow: hidden;
+        }
+
+        .block-header {
+            background: #fbfcfb;
+            border-bottom: 1px solid #d9e1dc;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(180px, 1fr) 140px auto;
+            padding: 14px 16px;
+        }
+
+        .block-body {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        input,
+        select {
+            border: 1px solid #bcc8c3;
+            border-radius: 6px;
+            color: #1f2933;
+            font-size: 14px;
+            min-height: 34px;
+            padding: 7px 9px;
+            width: 100%;
+        }
+
+        .line-table {
+            border-collapse: collapse;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .line-table th,
+        .line-table td {
+            border: 1px solid #d9e1dc;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .line-table th {
+            background: #fbfcfb;
+            font-weight: 700;
+        }
+
+        .message {
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.55;
+            margin-bottom: 16px;
+            padding: 12px;
+        }
+
+        .success {
+            background: #dff5e6;
+            color: #176039;
+        }
+
+        .error {
+            background: #ffe2e0;
+            color: #a8201a;
+        }
+
+        .empty {
+            color: #7a8781;
+            font-size: 14px;
+        }
+
+        details {
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        summary {
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 14px 16px;
+        }
+
+        pre {
+            background: #172126;
+            color: #d7eef5;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 360px;
+            overflow: auto;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 860px) {
+            main {
+                padding: 16px;
+            }
+
+            .header-inner,
+            .toolbar,
+            .block-header {
+                align-items: flex-start;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .line-table {
+                min-width: 720px;
+            }
+
+            .table-wrap {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 区块合并规则配置</h1>
+            <a class="home-link" href="/">返回首页</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="toolbar">
+            <div class="status" id="statusText">准备加载区块合并规则</div>
+            <div class="actions">
+                <button class="btn-secondary" type="button" onclick="loadAll()">重新加载</button>
+                <button class="btn-secondary" type="button" onclick="addBlock()">新增区块</button>
+                <button class="btn-primary" type="button" onclick="saveRules()">保存规则</button>
+            </div>
+        </div>
+
+        <div id="messageBox"></div>
+        <div class="block-list" id="blockList"></div>
+
+        <datalist id="fieldOptions"></datalist>
+
+        <details>
+            <summary>高级信息</summary>
+            <pre id="jsonPreview">{}</pre>
+        </details>
+    </main>
+
+    <script>
+        let currentRules = {
+            version: 'V4-Core.16',
+            blocks: []
+        };
+        let productFields = [];
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function showMessage(text, type) {
+            const box = document.getElementById('messageBox');
+            box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
+        }
+
+        async function loadAll() {
+            setStatus('正在加载区块合并规则');
+            showMessage('', '');
+            await Promise.all([loadProductFields(), loadRules()]);
+        }
+
+        async function loadProductFields() {
+            try {
+                const response = await fetch('/api/v4/product-types');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                const productTypes = Array.isArray(result.data) ? result.data : [];
+                const fields = [];
+                productTypes.forEach(productType => {
+                    const productTypeName = productType.name || productType.key || '产品类型';
+                    const typeFields = Array.isArray(productType.fields) ? productType.fields : [];
+                    typeFields.forEach(field => {
+                        const key = field.key || '';
+                        const name = field.name || key;
+                        if (key) {
+                            fields.push({
+                                key,
+                                name,
+                                display: `${name}（${key}）`,
+                                product_type: productTypeName
+                            });
+                        }
+                    });
+                });
+                productFields = fields;
+                renderFieldOptions();
+            } catch (error) {
+                productFields = [];
+                renderFieldOptions();
+            }
+        }
+
+        function renderFieldOptions() {
+            document.getElementById('fieldOptions').innerHTML = productFields
+                .map(field => `<option value="${escapeAttr(field.key)}" label="${escapeAttr(field.display)}"></option>`)
+                .join('');
+        }
+
+        async function loadRules() {
+            try {
+                const response = await fetch('/api/v4/block-merge-rules');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || '加载失败');
+                    showMessage(result.error || '加载失败', 'error');
+                    return;
+                }
+                currentRules = normalizeRules(result.data || {});
+                renderBlocks();
+                updatePreview();
+                setStatus('区块合并规则已加载');
+            } catch (error) {
+                setStatus('加载失败');
+                showMessage('区块合并规则加载失败', 'error');
+            }
+        }
+
+        function normalizeRules(rules) {
+            const blocks = Array.isArray(rules.blocks) ? rules.blocks : [];
+            return {
+                version: rules.version || 'V4-Core.16',
+                blocks: blocks.map(block => ({
+                    block_name: block.block_name || '',
+                    target_cell: block.target_cell || '',
+                    lines: Array.isArray(block.lines)
+                        ? block.lines.map(line => ({
+                            label: line.label || '',
+                            field_id: line.field_id || ''
+                        }))
+                        : []
+                }))
+            };
+        }
+
+        function addBlock() {
+            currentRules.blocks.push({
+                block_name: '新建区块',
+                target_cell: '',
+                lines: []
+            });
+            renderBlocks();
+            updatePreview();
+            setStatus('已新增区块');
+        }
+
+        function deleteBlock(blockIndex) {
+            currentRules.blocks.splice(blockIndex, 1);
+            renderBlocks();
+            updatePreview();
+            setStatus('已删除区块');
+        }
+
+        function addLine(blockIndex) {
+            currentRules.blocks[blockIndex].lines.push({
+                label: '',
+                field_id: ''
+            });
+            renderBlocks();
+            updatePreview();
+            setStatus('已新增区块行');
+        }
+
+        function deleteLine(blockIndex, lineIndex) {
+            currentRules.blocks[blockIndex].lines.splice(lineIndex, 1);
+            renderBlocks();
+            updatePreview();
+            setStatus('已删除区块行');
+        }
+
+        function updateBlockField(blockIndex, field, value) {
+            currentRules.blocks[blockIndex][field] = value;
+            updatePreview();
+        }
+
+        function updateLineField(blockIndex, lineIndex, field, value) {
+            currentRules.blocks[blockIndex].lines[lineIndex][field] = value;
+            updatePreview();
+        }
+
+        function renderBlocks() {
+            const list = document.getElementById('blockList');
+            if (!currentRules.blocks.length) {
+                list.innerHTML = '<div class="block-card"><div class="block-body"><div class="empty">暂无区块规则，请新增。</div></div></div>';
+                return;
+            }
+
+            list.innerHTML = currentRules.blocks.map((block, blockIndex) => `
+                <section class="block-card">
+                    <div class="block-header">
+                        <input value="${escapeAttr(block.block_name)}" oninput="updateBlockField(${blockIndex}, 'block_name', this.value)" placeholder="区块名称">
+                        <input value="${escapeAttr(block.target_cell)}" oninput="updateBlockField(${blockIndex}, 'target_cell', this.value)" placeholder="目标单元格 B20">
+                        <div class="block-actions">
+                            <button class="btn-secondary" type="button" onclick="addLine(${blockIndex})">新增区块行</button>
+                            <button class="btn-danger" type="button" onclick="deleteBlock(${blockIndex})">删除区块</button>
+                        </div>
+                    </div>
+                    <div class="block-body">
+                        <div class="table-wrap">
+                            <table class="line-table">
+                                <thead>
+                                    <tr>
+                                        <th>显示标签</th>
+                                        <th>字段ID</th>
+                                        <th>字段选择</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${renderLines(block, blockIndex)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            `).join('');
+        }
+
+        function renderLines(block, blockIndex) {
+            if (!block.lines.length) {
+                return '<tr><td colspan="4">暂无区块行，请新增。</td></tr>';
+            }
+
+            return block.lines.map((line, lineIndex) => {
+                const selectedField = productFields.find(field => field.key === line.field_id);
+                return `
+                    <tr>
+                        <td>
+                            <input value="${escapeAttr(line.label)}" oninput="updateLineField(${blockIndex}, ${lineIndex}, 'label', this.value)" placeholder="甜味剂">
+                        </td>
+                        <td>
+                            <input list="fieldOptions" value="${escapeAttr(line.field_id)}" oninput="updateLineField(${blockIndex}, ${lineIndex}, 'field_id', this.value)" placeholder="field_b916f282">
+                        </td>
+                        <td>
+                            <select onchange="selectField(${blockIndex}, ${lineIndex}, this.value)">
+                                <option value="">手动输入 field_id</option>
+                                ${productFields.map(field => `
+                                    <option value="${escapeAttr(field.key)}" ${field.key === line.field_id ? 'selected' : ''}>${escapeHtml(field.display)}</option>
+                                `).join('')}
+                            </select>
+                            <div class="empty">${escapeHtml(selectedField ? selectedField.product_type : '')}</div>
+                        </td>
+                        <td>
+                            <button class="btn-danger" type="button" onclick="deleteLine(${blockIndex}, ${lineIndex})">删除</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function selectField(blockIndex, lineIndex, fieldId) {
+            if (!fieldId) {
+                return;
+            }
+            currentRules.blocks[blockIndex].lines[lineIndex].field_id = fieldId;
+            const field = productFields.find(item => item.key === fieldId);
+            if (field && !currentRules.blocks[blockIndex].lines[lineIndex].label) {
+                currentRules.blocks[blockIndex].lines[lineIndex].label = field.name;
+            }
+            renderBlocks();
+            updatePreview();
+        }
+
+        function collectRules() {
+            return {
+                version: 'V4-Core.16',
+                blocks: currentRules.blocks
+                    .map(block => ({
+                        block_name: String(block.block_name || '').trim(),
+                        target_cell: String(block.target_cell || '').trim(),
+                        lines: Array.isArray(block.lines)
+                            ? block.lines
+                                .map(line => ({
+                                    label: String(line.label || '').trim(),
+                                    field_id: String(line.field_id || '').trim()
+                                }))
+                                .filter(line => line.label || line.field_id)
+                            : []
+                    }))
+                    .filter(block => block.block_name || block.target_cell || block.lines.length)
+            };
+        }
+
+        async function saveRules() {
+            const payload = collectRules();
+            setStatus('正在保存区块合并规则');
+            showMessage('', '');
+            try {
+                const response = await fetch('/api/v4/block-merge-rules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || '保存失败');
+                    showMessage(result.error || '保存失败', 'error');
+                    return;
+                }
+                currentRules = normalizeRules(result.data || {});
+                renderBlocks();
+                updatePreview();
+                setStatus('区块合并规则已保存');
+                showMessage('区块合并规则已保存', 'success');
+            } catch (error) {
+                setStatus('保存失败');
+                showMessage('区块合并规则保存失败', 'error');
+            }
+        }
+
+        function updatePreview() {
+            document.getElementById('jsonPreview').textContent = JSON.stringify(collectRules(), null, 2);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeAttr(text) {
+            return escapeHtml(text).replace(/"/g, '&quot;');
+        }
+
+        document.addEventListener('DOMContentLoaded', loadAll);
+    </script>
+</body>
+</html>
