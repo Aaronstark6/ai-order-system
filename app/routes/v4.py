@@ -21,7 +21,23 @@ from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save
 from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
-from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
+from app.v4_schema import (
+    add_field_to_product_type,
+    add_product_type,
+    delete_field_from_product_type,
+    delete_product_type,
+    get_all_fields,
+    get_default_product_type,
+    get_product_form,
+    get_product_forms,
+    get_product_type,
+    get_product_type_fields,
+    get_product_types,
+    load_product_schema,
+    save_product_schema,
+    update_field_in_product_type,
+    update_product_type,
+)
 from app.v4_template_cache import (
     delete_cached_template,
     get_cached_template_detail,
@@ -144,15 +160,15 @@ def _safe_output_filename_part(value: str) -> str:
 def _resolve_template_path(template_path: str):
     raw_path = str(template_path or "").strip()
     if not raw_path:
-        return None, "template_path \u4e0d\u80fd\u4e3a\u7a7a"
+        return None, "template_path 不能为空"
 
     path = Path(raw_path)
     if ".." in path.parts:
-        return None, "\u6a21\u677f\u8def\u5f84\u4e0d\u5141\u8bb8\u5305\u542b .."
+        return None, "模板路径不允许包含 .."
 
     resolved = path.resolve()
     if not resolved.is_file():
-        return None, "\u6a21\u677f\u6587\u4ef6\u4e0d\u5b58\u5728"
+        return None, "模板文件不存在"
 
     return resolved, ""
 
@@ -215,6 +231,170 @@ def api_v4_save_product_schema(schema: Any):
     }
 
 
+@router.get("/api/v4/product-types")
+def api_v4_product_types():
+    logger.info("V4 product types requested")
+    return {
+        "success": True,
+        "data": get_product_types(),
+    }
+
+
+@router.get("/api/v4/product-type/{product_type_key}")
+def api_v4_product_type(product_type_key: str):
+    product_type = get_product_type(product_type_key)
+    if not product_type:
+        logger.info("V4 product type not found: key=%s", product_type_key)
+        return {
+            "success": False,
+            "error": f"产品类型 '{product_type_key}' 不存在",
+        }
+
+    logger.info("V4 product type requested: key=%s", product_type_key)
+    return {
+        "success": True,
+        "data": product_type,
+    }
+
+
+@router.get("/api/v4/product-type/{product_type_key}/fields")
+def api_v4_product_type_fields(product_type_key: str):
+    product_type = get_product_type(product_type_key)
+    if not product_type:
+        logger.info("V4 product type not found: key=%s", product_type_key)
+        return {
+            "success": False,
+            "error": f"产品类型 '{product_type_key}' 不存在",
+        }
+
+    fields = get_product_type_fields(product_type_key)
+    logger.info("V4 product type fields requested: key=%s count=%s", product_type_key, len(fields))
+    return {
+        "success": True,
+        "data": fields,
+    }
+
+
+@router.post("/api/v4/product-types")
+def api_v4_add_product_type(payload: Any = Body(None)):
+    if not isinstance(payload, dict):
+        return {
+            "success": False,
+            "error": "请求体必须是 JSON 对象",
+        }
+
+    result = add_product_type(payload)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "新增产品类型失败"),
+        }
+
+    logger.info("V4 product type added: key=%s", payload.get("key"))
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.put("/api/v4/product-type/{product_type_key}")
+def api_v4_update_product_type(product_type_key: str, payload: Any = Body(None)):
+    if not isinstance(payload, dict):
+        return {
+            "success": False,
+            "error": "请求体必须是 JSON 对象",
+        }
+
+    result = update_product_type(product_type_key, payload)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "更新产品类型失败"),
+        }
+
+    logger.info("V4 product type updated: key=%s", product_type_key)
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.delete("/api/v4/product-type/{product_type_key}")
+def api_v4_delete_product_type(product_type_key: str):
+    result = delete_product_type(product_type_key)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "删除产品类型失败"),
+        }
+
+    logger.info("V4 product type deleted: key=%s", product_type_key)
+    return {
+        "success": True,
+        "message": f"产品类型 '{product_type_key}' 已删除",
+    }
+
+
+@router.post("/api/v4/product-type/{product_type_key}/fields")
+def api_v4_add_field_to_product_type(product_type_key: str, payload: Any = Body(None)):
+    if not isinstance(payload, dict):
+        return {
+            "success": False,
+            "error": "请求体必须是 JSON 对象",
+        }
+
+    result = add_field_to_product_type(product_type_key, payload)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "新增字段失败"),
+        }
+
+    logger.info("V4 field added to product type: product_type=%s field=%s", product_type_key, payload.get("key"))
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.put("/api/v4/product-type/{product_type_key}/field/{field_key}")
+def api_v4_update_field_in_product_type(product_type_key: str, field_key: str, payload: Any = Body(None)):
+    if not isinstance(payload, dict):
+        return {
+            "success": False,
+            "error": "请求体必须是 JSON 对象",
+        }
+
+    result = update_field_in_product_type(product_type_key, field_key, payload)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "更新字段失败"),
+        }
+
+    logger.info("V4 field updated in product type: product_type=%s field=%s", product_type_key, field_key)
+    return {
+        "success": True,
+        "data": result.get("data", {}),
+    }
+
+
+@router.delete("/api/v4/product-type/{product_type_key}/field/{field_key}")
+def api_v4_delete_field_from_product_type(product_type_key: str, field_key: str):
+    result = delete_field_from_product_type(product_type_key, field_key)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "删除字段失败"),
+        }
+
+    logger.info("V4 field deleted from product type: product_type=%s field=%s", product_type_key, field_key)
+    return {
+        "success": True,
+        "message": f"字段 '{field_key}' 已从产品类型 '{product_type_key}' 中删除",
+    }
+
+
 @router.get("/api/v4/output/{filename}")
 def api_v4_download_output_file(filename: str):
     resolved = _resolve_v4_output_file(filename)
@@ -222,7 +402,7 @@ def api_v4_download_output_file(filename: str):
         logger.info("V4 output download not found or rejected: filename=%s", filename)
         return {
             "success": False,
-            "error": "\u6587\u4ef6\u4e0d\u5b58\u5728",
+            "error": "文件不存在",
         }
 
     output_path, media_type = resolved
@@ -715,7 +895,7 @@ def api_v4_save_excel_render_rules(rules_config: Any):
         )
         return {
             "success": False,
-            "error": "\u0045\u0078\u0063\u0065\u006c\u6e32\u67d3\u89c4\u5219\u6821\u9a8c\u5931\u8d25",
+            "error": "Excel渲染规则校验失败",
             "validation": validation_result,
         }
 
@@ -749,7 +929,7 @@ def api_v4_excel_render_template_rules(template_key: str):
         logger.info("V4 Excel render rules template not found: template_key=%s", template_key)
         return {
             "success": False,
-            "error": "\u0045\u0078\u0063\u0065\u006c\u6e32\u67d3\u89c4\u5219\u6a21\u677f\u4e0d\u5b58\u5728",
+            "error": "Excel渲染规则模板不存在",
         }
 
     logger.info("V4 Excel render rules template requested: template_key=%s", template_key)
@@ -801,7 +981,7 @@ def api_v4_example(example_name: str):
         logger.info("V4 example not found: example_name=%s", example_name)
         return {
             "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+            "error": "示例订单不存在",
         }
 
     logger.info("V4 example requested: example_name=%s", example_name)
@@ -832,7 +1012,7 @@ def api_v4_example_validate(example_name: str):
         logger.info("V4 example validate not found: example_name=%s", example_name)
         return {
             "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+            "error": "示例订单不存在",
         }
 
     logger.info("V4 example validate requested: example_name=%s", example_name)
@@ -849,7 +1029,7 @@ def api_v4_example_render_description(example_name: str):
         logger.info("V4 example render-description not found: example_name=%s", example_name)
         return {
             "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+            "error": "示例订单不存在",
         }
 
     logger.info("V4 example render-description requested: example_name=%s", example_name)
@@ -864,7 +1044,7 @@ def api_v4_example_excel_rule_preview(example_name: str, template_key: str = "")
     if not str(template_key or "").strip():
         return {
             "success": False,
-            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
+            "error": "template_key 不能为空",
         }
 
     example = load_example(example_name)
@@ -872,7 +1052,7 @@ def api_v4_example_excel_rule_preview(example_name: str, template_key: str = "")
         logger.info("V4 example Excel rule preview not found: example_name=%s", example_name)
         return {
             "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+            "error": "示例订单不存在",
         }
 
     try:
@@ -921,7 +1101,7 @@ def api_v4_example_export_rule_excel(example_name: str, template_key: str = ""):
     if not str(template_key or "").strip():
         return {
             "success": False,
-            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
+            "error": "template_key 不能为空",
         }
 
     example = load_example(example_name)
@@ -929,7 +1109,7 @@ def api_v4_example_export_rule_excel(example_name: str, template_key: str = ""):
         logger.info("V4 example export rule Excel not found: example_name=%s", example_name)
         return {
             "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+            "error": "示例订单不存在",
         }
 
     try:
@@ -1009,12 +1189,12 @@ def api_v4_example_export_template_rule_excel(example_name: str, payload: Any = 
     if not str(template_key or "").strip():
         return {
             "success": False,
-            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
+            "error": "template_key 不能为空",
         }
     if not isinstance(payload, dict):
         return {
             "success": False,
-            "error": "template_path \u4e0d\u80fd\u4e3a\u7a7a",
+            "error": "template_path 不能为空",
         }
 
     template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
@@ -1029,7 +1209,7 @@ def api_v4_example_export_template_rule_excel(example_name: str, payload: Any = 
         logger.info("V4 example export template rule Excel not found: example_name=%s", example_name)
         return {
             "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+            "error": "示例订单不存在",
         }
 
     try:
@@ -1115,12 +1295,12 @@ def api_v4_example_export_template_rule_excel_with_preview(example_name: str, pa
     if not str(template_key or "").strip():
         return {
             "success": False,
-            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
+            "error": "template_key 不能为空",
         }
     if not isinstance(payload, dict):
         return {
             "success": False,
-            "error": "template_path \u4e0d\u80fd\u4e3a\u7a7a",
+            "error": "template_path 不能为空",
         }
 
     template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
@@ -1175,7 +1355,7 @@ def api_v4_example_export_ai_template_excel(example_name: str, payload: Any = Bo
     if not isinstance(payload, dict):
         return {
             "success": False,
-            "error": "template_path \u4e0d\u80fd\u4e3a\u7a7a",
+            "error": "template_path 不能为空",
         }
 
     template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
@@ -1306,7 +1486,7 @@ def api_v4_example_export_render_json(example_name: str):
         logger.info("V4 example export render JSON not found: example_name=%s", example_name)
         return {
             "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+            "error": "示例订单不存在",
         }
 
     try:
@@ -1359,7 +1539,7 @@ def api_v4_example_export_debug_excel(example_name: str):
         logger.info("V4 example export debug Excel not found: example_name=%s", example_name)
         return {
             "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
+            "error": "示例订单不存在",
         }
 
     try:

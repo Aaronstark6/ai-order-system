@@ -10,14 +10,7 @@
       "key": "solid_drink",
       "name": "固体饮料",
       "description": "",
-      "fields": [
-        {
-          "key": "sweetener",
-          "name": "甜味剂",
-          "type": "string",
-          "required": false
-        }
-      ]
+      "fields": []
     }
   ],
   "version": "v4-core.1",

@@ -1,27 +1,6 @@
 {
-  "product_types": [
-    {
-      "key": "default",
-      "name": "默认产品类型",
-      "description": "从旧版迁移的默认产品类型",
-      "fields": []
-    },
-    {
-      "key": "solid_drink",
-      "name": "固体饮料",
-      "description": "",
-      "fields": [
-        {
-          "key": "sweetener",
-          "name": "甜味剂",
-          "type": "string",
-          "required": false
-        }
-      ]
-    }
-  ],
-  "version": "v4-core.1",
-  "migrated_from": "old_fields_structure",
+  "version": "v4-dev-001",
+  "description": "V4 产品结构模型实验配置",
   "product_forms": {
     "soft_capsule": {
       "label": "软胶囊",
@@ -111,6 +90,79 @@
           "example": ""
         }
       }
+    }
+  },
+  "packaging": {
+    "fields": {
+      "container_type": {
+        "label": "容器类型",
+        "type": "select",
+        "options": [
+          "瓶装",
+          "袋装",
+          "其他"
+        ],
+        "example": "瓶装"
+      },
+      "capacity": {
+        "label": "容量",
+        "type": "text",
+        "example": "200ml"
+      },
+      "container_color": {
+        "label": "容器颜色",
+        "type": "text",
+        "example": "紫色"
+      },
+      "cap_color": {
+        "label": "盖子颜色",
+        "type": "text",
+        "example": "紫色"
+      },
+      "quantity_per_unit": {
+        "label": "装量",
+        "type": "text",
+        "example": "90粒/瓶"
+      },
+      "seal_method": {
+        "label": "密封方式",
+        "type": "text",
+        "example": "必须热塑封"
+      }
+    }
+  },
+  "images": {
+    "fields": {
+      "product_photo": {
+        "label": "产品参考图",
+        "type": "image"
+      },
+      "front_label": {
+        "label": "正标图",
+        "type": "image"
+      },
+      "back_label": {
+        "label": "背标图",
+        "type": "image"
+      },
+      "capsule_photo": {
+        "label": "胶囊/内容物图片",
+        "type": "image"
+      }
+    }
+  },
+  "render_targets": {
+    "excel": {
+      "status": "planned",
+      "description": "未来由结构化产品数据渲染到 Excel 模板"
+    },
+    "word": {
+      "status": "planned",
+      "description": "未来用于检测报告、规格书等 Word 模板"
+    },
+    "pdf": {
+      "status": "planned",
+      "description": "未来由 Excel 或 Word 转换 PDF"
     }
   }
 }
