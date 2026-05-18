@@ -29,6 +29,7 @@ from app.v4_pipeline_state import (
     set_html_preview,
     set_operations_pipeline,
     set_operations,
+    set_render_preview,
     set_schema_status,
     set_validator_result,
 )
@@ -945,6 +946,7 @@ def api_v4_core_regression_status():
         "pipeline",
         "excel",
         "render_targets",
+        "render_preview",
         "schema",
     ]
     pipeline_state = [
@@ -1390,6 +1392,45 @@ def api_v4_operations_pipeline_process(payload: Optional[dict] = Body(None)):
     return result
 
 
+@router.post("/api/v4/render-preview/build")
+def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
+    from app.v4_render_preview import build_render_preview
+
+    logger.info("[RenderPreview] Build requested")
+    payload_data = payload if payload is not None else {}
+    operations = None
+    warnings = []
+
+    if isinstance(payload_data, dict):
+        operations = payload_data.get("operations")
+        if operations is None:
+            operations = payload_data.get("processed_operations")
+        if operations is None:
+            operations = payload_data.get("unified_operations")
+    else:
+        operations = payload_data
+
+    if operations is None:
+        state = get_pipeline_state()
+        pipeline_state = state.get("pipeline", {}) if isinstance(state.get("pipeline"), dict) else {}
+        operations_state = state.get("operations", {}) if isinstance(state.get("operations"), dict) else {}
+        processed_operations = pipeline_state.get("processed_operations", [])
+        unified_operations = operations_state.get("unified", [])
+        if processed_operations:
+            operations = processed_operations
+        else:
+            operations = unified_operations
+            if unified_operations:
+                warnings.append("未找到 processed operations，已使用 unified operations")
+
+    result = build_render_preview(operations)
+    result["warnings"] = warnings + result.get("warnings", [])
+    if result.get("success"):
+        state = set_render_preview(result)
+        result["generated_time"] = state.get("render_preview", {}).get("generated_time")
+    return result
+
+
 @router.post("/api/v4/render-preview/html")
 def api_v4_render_preview_html(payload: Optional[Any] = Body(None)):
     from app.v4_operations_pipeline import process_operations_pipeline
@@ -1609,6 +1650,7 @@ def api_v4_core_pipeline_export_real_excel(
 ):
     from app.v4_core_excel_executor import execute_processed_operations
     from app.v4_operations_pipeline import process_operations_pipeline
+    from app.v4_render_preview import build_render_preview
     from app.v4_unified_operations import build_unified_operations
 
     logger.info("[CorePipeline] Real Excel export requested: filename=%s", template_file.filename)
@@ -1718,6 +1760,29 @@ def api_v4_core_pipeline_export_real_excel(
                 "error": "尚未生成 Processed Operations",
             }
 
+        preview_warnings = []
+        try:
+            preview_state = get_pipeline_state().get("render_preview", {})
+            preview_exists = (
+                isinstance(preview_state, dict)
+                and preview_state.get("generated_time")
+                and (
+                    preview_state.get("cell_preview")
+                    or preview_state.get("table_preview")
+                    or preview_state.get("block_preview")
+                )
+            )
+            if not preview_exists:
+                preview_result = build_render_preview(processed_operations)
+                if preview_result.get("success"):
+                    set_render_preview(preview_result)
+                    preview_warnings.extend(preview_result.get("warnings", []))
+                else:
+                    preview_warnings.append(preview_result.get("error") or "Render Preview 生成失败")
+        except Exception:
+            logger.warning("[RenderPreview] Build before Excel export failed", exc_info=True)
+            preview_warnings.append("Render Preview 生成失败")
+
         template_path = _save_v4_core_excel_template(template_file)
         set_current_template_path(template_name)
         result = execute_processed_operations(template_path, processed_operations)
@@ -1725,7 +1790,7 @@ def api_v4_core_pipeline_export_real_excel(
             return {
                 "success": False,
                 "error": result.get("error", "Excel 写入失败"),
-                "warnings": result.get("warnings", []),
+                "warnings": preview_warnings + result.get("warnings", []),
                 "operations_count": result.get("operations_count", 0),
             }
 
@@ -1733,7 +1798,7 @@ def api_v4_core_pipeline_export_real_excel(
             return {
                 "success": False,
                 "error": "无法保存 Excel",
-                "warnings": result.get("warnings", []),
+                "warnings": preview_warnings + result.get("warnings", []),
                 "operations_count": result.get("operations_count", 0),
             }
 
@@ -1744,7 +1809,7 @@ def api_v4_core_pipeline_export_real_excel(
             "filename": filename,
             "download_url": result.get("download_url", ""),
             "operations_count": result.get("operations_count", 0),
-            "warnings": result.get("warnings", []),
+            "warnings": preview_warnings + result.get("warnings", []),
         }
     except ValueError as exc:
         logger.info("[CorePipeline] Real Excel export rejected: error=%s", exc)

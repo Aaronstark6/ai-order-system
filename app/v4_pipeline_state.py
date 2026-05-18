@@ -37,6 +37,13 @@ def _default_state():
         "render_targets": {
             "html_preview": None,
         },
+        "render_preview": {
+            "cell_preview": [],
+            "table_preview": [],
+            "block_preview": [],
+            "warnings": [],
+            "generated_time": None,
+        },
         "pipeline": {
             "raw_operations": [],
             "processed_operations": [],
@@ -146,6 +153,27 @@ def set_excel_result(generated_file, generated_time=None):
 def set_html_preview(html):
     with _LOCK:
         _STATE["render_targets"]["html_preview"] = str(html) if html is not None else None
+        return deepcopy(_STATE)
+
+
+def set_render_preview(preview):
+    preview = preview if isinstance(preview, dict) else {}
+    with _LOCK:
+        _STATE["render_preview"] = {
+            "cell_preview": deepcopy(preview.get("cell_preview", []))
+            if isinstance(preview.get("cell_preview", []), list)
+            else [],
+            "table_preview": deepcopy(preview.get("table_preview", []))
+            if isinstance(preview.get("table_preview", []), list)
+            else [],
+            "block_preview": deepcopy(preview.get("block_preview", []))
+            if isinstance(preview.get("block_preview", []), list)
+            else [],
+            "warnings": deepcopy(preview.get("warnings", []))
+            if isinstance(preview.get("warnings", []), list)
+            else [],
+            "generated_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
         return deepcopy(_STATE)
 
 

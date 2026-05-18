@@ -325,9 +325,32 @@
             font-weight: 700;
         }
 
+        .preview-section {
+            display: grid;
+            gap: 12px;
+        }
+
+        .preview-title {
+            color: #2d3542;
+            font-size: 15px;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+
+        .block-preview-content {
+            background: #f8faf9;
+            border: 1px solid #d9e1dc;
+            border-radius: 7px;
+            line-height: 1.65;
+            min-height: 72px;
+            padding: 10px 12px;
+            white-space: pre-wrap;
+        }
+
         .value-preview {
             max-width: 420px;
             white-space: pre-wrap;
+            word-break: break-word;
         }
 
         .render-card {
@@ -434,6 +457,7 @@
                 <div class="pipeline-state-item"><strong>Unified Operations</strong>0</div>
                 <div class="pipeline-state-item"><strong>Processed Operations</strong>0</div>
                 <div class="pipeline-state-item"><strong>Render Ready</strong>否</div>
+                <div class="pipeline-state-item"><strong>Render Preview</strong>未生成</div>
                 <div class="pipeline-state-item"><strong>已生成 Excel</strong>未生成</div>
             </div>
         </section>
@@ -486,6 +510,7 @@
         let currentBlockOperationsResult = null;
         let currentUnifiedOperationsResult = null;
         let currentOperationsPipelineResult = null;
+        let currentRenderPreviewResult = null;
         let currentUnifiedExcelResult = null;
         let currentProcessedExcelResult = null;
         let currentCombinedExcelResult = null;
@@ -504,6 +529,12 @@
                 }
                 const result = await response.json();
                 currentPipelineState = result.state || result;
+                if (!currentRenderPreviewResult && currentPipelineState?.render_preview?.generated_time) {
+                    currentRenderPreviewResult = {
+                        success: true,
+                        ...currentPipelineState.render_preview
+                    };
+                }
             } catch (error) {
                 currentPipelineState = currentPipelineState || null;
             }
@@ -516,8 +547,10 @@
             const operations = state.operations || {};
             const excel = state.excel || {};
             const pipeline = state.pipeline || {};
+            const renderPreview = state.render_preview || {};
             const processedOperations = Array.isArray(pipeline.processed_operations) ? pipeline.processed_operations : [];
             const finalStage = Array.isArray(pipeline.stages) ? pipeline.stages.find(item => item.stage === 'finalize') : null;
+            const previewCount = countItems(renderPreview.cell_preview) + countItems(renderPreview.table_preview) + countItems(renderPreview.block_preview);
             const statusMap = {
                 idle: '未执行',
                 passed: '通过',
@@ -538,6 +571,7 @@
                 <div class="pipeline-state-item"><strong>Unified Operations</strong>${countItems(operations.unified)}</div>
                 <div class="pipeline-state-item"><strong>Processed Operations</strong>${processedOperations.length}</div>
                 <div class="pipeline-state-item"><strong>Render Ready</strong>${finalStage?.render_ready ? '是' : '否'}</div>
+                <div class="pipeline-state-item"><strong>Render Preview</strong>${renderPreview.generated_time ? `${previewCount} 项 (${escapeHtml(renderPreview.generated_time)})` : '未生成'}</div>
                 <div class="pipeline-state-item"><strong>已生成 Excel</strong>${escapeHtml(excelName)}</div>
             `;
         }
@@ -569,6 +603,7 @@
                 currentBlockOperationsResult = null;
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentUnifiedExcelResult = null;
                 currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
@@ -637,6 +672,7 @@
                 currentBlockOperationsResult = null;
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentUnifiedExcelResult = null;
                 currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
@@ -662,6 +698,7 @@
                 currentBlockOperationsResult = null;
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentUnifiedExcelResult = null;
                 currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
@@ -728,6 +765,7 @@
                 ${renderUnifiedOperationsControls()}
                 ${renderUnifiedOperationsPreview()}
                 ${renderOperationsPipelineStages()}
+                ${renderRenderPreviewPanel()}
                 ${renderCombinedRealExcelControls()}
                 <div class="render-grid">
                     ${renderFieldCard('product_form', fields.product_form)}
@@ -875,6 +913,7 @@
                 currentStructuredExcelResult = null;
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentStructuredOperationsResult.success ? '结构化 Operations 已生成' : '结构化 Operations 生成失败');
@@ -887,6 +926,7 @@
                 currentStructuredExcelResult = null;
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('结构化 Operations 生成失败');
@@ -927,6 +967,7 @@
                 currentTableOperationsResult = await response.json();
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentTableOperationsResult.success ? '动态表格 Operations 已生成' : '动态表格 Operations 生成失败');
@@ -938,6 +979,7 @@
                 };
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('动态表格 Operations 生成失败');
@@ -978,6 +1020,7 @@
                 currentBlockOperationsResult = await response.json();
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentBlockOperationsResult.success ? '区块 Operations 已生成' : '区块 Operations 生成失败');
@@ -989,6 +1032,7 @@
                 };
                 currentUnifiedOperationsResult = null;
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('区块 Operations 生成失败');
@@ -1166,6 +1210,7 @@
                     <button class="btn-secondary" type="button" onclick="generateUnifiedOperationsPreview()">生成 Unified Operations</button>
                     <button class="btn-secondary" type="button" onclick="processOperationsPipeline()">处理 Operations Pipeline</button>
                     <button class="btn-secondary" type="button" onclick="openHtmlRenderPreview()">生成 HTML Preview</button>
+                    <button class="btn-secondary" type="button" onclick="generateRenderPreview()">生成 Render Preview</button>
                 </div>
             `;
         }
@@ -1195,6 +1240,7 @@
                 }
                 currentUnifiedOperationsResult = await response.json();
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentUnifiedExcelResult = null;
                 currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
@@ -1208,6 +1254,7 @@
                     warnings: ['Unified Operations 请求失败']
                 };
                 currentOperationsPipelineResult = null;
+                currentRenderPreviewResult = null;
                 currentUnifiedExcelResult = null;
                 currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
@@ -1285,6 +1332,7 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 currentOperationsPipelineResult = await response.json();
+                currentRenderPreviewResult = null;
                 currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
@@ -1297,6 +1345,7 @@
                     processed_operations: [],
                     stages: []
                 };
+                currentRenderPreviewResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('Operations Pipeline 处理失败');
@@ -1332,6 +1381,226 @@
                         `).join('') || '<tr><td colspan="3">暂无 Pipeline Stages</td></tr>'}
                     </tbody>
                 </table>
+            `;
+        }
+
+        function getPreferredRenderPreviewOperations() {
+            const currentProcessed = Array.isArray(currentOperationsPipelineResult?.processed_operations) ? currentOperationsPipelineResult.processed_operations : [];
+            const stateProcessed = Array.isArray(currentPipelineState?.pipeline?.processed_operations) ? currentPipelineState.pipeline.processed_operations : [];
+            const currentUnified = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
+            const stateUnified = Array.isArray(currentPipelineState?.operations?.unified) ? currentPipelineState.operations.unified : [];
+
+            if (currentProcessed.length) {
+                return { operations: currentProcessed, source: 'processed', warning: '' };
+            }
+            if (stateProcessed.length) {
+                return { operations: stateProcessed, source: 'processed', warning: '' };
+            }
+            if (currentUnified.length) {
+                return { operations: currentUnified, source: 'unified', warning: '未找到 processed operations，已使用 unified operations' };
+            }
+            if (stateUnified.length) {
+                return { operations: stateUnified, source: 'unified', warning: '未找到 processed operations，已使用 unified operations' };
+            }
+            return { operations: [], source: '', warning: '' };
+        }
+
+        async function generateRenderPreview(options = {}) {
+            const preferred = options.operations
+                ? { operations: options.operations, source: options.source || '', warning: '' }
+                : getPreferredRenderPreviewOperations();
+            const operations = Array.isArray(preferred.operations) ? preferred.operations : [];
+            const silent = Boolean(options.silent);
+
+            if (!operations.length) {
+                if (!silent) {
+                    setStatus('暂无 operations，无法生成预览');
+                }
+                return null;
+            }
+
+            if (!silent) {
+                setStatus(preferred.warning || '正在生成 Render Preview');
+            }
+
+            try {
+                const response = await fetch('/api/v4/render-preview/build', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operations })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+                if (preferred.warning && !warnings.includes(preferred.warning)) {
+                    warnings.unshift(preferred.warning);
+                }
+                currentRenderPreviewResult = {
+                    ...result,
+                    warnings
+                };
+                await refreshPipelineState();
+                if (currentPipelineResult) {
+                    renderPipelineResult(currentPipelineResult);
+                }
+                updatePreview();
+
+                if (!silent) {
+                    if (result.success) {
+                        setStatus(preferred.source === 'unified' ? 'Render Preview 已生成（使用 unified operations）' : 'Render Preview 已生成');
+                    } else {
+                        setStatus(result.error || 'Render Preview 生成失败');
+                    }
+                }
+                return currentRenderPreviewResult;
+            } catch (error) {
+                currentRenderPreviewResult = {
+                    success: false,
+                    cell_preview: [],
+                    table_preview: [],
+                    block_preview: [],
+                    warnings: ['Render Preview 生成失败'],
+                    error: 'Render Preview 生成失败'
+                };
+                if (currentPipelineResult) {
+                    renderPipelineResult(currentPipelineResult);
+                }
+                updatePreview();
+                if (!silent) {
+                    setStatus('Render Preview 生成失败');
+                }
+                return currentRenderPreviewResult;
+            }
+        }
+
+        function hasRenderPreviewContent(result) {
+            return countItems(result?.cell_preview) + countItems(result?.table_preview) + countItems(result?.block_preview) > 0;
+        }
+
+        async function ensureRenderPreviewBeforeExport(operations, source) {
+            if (hasRenderPreviewContent(currentRenderPreviewResult)) {
+                return '';
+            }
+            const result = await generateRenderPreview({
+                operations,
+                source,
+                silent: true
+            });
+            if (!result?.success) {
+                return 'Render Preview 生成失败';
+            }
+            return '';
+        }
+
+        function columnIndex(column) {
+            return String(column || '').split('').reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0);
+        }
+
+        function renderRenderPreviewPanel() {
+            if (!currentRenderPreviewResult) {
+                return '';
+            }
+
+            const warnings = Array.isArray(currentRenderPreviewResult.warnings) ? currentRenderPreviewResult.warnings : [];
+            const cellPreview = Array.isArray(currentRenderPreviewResult.cell_preview) ? currentRenderPreviewResult.cell_preview : [];
+            const tablePreview = Array.isArray(currentRenderPreviewResult.table_preview) ? currentRenderPreviewResult.table_preview : [];
+            const blockPreview = Array.isArray(currentRenderPreviewResult.block_preview) ? currentRenderPreviewResult.block_preview : [];
+            const hasContent = cellPreview.length || tablePreview.length || blockPreview.length;
+            const generatedTime = currentRenderPreviewResult.generated_time
+                ? `<div class="result-meta">generated_time：${escapeHtml(currentRenderPreviewResult.generated_time)}</div>`
+                : '';
+
+            return `
+                <div class="preview-section">
+                    <div class="message ${currentRenderPreviewResult.success ? 'success' : 'error'}">
+                        ${currentRenderPreviewResult.success ? 'Render Preview 已生成' : escapeHtml(currentRenderPreviewResult.error || 'Render Preview 生成失败')}
+                    </div>
+                    ${generatedTime}
+                    ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+                    ${hasContent ? `
+                        ${renderCellPreviewTable(cellPreview)}
+                        ${renderDynamicTablePreview(tablePreview)}
+                        ${renderBlockPreview(blockPreview)}
+                    ` : '<div class="message warning">没有可预览内容</div>'}
+                </div>
+            `;
+        }
+
+        function renderCellPreviewTable(items) {
+            return `
+                <div class="preview-title">Cell Preview</div>
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>单元格</th>
+                            <th>来源</th>
+                            <th>类型</th>
+                            <th>值</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.cell || '')}</td>
+                                <td>${escapeHtml(item.source || '')}</td>
+                                <td>${escapeHtml(item.op_type || '')}</td>
+                                <td class="value-preview">${escapeHtml(item.value || '')}</td>
+                            </tr>
+                        `).join('') || '<tr><td colspan="4">暂无 Cell Preview</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderDynamicTablePreview(tables) {
+            if (!tables.length) {
+                return `
+                    <div class="preview-title">Dynamic Table Preview</div>
+                    <div class="message warning">暂无 Dynamic Table Preview</div>
+                `;
+            }
+
+            return `
+                <div class="preview-title">Dynamic Table Preview</div>
+                ${tables.map(table => {
+                    const rows = Array.isArray(table.rows) ? table.rows : [];
+                    const columns = Array.from(new Set(rows.flatMap(row => Object.keys(row.cells || {}))))
+                        .sort((left, right) => columnIndex(left) - columnIndex(right));
+                    return `
+                        <div class="message success">${escapeHtml(table.table_name || '未命名表格')}</div>
+                        <table class="operations-table">
+                            <thead>
+                                <tr>
+                                    <th>行号</th>
+                                    ${columns.map(column => `<th>${escapeHtml(column)}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.map(row => `
+                                    <tr>
+                                        <td>${escapeHtml(row.row_number || '')}</td>
+                                        ${columns.map(column => `<td class="value-preview">${escapeHtml((row.cells || {})[column] || '')}</td>`).join('')}
+                                    </tr>
+                                `).join('') || `<tr><td colspan="${columns.length + 1}">暂无表格行</td></tr>`}
+                            </tbody>
+                        </table>
+                    `;
+                }).join('')}
+            `;
+        }
+
+        function renderBlockPreview(blocks) {
+            return `
+                <div class="preview-title">Block Preview</div>
+                ${blocks.map(block => `
+                    <div class="render-card">
+                        <div class="render-title">${escapeHtml(block.block_name || '未命名区块')} · ${escapeHtml(block.target_cell || '')}</div>
+                        <div class="block-preview-content">${escapeHtml(block.value || '')}</div>
+                    </div>
+                `).join('') || '<div class="message warning">暂无 Block Preview</div>'}
             `;
         }
 
@@ -1517,13 +1786,17 @@
                 return;
             }
 
+            const previewWarning = await ensureRenderPreviewBeforeExport(unifiedOperations, 'unified');
             const result = await exportOperationsToRealExcel(unifiedOperations, 'unified');
             if (!result) {
                 return;
             }
+            if (previewWarning) {
+                result.warnings = [...(Array.isArray(result.warnings) ? result.warnings : []), previewWarning];
+            }
 
             currentUnifiedExcelResult = result;
-            setStatus('Unified Operations Excel 已生成');
+            setStatus(previewWarning ? `Unified Operations Excel 已生成；${previewWarning}` : 'Unified Operations Excel 已生成');
             renderPipelineResult(currentPipelineResult);
         }
 
@@ -1538,14 +1811,18 @@
                 return;
             }
 
+            const previewWarning = await ensureRenderPreviewBeforeExport(processedOperations, 'processed');
             const result = await exportOperationsToRealExcel(processedOperations, 'processed');
             if (!result) {
                 return;
             }
+            if (previewWarning) {
+                result.warnings = [...(Array.isArray(result.warnings) ? result.warnings : []), previewWarning];
+            }
 
             currentProcessedExcelResult = result;
             currentCombinedExcelResult = result;
-            setStatus('Processed Operations Excel 已生成');
+            setStatus(previewWarning ? `Processed Operations Excel 已生成；${previewWarning}` : 'Processed Operations Excel 已生成');
             renderPipelineResult(currentPipelineResult);
         }
 
@@ -1582,6 +1859,7 @@
                 block_operations_result: currentBlockOperationsResult,
                 unified_operations_result: currentUnifiedOperationsResult,
                 operations_pipeline_result: currentOperationsPipelineResult,
+                render_preview_result: currentRenderPreviewResult,
                 combined_excel_result: currentCombinedExcelResult,
                 pipeline_state: currentPipelineState,
                 current_template_file: currentTemplateFile ? currentTemplateFile.name : ''
