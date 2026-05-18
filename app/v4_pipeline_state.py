@@ -32,6 +32,13 @@ def _default_state():
             "html_preview": "",
             "excel_preview": [],
         },
+        "template_analysis": {
+            "labels": [],
+            "structured_mapping_preview": [],
+            "table_regions": [],
+            "block_regions": [],
+            "summary": {},
+        },
     }
 
 
@@ -135,5 +142,23 @@ def set_render_targets(targets):
     _PIPELINE_STATE["render_targets"] = {
         "html_preview": str(targets.get("html_preview") or ""),
         "excel_preview": deepcopy(targets.get("excel_preview")) if isinstance(targets.get("excel_preview"), list) else [],
+    }
+    return get_pipeline_state()
+
+
+def set_template_analysis(analysis):
+    analysis = analysis if isinstance(analysis, dict) else {}
+    _PIPELINE_STATE["template_analysis"] = {
+        "labels": deepcopy(analysis.get("labels", [])) if isinstance(analysis.get("labels", []), list) else [],
+        "structured_mapping_preview": deepcopy(analysis.get("structured_mapping_preview", []))
+        if isinstance(analysis.get("structured_mapping_preview", []), list)
+        else [],
+        "table_regions": deepcopy(analysis.get("table_regions", []))
+        if isinstance(analysis.get("table_regions", []), list)
+        else [],
+        "block_regions": deepcopy(analysis.get("block_regions", []))
+        if isinstance(analysis.get("block_regions", []), list)
+        else [],
+        "summary": deepcopy(analysis.get("summary", {})) if isinstance(analysis.get("summary", {}), dict) else {},
     }
     return get_pipeline_state()

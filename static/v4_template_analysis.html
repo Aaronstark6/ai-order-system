@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Template Intelligence</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #2d3542;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1120px;
+        }
+
+        .header-inner,
+        .toolbar,
+        .actions,
+        .panel-header {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #dfe7ee;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .home-link:hover {
+            color: #ffffff;
+        }
+
+        main {
+            display: grid;
+            gap: 16px;
+            padding: 24px;
+        }
+
+        .toolbar,
+        .panel {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            flex-wrap: wrap;
+            padding: 14px 16px;
+        }
+
+        .actions {
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+
+        button,
+        .file-button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-primary {
+            background: #3e5f8a;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #314f76;
+        }
+
+        .btn-secondary,
+        .file-button {
+            background: #ffffff;
+            border-color: #bcc8c3;
+            color: #2d3542;
+        }
+
+        .btn-secondary:hover,
+        .file-button:hover {
+            background: #eef2f6;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .status {
+            color: #58665f;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .panel {
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: #fbfcfb;
+            border-bottom: 1px solid #d9e1dc;
+            padding: 14px 16px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .panel-body {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .summary-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .summary-item {
+            background: #f8faf9;
+            border: 1px solid #d9e1dc;
+            border-radius: 7px;
+            padding: 12px;
+        }
+
+        .label {
+            color: #58665f;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .value {
+            color: #1f2933;
+            font-size: 18px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .message {
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.55;
+            padding: 12px;
+        }
+
+        .success {
+            background: #e4f6ea;
+            color: #176039;
+        }
+
+        .warning {
+            background: #fff4ce;
+            color: #7a4f00;
+        }
+
+        .error {
+            background: #ffe2e0;
+            color: #a8201a;
+        }
+
+        table {
+            border-collapse: collapse;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #d9e1dc;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #fbfcfb;
+            font-weight: 700;
+        }
+
+        details {
+            background: #101820;
+            border-radius: 7px;
+            color: #dfe7ee;
+            overflow: hidden;
+        }
+
+        summary {
+            cursor: pointer;
+            padding: 12px 14px;
+        }
+
+        pre {
+            border-top: 1px solid #31404f;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 360px;
+            overflow: auto;
+            padding: 14px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 760px) {
+            .header-inner,
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 Template Intelligence</h1>
+            <a class="home-link" href="/v4-core-config">返回配置中心</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="toolbar">
+            <div>
+                <div id="statusText" class="status">请选择 Excel 模板</div>
+                <div id="templateName" class="status">当前模板：未上传</div>
+            </div>
+            <div class="actions">
+                <label class="file-button" for="templateFileInput">上传 Excel 模板</label>
+                <input id="templateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
+                <button class="btn-primary" type="button" onclick="runAnalysis()">执行 Template Analysis</button>
+                <button class="btn-secondary" type="button" onclick="runAnalysis()">扫描标签</button>
+                <button class="btn-secondary" type="button" onclick="runAnalysis()">扫描表格</button>
+                <button class="btn-secondary" type="button" onclick="runAnalysis()">扫描区块</button>
+                <button class="btn-secondary" type="button" onclick="runAnalysis()">自动推断 Mapping</button>
+                <button class="btn-secondary" type="button" onclick="loadResult()">刷新结果</button>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Summary</div>
+            </div>
+            <div class="panel-body">
+                <div id="summaryBody" class="summary-grid"></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Labels Preview</div>
+            </div>
+            <div id="labelsBody" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Structured Mapping Preview</div>
+            </div>
+            <div id="structuredBody" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Table Regions</div>
+            </div>
+            <div id="tablesBody" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Block Regions</div>
+            </div>
+            <div id="blocksBody" class="panel-body"></div>
+        </section>
+
+        <details>
+            <summary>高级信息</summary>
+            <pre id="debugJson">{}</pre>
+        </details>
+    </main>
+
+    <script>
+        let currentFile = null;
+        let currentAnalysis = {};
+
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
+        }
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function renderEmpty(targetId, text) {
+            document.getElementById(targetId).innerHTML = `<div class="message warning">${escapeHtml(text)}</div>`;
+        }
+
+        function summaryItem(label, value) {
+            return `
+                <div class="summary-item">
+                    <div class="label">${escapeHtml(label)}</div>
+                    <div class="value">${escapeHtml(value)}</div>
+                </div>
+            `;
+        }
+
+        function renderSummary(summary) {
+            document.getElementById('summaryBody').innerHTML = `
+                ${summaryItem('Labels', summary.labels_count || 0)}
+                ${summaryItem('Structured Mapping', summary.structured_mapping_count || 0)}
+                ${summaryItem('Table Regions', summary.table_regions_count || 0)}
+                ${summaryItem('Block Regions', summary.block_regions_count || 0)}
+            `;
+        }
+
+        function renderLabels(labels) {
+            if (!Array.isArray(labels) || !labels.length) {
+                renderEmpty('labelsBody', '暂无 Labels Preview');
+                return;
+            }
+            document.getElementById('labelsBody').innerHTML = `
+                <table>
+                    <thead><tr><th>Sheet</th><th>Cell</th><th>Value</th></tr></thead>
+                    <tbody>
+                        ${labels.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.sheet || '')}</td>
+                                <td>${escapeHtml(item.cell || '')}</td>
+                                <td>${escapeHtml(item.value || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderStructured(mappings) {
+            if (!Array.isArray(mappings) || !mappings.length) {
+                renderEmpty('structuredBody', '暂无 Structured Mapping Preview');
+                return;
+            }
+            document.getElementById('structuredBody').innerHTML = `
+                <table>
+                    <thead><tr><th>Sheet</th><th>Label</th><th>Source Path</th><th>Target Cell</th></tr></thead>
+                    <tbody>
+                        ${mappings.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.sheet || '')}</td>
+                                <td>${escapeHtml(item.label || '')}</td>
+                                <td>${escapeHtml(item.source_path || '')}</td>
+                                <td>${escapeHtml(item.target_cell || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderTables(tables) {
+            if (!Array.isArray(tables) || !tables.length) {
+                renderEmpty('tablesBody', '暂无 Table Regions');
+                return;
+            }
+            document.getElementById('tablesBody').innerHTML = tables.map(table => `
+                <table>
+                    <thead>
+                        <tr><th colspan="5">${escapeHtml(table.table_name || '')} / ${escapeHtml(table.sheet || '')}</th></tr>
+                        <tr><th>Header Row</th><th>Start Cell</th><th>Label</th><th>Field</th><th>Target Col</th></tr>
+                    </thead>
+                    <tbody>
+                        ${(table.columns || []).map(column => `
+                            <tr>
+                                <td>${escapeHtml(table.header_row || '')}</td>
+                                <td>${escapeHtml(table.start_cell || '')}</td>
+                                <td>${escapeHtml(column.label || '')}</td>
+                                <td>${escapeHtml(column.field || '')}</td>
+                                <td>${escapeHtml(column.target_col || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `).join('');
+        }
+
+        function renderBlocks(blocks) {
+            if (!Array.isArray(blocks) || !blocks.length) {
+                renderEmpty('blocksBody', '暂无 Block Regions');
+                return;
+            }
+            document.getElementById('blocksBody').innerHTML = `
+                <table>
+                    <thead><tr><th>Sheet</th><th>Block Name</th><th>Source Cell</th><th>Target Cell</th></tr></thead>
+                    <tbody>
+                        ${blocks.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.sheet || '')}</td>
+                                <td>${escapeHtml(item.block_name || '')}</td>
+                                <td>${escapeHtml(item.source_cell || '')}</td>
+                                <td>${escapeHtml(item.target_cell || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderAnalysis(analysis) {
+            currentAnalysis = analysis || {};
+            renderSummary(currentAnalysis.summary || {});
+            renderLabels(currentAnalysis.labels || []);
+            renderStructured(currentAnalysis.structured_mapping_preview || []);
+            renderTables(currentAnalysis.table_regions || []);
+            renderBlocks(currentAnalysis.block_regions || []);
+            document.getElementById('debugJson').textContent = JSON.stringify(currentAnalysis, null, 2);
+        }
+
+        async function uploadTemplate() {
+            if (!currentFile) {
+                setStatus('请先选择 Excel 模板');
+                return false;
+            }
+
+            const formData = new FormData();
+            formData.append('template_file', currentFile);
+            const response = await fetch('/api/v4/template-analysis/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Excel 模板上传失败');
+            }
+            setStatus(result.message || 'Excel 模板已上传');
+            return true;
+        }
+
+        async function runAnalysis() {
+            try {
+                if (currentFile) {
+                    await uploadTemplate();
+                }
+                setStatus('正在执行 Template Analysis...');
+                const response = await fetch('/api/v4/template-analysis/run');
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Template Analysis 执行失败');
+                }
+                renderAnalysis(result.template_analysis || {});
+                setStatus('Template Analysis 已完成');
+            } catch (error) {
+                setStatus(error.message || 'Template Analysis 执行失败');
+            }
+        }
+
+        async function loadResult() {
+            try {
+                const response = await fetch('/api/v4/template-analysis/result');
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Template Analysis 结果加载失败');
+                }
+                renderAnalysis(result.template_analysis || {});
+                setStatus('Template Analysis 结果已加载');
+            } catch (error) {
+                setStatus(error.message || 'Template Analysis 结果加载失败');
+            }
+        }
+
+        document.getElementById('templateFileInput').addEventListener('change', event => {
+            currentFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
+            document.getElementById('templateName').textContent = currentFile ? `当前模板：${currentFile.name}` : '当前模板：未上传';
+            setStatus(currentFile ? 'Excel 模板已选择' : '请选择 Excel 模板');
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderAnalysis({});
+            loadResult();
+        });
+    </script>
+</body>
+</html>

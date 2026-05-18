@@ -52,6 +52,21 @@
             color: #ffffff;
         }
 
+        .entry-link {
+            background: #3e5f8a;
+            border-radius: 6px;
+            color: #ffffff;
+            display: inline-flex;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+            text-decoration: none;
+        }
+
+        .entry-link:hover {
+            background: #314f76;
+        }
+
         main {
             display: grid;
             gap: 16px;
@@ -169,6 +184,16 @@
     </header>
 
     <main>
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Template Intelligence</div>
+                <a class="entry-link" href="/v4-template-analysis">打开模板智能识别</a>
+            </div>
+            <div class="panel-body">
+                <div class="message message-warning">上传 Excel 模板后，可预览标签、表格、区块与自动推断 Mapping。当前不会覆盖任何规则文件。</div>
+            </div>
+        </section>
+
         <section class="panel">
             <div class="panel-header">
                 <div class="panel-title">模板档案</div>

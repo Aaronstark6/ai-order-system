@@ -91,6 +91,11 @@ def v4_render_preview_page():
     return FileResponse(STATIC_DIR / "v4_render_preview.html")
 
 
+@app.get("/v4-template-analysis")
+def v4_template_analysis_page():
+    return FileResponse(STATIC_DIR / "v4_template_analysis.html")
+
+
 # ====================
 # Health Check
 # ====================

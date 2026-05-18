@@ -33,6 +33,7 @@ from app.v4_pipeline_state import (
     set_render_targets,
     set_structured_operations,
     set_table_operations,
+    set_template_analysis,
     set_unified_operations,
     set_validator_result,
 )
@@ -501,6 +502,104 @@ def api_v4_render_preview():
         "success": True,
         "render_preview": state.get("render_preview", {}),
         "html_preview": state.get("render_targets", {}).get("html_preview", ""),
+    }
+
+
+@router.post("/api/v4/template-analysis/upload")
+def api_v4_template_analysis_upload(template_file: UploadFile = File(...)):
+    logger.info("V4 template analysis upload requested: filename=%s", template_file.filename)
+    try:
+        template_path = _save_v4_uploaded_template(template_file)
+        state = set_current_template(str(template_path))
+        state = set_template_analysis(
+            {
+                "labels": [],
+                "structured_mapping_preview": [],
+                "table_regions": [],
+                "block_regions": [],
+                "summary": {},
+            }
+        )
+        return {
+            "success": True,
+            "message": "Excel 模板已上传，等待分析",
+            "template_path": str(template_path),
+            "filename": template_path.name,
+            "pipeline_state": state,
+        }
+    except ValueError as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 template analysis upload failed")
+        return {
+            "success": False,
+            "error": str(exc) or "Excel 模板上传失败",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+
+@router.get("/api/v4/template-analysis/run")
+def api_v4_template_analysis_run():
+    from app.v4_template_analysis import analyze_template
+
+    logger.info("V4 template analysis run requested")
+    state = get_pipeline_state()
+    template_path = state.get("current_template_path")
+    if not template_path:
+        return {
+            "success": False,
+            "error": "请先上传 Excel 模板",
+            "template_analysis": state.get("template_analysis", {}),
+            "pipeline_state": state,
+        }
+
+    path = Path(str(template_path))
+    if not path.is_file():
+        return {
+            "success": False,
+            "error": "当前 Excel 模板不存在，请重新上传",
+            "template_analysis": state.get("template_analysis", {}),
+            "pipeline_state": state,
+        }
+
+    try:
+        analysis = analyze_template(path)
+        saved_state = set_template_analysis(analysis)
+        return {
+            "success": True,
+            "template_analysis": saved_state.get("template_analysis", {}),
+            "pipeline_state": saved_state,
+        }
+    except (BadZipFile, InvalidFileException) as exc:
+        logger.warning("V4 template analysis invalid Excel: path=%s", path, exc_info=True)
+        return {
+            "success": False,
+            "error": f"Excel 模板格式无效：{exc}",
+            "template_analysis": get_pipeline_state().get("template_analysis", {}),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 template analysis failed: path=%s", path)
+        return {
+            "success": False,
+            "error": str(exc) or "Template Analysis 执行失败",
+            "template_analysis": get_pipeline_state().get("template_analysis", {}),
+            "pipeline_state": get_pipeline_state(),
+        }
+
+
+@router.get("/api/v4/template-analysis/result")
+def api_v4_template_analysis_result():
+    logger.info("V4 template analysis result requested")
+    state = get_pipeline_state()
+    return {
+        "success": True,
+        "template_analysis": state.get("template_analysis", {}),
+        "pipeline_state": state,
     }
 
 
