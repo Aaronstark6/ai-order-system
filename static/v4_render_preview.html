@@ -276,7 +276,7 @@
         <div class="toolbar">
             <div class="status" id="statusText">准备加载 Unified Operations</div>
             <div class="actions">
-                <button class="btn-secondary" type="button" onclick="loadUnifiedOperations()">加载 Unified Operations</button>
+                <button class="btn-secondary" type="button" onclick="loadProcessedOperations()">加载 Processed Operations</button>
                 <button class="btn-primary" type="button" onclick="generateHtmlPreview()">生成 HTML Preview</button>
             </div>
         </div>
@@ -292,49 +292,55 @@
         </section>
 
         <details>
-            <summary>Unified Operations</summary>
+            <summary>Processed Operations</summary>
             <pre class="raw-json" id="operationsPreview">[]</pre>
         </details>
     </main>
 
     <script>
-        let currentUnifiedOperations = [];
+        let currentProcessedOperations = [];
+        let currentRenderOperationsMode = 'processed';
 
         function setStatus(text) {
             document.getElementById('statusText').textContent = text;
         }
 
         function updateOperationsPreview() {
-            document.getElementById('operationsPreview').textContent = JSON.stringify(currentUnifiedOperations, null, 2);
-            document.getElementById('operationCount').textContent = `${currentUnifiedOperations.length} 条 operations`;
+            document.getElementById('operationsPreview').textContent = JSON.stringify(currentProcessedOperations, null, 2);
+            document.getElementById('operationCount').textContent = `${currentProcessedOperations.length} 条 ${currentRenderOperationsMode} operations`;
         }
 
-        async function loadUnifiedOperations() {
-            setStatus('正在加载 Unified Operations');
+        async function loadProcessedOperations() {
+            setStatus('正在加载 Processed Operations');
             try {
                 const response = await fetch('/api/v4/pipeline-state');
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const state = await response.json();
-                currentUnifiedOperations = Array.isArray(state?.operations?.unified) ? state.operations.unified : [];
+                currentProcessedOperations = Array.isArray(state?.pipeline?.processed_operations) ? state.pipeline.processed_operations : [];
+                currentRenderOperationsMode = 'processed';
+                if (!currentProcessedOperations.length) {
+                    currentProcessedOperations = Array.isArray(state?.operations?.unified) ? state.operations.unified : [];
+                    currentRenderOperationsMode = 'unified';
+                }
                 updateOperationsPreview();
-                setStatus(currentUnifiedOperations.length ? 'Unified Operations 已加载' : '暂无 Unified Operations');
-                return currentUnifiedOperations;
+                setStatus(currentProcessedOperations.length ? `${currentRenderOperationsMode === 'processed' ? 'Processed' : 'Unified'} Operations 已加载` : '暂无 Processed 或 Unified Operations');
+                return currentProcessedOperations;
             } catch (error) {
-                currentUnifiedOperations = [];
+                currentProcessedOperations = [];
                 updateOperationsPreview();
-                setStatus('Unified Operations 加载失败');
+                setStatus('Processed Operations 加载失败');
                 return [];
             }
         }
 
         async function generateHtmlPreview() {
-            if (!currentUnifiedOperations.length) {
-                await loadUnifiedOperations();
+            if (!currentProcessedOperations.length) {
+                await loadProcessedOperations();
             }
-            if (!currentUnifiedOperations.length) {
-                setStatus('请先在 Core Pipeline 生成 Unified Operations');
+            if (!currentProcessedOperations.length) {
+                setStatus('请先在 Core Pipeline 生成 Unified Operations 或处理 Operations Pipeline');
                 return;
             }
 
@@ -343,7 +349,11 @@
                 const response = await fetch('/api/v4/render-preview/html', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ operations: currentUnifiedOperations })
+                    body: JSON.stringify(
+                        currentRenderOperationsMode === 'processed'
+                            ? { processed_operations: currentProcessedOperations }
+                            : { operations: currentProcessedOperations }
+                    )
                 });
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
@@ -361,8 +371,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            await loadUnifiedOperations();
-            if (currentUnifiedOperations.length) {
+            await loadProcessedOperations();
+            if (currentProcessedOperations.length) {
                 await generateHtmlPreview();
             }
         });

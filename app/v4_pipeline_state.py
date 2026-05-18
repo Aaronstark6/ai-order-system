@@ -25,6 +25,11 @@ def _default_state():
         "render_targets": {
             "html_preview": None,
         },
+        "pipeline": {
+            "raw_operations": [],
+            "processed_operations": [],
+            "stages": [],
+        },
     }
 
 
@@ -97,4 +102,21 @@ def set_excel_result(generated_file, generated_time=None):
 def set_html_preview(html):
     with _LOCK:
         _STATE["render_targets"]["html_preview"] = str(html) if html is not None else None
+        return deepcopy(_STATE)
+
+
+def set_operations_pipeline(raw_operations, processed_operations, stages):
+    if not isinstance(raw_operations, list):
+        raw_operations = []
+    if not isinstance(processed_operations, list):
+        processed_operations = []
+    if not isinstance(stages, list):
+        stages = []
+
+    with _LOCK:
+        _STATE["pipeline"] = {
+            "raw_operations": deepcopy(raw_operations),
+            "processed_operations": deepcopy(processed_operations),
+            "stages": deepcopy(stages),
+        }
         return deepcopy(_STATE)

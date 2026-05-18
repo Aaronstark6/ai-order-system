@@ -127,8 +127,8 @@ def _render_blocks(operations):
     """
 
 
-def render_unified_operations_to_html(unified_operations):
-    operations = _as_list(unified_operations)
+def render_processed_operations_to_html(processed_operations):
+    operations = _as_list(processed_operations)
     structured = []
     tables = []
     blocks = []
@@ -150,7 +150,7 @@ def render_unified_operations_to_html(unified_operations):
         {_render_structured(structured)}
         {_render_tables(tables)}
         {_render_blocks(blocks)}
-        {'' if operations else '<div class="empty-preview">暂无 Unified Operations</div>'}
+        {'' if operations else '<div class="empty-preview">暂无 Processed Operations</div>'}
     </div>
     """
 
@@ -158,3 +158,7 @@ def render_unified_operations_to_html(unified_operations):
         "success": True,
         "html": html,
     }
+
+
+def render_unified_operations_to_html(unified_operations):
+    return render_processed_operations_to_html(unified_operations)

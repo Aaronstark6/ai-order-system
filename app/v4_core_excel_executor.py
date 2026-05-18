@@ -112,7 +112,7 @@ def _save_workbook(wb, template, operations_written, warnings, log_context):
     }
 
 
-def execute_unified_operations(template_path, operations):
+def execute_processed_operations(template_path, operations):
     warnings = []
     operations_written = 0
     template, error_result = _validate_template_and_operations(template_path, operations)
@@ -127,7 +127,7 @@ def execute_unified_operations(template_path, operations):
         ws = wb.active
         for index, operation in enumerate(operations, start=1):
             if not isinstance(operation, dict):
-                warnings.append(f"第 {index} 条 unified operation 无效，已跳过。")
+                warnings.append(f"第 {index} 条 processed operation 无效，已跳过。")
                 continue
 
             op_type = str(operation.get("op_type") or "").strip()
@@ -137,7 +137,7 @@ def execute_unified_operations(template_path, operations):
 
             target_cell = str(operation.get("target_cell") or "").strip()
             if not target_cell:
-                warnings.append(f"第 {index} 条 unified operation 缺少 target_cell，已跳过。")
+                warnings.append(f"第 {index} 条 processed operation 缺少 target_cell，已跳过。")
                 continue
 
             try:
@@ -145,7 +145,7 @@ def execute_unified_operations(template_path, operations):
                 operations_written += 1
             except Exception as exc:
                 logger.warning(
-                    "[CoreExcelExecutor] Unified operation failed: index=%s target=%s error=%s",
+                    "[CoreExcelExecutor] Processed operation failed: index=%s target=%s error=%s",
                     index,
                     target_cell,
                     exc,
@@ -153,7 +153,7 @@ def execute_unified_operations(template_path, operations):
                 )
                 warnings.append(f"{target_cell} 写入失败：{exc}")
 
-        return _save_workbook(wb, template, operations_written, warnings, "unified")
+        return _save_workbook(wb, template, operations_written, warnings, "processed")
     except Exception as exc:
         logger.exception("[CoreExcelExecutor] Excel save failed")
         return {
@@ -162,6 +162,10 @@ def execute_unified_operations(template_path, operations):
             "operations_count": operations_written,
             "warnings": warnings + [str(exc)],
         }
+
+
+def execute_unified_operations(template_path, operations):
+    return execute_processed_operations(template_path, operations)
 
 
 def execute_operations_to_excel(template_path, operations):

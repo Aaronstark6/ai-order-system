@@ -27,6 +27,7 @@ from app.v4_pipeline_state import (
     set_current_template_path,
     set_excel_result,
     set_html_preview,
+    set_operations_pipeline,
     set_operations,
     set_validator_result,
 )
@@ -1084,23 +1085,58 @@ def api_v4_core_pipeline_unified_operations_preview(payload: Optional[dict] = Bo
     return result
 
 
+@router.post("/api/v4/operations-pipeline/process")
+def api_v4_operations_pipeline_process(payload: Optional[dict] = Body(None)):
+    from app.v4_operations_pipeline import process_operations_pipeline
+
+    logger.info("[OperationsPipeline] Process requested")
+    payload = payload if isinstance(payload, dict) else {}
+    unified_operations = payload.get("operations")
+    if unified_operations is None:
+        unified_operations = payload.get("unified_operations")
+    if unified_operations is None:
+        unified_operations = get_pipeline_state().get("operations", {}).get("unified", [])
+
+    result = process_operations_pipeline(unified_operations)
+    set_operations_pipeline(
+        result.get("raw_operations", []),
+        result.get("processed_operations", []),
+        result.get("stages", []),
+    )
+    return result
+
+
 @router.post("/api/v4/render-preview/html")
 def api_v4_render_preview_html(payload: Optional[Any] = Body(None)):
-    from app.v4_render_targets import render_unified_operations_to_html
+    from app.v4_operations_pipeline import process_operations_pipeline
+    from app.v4_render_targets import render_processed_operations_to_html
 
     logger.info("[RenderTarget] HTML preview requested")
     payload_data = payload if payload is not None else {}
     if isinstance(payload_data, dict):
+        processed_operations = payload_data.get("processed_operations")
         unified_operations = payload_data.get("operations")
         if unified_operations is None:
             unified_operations = payload_data.get("unified_operations")
     else:
+        processed_operations = None
         unified_operations = payload_data
 
-    if unified_operations is None:
-        unified_operations = get_pipeline_state().get("operations", {}).get("unified", [])
+    pipeline_state = get_pipeline_state().get("pipeline", {})
+    if processed_operations is None:
+        processed_operations = pipeline_state.get("processed_operations", [])
+    if not processed_operations:
+        if unified_operations is None:
+            unified_operations = get_pipeline_state().get("operations", {}).get("unified", [])
+        pipeline_result = process_operations_pipeline(unified_operations)
+        processed_operations = pipeline_result.get("processed_operations", [])
+        set_operations_pipeline(
+            pipeline_result.get("raw_operations", []),
+            processed_operations,
+            pipeline_result.get("stages", []),
+        )
 
-    result = render_unified_operations_to_html(unified_operations)
+    result = render_processed_operations_to_html(processed_operations)
     if result.get("success"):
         set_html_preview(result.get("html", ""))
     return result
@@ -1285,8 +1321,10 @@ def api_v4_scan_template_blocks(template_file: UploadFile = File(...)):
 def api_v4_core_pipeline_export_real_excel(
     template_file: UploadFile = File(...),
     operations: str = Form(...),
+    operations_mode: str = Form("processed"),
 ):
-    from app.v4_core_excel_executor import execute_unified_operations
+    from app.v4_core_excel_executor import execute_processed_operations
+    from app.v4_operations_pipeline import process_operations_pipeline
     from app.v4_unified_operations import build_unified_operations
 
     logger.info("[CorePipeline] Real Excel export requested: filename=%s", template_file.filename)
@@ -1307,7 +1345,41 @@ def api_v4_core_pipeline_export_real_excel(
                 "error": "尚未生成 operations",
             }
 
-        if not all(isinstance(item, dict) and item.get("op_type") for item in parsed_operations):
+        normalized_mode = str(operations_mode or "processed").strip().lower()
+        is_processed_payload = normalized_mode == "processed" and all(
+            isinstance(item, dict)
+            and item.get("op_type")
+            and isinstance(item.get("pipeline_meta"), dict)
+            and item.get("pipeline_meta", {}).get("render_ready")
+            for item in parsed_operations
+        )
+
+        if normalized_mode == "unified":
+            processed_operations = parsed_operations
+            if not all(isinstance(item, dict) and item.get("op_type") for item in processed_operations):
+                structured_operations = []
+                table_operations = []
+                block_operations = []
+                for item in processed_operations:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("block_name"):
+                        block_operations.append(item)
+                    elif item.get("table_name") or item.get("table_key"):
+                        table_operations.append(item)
+                    else:
+                        structured_operations.append(item)
+
+                unified_result = build_unified_operations(
+                    structured=structured_operations,
+                    tables=table_operations,
+                    blocks=block_operations,
+                )
+                processed_operations = unified_result.get("operations", [])
+            set_operations("unified", processed_operations)
+        elif is_processed_payload:
+            processed_operations = parsed_operations
+        elif not all(isinstance(item, dict) and item.get("op_type") for item in parsed_operations):
             structured_operations = []
             table_operations = []
             block_operations = []
@@ -1328,17 +1400,43 @@ def api_v4_core_pipeline_export_real_excel(
             )
             parsed_operations = unified_result.get("operations", [])
 
-        if not parsed_operations:
+        if not parsed_operations and not is_processed_payload and normalized_mode != "unified":
             return {
                 "success": False,
                 "error": "尚未生成 Unified Operations",
             }
 
-        set_operations("unified", parsed_operations)
+        if normalized_mode == "unified":
+            pass
+        elif not is_processed_payload:
+            set_operations("unified", parsed_operations)
+            pipeline_state = get_pipeline_state().get("pipeline", {})
+            processed_operations = pipeline_state.get("processed_operations", [])
+            if not processed_operations or pipeline_state.get("raw_operations", []) != parsed_operations:
+                pipeline_result = process_operations_pipeline(parsed_operations)
+                processed_operations = pipeline_result.get("processed_operations", [])
+                set_operations_pipeline(
+                    pipeline_result.get("raw_operations", []),
+                    processed_operations,
+                    pipeline_result.get("stages", []),
+                )
+        else:
+            pipeline_state = get_pipeline_state().get("pipeline", {})
+            set_operations_pipeline(
+                pipeline_state.get("raw_operations", []),
+                processed_operations,
+                pipeline_state.get("stages", []),
+            )
+
+        if not processed_operations:
+            return {
+                "success": False,
+                "error": "尚未生成 Processed Operations",
+            }
 
         template_path = _save_v4_core_excel_template(template_file)
         set_current_template_path(template_name)
-        result = execute_unified_operations(template_path, parsed_operations)
+        result = execute_processed_operations(template_path, processed_operations)
         if not result.get("success"):
             return {
                 "success": False,

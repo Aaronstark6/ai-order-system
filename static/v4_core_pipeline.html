@@ -432,6 +432,8 @@
                 <div class="pipeline-state-item"><strong>动态表格 Operations</strong>0</div>
                 <div class="pipeline-state-item"><strong>区块 Operations</strong>0</div>
                 <div class="pipeline-state-item"><strong>Unified Operations</strong>0</div>
+                <div class="pipeline-state-item"><strong>Processed Operations</strong>0</div>
+                <div class="pipeline-state-item"><strong>Render Ready</strong>否</div>
                 <div class="pipeline-state-item"><strong>已生成 Excel</strong>未生成</div>
             </div>
         </section>
@@ -483,6 +485,9 @@
         let currentTableOperationsResult = null;
         let currentBlockOperationsResult = null;
         let currentUnifiedOperationsResult = null;
+        let currentOperationsPipelineResult = null;
+        let currentUnifiedExcelResult = null;
+        let currentProcessedExcelResult = null;
         let currentCombinedExcelResult = null;
         let currentTemplateFile = null;
         let currentPipelineState = null;
@@ -510,6 +515,9 @@
             const validator = state.validator || {};
             const operations = state.operations || {};
             const excel = state.excel || {};
+            const pipeline = state.pipeline || {};
+            const processedOperations = Array.isArray(pipeline.processed_operations) ? pipeline.processed_operations : [];
+            const finalStage = Array.isArray(pipeline.stages) ? pipeline.stages.find(item => item.stage === 'finalize') : null;
             const statusMap = {
                 idle: '未执行',
                 passed: '通过',
@@ -528,6 +536,8 @@
                 <div class="pipeline-state-item"><strong>动态表格 Operations</strong>${countItems(operations.tables)}</div>
                 <div class="pipeline-state-item"><strong>区块 Operations</strong>${countItems(operations.blocks)}</div>
                 <div class="pipeline-state-item"><strong>Unified Operations</strong>${countItems(operations.unified)}</div>
+                <div class="pipeline-state-item"><strong>Processed Operations</strong>${processedOperations.length}</div>
+                <div class="pipeline-state-item"><strong>Render Ready</strong>${finalStage?.render_ready ? '是' : '否'}</div>
                 <div class="pipeline-state-item"><strong>已生成 Excel</strong>${escapeHtml(excelName)}</div>
             `;
         }
@@ -558,6 +568,9 @@
                 currentTableOperationsResult = null;
                 currentBlockOperationsResult = null;
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
+                currentUnifiedExcelResult = null;
+                currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
                 const templateInput = document.getElementById('templateFileInput');
                 const templateName = document.getElementById('templateFileName');
@@ -623,6 +636,9 @@
                 currentTableOperationsResult = null;
                 currentBlockOperationsResult = null;
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
+                currentUnifiedExcelResult = null;
+                currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentPipelineResult.success ? '核心流水线执行完成' : '核心流水线校验失败');
@@ -645,6 +661,9 @@
                 currentTableOperationsResult = null;
                 currentBlockOperationsResult = null;
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
+                currentUnifiedExcelResult = null;
+                currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('核心流水线执行失败');
@@ -708,6 +727,7 @@
                 ${renderBlockOperationsPreview()}
                 ${renderUnifiedOperationsControls()}
                 ${renderUnifiedOperationsPreview()}
+                ${renderOperationsPipelineStages()}
                 ${renderCombinedRealExcelControls()}
                 <div class="render-grid">
                     ${renderFieldCard('product_form', fields.product_form)}
@@ -854,6 +874,7 @@
                 currentStructuredOperationsResult = await response.json();
                 currentStructuredExcelResult = null;
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentStructuredOperationsResult.success ? '结构化 Operations 已生成' : '结构化 Operations 生成失败');
@@ -865,6 +886,7 @@
                 };
                 currentStructuredExcelResult = null;
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('结构化 Operations 生成失败');
@@ -904,6 +926,7 @@
                 }
                 currentTableOperationsResult = await response.json();
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentTableOperationsResult.success ? '动态表格 Operations 已生成' : '动态表格 Operations 生成失败');
@@ -914,6 +937,7 @@
                     warnings: ['动态表格 Operations 请求失败']
                 };
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('动态表格 Operations 生成失败');
@@ -953,6 +977,7 @@
                 }
                 currentBlockOperationsResult = await response.json();
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentBlockOperationsResult.success ? '区块 Operations 已生成' : '区块 Operations 生成失败');
@@ -963,6 +988,7 @@
                     warnings: ['区块 Operations 请求失败']
                 };
                 currentUnifiedOperationsResult = null;
+                currentOperationsPipelineResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('区块 Operations 生成失败');
@@ -1135,16 +1161,10 @@
         }
 
         function renderUnifiedOperationsControls() {
-            const structuredOperations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
-            const tableOperations = Array.isArray(currentTableOperationsResult?.operations) ? currentTableOperationsResult.operations : [];
-            const blockOperations = Array.isArray(currentBlockOperationsResult?.operations) ? currentBlockOperationsResult.operations : [];
-            if (!structuredOperations.length && !tableOperations.length && !blockOperations.length) {
-                return '';
-            }
-
             return `
                 <div class="export-actions">
                     <button class="btn-secondary" type="button" onclick="generateUnifiedOperationsPreview()">生成 Unified Operations</button>
+                    <button class="btn-secondary" type="button" onclick="processOperationsPipeline()">处理 Operations Pipeline</button>
                     <button class="btn-secondary" type="button" onclick="openHtmlRenderPreview()">生成 HTML Preview</button>
                 </div>
             `;
@@ -1174,6 +1194,9 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 currentUnifiedOperationsResult = await response.json();
+                currentOperationsPipelineResult = null;
+                currentUnifiedExcelResult = null;
+                currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentUnifiedOperationsResult.success ? 'Unified Operations 已生成' : 'Unified Operations 生成失败');
@@ -1184,6 +1207,9 @@
                     operations: [],
                     warnings: ['Unified Operations 请求失败']
                 };
+                currentOperationsPipelineResult = null;
+                currentUnifiedExcelResult = null;
+                currentProcessedExcelResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('Unified Operations 生成失败');
@@ -1224,7 +1250,20 @@
             `;
         }
 
-        async function openHtmlRenderPreview() {
+        function renderOperationsPipelineControls() {
+            const unifiedOperations = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
+            if (!unifiedOperations.length) {
+                return '';
+            }
+
+            return `
+                <div class="export-actions">
+                    <button class="btn-primary" type="button" onclick="processOperationsPipeline()">处理 Operations Pipeline</button>
+                </div>
+            `;
+        }
+
+        async function processOperationsPipeline() {
             let unifiedOperations = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
             if (!unifiedOperations.length) {
                 const unifiedResult = await generateUnifiedOperationsPreview();
@@ -1232,6 +1271,79 @@
             }
             if (!unifiedOperations.length) {
                 setStatus('尚未生成 Unified Operations');
+                return null;
+            }
+
+            setStatus('正在处理 Operations Pipeline');
+            try {
+                const response = await fetch('/api/v4/operations-pipeline/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operations: unifiedOperations })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                currentOperationsPipelineResult = await response.json();
+                currentProcessedExcelResult = null;
+                currentCombinedExcelResult = null;
+                renderPipelineResult(currentPipelineResult);
+                const count = currentOperationsPipelineResult.processed_operations?.length || 0;
+                setStatus(currentOperationsPipelineResult.success ? `Operations Pipeline 已完成：${count} 条` : 'Operations Pipeline 处理失败');
+                return currentOperationsPipelineResult;
+            } catch (error) {
+                currentOperationsPipelineResult = {
+                    success: false,
+                    processed_operations: [],
+                    stages: []
+                };
+                currentCombinedExcelResult = null;
+                renderPipelineResult(currentPipelineResult);
+                setStatus('Operations Pipeline 处理失败');
+                return null;
+            }
+        }
+
+        function renderOperationsPipelineStages() {
+            if (!currentOperationsPipelineResult) {
+                return '';
+            }
+
+            const stages = Array.isArray(currentOperationsPipelineResult.stages) ? currentOperationsPipelineResult.stages : [];
+            const processedCount = Array.isArray(currentOperationsPipelineResult.processed_operations) ? currentOperationsPipelineResult.processed_operations.length : 0;
+            const renderReady = Boolean(currentOperationsPipelineResult.pipeline_meta?.render_ready);
+            return `
+                <div class="message success">Operations Pipeline：processed_count=${escapeHtml(processedCount)}，render_ready=${renderReady ? 'true' : 'false'}</div>
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>pipeline stage</th>
+                            <th>processed count</th>
+                            <th>render ready</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${stages.map(stage => `
+                            <tr>
+                                <td>${escapeHtml(stage.stage || '')}</td>
+                                <td>${escapeHtml(stage.processed_count || stage.output_count || 0)}</td>
+                                <td>${stage.render_ready ? '是' : '否'}</td>
+                            </tr>
+                        `).join('') || '<tr><td colspan="3">暂无 Pipeline Stages</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        async function openHtmlRenderPreview() {
+            let processedOperations = Array.isArray(currentOperationsPipelineResult?.processed_operations) ? currentOperationsPipelineResult.processed_operations : [];
+            let unifiedOperations = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
+            if (!processedOperations.length && !unifiedOperations.length) {
+                const unifiedResult = await generateUnifiedOperationsPreview();
+                unifiedOperations = Array.isArray(unifiedResult?.operations) ? unifiedResult.operations : [];
+            }
+            if (!processedOperations.length && !unifiedOperations.length) {
+                setStatus('尚未生成 Unified Operations 或 Processed Operations');
                 return;
             }
             window.location.href = '/v4-render-preview';
@@ -1288,27 +1400,34 @@
         }
 
         function renderCombinedRealExcelControls() {
-            const unifiedOperations = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
-            if (!unifiedOperations.length) {
-                return '';
-            }
-
-            const warnings = Array.isArray(currentCombinedExcelResult?.warnings) ? currentCombinedExcelResult.warnings : [];
-            const downloadLink = currentCombinedExcelResult?.download_url
-                ? `<a class="btn-download" href="${escapeHtml(currentCombinedExcelResult.download_url)}" target="_blank" rel="noopener">下载结构化表格 Excel</a>`
+            const unifiedWarnings = Array.isArray(currentUnifiedExcelResult?.warnings) ? currentUnifiedExcelResult.warnings : [];
+            const processedWarnings = Array.isArray(currentProcessedExcelResult?.warnings) ? currentProcessedExcelResult.warnings : [];
+            const unifiedDownloadLink = currentUnifiedExcelResult?.download_url
+                ? `<a class="btn-download" href="${escapeHtml(currentUnifiedExcelResult.download_url)}" target="_blank" rel="noopener">下载 Unified Excel</a>`
                 : '';
-            const successMessage = currentCombinedExcelResult?.download_url
-                ? `<div class="message success">结构化 + 动态表格 + 区块 Excel 已生成</div>
-                   <div class="result-meta">operations_count：${escapeHtml(currentCombinedExcelResult.operations_count || 0)}，warnings_count：${escapeHtml(warnings.length)}</div>`
+            const processedDownloadLink = currentProcessedExcelResult?.download_url
+                ? `<a class="btn-download" href="${escapeHtml(currentProcessedExcelResult.download_url)}" target="_blank" rel="noopener">下载 Processed Excel</a>`
+                : '';
+            const unifiedSuccessMessage = currentUnifiedExcelResult?.download_url
+                ? `<div class="message success">Unified Operations Excel 已生成</div>
+                   <div class="result-meta">operations_count：${escapeHtml(currentUnifiedExcelResult.operations_count || 0)}，warnings_count：${escapeHtml(unifiedWarnings.length)}</div>`
+                : '';
+            const processedSuccessMessage = currentProcessedExcelResult?.download_url
+                ? `<div class="message success">Processed Operations Excel 已生成</div>
+                   <div class="result-meta">operations_count：${escapeHtml(currentProcessedExcelResult.operations_count || 0)}，warnings_count：${escapeHtml(processedWarnings.length)}</div>`
                 : '';
 
             return `
                 <div class="export-actions">
-                    <button class="btn-primary" type="button" onclick="exportCombinedRealExcel()">使用 Unified Operations 生成 Excel</button>
-                    ${downloadLink}
+                    <button class="btn-primary" type="button" onclick="exportUnifiedOperationsExcel()">使用 Unified Operations 导出 Excel</button>
+                    <button class="btn-primary" type="button" onclick="exportProcessedOperationsExcel()">使用 Processed Operations 导出 Excel</button>
+                    ${unifiedDownloadLink}
+                    ${processedDownloadLink}
                 </div>
-                ${successMessage}
-                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+                ${unifiedSuccessMessage}
+                ${processedSuccessMessage}
+                ${unifiedWarnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+                ${processedWarnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
             `;
         }
 
@@ -1321,7 +1440,7 @@
             setStatus(currentTemplateFile ? `已选择模板：${currentTemplateFile.name}` : '请先上传 Excel 模板。');
         }
 
-        async function exportOperationsToRealExcel(operations) {
+        async function exportOperationsToRealExcel(operations, operationsMode = 'processed') {
             if (!currentTemplateFile) {
                 setStatus('请先上传 Excel 模板。');
                 return null;
@@ -1336,6 +1455,7 @@
                 const formData = new FormData();
                 formData.append('template_file', currentTemplateFile);
                 formData.append('operations', JSON.stringify(operations));
+                formData.append('operations_mode', operationsMode);
 
                 const response = await fetch('/api/v4/core-pipeline/export-real-excel', {
                     method: 'POST',
@@ -1386,7 +1506,7 @@
             renderPipelineResult(currentPipelineResult);
         }
 
-        async function exportCombinedRealExcel() {
+        async function exportUnifiedOperationsExcel() {
             let unifiedOperations = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
             if (!unifiedOperations.length) {
                 const unifiedResult = await generateUnifiedOperationsPreview();
@@ -1397,14 +1517,40 @@
                 return;
             }
 
-            const result = await exportOperationsToRealExcel(unifiedOperations);
+            const result = await exportOperationsToRealExcel(unifiedOperations, 'unified');
             if (!result) {
                 return;
             }
 
-            currentCombinedExcelResult = result;
+            currentUnifiedExcelResult = result;
             setStatus('Unified Operations Excel 已生成');
             renderPipelineResult(currentPipelineResult);
+        }
+
+        async function exportProcessedOperationsExcel() {
+            let processedOperations = Array.isArray(currentOperationsPipelineResult?.processed_operations) ? currentOperationsPipelineResult.processed_operations : [];
+            if (!processedOperations.length) {
+                const pipelineResult = await processOperationsPipeline();
+                processedOperations = Array.isArray(pipelineResult?.processed_operations) ? pipelineResult.processed_operations : [];
+            }
+            if (!processedOperations.length) {
+                setStatus('尚未生成 Processed Operations');
+                return;
+            }
+
+            const result = await exportOperationsToRealExcel(processedOperations, 'processed');
+            if (!result) {
+                return;
+            }
+
+            currentProcessedExcelResult = result;
+            currentCombinedExcelResult = result;
+            setStatus('Processed Operations Excel 已生成');
+            renderPipelineResult(currentPipelineResult);
+        }
+
+        async function exportCombinedRealExcel() {
+            return exportProcessedOperationsExcel();
         }
 
         function renderWarnings(warnings) {
@@ -1435,6 +1581,7 @@
                 table_operations_result: currentTableOperationsResult,
                 block_operations_result: currentBlockOperationsResult,
                 unified_operations_result: currentUnifiedOperationsResult,
+                operations_pipeline_result: currentOperationsPipelineResult,
                 combined_excel_result: currentCombinedExcelResult,
                 pipeline_state: currentPipelineState,
                 current_template_file: currentTemplateFile ? currentTemplateFile.name : ''
