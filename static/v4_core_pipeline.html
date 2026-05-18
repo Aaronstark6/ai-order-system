@@ -431,6 +431,7 @@
                 <div class="pipeline-state-item"><strong>结构化 Operations</strong>0</div>
                 <div class="pipeline-state-item"><strong>动态表格 Operations</strong>0</div>
                 <div class="pipeline-state-item"><strong>区块 Operations</strong>0</div>
+                <div class="pipeline-state-item"><strong>Unified Operations</strong>0</div>
                 <div class="pipeline-state-item"><strong>已生成 Excel</strong>未生成</div>
             </div>
         </section>
@@ -481,6 +482,7 @@
         let currentStructuredExcelResult = null;
         let currentTableOperationsResult = null;
         let currentBlockOperationsResult = null;
+        let currentUnifiedOperationsResult = null;
         let currentCombinedExcelResult = null;
         let currentTemplateFile = null;
         let currentPipelineState = null;
@@ -525,6 +527,7 @@
                 <div class="pipeline-state-item"><strong>结构化 Operations</strong>${countItems(operations.structured)}</div>
                 <div class="pipeline-state-item"><strong>动态表格 Operations</strong>${countItems(operations.tables)}</div>
                 <div class="pipeline-state-item"><strong>区块 Operations</strong>${countItems(operations.blocks)}</div>
+                <div class="pipeline-state-item"><strong>Unified Operations</strong>${countItems(operations.unified)}</div>
                 <div class="pipeline-state-item"><strong>已生成 Excel</strong>${escapeHtml(excelName)}</div>
             `;
         }
@@ -554,6 +557,7 @@
                 currentStructuredExcelResult = null;
                 currentTableOperationsResult = null;
                 currentBlockOperationsResult = null;
+                currentUnifiedOperationsResult = null;
                 currentCombinedExcelResult = null;
                 const templateInput = document.getElementById('templateFileInput');
                 const templateName = document.getElementById('templateFileName');
@@ -618,6 +622,7 @@
                 currentStructuredExcelResult = null;
                 currentTableOperationsResult = null;
                 currentBlockOperationsResult = null;
+                currentUnifiedOperationsResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentPipelineResult.success ? '核心流水线执行完成' : '核心流水线校验失败');
@@ -639,6 +644,7 @@
                 currentStructuredExcelResult = null;
                 currentTableOperationsResult = null;
                 currentBlockOperationsResult = null;
+                currentUnifiedOperationsResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('核心流水线执行失败');
@@ -694,14 +700,14 @@
                 ${renderExportControls(fields)}
                 ${renderOperationsControls(fields)}
                 ${renderOperationsPreview()}
-                ${renderRealExcelControls()}
                 ${renderStructuredOperationsControls()}
                 ${renderStructuredOperationsPreview()}
-                ${renderStructuredRealExcelControls()}
                 ${renderTableOperationsControls()}
                 ${renderTableOperationsPreview()}
                 ${renderBlockOperationsControls()}
                 ${renderBlockOperationsPreview()}
+                ${renderUnifiedOperationsControls()}
+                ${renderUnifiedOperationsPreview()}
                 ${renderCombinedRealExcelControls()}
                 <div class="render-grid">
                     ${renderFieldCard('product_form', fields.product_form)}
@@ -847,6 +853,8 @@
                 }
                 currentStructuredOperationsResult = await response.json();
                 currentStructuredExcelResult = null;
+                currentUnifiedOperationsResult = null;
+                currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentStructuredOperationsResult.success ? '结构化 Operations 已生成' : '结构化 Operations 生成失败');
             } catch (error) {
@@ -856,6 +864,8 @@
                     warnings: ['结构化 Operations 请求失败']
                 };
                 currentStructuredExcelResult = null;
+                currentUnifiedOperationsResult = null;
+                currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('结构化 Operations 生成失败');
             }
@@ -893,6 +903,7 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 currentTableOperationsResult = await response.json();
+                currentUnifiedOperationsResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentTableOperationsResult.success ? '动态表格 Operations 已生成' : '动态表格 Operations 生成失败');
@@ -902,6 +913,7 @@
                     operations: [],
                     warnings: ['动态表格 Operations 请求失败']
                 };
+                currentUnifiedOperationsResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('动态表格 Operations 生成失败');
@@ -940,6 +952,7 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 currentBlockOperationsResult = await response.json();
+                currentUnifiedOperationsResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus(currentBlockOperationsResult.success ? '区块 Operations 已生成' : '区块 Operations 生成失败');
@@ -949,6 +962,7 @@
                     operations: [],
                     warnings: ['区块 Operations 请求失败']
                 };
+                currentUnifiedOperationsResult = null;
                 currentCombinedExcelResult = null;
                 renderPipelineResult(currentPipelineResult);
                 setStatus('区块 Operations 生成失败');
@@ -1120,6 +1134,95 @@
             `;
         }
 
+        function renderUnifiedOperationsControls() {
+            const structuredOperations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
+            const tableOperations = Array.isArray(currentTableOperationsResult?.operations) ? currentTableOperationsResult.operations : [];
+            const blockOperations = Array.isArray(currentBlockOperationsResult?.operations) ? currentBlockOperationsResult.operations : [];
+            if (!structuredOperations.length && !tableOperations.length && !blockOperations.length) {
+                return '';
+            }
+
+            return `
+                <div class="export-actions">
+                    <button class="btn-secondary" type="button" onclick="generateUnifiedOperationsPreview()">生成 Unified Operations</button>
+                </div>
+            `;
+        }
+
+        async function generateUnifiedOperationsPreview() {
+            const structuredOperations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
+            const tableOperations = Array.isArray(currentTableOperationsResult?.operations) ? currentTableOperationsResult.operations : [];
+            const blockOperations = Array.isArray(currentBlockOperationsResult?.operations) ? currentBlockOperationsResult.operations : [];
+            if (!structuredOperations.length && !tableOperations.length && !blockOperations.length) {
+                setStatus('尚未生成结构化、动态表格或区块 Operations');
+                return null;
+            }
+
+            setStatus('正在生成 Unified Operations');
+            try {
+                const response = await fetch('/api/v4/core-pipeline/unified-operations-preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        structured: structuredOperations,
+                        tables: tableOperations,
+                        blocks: blockOperations
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                currentUnifiedOperationsResult = await response.json();
+                currentCombinedExcelResult = null;
+                renderPipelineResult(currentPipelineResult);
+                setStatus(currentUnifiedOperationsResult.success ? 'Unified Operations 已生成' : 'Unified Operations 生成失败');
+                return currentUnifiedOperationsResult;
+            } catch (error) {
+                currentUnifiedOperationsResult = {
+                    success: false,
+                    operations: [],
+                    warnings: ['Unified Operations 请求失败']
+                };
+                currentCombinedExcelResult = null;
+                renderPipelineResult(currentPipelineResult);
+                setStatus('Unified Operations 生成失败');
+                return null;
+            }
+        }
+
+        function renderUnifiedOperationsPreview() {
+            if (!currentUnifiedOperationsResult) {
+                return '';
+            }
+
+            const warnings = Array.isArray(currentUnifiedOperationsResult.warnings) ? currentUnifiedOperationsResult.warnings : [];
+            const operations = Array.isArray(currentUnifiedOperationsResult.operations) ? currentUnifiedOperationsResult.operations : [];
+            return `
+                <div class="message success">Unified Operations</div>
+                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>source</th>
+                            <th>op_type</th>
+                            <th>target_cell</th>
+                            <th>value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${operations.map(operation => `
+                            <tr>
+                                <td>${escapeHtml(operation.source || '')}</td>
+                                <td>${escapeHtml(operation.op_type || '')}</td>
+                                <td>${escapeHtml(operation.target_cell || '')}</td>
+                                <td class="value-preview">${escapeHtml(operation.value || '')}</td>
+                            </tr>
+                        `).join('') || '<tr><td colspan="4">暂无 Unified Operations</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+        }
+
         function renderRealExcelControls() {
             const operations = Array.isArray(currentOperationsResult?.operations) ? currentOperationsResult.operations : [];
             if (!operations.length) {
@@ -1171,10 +1274,8 @@
         }
 
         function renderCombinedRealExcelControls() {
-            const structuredOperations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
-            const tableOperations = Array.isArray(currentTableOperationsResult?.operations) ? currentTableOperationsResult.operations : [];
-            const blockOperations = Array.isArray(currentBlockOperationsResult?.operations) ? currentBlockOperationsResult.operations : [];
-            if (!structuredOperations.length && !tableOperations.length && !blockOperations.length) {
+            const unifiedOperations = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
+            if (!unifiedOperations.length) {
                 return '';
             }
 
@@ -1189,7 +1290,7 @@
 
             return `
                 <div class="export-actions">
-                    <button class="btn-primary" type="button" onclick="exportCombinedRealExcel()">使用结构化 + 动态表格 + 区块 Operations 生成 Excel</button>
+                    <button class="btn-primary" type="button" onclick="exportCombinedRealExcel()">使用 Unified Operations 生成 Excel</button>
                     ${downloadLink}
                 </div>
                 ${successMessage}
@@ -1272,21 +1373,23 @@
         }
 
         async function exportCombinedRealExcel() {
-            const structuredOperations = Array.isArray(currentStructuredOperationsResult?.operations) ? currentStructuredOperationsResult.operations : [];
-            const tableOperations = Array.isArray(currentTableOperationsResult?.operations) ? currentTableOperationsResult.operations : [];
-            const blockOperations = Array.isArray(currentBlockOperationsResult?.operations) ? currentBlockOperationsResult.operations : [];
-            if (!structuredOperations.length && !tableOperations.length && !blockOperations.length) {
-                setStatus('尚未生成结构化、动态表格或区块 operations');
+            let unifiedOperations = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
+            if (!unifiedOperations.length) {
+                const unifiedResult = await generateUnifiedOperationsPreview();
+                unifiedOperations = Array.isArray(unifiedResult?.operations) ? unifiedResult.operations : [];
+            }
+            if (!unifiedOperations.length) {
+                setStatus('尚未生成 Unified Operations');
                 return;
             }
 
-            const result = await exportOperationsToRealExcel(structuredOperations.concat(tableOperations, blockOperations));
+            const result = await exportOperationsToRealExcel(unifiedOperations);
             if (!result) {
                 return;
             }
 
             currentCombinedExcelResult = result;
-            setStatus('结构化 + 动态表格 + 区块 Excel 已生成');
+            setStatus('Unified Operations Excel 已生成');
             renderPipelineResult(currentPipelineResult);
         }
 
@@ -1317,6 +1420,7 @@
                 structured_excel_result: currentStructuredExcelResult,
                 table_operations_result: currentTableOperationsResult,
                 block_operations_result: currentBlockOperationsResult,
+                unified_operations_result: currentUnifiedOperationsResult,
                 combined_excel_result: currentCombinedExcelResult,
                 pipeline_state: currentPipelineState,
                 current_template_file: currentTemplateFile ? currentTemplateFile.name : ''

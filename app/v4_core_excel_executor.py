@@ -36,34 +36,144 @@ def _set_wrap_text(cell):
     cell.alignment = alignment
 
 
-def execute_operations_to_excel(template_path, operations):
-    warnings = []
-    operations_written = 0
-
+def _validate_template_and_operations(template_path, operations):
     if not template_path:
-        return {
+        return None, {
             "success": False,
             "error": "尚未上传模板",
             "operations_count": 0,
-            "warnings": warnings,
+            "warnings": [],
         }
 
     template = Path(template_path)
     if not template.is_file():
-        return {
+        return None, {
             "success": False,
             "error": "尚未上传模板",
             "operations_count": 0,
-            "warnings": warnings,
+            "warnings": [],
         }
 
     if not isinstance(operations, list):
-        return {
+        return None, {
             "success": False,
             "error": "尚未生成 operations",
             "operations_count": 0,
-            "warnings": warnings,
+            "warnings": [],
         }
+
+    return template, None
+
+
+def _load_workbook(template, warnings):
+    try:
+        return load_workbook(template), None
+    except (InvalidFileException, OSError, ValueError) as exc:
+        logger.exception("[CoreExcelExecutor] Template load failed: path=%s", template)
+        return None, {
+            "success": False,
+            "error": "Excel 写入失败",
+            "operations_count": 0,
+            "warnings": warnings + [str(exc)],
+        }
+
+
+def _write_value(ws, target_cell, value, warnings):
+    write_cell_ref = _resolve_merged_target(ws, target_cell, warnings)
+    cell = ws[write_cell_ref]
+    cell.value = "" if value is None else str(value)
+    _set_wrap_text(cell)
+
+
+def _save_workbook(wb, template, operations_written, warnings, log_context):
+    output_dir = get_base_dir() / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    template_name = _safe_filename_part(template.stem)
+    filename = f"v4_core_real_excel_{template_name}_{timestamp}.xlsx"
+    output_path = output_dir / filename
+    wb.save(output_path)
+
+    logger.info(
+        "[CoreExcelExecutor] Real Excel generated: context=%s path=%s operations=%s warnings=%s",
+        log_context,
+        output_path,
+        operations_written,
+        len(warnings),
+    )
+    return {
+        "success": True,
+        "filename": filename,
+        "download_url": f"/api/download/{filename}",
+        "operations_count": operations_written,
+        "warnings": warnings,
+        "output_path": str(output_path),
+    }
+
+
+def execute_unified_operations(template_path, operations):
+    warnings = []
+    operations_written = 0
+    template, error_result = _validate_template_and_operations(template_path, operations)
+    if error_result:
+        return error_result
+
+    wb, error_result = _load_workbook(template, warnings)
+    if error_result:
+        return error_result
+
+    try:
+        ws = wb.active
+        for index, operation in enumerate(operations, start=1):
+            if not isinstance(operation, dict):
+                warnings.append(f"第 {index} 条 unified operation 无效，已跳过。")
+                continue
+
+            op_type = str(operation.get("op_type") or "").strip()
+            if op_type not in {"write_text", "write_table_cell", "write_block"}:
+                warnings.append(f"暂不支持 op_type={op_type or '空'}，已跳过。")
+                continue
+
+            target_cell = str(operation.get("target_cell") or "").strip()
+            if not target_cell:
+                warnings.append(f"第 {index} 条 unified operation 缺少 target_cell，已跳过。")
+                continue
+
+            try:
+                _write_value(ws, target_cell, operation.get("value"), warnings)
+                operations_written += 1
+            except Exception as exc:
+                logger.warning(
+                    "[CoreExcelExecutor] Unified operation failed: index=%s target=%s error=%s",
+                    index,
+                    target_cell,
+                    exc,
+                    exc_info=True,
+                )
+                warnings.append(f"{target_cell} 写入失败：{exc}")
+
+        return _save_workbook(wb, template, operations_written, warnings, "unified")
+    except Exception as exc:
+        logger.exception("[CoreExcelExecutor] Excel save failed")
+        return {
+            "success": False,
+            "error": "无法保存 Excel",
+            "operations_count": operations_written,
+            "warnings": warnings + [str(exc)],
+        }
+
+
+def execute_operations_to_excel(template_path, operations):
+    warnings = []
+    operations_written = 0
+    template, error_result = _validate_template_and_operations(template_path, operations)
+    if error_result:
+        return error_result
+
+    wb, error_result = _load_workbook(template, warnings)
+    if error_result:
+        return error_result
 
     table_operations_count = sum(
         1
@@ -72,21 +182,10 @@ def execute_operations_to_excel(template_path, operations):
     )
 
     try:
-        wb = load_workbook(template)
-    except (InvalidFileException, OSError, ValueError) as exc:
-        logger.exception("[CoreExcelExecutor] Template load failed: path=%s", template)
-        return {
-            "success": False,
-            "error": "Excel 写入失败",
-            "operations_count": 0,
-            "warnings": warnings + [str(exc)],
-        }
-
-    try:
         ws = wb.active
         for index, operation in enumerate(operations, start=1):
             if not isinstance(operation, dict):
-                warnings.append(f"第 {index} 个 operation 无效，已跳过。")
+                warnings.append(f"第 {index} 条 operation 无效，已跳过。")
                 continue
 
             operation_type = str(operation.get("operation") or "").strip()
@@ -96,15 +195,11 @@ def execute_operations_to_excel(template_path, operations):
 
             target_cell = str(operation.get("target_cell") or "").strip()
             if not target_cell:
-                warnings.append(f"第 {index} 个 operation 缺少 target_cell，已跳过。")
+                warnings.append(f"第 {index} 条 operation 缺少 target_cell，已跳过。")
                 continue
 
             try:
-                write_cell_ref = _resolve_merged_target(ws, target_cell, warnings)
-                cell = ws[write_cell_ref]
-                value = operation.get("value")
-                cell.value = "" if value is None else str(value)
-                _set_wrap_text(cell)
+                _write_value(ws, target_cell, operation.get("value"), warnings)
                 operations_written += 1
             except Exception as exc:
                 logger.warning(
@@ -116,30 +211,13 @@ def execute_operations_to_excel(template_path, operations):
                 )
                 warnings.append(f"{target_cell} 写入失败：{exc}")
 
-        output_dir = get_base_dir() / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        template_name = _safe_filename_part(template.stem)
-        filename = f"v4_core_real_excel_{template_name}_{timestamp}.xlsx"
-        output_path = output_dir / filename
-        wb.save(output_path)
-
-        logger.info(
-            "[CoreExcelExecutor] Real Excel generated: path=%s operations=%s table_operations=%s warnings=%s",
-            output_path,
+        return _save_workbook(
+            wb,
+            template,
             operations_written,
-            table_operations_count,
-            len(warnings),
+            warnings,
+            f"legacy table_operations={table_operations_count}",
         )
-        return {
-            "success": True,
-            "filename": filename,
-            "download_url": f"/api/download/{filename}",
-            "operations_count": operations_written,
-            "warnings": warnings,
-            "output_path": str(output_path),
-        }
     except Exception as exc:
         logger.exception("[CoreExcelExecutor] Excel save failed")
         return {

@@ -16,6 +16,7 @@ def _default_state():
             "structured": [],
             "tables": [],
             "blocks": [],
+            "unified": [],
         },
         "excel": {
             "generated_file": None,
@@ -71,7 +72,7 @@ def set_validator_result(validation_result):
 
 
 def set_operations(kind, operations):
-    if kind not in {"structured", "tables", "blocks"}:
+    if kind not in {"structured", "tables", "blocks", "unified"}:
         raise ValueError(f"Unknown pipeline operations kind: {kind}")
     if not isinstance(operations, list):
         operations = []

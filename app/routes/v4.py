@@ -1049,6 +1049,35 @@ def api_v4_core_pipeline_block_operations_preview(order_object: Optional[dict] =
     return result
 
 
+@router.post("/api/v4/core-pipeline/unified-operations-preview")
+def api_v4_core_pipeline_unified_operations_preview(payload: Optional[dict] = Body(None)):
+    from app.v4_unified_operations import build_unified_operations
+
+    logger.info("[CorePipeline] Unified operations preview requested")
+    state_operations = get_pipeline_state().get("operations", {})
+    payload = payload if isinstance(payload, dict) else {}
+
+    structured = payload.get("structured")
+    if structured is None:
+        structured = state_operations.get("structured", [])
+
+    tables = payload.get("tables")
+    if tables is None:
+        tables = state_operations.get("tables", [])
+
+    blocks = payload.get("blocks")
+    if blocks is None:
+        blocks = state_operations.get("blocks", [])
+
+    result = build_unified_operations(
+        structured=structured,
+        tables=tables,
+        blocks=blocks,
+    )
+    set_operations("unified", result.get("operations", []))
+    return result
+
+
 @router.get("/api/v4/block-merge-rules")
 def api_v4_block_merge_rules():
     from app.v4_block_merge_engine import load_block_merge_rules
@@ -1229,7 +1258,8 @@ def api_v4_core_pipeline_export_real_excel(
     template_file: UploadFile = File(...),
     operations: str = Form(...),
 ):
-    from app.v4_core_excel_executor import execute_operations_to_excel
+    from app.v4_core_excel_executor import execute_unified_operations
+    from app.v4_unified_operations import build_unified_operations
 
     logger.info("[CorePipeline] Real Excel export requested: filename=%s", template_file.filename)
     template_path = None
@@ -1249,9 +1279,38 @@ def api_v4_core_pipeline_export_real_excel(
                 "error": "尚未生成 operations",
             }
 
+        if not all(isinstance(item, dict) and item.get("op_type") for item in parsed_operations):
+            structured_operations = []
+            table_operations = []
+            block_operations = []
+            for item in parsed_operations:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("block_name"):
+                    block_operations.append(item)
+                elif item.get("table_name") or item.get("table_key"):
+                    table_operations.append(item)
+                else:
+                    structured_operations.append(item)
+
+            unified_result = build_unified_operations(
+                structured=structured_operations,
+                tables=table_operations,
+                blocks=block_operations,
+            )
+            parsed_operations = unified_result.get("operations", [])
+
+        if not parsed_operations:
+            return {
+                "success": False,
+                "error": "尚未生成 Unified Operations",
+            }
+
+        set_operations("unified", parsed_operations)
+
         template_path = _save_v4_core_excel_template(template_file)
         set_current_template_path(template_name)
-        result = execute_operations_to_excel(template_path, parsed_operations)
+        result = execute_unified_operations(template_path, parsed_operations)
         if not result.get("success"):
             return {
                 "success": False,
