@@ -346,6 +346,7 @@
                 }
                 const result = await response.json();
                 renderResult(result);
+                await fetch('/api/v4/pipeline-state').catch(() => null);
                 setStatus(result.valid ? '校验通过' : '校验失败');
             } catch (error) {
                 renderResult({

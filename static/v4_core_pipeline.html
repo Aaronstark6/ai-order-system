@@ -89,6 +89,48 @@
             font-size: 14px;
         }
 
+        .pipeline-state {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+            display: grid;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+        }
+
+        .pipeline-state-header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .pipeline-state-title {
+            color: #2d3542;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .pipeline-state-grid {
+            display: grid;
+            gap: 8px 14px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .pipeline-state-item {
+            color: #58665f;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .pipeline-state-item strong {
+            color: #2d3542;
+            display: block;
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+
         .toolbar {
             align-items: center;
             display: flex;
@@ -339,11 +381,16 @@
             }
 
             .header-inner,
+            .pipeline-state-header,
             .template-upload-row,
             .toolbar {
                 align-items: flex-start;
                 flex-direction: column;
                 gap: 12px;
+            }
+
+            .pipeline-state-grid {
+                grid-template-columns: 1fr;
             }
 
             .render-grid {
@@ -369,6 +416,22 @@
                     <input id="templateFileInput" type="file" accept=".xlsx" onchange="handleTemplateFileChange(event)">
                 </label>
                 <div class="template-file-name" id="templateFileName">当前模板：未选择</div>
+            </div>
+        </section>
+
+        <section class="pipeline-state">
+            <div class="pipeline-state-header">
+                <div class="pipeline-state-title">当前 Pipeline State</div>
+                <button class="btn-secondary" type="button" onclick="resetPipelineState()">重置 Pipeline State</button>
+            </div>
+            <div class="pipeline-state-grid" id="pipelineStateGrid">
+                <div class="pipeline-state-item"><strong>当前订单</strong>未加载</div>
+                <div class="pipeline-state-item"><strong>当前模板</strong>未选择</div>
+                <div class="pipeline-state-item"><strong>校验状态</strong>未执行</div>
+                <div class="pipeline-state-item"><strong>结构化 Operations</strong>0</div>
+                <div class="pipeline-state-item"><strong>动态表格 Operations</strong>0</div>
+                <div class="pipeline-state-item"><strong>区块 Operations</strong>0</div>
+                <div class="pipeline-state-item"><strong>已生成 Excel</strong>未生成</div>
             </div>
         </section>
 
@@ -420,9 +483,92 @@
         let currentBlockOperationsResult = null;
         let currentCombinedExcelResult = null;
         let currentTemplateFile = null;
+        let currentPipelineState = null;
 
         function setStatus(text) {
             document.getElementById('statusText').textContent = text;
+        }
+
+        async function refreshPipelineState() {
+            try {
+                const response = await fetch('/api/v4/pipeline-state');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                currentPipelineState = result.state || result;
+            } catch (error) {
+                currentPipelineState = currentPipelineState || null;
+            }
+            renderPipelineState();
+        }
+
+        function renderPipelineState() {
+            const state = currentPipelineState || {};
+            const validator = state.validator || {};
+            const operations = state.operations || {};
+            const excel = state.excel || {};
+            const statusMap = {
+                idle: '未执行',
+                passed: '通过',
+                failed: '失败'
+            };
+            const templateName = currentTemplateFile?.name || state.current_template_path || '未选择';
+            const excelName = excel.generated_file
+                ? `${excel.generated_file}${excel.generated_time ? ` (${excel.generated_time})` : ''}`
+                : '未生成';
+
+            document.getElementById('pipelineStateGrid').innerHTML = `
+                <div class="pipeline-state-item"><strong>当前订单</strong>${state.current_order_object ? '已加载' : '未加载'}</div>
+                <div class="pipeline-state-item"><strong>当前模板</strong>${escapeHtml(templateName)}</div>
+                <div class="pipeline-state-item"><strong>校验状态</strong>${escapeHtml(statusMap[validator.status] || validator.status || '未执行')}</div>
+                <div class="pipeline-state-item"><strong>结构化 Operations</strong>${countItems(operations.structured)}</div>
+                <div class="pipeline-state-item"><strong>动态表格 Operations</strong>${countItems(operations.tables)}</div>
+                <div class="pipeline-state-item"><strong>区块 Operations</strong>${countItems(operations.blocks)}</div>
+                <div class="pipeline-state-item"><strong>已生成 Excel</strong>${escapeHtml(excelName)}</div>
+            `;
+        }
+
+        function countItems(value) {
+            return Array.isArray(value) ? value.length : 0;
+        }
+
+        async function resetPipelineState() {
+            setStatus('正在重置 Pipeline State');
+            try {
+                const response = await fetch('/api/v4/pipeline-state/reset', {
+                    method: 'POST'
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                currentPipelineState = result.state || result;
+                currentOrderObject = null;
+                currentTemplateFile = null;
+                currentPipelineResult = null;
+                currentExportResult = null;
+                currentOperationsResult = null;
+                currentRealExcelResult = null;
+                currentStructuredOperationsResult = null;
+                currentStructuredExcelResult = null;
+                currentTableOperationsResult = null;
+                currentBlockOperationsResult = null;
+                currentCombinedExcelResult = null;
+                const templateInput = document.getElementById('templateFileInput');
+                const templateName = document.getElementById('templateFileName');
+                if (templateInput) {
+                    templateInput.value = '';
+                }
+                if (templateName) {
+                    templateName.textContent = '当前模板：未选择';
+                }
+                renderPipelineState();
+                updatePreview();
+                setStatus('Pipeline State 已重置');
+            } catch (error) {
+                setStatus('Pipeline State 重置失败');
+            }
         }
 
         async function loadOrderObject() {
@@ -435,6 +581,7 @@
                 const result = await response.json();
                 if (result.success) {
                     currentOrderObject = result.data;
+                    await refreshPipelineState();
                     updatePreview();
                     setStatus('已加载当前 Order Object');
                     return currentOrderObject;
@@ -502,6 +649,7 @@
             renderValidation(result.validation || {});
             renderRenderResult(result);
             updatePreview();
+            refreshPipelineState();
         }
 
         function renderValidation(validation) {
@@ -1170,6 +1318,7 @@
                 table_operations_result: currentTableOperationsResult,
                 block_operations_result: currentBlockOperationsResult,
                 combined_excel_result: currentCombinedExcelResult,
+                pipeline_state: currentPipelineState,
                 current_template_file: currentTemplateFile ? currentTemplateFile.name : ''
             }, null, 2);
         }
@@ -1180,7 +1329,10 @@
             return div.innerHTML;
         }
 
-        document.addEventListener('DOMContentLoaded', loadOrderObject);
+        document.addEventListener('DOMContentLoaded', async () => {
+            await refreshPipelineState();
+            await loadOrderObject();
+        });
     </script>
 </body>
 </html>

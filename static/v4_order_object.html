@@ -650,6 +650,7 @@
                 const result = await response.json();
                 if (result.success) {
                     fillForm(result.data);
+                    await fetch('/api/v4/pipeline-state').catch(() => null);
                     setStatus('已加载');
                 } else {
                     setStatus(result.error || '加载失败');
@@ -671,6 +672,7 @@
                 const result = await response.json();
                 if (result.success) {
                     fillForm(result.data);
+                    await fetch('/api/v4/pipeline-state').catch(() => null);
                     setStatus('已保存');
                 } else {
                     setStatus(result.error || '保存失败');

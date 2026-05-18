@@ -20,6 +20,15 @@ from app.v4_excel_rule_preview import build_excel_rule_preview
 from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save_excel_render_rules
 from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
+from app.v4_pipeline_state import (
+    get_pipeline_state,
+    reset_pipeline_state,
+    set_current_order_object,
+    set_current_template_path,
+    set_excel_result,
+    set_operations,
+    set_validator_result,
+)
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
 from app.v4_template_cache import (
@@ -67,6 +76,7 @@ def _save_v4_uploaded_template(file: UploadFile):
         output_path.unlink(missing_ok=True)
         raise ValueError("上传文件为空")
 
+    set_current_template_path(original_name)
     return output_path
 
 
@@ -103,6 +113,7 @@ def _save_v4_core_excel_template(file: UploadFile):
         output_path.unlink(missing_ok=True)
         raise ValueError("尚未上传模板")
 
+    set_current_template_path(original_name)
     return output_path
 
 
@@ -796,13 +807,27 @@ def api_v4_product_types():
     }
 
 
+@router.get("/api/v4/pipeline-state")
+def api_v4_pipeline_state():
+    logger.info("[PipelineState] State requested")
+    return get_pipeline_state()
+
+
+@router.post("/api/v4/pipeline-state/reset")
+def api_v4_pipeline_state_reset():
+    logger.info("[PipelineState] Reset requested")
+    return reset_pipeline_state()
+
+
 @router.get("/api/v4/order-object")
 def api_v4_order_object():
     from app.v4_order_object import load_order_object
     logger.info("V4 order object requested")
+    order_object = load_order_object()
+    set_current_order_object(order_object)
     return {
         "success": True,
-        "data": load_order_object(),
+        "data": order_object,
     }
 
 
@@ -817,9 +842,11 @@ def api_v4_save_order_object(order_object: dict = Body(...)):
             "error": result.get("error", "保存标准订单结构失败"),
         }
 
+    saved_order_object = result.get("data", {})
+    set_current_order_object(saved_order_object)
     return {
         "success": True,
-        "data": result.get("data", {}),
+        "data": saved_order_object,
     }
 
 
@@ -835,7 +862,10 @@ def api_v4_validate_order_object(order_object: Optional[dict] = Body(None)):
     else:
         logger.info("[Validator] Using submitted Order Object")
 
-    return validate_order_object(order_object)
+    set_current_order_object(order_object)
+    result = validate_order_object(order_object)
+    set_validator_result(result)
+    return result
 
 
 @router.post("/api/v4/render-order-object")
@@ -865,7 +895,10 @@ def api_v4_core_pipeline(order_object: Optional[dict] = Body(None)):
     else:
         logger.info("[CorePipeline] Using submitted Order Object")
 
-    return run_core_pipeline(order_object)
+    set_current_order_object(order_object)
+    result = run_core_pipeline(order_object)
+    set_validator_result(result.get("validation", {}))
+    return result
 
 
 @router.post("/api/v4/core-pipeline/export-debug-excel")
@@ -886,9 +919,11 @@ def api_v4_core_pipeline_export_debug_excel(description_fields: dict = Body(...)
             "error": "下载链接生成失败",
         }
 
+    filename = result.get("filename", "")
+    set_excel_result(filename)
     return {
         "success": True,
-        "filename": result.get("filename", ""),
+        "filename": filename,
         "download_url": result.get("download_url", ""),
     }
 
@@ -902,7 +937,8 @@ def api_v4_core_pipeline_operations_preview(description_fields: dict = Body(...)
     logger.info("[CorePipeline] Operations preview requested")
 
     mapping = load_core_excel_mapping()
-    return description_fields_to_operations(description_fields, mapping)
+    result = description_fields_to_operations(description_fields, mapping)
+    return result
 
 
 @router.post("/api/v4/core-pipeline/structured-operations-preview")
@@ -919,7 +955,10 @@ def api_v4_core_pipeline_structured_operations_preview(order_object: Optional[di
         logger.info("[CorePipeline] Loaded Order Object for structured operations")
 
     mapping = load_structured_excel_mapping()
-    return order_object_to_structured_operations(order_object, mapping)
+    set_current_order_object(order_object)
+    result = order_object_to_structured_operations(order_object, mapping)
+    set_operations("structured", result.get("operations", []))
+    return result
 
 
 @router.post("/api/v4/core-pipeline/table-operations-preview")
@@ -933,7 +972,10 @@ def api_v4_core_pipeline_table_operations_preview(order_object: Optional[dict] =
         logger.info("[CorePipeline] Loaded Order Object for table operations")
 
     mapping = load_table_mapping()
-    return order_object_to_table_operations(order_object, mapping)
+    set_current_order_object(order_object)
+    result = order_object_to_table_operations(order_object, mapping)
+    set_operations("tables", result.get("operations", []))
+    return result
 
 
 @router.get("/api/v4/core-config-summary")
@@ -1001,7 +1043,10 @@ def api_v4_core_pipeline_block_operations_preview(order_object: Optional[dict] =
         logger.info("[CorePipeline] Loaded Order Object for block operations")
 
     rules = load_block_merge_rules()
-    return build_block_operations(order_object, rules)
+    set_current_order_object(order_object)
+    result = build_block_operations(order_object, rules)
+    set_operations("blocks", result.get("operations", []))
+    return result
 
 
 @router.get("/api/v4/block-merge-rules")
@@ -1188,6 +1233,7 @@ def api_v4_core_pipeline_export_real_excel(
 
     logger.info("[CorePipeline] Real Excel export requested: filename=%s", template_file.filename)
     template_path = None
+    template_name = Path(template_file.filename or "").name
     try:
         try:
             parsed_operations = json.loads(operations or "")
@@ -1204,6 +1250,7 @@ def api_v4_core_pipeline_export_real_excel(
             }
 
         template_path = _save_v4_core_excel_template(template_file)
+        set_current_template_path(template_name)
         result = execute_operations_to_excel(template_path, parsed_operations)
         if not result.get("success"):
             return {
@@ -1221,9 +1268,11 @@ def api_v4_core_pipeline_export_real_excel(
                 "operations_count": result.get("operations_count", 0),
             }
 
+        filename = result.get("filename", "")
+        set_excel_result(filename)
         return {
             "success": True,
-            "filename": result.get("filename", ""),
+            "filename": filename,
             "download_url": result.get("download_url", ""),
             "operations_count": result.get("operations_count", 0),
             "warnings": result.get("warnings", []),
