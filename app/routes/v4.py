@@ -517,6 +517,15 @@ def api_v4_template_analysis_upload(template_file: UploadFile = File(...)):
                 "structured_mapping_preview": [],
                 "table_regions": [],
                 "block_regions": [],
+                "template_structure": {
+                    "regions": [],
+                    "raw_regions": [],
+                    "deduped_regions": [],
+                    "recommended_regions": [],
+                    "tables": [],
+                    "blocks": [],
+                    "labels": [],
+                },
                 "summary": {},
             }
         )
@@ -600,6 +609,28 @@ def api_v4_template_analysis_result():
         "success": True,
         "template_analysis": state.get("template_analysis", {}),
         "pipeline_state": state,
+    }
+
+
+@router.get("/api/v4/template-structure")
+def api_v4_template_structure():
+    logger.info("V4 template structure requested")
+    state = get_pipeline_state()
+    analysis = state.get("template_analysis", {})
+    structure = analysis.get("template_structure", {}) if isinstance(analysis, dict) else {}
+    return {
+        "success": True,
+        "template_structure": structure
+        if isinstance(structure, dict)
+        else {
+            "regions": [],
+            "raw_regions": [],
+            "deduped_regions": [],
+            "recommended_regions": [],
+            "tables": [],
+            "blocks": [],
+            "labels": [],
+        },
     }
 
 

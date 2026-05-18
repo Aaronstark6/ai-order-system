@@ -144,7 +144,7 @@
         .summary-grid {
             display: grid;
             gap: 12px;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
         }
 
         .summary-item {
@@ -172,6 +172,56 @@
             font-size: 14px;
             line-height: 1.55;
             padding: 12px;
+        }
+
+        .region-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .region-card {
+            border: 1px solid #d9e1dc;
+            border-left-width: 5px;
+            border-radius: 7px;
+            display: grid;
+            gap: 8px;
+            padding: 12px;
+        }
+
+        .region-table {
+            background: #eef8f1;
+            border-left-color: #2f8f56;
+        }
+
+        .region-block {
+            background: #fff4ce;
+            border-left-color: #c98510;
+        }
+
+        .region-label {
+            background: #eef2f6;
+            border-left-color: #3e5f8a;
+        }
+
+        .region-type {
+            color: #58665f;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .region-name {
+            color: #1f2933;
+            font-size: 15px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .region-meta {
+            color: #58665f;
+            font-size: 13px;
+            line-height: 1.5;
         }
 
         .success {
@@ -240,6 +290,10 @@
             .summary-grid {
                 grid-template-columns: 1fr;
             }
+
+            .region-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -276,6 +330,29 @@
             <div class="panel-body">
                 <div id="summaryBody" class="summary-grid"></div>
             </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Region Summary</div>
+            </div>
+            <div class="panel-body">
+                <div id="regionSummaryBody" class="summary-grid"></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Recommended Regions</div>
+            </div>
+            <div id="recommendedRegionsBody" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Structure Graph Preview</div>
+            </div>
+            <div id="structureGraphBody" class="panel-body"></div>
         </section>
 
         <section class="panel">
@@ -345,6 +422,94 @@
                 ${summaryItem('Structured Mapping', summary.structured_mapping_count || 0)}
                 ${summaryItem('Table Regions', summary.table_regions_count || 0)}
                 ${summaryItem('Block Regions', summary.block_regions_count || 0)}
+                ${summaryItem('Structure Regions', summary.structure_regions_count || 0)}
+            `;
+        }
+
+        function renderRegionSummary(structure) {
+            structure = structure || {};
+            document.getElementById('regionSummaryBody').innerHTML = `
+                ${summaryItem('Raw Regions Count', Array.isArray(structure.raw_regions) ? structure.raw_regions.length : 0)}
+                ${summaryItem('Deduped Regions Count', Array.isArray(structure.deduped_regions) ? structure.deduped_regions.length : 0)}
+                ${summaryItem('Recommended Regions', Array.isArray(structure.recommended_regions) ? structure.recommended_regions.length : 0)}
+                ${summaryItem('Table Count', Array.isArray(structure.tables) ? structure.tables.length : 0)}
+                ${summaryItem('Block Count', Array.isArray(structure.blocks) ? structure.blocks.length : 0)}
+            `;
+        }
+
+        function boundsText(bounds) {
+            bounds = bounds || {};
+            const rows = bounds.start_row ? `${bounds.start_row}-${bounds.end_row || bounds.start_row}` : '-';
+            const cols = bounds.start_col ? `${bounds.start_col}-${bounds.end_col || bounds.start_col}` : '-';
+            return `rows ${rows}, cols ${cols}`;
+        }
+
+        function rangeText(bounds) {
+            bounds = bounds || {};
+            if (!bounds.start_row || !bounds.end_row || !bounds.start_col || !bounds.end_col) {
+                return '-';
+            }
+            return `R${bounds.start_row}:C${bounds.start_col} - R${bounds.end_row}:C${bounds.end_col}`;
+        }
+
+        function renderRecommendedRegions(structure) {
+            const regions = Array.isArray(structure?.recommended_regions) ? structure.recommended_regions : [];
+            if (!regions.length) {
+                renderEmpty('recommendedRegionsBody', '暂无 Recommended Regions');
+                return;
+            }
+
+            document.getElementById('recommendedRegionsBody').innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>type</th>
+                            <th>suggested_name</th>
+                            <th>semantic_type</th>
+                            <th>sheet</th>
+                            <th>range</th>
+                            <th>score</th>
+                            <th>confidence</th>
+                            <th>matched_keywords</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${regions.map(region => `
+                            <tr>
+                                <td>${escapeHtml(region.type || '')}</td>
+                                <td>${escapeHtml(region.suggested_name || region.name || '')}</td>
+                                <td>${escapeHtml(region.semantic_type || '')}</td>
+                                <td>${escapeHtml(region.sheet || '')}</td>
+                                <td>${escapeHtml(rangeText(region.bounds || {}))}</td>
+                                <td>${escapeHtml(region.score ?? '')}</td>
+                                <td>${escapeHtml(region.confidence || '')}</td>
+                                <td>${escapeHtml(Array.isArray(region.matched_keywords) ? region.matched_keywords.join('、') : '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderStructureGraph(structure) {
+            const regions = Array.isArray(structure?.regions) ? structure.regions : [];
+            if (!regions.length) {
+                renderEmpty('structureGraphBody', '暂无 Structure Graph Preview');
+                return;
+            }
+
+            document.getElementById('structureGraphBody').innerHTML = `
+                <div class="region-grid">
+                    ${regions.map(region => `
+                        <div class="region-card region-${escapeHtml(region.type || 'label')}">
+                            <div class="region-type">${escapeHtml(region.type || '')}</div>
+                            <div class="region-name">${escapeHtml(region.suggested_name || region.name || '-')}</div>
+                            <div class="region-meta">${escapeHtml(region.semantic_type || 'unknown')}</div>
+                            <div class="region-meta">Sheet：${escapeHtml(region.sheet || '-')}</div>
+                            <div class="region-meta">${escapeHtml(boundsText(region.bounds || {}))}</div>
+                        </div>
+                    `).join('')}
+                </div>
             `;
         }
 
@@ -442,6 +607,9 @@
         function renderAnalysis(analysis) {
             currentAnalysis = analysis || {};
             renderSummary(currentAnalysis.summary || {});
+            renderRegionSummary(currentAnalysis.template_structure || {});
+            renderRecommendedRegions(currentAnalysis.template_structure || {});
+            renderStructureGraph(currentAnalysis.template_structure || {});
             renderLabels(currentAnalysis.labels || []);
             renderStructured(currentAnalysis.structured_mapping_preview || []);
             renderTables(currentAnalysis.table_regions || []);

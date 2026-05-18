@@ -37,6 +37,15 @@ def _default_state():
             "structured_mapping_preview": [],
             "table_regions": [],
             "block_regions": [],
+            "template_structure": {
+                "regions": [],
+                "raw_regions": [],
+                "deduped_regions": [],
+                "recommended_regions": [],
+                "tables": [],
+                "blocks": [],
+                "labels": [],
+            },
             "summary": {},
         },
     }
@@ -159,6 +168,17 @@ def set_template_analysis(analysis):
         "block_regions": deepcopy(analysis.get("block_regions", []))
         if isinstance(analysis.get("block_regions", []), list)
         else [],
+        "template_structure": deepcopy(analysis.get("template_structure", {}))
+        if isinstance(analysis.get("template_structure", {}), dict)
+        else {
+            "regions": [],
+            "raw_regions": [],
+            "deduped_regions": [],
+            "recommended_regions": [],
+            "tables": [],
+            "blocks": [],
+            "labels": [],
+        },
         "summary": deepcopy(analysis.get("summary", {})) if isinstance(analysis.get("summary", {}), dict) else {},
     }
     return get_pipeline_state()
