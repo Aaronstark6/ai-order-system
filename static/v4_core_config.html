@@ -97,6 +97,215 @@
             background: #eef2f6;
         }
 
+        .btn-primary {
+            background: #2d3542;
+            border-color: #2d3542;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #3d4552;
+        }
+
+        .btn-danger {
+            background: #ffffff;
+            border-color: #dc2626;
+            color: #dc2626;
+        }
+
+        .btn-danger:hover {
+            background: #fef2f2;
+        }
+
+        .profile-panel {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            padding: 16px 20px;
+        }
+
+        .profile-header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .profile-title {
+            color: #2d3542;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .profile-badge {
+            align-items: center;
+            background: #eef2f6;
+            border-radius: 6px;
+            display: inline-flex;
+            gap: 10px;
+            padding: 8px 14px;
+        }
+
+        .profile-badge-name {
+            color: #1f2933;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .profile-badge-version {
+            background: #ffffff;
+            border-radius: 4px;
+            color: #58665f;
+            font-size: 11px;
+            padding: 2px 7px;
+        }
+
+        .profile-detail-table {
+            border-collapse: collapse;
+            margin-bottom: 4px;
+            width: 100%;
+        }
+
+        .profile-detail-table td {
+            padding: 10px 0;
+            vertical-align: middle;
+        }
+
+        .profile-detail-table tr + tr td {
+            border-top: 1px solid #edf0ee;
+        }
+
+        .detail-label {
+            color: #8a9593;
+            font-size: 13px;
+            min-width: 160px;
+            white-space: nowrap;
+            width: 160px;
+        }
+
+        .detail-value {
+            color: #1f2933;
+            font-size: 14px;
+            word-break: break-all;
+        }
+
+        .file-status-ok {
+            background: #e3f5e2;
+            border-radius: 4px;
+            color: #247022;
+            display: inline-block;
+            font-size: 12px;
+            margin-left: 8px;
+            padding: 2px 8px;
+        }
+
+        .file-status-warning {
+            background: #fef0c7;
+            border-radius: 4px;
+            color: #b3470a;
+            display: inline-block;
+            font-size: 12px;
+            margin-left: 8px;
+            padding: 2px 8px;
+        }
+
+        .file-status-error {
+            background: #ffe2e0;
+            border-radius: 4px;
+            color: #a8201a;
+            display: inline-block;
+            font-size: 12px;
+            margin-left: 8px;
+            padding: 2px 8px;
+        }
+
+        .profile-list {
+        }
+
+        .profile-item {
+            align-items: center;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+            display: flex;
+            gap: 12px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .profile-item:hover {
+            background: #f6f7f5;
+        }
+
+        .profile-item.active {
+            border-color: #2d3542;
+            background: #eef2f6;
+        }
+
+        .profile-item-name {
+            color: #1f2933;
+            font-size: 14px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .profile-item-version {
+            background: #eef2f6;
+            border-radius: 4px;
+            color: #58665f;
+            font-size: 11px;
+            padding: 2px 7px;
+        }
+
+        .profile-item-time {
+            color: #8a9593;
+            font-size: 12px;
+        }
+
+        .profile-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .profile-form {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #d9e1dc;
+        }
+
+        .profile-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .profile-form-label {
+            color: #58665f;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .profile-form-input {
+            border: 1px solid #bcc8c3;
+            border-radius: 5px;
+            font-size: 14px;
+            min-height: 34px;
+            padding: 0 10px;
+            outline: none;
+        }
+
+        .profile-form-input:focus {
+            border-color: #2d3542;
+        }
+
         .config-grid {
             display: grid;
             gap: 16px;
@@ -160,6 +369,22 @@
             color: #a8201a;
         }
 
+        .success {
+            background: #e3f5e2;
+            color: #247022;
+        }
+
+        .section-sub {
+            margin-top: 16px;
+        }
+
+        .section-sub-title {
+            color: #58665f;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
         @media (max-width: 860px) {
             main {
                 padding: 16px;
@@ -193,6 +418,71 @@
         </div>
 
         <div id="messageBox"></div>
+
+        <section class="profile-panel">
+            <div class="profile-header">
+                <div class="profile-title">模板档案</div>
+                <div class="profile-badge" id="currentProfileBadge">
+                    <span class="profile-badge-name">-</span>
+                    <span class="profile-badge-version">-</span>
+                </div>
+            </div>
+
+            <table class="profile-detail-table" id="profileDetailTable">
+                <tr>
+                    <td class="detail-label">档案ID</td>
+                    <td class="detail-value" id="detailProfileId">-</td>
+                </tr>
+                <tr>
+                    <td class="detail-label">档案名称</td>
+                    <td class="detail-value" id="detailProfileName">-</td>
+                </tr>
+                <tr>
+                    <td class="detail-label">Schema 版本</td>
+                    <td class="detail-value" id="detailSchemaVer">-</td>
+                </tr>
+                <tr>
+                    <td class="detail-label">Structured Mapping 文件</td>
+                    <td class="detail-value" id="detailStructuredFile">-</td>
+                </tr>
+                <tr>
+                    <td class="detail-label">Table Mapping 文件</td>
+                    <td class="detail-value" id="detailTableFile">-</td>
+                </tr>
+                <tr>
+                    <td class="detail-label">Block Rules 文件</td>
+                    <td class="detail-value" id="detailBlockFile">-</td>
+                </tr>
+                <tr>
+                    <td class="detail-label">Render Config</td>
+                    <td class="detail-value" id="detailRenderConfig">-</td>
+                </tr>
+            </table>
+
+            <div class="section-sub">
+                <div class="section-sub-title">可用档案</div>
+                <div id="profileList"></div>
+            </div>
+
+            <div class="profile-actions">
+                <button class="btn-secondary" type="button" onclick="loadSummary()">刷新档案</button>
+                <button class="btn-primary" type="button" onclick="showNewProfileForm()">新建档案</button>
+                <button class="btn-secondary" type="button" id="switchProfileBtn" onclick="switchProfile()" disabled>切换档案</button>
+            </div>
+
+            <div class="profile-form" id="newProfileForm" style="display: none;">
+                <div class="profile-form-group">
+                    <label class="profile-form-label">档案标识</label>
+                    <input class="profile-form-input" id="newProfileId" type="text" placeholder="如：capsule_profile">
+                </div>
+                <div class="profile-form-group">
+                    <label class="profile-form-label">档案名称</label>
+                    <input class="profile-form-input" id="newProfileName" type="text" placeholder="如：胶囊模板档案">
+                </div>
+                <button class="btn-primary" type="button" onclick="createProfile()">创建</button>
+                <button class="btn-secondary" type="button" onclick="hideNewProfileForm()">取消</button>
+            </div>
+        </section>
 
         <section class="config-grid">
             <article class="config-card">
@@ -238,13 +528,21 @@
     </main>
 
     <script>
+        let allProfiles = [];
+        let currentProfileId = '';
+        let selectedProfileId = '';
+
         function setStatus(text) {
             document.getElementById('statusText').textContent = text;
         }
 
-        function showMessage(text) {
+        function showMessage(text, type) {
+            if (!type) {
+                document.getElementById('messageBox').innerHTML = '';
+                return;
+            }
             document.getElementById('messageBox').innerHTML = text
-                ? `<div class="message error">${escapeHtml(text)}</div>`
+                ? `<div class="message ${type}">${escapeHtml(text)}</div>`
                 : '';
         }
 
@@ -252,35 +550,224 @@
             document.getElementById(id).textContent = Number.isFinite(Number(value)) ? String(value) : '0';
         }
 
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderFileStatusBadge(check) {
+            if (!check || !check.status) return '';
+            switch (check.status) {
+                case 'ok':
+                    return '<span class="file-status-ok">✓ 正常</span>';
+                case 'warning':
+                    return '<span class="file-status-warning">⚠ 无效JSON</span>';
+                case 'error':
+                    return '<span class="file-status-error">✗ 缺失</span>';
+                default:
+                    return '';
+            }
+        }
+
+        function fillProfileDetail(profile) {
+            document.getElementById('detailProfileId').textContent = profile.profile_id || '-';
+            document.getElementById('detailProfileName').textContent = profile.profile_name || '-';
+            document.getElementById('detailSchemaVer').textContent = profile.schema_version || '-';
+
+            var structuredFile = profile.structured_mapping_file || '-';
+            document.getElementById('detailStructuredFile').innerHTML = escapeHtml(structuredFile) + renderFileStatusBadge(profile._file_checks && profile._file_checks.structured_mapping_file);
+
+            var tableFile = profile.table_mapping_file || '-';
+            document.getElementById('detailTableFile').innerHTML = escapeHtml(tableFile) + renderFileStatusBadge(profile._file_checks && profile._file_checks.table_mapping_file);
+
+            var blockFile = profile.block_rules_file || '-';
+            document.getElementById('detailBlockFile').innerHTML = escapeHtml(blockFile) + renderFileStatusBadge(profile._file_checks && profile._file_checks.block_rules_file);
+
+            var rc = profile.render_config || {};
+            var parts = [];
+            if (rc.html_theme) parts.push('html_theme: ' + rc.html_theme);
+            if (rc.excel_mode) parts.push('excel_mode: ' + rc.excel_mode);
+            document.getElementById('detailRenderConfig').textContent = parts.length ? parts.join(', ') : '-';
+        }
+
+        function renderProfileBadge(profile) {
+            var badge = document.getElementById('currentProfileBadge');
+            badge.querySelector('.profile-badge-name').textContent = profile.profile_name || '-';
+            badge.querySelector('.profile-badge-version').textContent = profile.schema_version || '-';
+        }
+
+        async function loadProfileList() {
+            try {
+                var response = await fetch('/api/v4/template-profiles');
+                var result = await response.json();
+                if (result.success) {
+                    allProfiles = result.profiles || [];
+                    renderProfileList();
+                }
+            } catch (error) {
+                showMessage('模板档案加载失败', 'error');
+            }
+        }
+
+        function renderProfileList() {
+            var container = document.getElementById('profileList');
+            if (!allProfiles.length) {
+                container.innerHTML = '<div style="color:#8a9593;font-size:13px;">暂无可用档案</div>';
+                return;
+            }
+            container.innerHTML = allProfiles.map(function(p) {
+                var isActive = p.profile_id === currentProfileId;
+                var isSelected = p.profile_id === selectedProfileId;
+                var cls = isSelected ? 'active' : '';
+                return '<div class="profile-item ' + cls + '" data-profile-id="' + escapeHtml(p.profile_id) + '" onclick="selectProfile(\'' + escapeHtml(p.profile_id) + '\')">'
+                    + '<div class="profile-item-name">' + escapeHtml(p.profile_name) + (isActive ? ' (当前)' : '') + '</div>'
+                    + '<div class="profile-item-version">' + escapeHtml(p.schema_version) + '</div>'
+                    + '<div class="profile-item-time">' + escapeHtml(p.updated_at) + '</div>'
+                    + '</div>';
+            }).join('');
+
+            var switchBtn = document.getElementById('switchProfileBtn');
+            if (selectedProfileId && selectedProfileId !== currentProfileId) {
+                switchBtn.disabled = false;
+            } else {
+                switchBtn.disabled = true;
+            }
+        }
+
+        function selectProfile(profileId) {
+            selectedProfileId = profileId;
+            allProfiles.forEach(function(p) {
+                var el = document.querySelector('[data-profile-id="' + p.profile_id + '"]');
+                if (el) {
+                    el.classList.toggle('active', p.profile_id === profileId);
+                }
+            });
+            var switchBtn = document.getElementById('switchProfileBtn');
+            switchBtn.disabled = !profileId || profileId === currentProfileId;
+        }
+
+        async function switchProfile() {
+            if (!selectedProfileId || selectedProfileId === currentProfileId) return;
+
+            try {
+                var response = await fetch('/api/v4/template-profile/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profile_id: selectedProfileId })
+                });
+                var result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || '加载失败');
+                }
+
+                currentProfileId = selectedProfileId;
+                await loadProfileList();
+                var profileFromList = allProfiles.find(function(p) { return p.profile_id === selectedProfileId; });
+                var profile = profileFromList || result.data || result.profile;
+                if (profile) {
+                    renderProfileBadge(profile);
+                    fillProfileDetail(profile);
+                }
+                renderProfileList();
+                showMessage('已切换模板档案', 'success');
+            } catch (error) {
+                showMessage('切换失败：' + error.message, 'error');
+            }
+        }
+
+        function showNewProfileForm() {
+            document.getElementById('newProfileForm').style.display = 'flex';
+            document.getElementById('newProfileId').value = '';
+            document.getElementById('newProfileName').value = '';
+            document.getElementById('newProfileId').focus();
+        }
+
+        function hideNewProfileForm() {
+            document.getElementById('newProfileForm').style.display = 'none';
+        }
+
+        async function createProfile() {
+            var profileId = document.getElementById('newProfileId').value.trim();
+            var profileName = document.getElementById('newProfileName').value.trim();
+
+            if (!profileId) {
+                showMessage('请输入档案标识', 'error');
+                return;
+            }
+            if (!profileName) {
+                showMessage('请输入档案名称', 'error');
+                return;
+            }
+
+            try {
+                var response = await fetch('/api/v4/template-profile/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        profile_id: profileId,
+                        profile_name: profileName,
+                        schema_version: 'v4.1',
+                        structured_mapping_file: 'v4/rules/structured_excel_mapping.json',
+                        table_mapping_file: 'v4/rules/table_mapping.json',
+                        block_rules_file: 'v4/rules/block_merge_rules.json',
+                        render_config: { html_theme: 'dark', excel_mode: 'standard' }
+                    })
+                });
+                var result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || '创建失败');
+                }
+
+                hideNewProfileForm();
+                currentProfileId = profileId;
+                selectedProfileId = profileId;
+                await loadProfileList();
+                var profileFromList = allProfiles.find(function(p) { return p.profile_id === profileId; });
+                var profile = profileFromList || result.data || result.profile;
+                if (profile) {
+                    renderProfileBadge(profile);
+                    fillProfileDetail(profile);
+                }
+                showMessage('模板档案已创建', 'success');
+            } catch (error) {
+                showMessage('创建失败：' + error.message, 'error');
+            }
+        }
+
         async function loadSummary() {
             setStatus('正在加载核心配置状态');
             showMessage('');
             try {
-                const response = await fetch('/api/v4/core-config-summary');
+                var response = await fetch('/api/v4/core-config-summary');
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                    throw new Error('HTTP ' + response.status);
                 }
-                const result = await response.json();
+                var result = await response.json();
                 if (!result.success) {
                     throw new Error(result.error || '加载失败');
                 }
                 setCount('structuredCount', result.structured_mapping_count);
                 setCount('tableCount', result.table_mapping_count);
                 setCount('blockCount', result.block_merge_count);
+
+                if (result.current_profile) {
+                    currentProfileId = result.current_profile.profile_id;
+                    selectedProfileId = currentProfileId;
+                    renderProfileBadge(result.current_profile);
+                    fillProfileDetail(result.current_profile);
+                }
+
+                await loadProfileList();
                 setStatus('核心配置状态已加载');
             } catch (error) {
                 setCount('structuredCount', 0);
                 setCount('tableCount', 0);
                 setCount('blockCount', 0);
                 setStatus('核心配置状态加载失败');
-                showMessage('核心配置状态加载失败');
+                showMessage('核心配置状态加载失败', 'error');
             }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
 
         document.addEventListener('DOMContentLoaded', loadSummary);

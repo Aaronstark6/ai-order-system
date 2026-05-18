@@ -828,12 +828,24 @@ def _load_raw_order_object_for_schema():
 
 @router.get("/api/v4/pipeline-state")
 def api_v4_pipeline_state():
+    from app.v4_template_profiles import get_current_template_profile_for_pipeline
+
     logger.info("[PipelineState] State requested")
     state = get_pipeline_state()
     try:
         state = set_schema_status(order_object=_load_raw_order_object_for_schema())
     except Exception:
         logger.warning("[PipelineState] Schema state sync failed", exc_info=True)
+    profile = get_current_template_profile_for_pipeline()
+    state["template_profile"] = {
+        "profile_id": profile.get("profile_id", ""),
+        "profile_name": profile.get("profile_name", ""),
+        "schema_version": profile.get("schema_version", ""),
+        "structured_mapping_file": profile.get("structured_mapping_file", ""),
+        "table_mapping_file": profile.get("table_mapping_file", ""),
+        "block_rules_file": profile.get("block_rules_file", ""),
+        "render_config": profile.get("render_config", {}),
+    }
     return state
 
 
@@ -1167,11 +1179,90 @@ def api_v4_core_pipeline_table_operations_preview(order_object: Optional[dict] =
     return result
 
 
+@router.get("/api/v4/template-profiles")
+def api_v4_template_profiles():
+    from app.v4_template_profiles import list_template_profiles
+
+    logger.info("[TemplateProfile] List requested")
+    profiles = list_template_profiles()
+    return {
+        "success": True,
+        "profiles": profiles,
+    }
+
+
+@router.get("/api/v4/current-template-profile")
+def api_v4_current_template_profile():
+    from app.v4_template_profiles import get_current_template_profile
+
+    logger.info("[TemplateProfile] Current profile requested")
+    profile = get_current_template_profile()
+    return {
+        "success": True,
+        "profile": profile,
+    }
+
+
+@router.post("/api/v4/template-profile/load")
+def api_v4_template_profile_load(profile_id: str = Body("")):
+    from app.v4_template_profiles import load_template_profile
+
+    logger.info("[TemplateProfile] Load requested: profile_id=%s", profile_id)
+    result = load_template_profile(profile_id or None)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "\u52a0\u8f7d\u6a21\u677f\u6863\u6848\u5931\u8d25"),
+        }
+
+    return {
+        "success": True,
+        "profile": result.get("data", {}),
+    }
+
+
+@router.post("/api/v4/template-profile/save")
+def api_v4_template_profile_save(profile: dict = Body(...)):
+    from app.v4_template_profiles import save_template_profile
+
+    logger.info("[TemplateProfile] Save requested: profile_id=%s", profile.get("profile_id", ""))
+    result = save_template_profile(profile)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "\u4fdd\u5b58\u6a21\u677f\u6863\u6848\u5931\u8d25"),
+        }
+
+    return {
+        "success": True,
+        "profile": result.get("data", {}),
+    }
+
+
+@router.post("/api/v4/template-profile/delete")
+def api_v4_template_profile_delete(profile_id: str = Body(...)):
+    from app.v4_template_profiles import delete_template_profile
+
+    logger.info("[TemplateProfile] Delete requested: profile_id=%s", profile_id)
+    result = delete_template_profile(profile_id)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "\u5220\u9664\u6a21\u677f\u6863\u6848\u5931\u8d25"),
+        }
+
+    return {
+        "success": True,
+        "message": result.get("message", "\u6a21\u677f\u6863\u6848\u5df2\u5220\u9664"),
+    }
+
+
 @router.get("/api/v4/core-config-summary")
 def api_v4_core_config_summary():
     from app.v4_block_merge_engine import load_block_merge_rules
     from app.v4_structured_excel_mapping import load_structured_excel_mapping
     from app.v4_table_renderer import load_table_mapping
+    from app.v4_template_profiles import get_current_template_profile
 
     def count_list(config, key):
         items = config.get(key, []) if isinstance(config, dict) else []
@@ -1181,11 +1272,22 @@ def api_v4_core_config_summary():
     structured_mapping = load_structured_excel_mapping()
     table_mapping = load_table_mapping()
     block_merge_rules = load_block_merge_rules()
+    current_profile = get_current_template_profile()
     return {
         "success": True,
         "structured_mapping_count": count_list(structured_mapping, "mappings"),
         "table_mapping_count": count_list(table_mapping, "tables"),
         "block_merge_count": count_list(block_merge_rules, "blocks"),
+        "current_profile": {
+            "profile_id": current_profile.get("profile_id", ""),
+            "profile_name": current_profile.get("profile_name", ""),
+            "schema_version": current_profile.get("schema_version", ""),
+            "structured_mapping_file": current_profile.get("structured_mapping_file", ""),
+            "table_mapping_file": current_profile.get("table_mapping_file", ""),
+            "block_rules_file": current_profile.get("block_rules_file", ""),
+            "render_config": current_profile.get("render_config", {}),
+            "_file_checks": current_profile.get("_file_checks", {}),
+        },
     }
 
 

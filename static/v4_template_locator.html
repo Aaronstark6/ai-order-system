@@ -234,6 +234,7 @@
                 <div class="meta" id="mappingMeta">当前映射：未加载</div>
             </div>
             <div class="actions">
+                <div class="status" id="profileBadge" style="color:#2d3542;font-weight:600;">模板档案：-</div>
                 <button class="btn-secondary" type="button" onclick="loadMapping()">重新加载映射</button>
                 <button class="btn-secondary" type="button" onclick="window.location.href='/v4-structured-mapping'">编辑结构化映射</button>
             </div>
@@ -335,6 +336,18 @@
         function showBlockMessage(text, type) {
             const box = document.getElementById('blockMessageBox');
             box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
+        }
+
+        async function loadProfileBadge() {
+            try {
+                const response = await fetch('/api/v4/core-config-summary');
+                const result = await response.json();
+                if (result.success && result.current_profile) {
+                    document.getElementById('profileBadge').textContent =
+                        `模板档案：${result.current_profile.profile_name} (${result.current_profile.schema_version})`;
+                }
+            } catch (error) {
+            }
         }
 
         async function loadMapping() {
@@ -658,7 +671,10 @@
             return div.innerHTML;
         }
 
-        document.addEventListener('DOMContentLoaded', loadMapping);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProfileBadge();
+            loadMapping();
+        });
     </script>
 </body>
 </html>

@@ -25,6 +25,15 @@ def _default_state():
             "generated_file": None,
             "generated_time": None,
         },
+        "template_profile": {
+            "profile_id": "",
+            "profile_name": "",
+            "schema_version": "",
+            "structured_mapping_file": "",
+            "table_mapping_file": "",
+            "block_rules_file": "",
+            "render_config": {},
+        },
         "render_targets": {
             "html_preview": None,
         },

@@ -1,0 +1,14 @@
+{
+  "profile_id": "default_profile",
+  "profile_name": "默认模板档案",
+  "schema_version": "v4.1",
+  "structured_mapping_file": "v4/rules/structured_excel_mapping.json",
+  "table_mapping_file": "v4/rules/table_mapping.json",
+  "block_rules_file": "v4/rules/block_merge_rules.json",
+  "render_config": {
+    "html_theme": "dark",
+    "excel_mode": "standard"
+  },
+  "created_at": "2026-05-17 00:00:00",
+  "updated_at": "2026-05-18 00:00:00"
+}
