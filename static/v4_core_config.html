@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Core 配置中心</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #111820;
+            color: #e6edf3;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #1d2630;
+            border-bottom: 1px solid #31404f;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1040px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #b8c7d6;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .home-link:hover {
+            color: #ffffff;
+        }
+
+        main {
+            display: grid;
+            gap: 16px;
+            padding: 24px;
+        }
+
+        .panel {
+            background: #18222d;
+            border: 1px solid #31404f;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            align-items: center;
+            border-bottom: 1px solid #31404f;
+            display: flex;
+            justify-content: space-between;
+            padding: 14px 16px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .panel-body {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .profile-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .profile-item {
+            background: #111820;
+            border: 1px solid #2a3948;
+            border-radius: 7px;
+            padding: 12px;
+        }
+
+        .label {
+            color: #8fa3b6;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .value {
+            color: #ffffff;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+
+        .badge {
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            text-transform: uppercase;
+        }
+
+        .badge-ok {
+            background: #173f2a;
+            color: #8be0ad;
+        }
+
+        .badge-error {
+            background: #4b1d1d;
+            color: #ff9b9b;
+        }
+
+        .message {
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 12px;
+        }
+
+        .message-error {
+            background: #4b1d1d;
+            color: #ffb6b6;
+        }
+
+        .message-warning {
+            background: #4a3a13;
+            color: #ffd36a;
+        }
+
+        @media (max-width: 760px) {
+            .header-inner,
+            .profile-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-inner {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 Core 配置中心</h1>
+            <a class="home-link" href="/">返回首页</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">模板档案</div>
+                <span id="profileStatus" class="badge badge-error">加载中</span>
+            </div>
+            <div class="panel-body" id="profileBody">
+                <div class="message message-warning">正在加载 Template Profile...</div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
+        }
+
+        function renderProfileItem(label, value) {
+            return `
+                <div class="profile-item">
+                    <div class="label">${escapeHtml(label)}</div>
+                    <div class="value">${escapeHtml(value || '-')}</div>
+                </div>
+            `;
+        }
+
+        function renderFileStatus(fileStatus) {
+            const entries = Object.entries(fileStatus || {});
+            if (!entries.length) {
+                return renderProfileItem('文件状态', '暂无文件状态');
+            }
+
+            return `
+                <div class="profile-item">
+                    <div class="label">文件状态</div>
+                    <div class="value">
+                        ${entries.map(([key, value]) => `${escapeHtml(key)}：<span class="badge badge-${value === 'ok' ? 'ok' : 'error'}">${escapeHtml(value)}</span>`).join('<br>')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMessages(validation) {
+            const errors = Array.isArray(validation.errors) ? validation.errors : [];
+            const warnings = Array.isArray(validation.warnings) ? validation.warnings : [];
+            return `
+                ${errors.map(item => `<div class="message message-error">${escapeHtml(item)}</div>`).join('')}
+                ${warnings.map(item => `<div class="message message-warning">${escapeHtml(item)}</div>`).join('')}
+            `;
+        }
+
+        function renderProfile(profile, validation) {
+            const status = document.getElementById('profileStatus');
+            status.className = validation.valid ? 'badge badge-ok' : 'badge badge-error';
+            status.textContent = validation.valid ? 'ok' : 'error';
+
+            document.getElementById('profileBody').innerHTML = `
+                <div class="profile-grid">
+                    ${renderProfileItem('档案ID', profile.profile_id)}
+                    ${renderProfileItem('档案名称', profile.profile_name)}
+                    ${renderProfileItem('Schema Version', profile.schema_version)}
+                    ${renderProfileItem('Structured Mapping 文件', profile.structured_mapping_file)}
+                    ${renderProfileItem('Table Mapping 文件', profile.table_mapping_file)}
+                    ${renderProfileItem('Block Rules 文件', profile.block_rules_file)}
+                    ${renderProfileItem('Render Config', JSON.stringify(profile.render_config || {}, null, 2))}
+                    ${renderFileStatus(validation.file_status)}
+                </div>
+                ${renderMessages(validation)}
+            `;
+        }
+
+        async function loadTemplateProfile() {
+            try {
+                const response = await fetch('/api/v4/current-template-profile');
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Template Profile 加载失败');
+                }
+                renderProfile(result.profile || {}, result.validation || {});
+            } catch (error) {
+                document.getElementById('profileStatus').className = 'badge badge-error';
+                document.getElementById('profileStatus').textContent = 'error';
+                document.getElementById('profileBody').innerHTML = `<div class="message message-error">${escapeHtml(error.message || error)}</div>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadTemplateProfile);
+    </script>
+</body>
+</html>

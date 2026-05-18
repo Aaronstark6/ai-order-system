@@ -23,6 +23,11 @@ from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
 from app.v4_schema_version import check_schema_compatibility, get_current_schema_version
+from app.v4_template_profiles import (
+    get_current_template_profile,
+    list_template_profiles,
+    validate_template_profile,
+)
 from app.v4_template_cache import (
     delete_cached_template,
     get_cached_template_detail,
@@ -225,6 +230,28 @@ def api_v4_schema_version():
         "compatible": compatibility.get("compatible", True),
         "level": compatibility.get("level", "warning"),
         "message": compatibility.get("message", ""),
+    }
+
+
+@router.get("/api/v4/template-profiles")
+def api_v4_template_profiles():
+    logger.info("V4 template profiles requested")
+    profiles = list_template_profiles()
+    return {
+        "success": True,
+        "profiles": profiles,
+    }
+
+
+@router.get("/api/v4/current-template-profile")
+def api_v4_current_template_profile():
+    logger.info("V4 current template profile requested")
+    profile = get_current_template_profile()
+    validation = validate_template_profile(profile)
+    return {
+        "success": True,
+        "profile": profile,
+        "validation": validation,
     }
 
 

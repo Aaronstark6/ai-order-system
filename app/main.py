@@ -76,6 +76,11 @@ def v4_workbench_page():
     return FileResponse(STATIC_DIR / "v4_workbench.html")
 
 
+@app.get("/v4-core-config")
+def v4_core_config_page():
+    return FileResponse(STATIC_DIR / "v4_core_config.html")
+
+
 # ====================
 # Health Check
 # ====================
