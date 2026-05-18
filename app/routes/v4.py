@@ -22,6 +22,7 @@ from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
+from app.v4_schema_version import check_schema_compatibility, get_current_schema_version
 from app.v4_template_cache import (
     delete_cached_template,
     get_cached_template_detail,
@@ -197,6 +198,33 @@ def api_v4_product_schema():
     return {
         "success": True,
         "data": load_product_schema(),
+    }
+
+
+def _load_v4_order_object_for_schema_version():
+    order_object_path = get_base_dir() / "v4" / "examples" / "order_object.json"
+    if not order_object_path.is_file():
+        return None
+
+    try:
+        with order_object_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        logger.warning("V4 order object schema version read failed: path=%s", order_object_path, exc_info=True)
+        return None
+
+
+@router.get("/api/v4/schema-version")
+def api_v4_schema_version():
+    logger.info("V4 schema version requested")
+    compatibility = check_schema_compatibility(_load_v4_order_object_for_schema_version())
+    return {
+        "success": True,
+        "current_version": get_current_schema_version(),
+        "order_object_version": compatibility.get("order_object_version"),
+        "compatible": compatibility.get("compatible", True),
+        "level": compatibility.get("level", "warning"),
+        "message": compatibility.get("message", ""),
     }
 
 

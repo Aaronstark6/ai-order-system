@@ -213,6 +213,42 @@
             white-space: nowrap;
         }
 
+        .schema-version-panel {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .schema-version-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+
+        .schema-version-badge {
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            width: fit-content;
+        }
+
+        .schema-version-badge.ok {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .schema-version-badge.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .schema-version-badge.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
         .state {
             padding: 14px 16px;
             border-radius: 8px;
@@ -770,6 +806,31 @@
             </div>
         </div>
 
+        <section class="card schema-version-panel">
+            <div class="card-header">
+                <h2 class="card-title">Schema Version</h2>
+                <span id="schemaVersionLevel" class="schema-version-badge warning">加载中</span>
+            </div>
+            <div class="schema-version-grid">
+                <div>
+                    <div class="label">当前 Schema Version</div>
+                    <div id="schemaCurrentVersion" class="value">-</div>
+                </div>
+                <div>
+                    <div class="label">Order Object Version</div>
+                    <div id="schemaOrderObjectVersion" class="value">-</div>
+                </div>
+                <div>
+                    <div class="label">Compatibility</div>
+                    <div id="schemaCompatibility" class="value">-</div>
+                </div>
+                <div>
+                    <div class="label">Message</div>
+                    <div id="schemaVersionMessage" class="value">正在加载...</div>
+                </div>
+            </div>
+        </section>
+
         <div class="state notice">&#24403;&#21069;&#20026; V4 &#23454;&#39564;&#21151;&#33021;&#65292;&#20445;&#23384;&#21069;&#20250;&#33258;&#21160;&#22791;&#20221;&#26087; schema&#12290;</div>
         <section class="section" id="templateFingerprintSection">
             <div class="section-header">
@@ -1325,6 +1386,36 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#39;");
+        }
+
+        function renderSchemaVersionStatus(result) {
+            const level = result.level || "warning";
+            const levelNode = document.getElementById("schemaVersionLevel");
+            levelNode.className = `schema-version-badge ${level}`;
+            levelNode.textContent = level;
+            document.getElementById("schemaCurrentVersion").textContent = result.current_version || "-";
+            document.getElementById("schemaOrderObjectVersion").textContent = result.order_object_version || "未声明";
+            document.getElementById("schemaCompatibility").textContent = result.compatible ? "compatible" : "incompatible";
+            document.getElementById("schemaVersionMessage").textContent = result.message || "";
+        }
+
+        async function loadSchemaVersionStatus() {
+            try {
+                const response = await fetch("/api/v4/schema-version");
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("loadingFailed"));
+                }
+                renderSchemaVersionStatus(result);
+            } catch (error) {
+                renderSchemaVersionStatus({
+                    current_version: "-",
+                    order_object_version: null,
+                    compatible: true,
+                    level: "warning",
+                    message: `Schema Version 加载失败：${error.message || error}`
+                });
+            }
         }
 
         function displayValue(value) {
@@ -4808,6 +4899,7 @@
         document.getElementById("saveSchemaButton").addEventListener("click", saveSchemaFromEditor);
         document.getElementById("cancelSchemaButton").addEventListener("click", hideSchemaEditor);
 
+        loadSchemaVersionStatus();
         loadSchema();
         loadExcelRenderRules();
         loadTemplateProfilesForV4();
