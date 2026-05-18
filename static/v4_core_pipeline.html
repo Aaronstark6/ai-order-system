@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Core Pipeline</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #2d3542;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1080px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #dfe7ee;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .home-link:hover {
+            color: #ffffff;
+        }
+
+        main {
+            display: grid;
+            gap: 16px;
+            padding: 24px;
+        }
+
+        .toolbar,
+        .panel {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-primary {
+            background: #3e5f8a;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #314f76;
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: #bcc8c3;
+            color: #2d3542;
+        }
+
+        .btn-secondary:hover {
+            background: #eef2f6;
+        }
+
+        .status {
+            color: #58665f;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .panel {
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: #fbfcfb;
+            border-bottom: 1px solid #d9e1dc;
+            padding: 14px 16px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .state-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 16px;
+        }
+
+        .state-item {
+            background: #f8faf9;
+            border: 1px solid #d9e1dc;
+            border-radius: 7px;
+            padding: 12px;
+        }
+
+        .label {
+            color: #58665f;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .value {
+            color: #1f2933;
+            font-size: 15px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
+        pre {
+            background: #101820;
+            color: #dfe7ee;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0;
+            max-height: 360px;
+            overflow: auto;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 760px) {
+            .header-inner,
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .state-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 Core Pipeline</h1>
+            <a class="home-link" href="/">返回首页</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="toolbar">
+            <div id="statusText" class="status">正在加载 Pipeline State...</div>
+            <div class="actions">
+                <button class="btn-primary" type="button" onclick="loadOrderObject()">加载当前 Order Object</button>
+                <button class="btn-secondary" type="button" onclick="resetPipelineState()">重置 Pipeline State</button>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">当前 Pipeline State</div>
+            </div>
+            <div id="stateGrid" class="state-grid"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">高级信息</div>
+            </div>
+            <pre id="rawState">{}</pre>
+        </section>
+    </main>
+
+    <script>
+        let currentPipelineState = null;
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
+        }
+
+        function countItems(value) {
+            return Array.isArray(value) ? value.length : 0;
+        }
+
+        function stateItem(label, value) {
+            return `
+                <div class="state-item">
+                    <div class="label">${escapeHtml(label)}</div>
+                    <div class="value">${escapeHtml(value)}</div>
+                </div>
+            `;
+        }
+
+        function renderState(state) {
+            currentPipelineState = state || {};
+            const operations = currentPipelineState.operations || {};
+            const excel = currentPipelineState.excel || {};
+            const renderTargets = currentPipelineState.render_targets || {};
+            const profile = currentPipelineState.current_profile || {};
+            const validator = currentPipelineState.validator || {};
+            const hasOrderObject = currentPipelineState.current_order_object && Object.keys(currentPipelineState.current_order_object).length > 0;
+            const htmlPreviewReady = Boolean(renderTargets.html_preview);
+            const excelPreviewReady = countItems(renderTargets.excel_preview) > 0;
+            const excelStatus = excel.generated_file
+                ? `${excel.generated_file}${excel.generated_time ? ` (${excel.generated_time})` : ''}`
+                : '未生成';
+
+            document.getElementById('stateGrid').innerHTML = `
+                ${stateItem('当前订单', hasOrderObject ? '已加载' : '未加载')}
+                ${stateItem('当前模板', currentPipelineState.current_template_path || '未选择')}
+                ${stateItem('当前 Profile', profile.profile_name || profile.profile_id || '未加载')}
+                ${stateItem('校验状态', validator.status || validator.level || '未执行')}
+                ${stateItem('Structured Operations 数量', countItems(operations.structured))}
+                ${stateItem('Table Operations 数量', countItems(operations.tables))}
+                ${stateItem('Block Operations 数量', countItems(operations.blocks))}
+                ${stateItem('Unified Operations 数量', countItems(operations.unified))}
+                ${stateItem('Render Preview 状态', htmlPreviewReady || excelPreviewReady ? '已生成' : '未生成')}
+                ${stateItem('Excel 生成状态', excelStatus)}
+            `;
+            document.getElementById('rawState').textContent = JSON.stringify(currentPipelineState, null, 2);
+        }
+
+        async function refreshPipelineState() {
+            try {
+                const response = await fetch('/api/v4/pipeline-state');
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Pipeline State 加载失败');
+                }
+                renderState(result.pipeline_state || {});
+                setStatus('Pipeline State 已加载');
+            } catch (error) {
+                setStatus(error.message || 'Pipeline State 加载失败');
+            }
+        }
+
+        async function loadOrderObject() {
+            setStatus('正在加载当前 Order Object...');
+            try {
+                const response = await fetch('/api/v4/load-order-object', { method: 'POST' });
+                const result = await response.json();
+                renderState(result.pipeline_state || {});
+                setStatus(result.success ? result.message : (result.error || 'Order Object 加载失败'));
+            } catch (error) {
+                setStatus(error.message || 'Order Object 加载失败');
+            }
+        }
+
+        async function resetPipelineState() {
+            setStatus('正在重置 Pipeline State...');
+            try {
+                const response = await fetch('/api/v4/reset-pipeline-state', { method: 'POST' });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Pipeline State 重置失败');
+                }
+                renderState(result.pipeline_state || {});
+                setStatus(result.message || 'Pipeline State 已重置');
+            } catch (error) {
+                setStatus(error.message || 'Pipeline State 重置失败');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', refreshPipelineState);
+    </script>
+</body>
+</html>

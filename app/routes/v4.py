@@ -20,6 +20,12 @@ from app.v4_excel_rule_preview import build_excel_rule_preview
 from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save_excel_render_rules
 from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_examples import list_examples, load_example, save_example
+from app.v4_pipeline_state import (
+    get_pipeline_state,
+    load_order_object_into_pipeline,
+    reset_pipeline_state,
+    set_current_profile,
+)
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
 from app.v4_schema_version import check_schema_compatibility, get_current_schema_version
@@ -252,6 +258,59 @@ def api_v4_current_template_profile():
         "success": True,
         "profile": profile,
         "validation": validation,
+    }
+
+
+@router.get("/api/v4/pipeline-state")
+def api_v4_pipeline_state():
+    logger.info("V4 pipeline state requested")
+    return {
+        "success": True,
+        "pipeline_state": get_pipeline_state(),
+    }
+
+
+@router.post("/api/v4/reset-pipeline-state")
+def api_v4_reset_pipeline_state():
+    logger.info("V4 pipeline state reset requested")
+    return {
+        "success": True,
+        "message": "Pipeline State 已重置",
+        "pipeline_state": reset_pipeline_state(),
+    }
+
+
+@router.post("/api/v4/load-order-object")
+def api_v4_load_order_object():
+    logger.info("V4 load order object into pipeline requested")
+    order_object_path = get_base_dir() / "v4" / "examples" / "order_object.json"
+    if not order_object_path.is_file():
+        return {
+            "success": False,
+            "error": "v4/examples/order_object.json 不存在",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    try:
+        with order_object_path.open("r", encoding="utf-8") as f:
+            order_object = json.load(f)
+    except Exception as exc:
+        logger.warning("V4 order object load into pipeline failed: path=%s", order_object_path, exc_info=True)
+        return {
+            "success": False,
+            "error": f"Order Object 读取失败：{exc}",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    state = load_order_object_into_pipeline(order_object if isinstance(order_object, dict) else {})
+    profile = get_current_template_profile()
+    if profile:
+        state = set_current_profile(profile)
+
+    return {
+        "success": True,
+        "message": "Order Object 已加载",
+        "pipeline_state": state,
     }
 
 
