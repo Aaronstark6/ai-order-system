@@ -14,8 +14,18 @@ def _default_state():
             "blocks": [],
             "unified": [],
         },
+        "pipeline": {
+            "processed_operations": [],
+            "stages": [],
+        },
         "excel": {
             "generated_file": None,
+            "generated_time": None,
+        },
+        "render_preview": {
+            "cell_preview": [],
+            "table_preview": [],
+            "block_preview": [],
             "generated_time": None,
         },
         "render_targets": {
@@ -82,6 +92,38 @@ def set_excel_result(file_path):
     _PIPELINE_STATE["excel"] = {
         "generated_file": str(file_path) if file_path else None,
         "generated_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S") if file_path else None,
+    }
+    return get_pipeline_state()
+
+
+def set_pipeline_result(processed_operations, stages):
+    _PIPELINE_STATE["pipeline"] = {
+        "processed_operations": deepcopy(processed_operations) if isinstance(processed_operations, list) else [],
+        "stages": deepcopy(stages) if isinstance(stages, list) else [],
+    }
+    _PIPELINE_STATE["render_preview"] = {
+        "cell_preview": [],
+        "table_preview": [],
+        "block_preview": [],
+        "generated_time": None,
+    }
+    _PIPELINE_STATE["render_targets"]["html_preview"] = ""
+    return get_pipeline_state()
+
+
+def set_render_preview(render_preview):
+    render_preview = render_preview if isinstance(render_preview, dict) else {}
+    _PIPELINE_STATE["render_preview"] = {
+        "cell_preview": deepcopy(render_preview.get("cell_preview", []))
+        if isinstance(render_preview.get("cell_preview", []), list)
+        else [],
+        "table_preview": deepcopy(render_preview.get("table_preview", []))
+        if isinstance(render_preview.get("table_preview", []), list)
+        else [],
+        "block_preview": deepcopy(render_preview.get("block_preview", []))
+        if isinstance(render_preview.get("block_preview", []), list)
+        else [],
+        "generated_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     return get_pipeline_state()
 

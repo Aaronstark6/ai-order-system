@@ -1,0 +1,19 @@
+{
+  "version": "V4-Rebuild.4",
+  "blocks": [
+    {
+      "block_name": "产品说明块",
+      "target_cell": "B20",
+      "lines": [
+        {
+          "label": "产品名称",
+          "source_path": "product.product_name"
+        },
+        {
+          "label": "产品类型",
+          "source_path": "product.product_type"
+        }
+      ]
+    }
+  ]
+}

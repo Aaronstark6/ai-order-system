@@ -24,7 +24,17 @@ from app.v4_pipeline_state import (
     get_pipeline_state,
     load_order_object_into_pipeline,
     reset_pipeline_state,
+    set_block_operations,
     set_current_profile,
+    set_current_template,
+    set_excel_result,
+    set_pipeline_result,
+    set_render_preview,
+    set_render_targets,
+    set_structured_operations,
+    set_table_operations,
+    set_unified_operations,
+    set_validator_result,
 )
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
@@ -311,6 +321,186 @@ def api_v4_load_order_object():
         "success": True,
         "message": "Order Object 已加载",
         "pipeline_state": state,
+    }
+
+
+@router.post("/api/v4/core-pipeline/run")
+def api_v4_core_pipeline_run():
+    from app.v4_block_merge_engine import build_block_operations
+    from app.v4_operations_pipeline import process_operations_pipeline
+    from app.v4_structured_excel_mapping import build_structured_operations
+    from app.v4_table_renderer import build_table_operations
+    from app.v4_unified_operations import build_unified_operations
+    from app.v4_validator import validate_order_object
+
+    logger.info("V4 core pipeline run requested")
+    state = get_pipeline_state()
+    order_object = state.get("current_order_object") if isinstance(state.get("current_order_object"), dict) else {}
+    if not order_object:
+        load_result = api_v4_load_order_object()
+        if not load_result.get("success"):
+            return {
+                "success": False,
+                "error": load_result.get("error", "请先加载 Order Object"),
+                "pipeline_state": get_pipeline_state(),
+            }
+        order_object = load_result.get("pipeline_state", {}).get("current_order_object", {})
+
+    validation = validate_order_object(order_object)
+    set_validator_result(validation)
+    if not validation.get("valid"):
+        return {
+            "success": False,
+            "error": "Validator 校验失败",
+            "validation": validation,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    structured_result = build_structured_operations(order_object)
+    structured_ops = structured_result.get("operations", [])
+    set_structured_operations(structured_ops)
+
+    table_result = build_table_operations(order_object)
+    table_ops = table_result.get("operations", [])
+    set_table_operations(table_ops)
+
+    block_result = build_block_operations(order_object)
+    block_ops = block_result.get("operations", [])
+    set_block_operations(block_ops)
+
+    unified_result = build_unified_operations(structured_ops, table_ops, block_ops)
+    unified_ops = unified_result.get("operations", [])
+    set_unified_operations(unified_ops)
+
+    pipeline_result = process_operations_pipeline(unified_ops)
+    processed_ops = pipeline_result.get("processed_operations", [])
+    stages = pipeline_result.get("stages", [])
+    set_pipeline_result(processed_ops, stages)
+
+    warnings = (
+        validation.get("warnings", [])
+        + structured_result.get("warnings", [])
+        + table_result.get("warnings", [])
+        + block_result.get("warnings", [])
+    )
+    return {
+        "success": True,
+        "validation": validation,
+        "warnings": warnings,
+        "structured_operations": structured_ops,
+        "table_operations": table_ops,
+        "block_operations": block_ops,
+        "unified_operations": unified_ops,
+        "processed_operations": processed_ops,
+        "stages": stages,
+        "render_ready": pipeline_result.get("render_ready", False),
+        "pipeline_state": get_pipeline_state(),
+    }
+
+
+@router.post("/api/v4/core-pipeline/export-excel")
+def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
+    from app.v4_core_excel_executor import execute_processed_operations_to_excel
+
+    logger.info("V4 core pipeline export Excel requested: filename=%s", template_file.filename)
+    template_path = None
+    try:
+        state = get_pipeline_state()
+        processed_operations = state.get("pipeline", {}).get("processed_operations", [])
+        if not processed_operations:
+            run_result = api_v4_core_pipeline_run()
+            if not run_result.get("success"):
+                return {
+                    "success": False,
+                    "error": run_result.get("error", "请先执行核心流水线"),
+                    "pipeline_state": get_pipeline_state(),
+                }
+            processed_operations = run_result.get("processed_operations", [])
+
+        template_path = _save_v4_uploaded_template(template_file)
+        set_current_template(Path(template_file.filename or "").name)
+        result = execute_processed_operations_to_excel(template_path, processed_operations)
+        if not result.get("success"):
+            return {
+                "success": False,
+                "error": result.get("error", "Excel 导出失败"),
+                "warnings": result.get("warnings", []),
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        set_excel_result(result.get("filename"))
+        return {
+            "success": True,
+            "filename": result.get("filename", ""),
+            "download_url": result.get("download_url", ""),
+            "operations_written": result.get("operations_written", 0),
+            "warnings": result.get("warnings", []),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except ValueError as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 core pipeline export Excel failed")
+        return {
+            "success": False,
+            "error": str(exc) or "Excel 导出失败",
+            "pipeline_state": get_pipeline_state(),
+        }
+    finally:
+        _remove_v4_uploaded_template(template_path)
+
+
+@router.post("/api/v4/render-preview/build")
+def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
+    from app.v4_render_preview import build_render_preview
+    from app.v4_render_targets import render_preview_to_html
+
+    logger.info("V4 render preview build requested")
+    processed_operations = None
+    if isinstance(payload, dict):
+        processed_operations = payload.get("processed_operations")
+    elif isinstance(payload, list):
+        processed_operations = payload
+
+    if processed_operations is None:
+        processed_operations = get_pipeline_state().get("pipeline", {}).get("processed_operations", [])
+
+    if not isinstance(processed_operations, list) or not processed_operations:
+        return {
+            "success": False,
+            "error": "暂无 processed operations，无法生成 Render Preview",
+            "render_preview": get_pipeline_state().get("render_preview", {}),
+        }
+
+    preview = build_render_preview(processed_operations)
+    state = set_render_preview(preview)
+    saved_preview = state.get("render_preview", {})
+    html_result = render_preview_to_html(saved_preview)
+    if html_result.get("success"):
+        state = set_render_targets({"html_preview": html_result.get("html", "")})
+        saved_preview = state.get("render_preview", {})
+
+    return {
+        "success": True,
+        "render_preview": saved_preview,
+        "html_preview": html_result.get("html", ""),
+        "warnings": preview.get("warnings", []),
+        "pipeline_state": state,
+    }
+
+
+@router.get("/api/v4/render-preview")
+def api_v4_render_preview():
+    logger.info("V4 render preview requested")
+    state = get_pipeline_state()
+    return {
+        "success": True,
+        "render_preview": state.get("render_preview", {}),
+        "html_preview": state.get("render_targets", {}).get("html_preview", ""),
     }
 
 

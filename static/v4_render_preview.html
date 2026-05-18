@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Render Preview</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #111820;
+            color: #e6edf3;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #1d2630;
+            border-bottom: 1px solid #31404f;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1120px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        h1 {
+            font-size: 24px;
+        }
+
+        a {
+            color: #b8c7d6;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: #ffffff;
+        }
+
+        main {
+            display: grid;
+            gap: 16px;
+            padding: 24px;
+        }
+
+        .panel {
+            background: #18222d;
+            border: 1px solid #31404f;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            border-bottom: 1px solid #31404f;
+            padding: 14px 16px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .panel-body {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .message {
+            border-radius: 7px;
+            color: #ffd36a;
+            background: #4a3a13;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 12px;
+        }
+
+        table {
+            border-collapse: collapse;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #31404f;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #111820;
+            color: #ffffff;
+        }
+
+        pre {
+            background: #101820;
+            border: 1px solid #31404f;
+            border-radius: 7px;
+            color: #dfe7ee;
+            line-height: 1.6;
+            padding: 12px;
+            white-space: pre-wrap;
+        }
+
+        .html-preview {
+            background: #f8faf9;
+            border-radius: 8px;
+            color: #1f2933;
+            padding: 16px;
+        }
+
+        .html-preview table {
+            margin: 10px 0 16px;
+        }
+
+        .html-preview th,
+        .html-preview td {
+            border-color: #d9e1dc;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 Render Preview</h1>
+            <a href="/v4-core-pipeline">返回 Core Pipeline</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Cell Preview</div>
+            </div>
+            <div id="cellPreview" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Table Preview</div>
+            </div>
+            <div id="tablePreview" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Block Preview</div>
+            </div>
+            <div id="blockPreview" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">HTML Preview</div>
+            </div>
+            <div id="htmlPreview" class="panel-body"></div>
+        </section>
+    </main>
+
+    <script>
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
+        }
+
+        function columnIndex(column) {
+            return String(column || '').split('').reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0);
+        }
+
+        function renderCellPreview(items) {
+            if (!Array.isArray(items) || !items.length) {
+                document.getElementById('cellPreview').innerHTML = '<div class="message">暂无 Cell Preview</div>';
+                return;
+            }
+
+            document.getElementById('cellPreview').innerHTML = `
+                <table>
+                    <thead><tr><th>cell</th><th>source</th><th>op_type</th><th>value</th></tr></thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.cell)}</td>
+                                <td>${escapeHtml(item.source)}</td>
+                                <td>${escapeHtml(item.op_type)}</td>
+                                <td>${escapeHtml(item.value)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderTablePreview(tables) {
+            if (!Array.isArray(tables) || !tables.length) {
+                document.getElementById('tablePreview').innerHTML = '<div class="message">暂无 Table Preview</div>';
+                return;
+            }
+
+            document.getElementById('tablePreview').innerHTML = tables.map(table => {
+                const rows = Array.isArray(table.rows) ? table.rows : [];
+                const columns = Array.from(new Set(rows.flatMap(row => Object.keys(row.cells || {}))))
+                    .sort((left, right) => columnIndex(left) - columnIndex(right));
+                return `
+                    <h3>${escapeHtml(table.table_name || '未命名表格')}</h3>
+                    <table>
+                        <thead><tr><th>row_number</th>${columns.map(column => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
+                        <tbody>
+                            ${rows.map(row => `
+                                <tr>
+                                    <td>${escapeHtml(row.row_number)}</td>
+                                    ${columns.map(column => `<td>${escapeHtml((row.cells || {})[column] || '')}</td>`).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }).join('');
+        }
+
+        function renderBlockPreview(blocks) {
+            if (!Array.isArray(blocks) || !blocks.length) {
+                document.getElementById('blockPreview').innerHTML = '<div class="message">暂无 Block Preview</div>';
+                return;
+            }
+
+            document.getElementById('blockPreview').innerHTML = blocks.map(block => `
+                <article>
+                    <h3>${escapeHtml(block.block_name || '未命名区块')} · ${escapeHtml(block.target_cell || '')}</h3>
+                    <pre>${escapeHtml(block.value || '')}</pre>
+                </article>
+            `).join('');
+        }
+
+        async function loadPreview() {
+            try {
+                const response = await fetch('/api/v4/render-preview');
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Render Preview 加载失败');
+                }
+
+                const preview = result.render_preview || {};
+                renderCellPreview(preview.cell_preview || []);
+                renderTablePreview(preview.table_preview || []);
+                renderBlockPreview(preview.block_preview || []);
+                document.getElementById('htmlPreview').innerHTML = result.html_preview
+                    ? `<div class="html-preview">${result.html_preview}</div>`
+                    : '<div class="message">暂无 HTML Preview</div>';
+            } catch (error) {
+                document.getElementById('htmlPreview').innerHTML = `<div class="message">${escapeHtml(error.message || error)}</div>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadPreview);
+    </script>
+</body>
+</html>

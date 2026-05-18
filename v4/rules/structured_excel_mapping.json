@@ -1,0 +1,23 @@
+{
+  "version": "V4-Rebuild.4",
+  "mappings": [
+    {
+      "label": "产品名称",
+      "source_path": "product.product_name",
+      "target_cell": "B1",
+      "operation": "write_text"
+    },
+    {
+      "label": "产品类型",
+      "source_path": "product.product_type",
+      "target_cell": "B2",
+      "operation": "write_text"
+    },
+    {
+      "label": "客户名称",
+      "source_path": "customer.name",
+      "target_cell": "B6",
+      "operation": "write_text"
+    }
+  ]
+}

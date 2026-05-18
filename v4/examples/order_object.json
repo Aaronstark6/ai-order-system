@@ -1,0 +1,48 @@
+{
+  "schema_version": "v4.1",
+  "customer": {
+    "name": "Anna",
+    "country": "美国",
+    "type": "山姆"
+  },
+  "order": {
+    "order_no": "V4-RB4-001",
+    "quantity": "50000",
+    "order_date": "2026-05-18"
+  },
+  "product": {
+    "product_type": "固体饮料",
+    "product_name": "益生菌固体饮料",
+    "fields": {
+      "flavor": {
+        "label": "口味",
+        "value": "草莓味"
+      },
+      "sweetener": {
+        "label": "甜味剂",
+        "value": "赤藓糖醇"
+      }
+    },
+    "tables": {
+      "formula_items": [
+        {
+          "name": "赤藓糖醇",
+          "amount": "300mg",
+          "percentage": "15%"
+        },
+        {
+          "name": "柠檬酸",
+          "amount": "20mg",
+          "percentage": "1%"
+        }
+      ],
+      "test_items": [
+        {
+          "name": "水分",
+          "standard": "≤5%",
+          "result": "合格"
+        }
+      ]
+    }
+  }
+}

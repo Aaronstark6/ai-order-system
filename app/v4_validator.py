@@ -108,3 +108,39 @@ def validate_example_order(example_data: dict, schema: dict) -> dict:
     }
     logger.info("V4 example validation finished: warnings=%s", len(warnings))
     return result
+
+
+def validate_order_object(order_object):
+    errors = []
+    warnings = []
+
+    if not _is_dict(order_object) or not order_object:
+        errors.append("Order Object 必须存在")
+        return {
+            "valid": False,
+            "errors": errors,
+            "warnings": warnings,
+        }
+
+    customer = _get_nested_dict(order_object, "customer")
+    product = _get_nested_dict(order_object, "product")
+
+    if not customer:
+        errors.append("缺少 customer")
+    if not product:
+        errors.append("缺少 product")
+
+    if not str(product.get("product_type") or "").strip():
+        errors.append("缺少 product.product_type")
+
+    if not str(product.get("product_name") or "").strip():
+        warnings.append("product.product_name 为空")
+
+    if "fields" not in product or not _is_dict(product.get("fields")):
+        warnings.append("product.fields 不存在或不是 object")
+
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "warnings": warnings,
+    }
