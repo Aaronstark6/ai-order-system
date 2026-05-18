@@ -1,5 +1,5 @@
 {
-  "version": "V4-Rebuild.4",
+  "version": "V4-Rebuild",
   "mappings": [
     {
       "label": "产品名称",
@@ -23,49 +23,37 @@
       "label": "文档编号",
       "source_path": "document.doc_no",
       "target_cell": "C4",
-      "operation": "write_text",
-      "auto_generated": true,
-      "confirmed": true
+      "operation": "write_text"
     },
     {
       "label": "日期",
       "source_path": "order.order_date",
       "target_cell": "F4",
-      "operation": "write_text",
-      "auto_generated": true,
-      "confirmed": true
+      "operation": "write_text"
     },
     {
       "label": "客户名称",
       "source_path": "customer.name",
       "target_cell": "C5",
-      "operation": "write_text",
-      "auto_generated": true,
-      "confirmed": true
+      "operation": "write_text"
     },
     {
       "label": "客户性质",
       "source_path": "customer.type",
       "target_cell": "F5",
-      "operation": "write_text",
-      "auto_generated": true,
-      "confirmed": true
+      "operation": "write_text"
     },
     {
       "label": "数量",
       "source_path": "order.quantity",
       "target_cell": "C6",
-      "operation": "write_text",
-      "auto_generated": true,
-      "confirmed": true
+      "operation": "write_text"
     },
     {
       "label": "负责人",
       "source_path": "order.owner",
       "target_cell": "F6",
-      "operation": "write_text",
-      "auto_generated": true,
-      "confirmed": true
+      "operation": "write_text"
     }
   ]
 }

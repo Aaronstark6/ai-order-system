@@ -12,11 +12,7 @@
             font-family: Arial, "Microsoft YaHei", sans-serif;
             min-height: 100vh;
         }
-        header {
-            background: #2d3542;
-            color: #ffffff;
-            padding: 18px 24px;
-        }
+        header { background: #2d3542; color: #fff; padding: 18px 24px; }
         .header-inner, main { margin: 0 auto; max-width: 1180px; }
         .header-inner, .toolbar, .panel-header {
             align-items: center;
@@ -26,23 +22,20 @@
         }
         h1 { font-size: 24px; letter-spacing: 0; }
         .home-link { color: #dfe7ee; font-size: 14px; text-decoration: none; }
-        .home-link:hover { color: #ffffff; }
+        .home-link:hover { color: #fff; }
         main { display: grid; gap: 16px; padding: 24px; }
         .toolbar, .panel {
-            background: #ffffff;
+            background: #fff;
             border: 1px solid #d9e1dc;
             border-radius: 8px;
         }
         .toolbar { flex-wrap: wrap; padding: 14px 16px; }
+        .toolbar-actions { display: flex; flex-wrap: wrap; gap: 10px; }
         .panel { overflow: hidden; }
-        .panel-header {
-            background: #fbfcfb;
-            border-bottom: 1px solid #d9e1dc;
-            padding: 14px 16px;
-        }
+        .panel-header { background: #fbfcfb; border-bottom: 1px solid #d9e1dc; padding: 14px 16px; }
         .panel-title { font-size: 16px; font-weight: 700; }
         .panel-body { display: grid; gap: 12px; padding: 16px; }
-        button, .link-button {
+        button {
             border: 1px solid transparent;
             border-radius: 6px;
             cursor: pointer;
@@ -50,37 +43,18 @@
             font-size: 14px;
             min-height: 36px;
             padding: 8px 14px;
-            text-decoration: none;
         }
-        .btn-primary { background: #3e5f8a; color: #ffffff; }
+        .btn-primary { background: #3e5f8a; color: #fff; }
         .btn-primary:hover { background: #314f76; }
-        .btn-secondary, .link-button {
-            background: #ffffff;
-            border-color: #bcc8c3;
-            color: #2d3542;
-        }
-        .btn-secondary:hover, .link-button:hover { background: #eef2f6; }
+        .btn-secondary { background: #fff; border-color: #bcc8c3; color: #2d3542; }
+        .btn-secondary:hover { background: #eef2f6; }
         .status { color: #58665f; font-size: 14px; line-height: 1.5; }
-        .message {
-            border-radius: 7px;
-            font-size: 14px;
-            line-height: 1.55;
-            padding: 12px;
-        }
+        .message { border-radius: 7px; font-size: 14px; line-height: 1.55; padding: 12px; }
         .success { background: #e4f6ea; color: #176039; }
         .warning { background: #fff4ce; color: #7a4f00; }
         .error { background: #ffe2e0; color: #a8201a; }
-        table {
-            border-collapse: collapse;
-            font-size: 13px;
-            width: 100%;
-        }
-        th, td {
-            border: 1px solid #d9e1dc;
-            padding: 8px 10px;
-            text-align: left;
-            vertical-align: top;
-        }
+        table { border-collapse: collapse; font-size: 13px; width: 100%; }
+        th, td { border: 1px solid #d9e1dc; padding: 8px 10px; text-align: left; vertical-align: top; }
         th { background: #fbfcfb; font-weight: 700; }
         input[type="text"], input[type="number"] {
             border: 1px solid #bcc8c3;
@@ -92,16 +66,8 @@
             width: 100%;
         }
         .small { color: #58665f; font-size: 12px; }
-        .column-editor {
-            display: grid;
-            gap: 6px;
-            min-width: 220px;
-        }
-        .column-row {
-            display: grid;
-            gap: 6px;
-            grid-template-columns: minmax(120px, 1fr) 72px;
-        }
+        .column-editor { display: grid; gap: 6px; min-width: 220px; }
+        .column-row { display: grid; gap: 6px; grid-template-columns: minmax(120px, 1fr) 72px; }
         @media (max-width: 760px) {
             .header-inner, .toolbar { align-items: flex-start; flex-direction: column; }
             table { min-width: 880px; }
@@ -121,11 +87,13 @@
         <section class="toolbar">
             <div>
                 <div id="statusText" class="status">正在加载 Auto Mapping Preview...</div>
-                <div class="status">推荐项默认勾选；Needs Review 默认不勾选；Rejected 只读展示。</div>
+                <div class="status">Recommended 默认勾选；Needs Review 默认不勾选；Rejected 只读展示。</div>
+                <div id="mappingStatusText" class="status">正式 Mapping：尚未刷新</div>
             </div>
-            <div>
+            <div class="toolbar-actions">
                 <button class="btn-secondary" type="button" onclick="loadPreview()">刷新 Preview</button>
                 <button class="btn-primary" type="button" onclick="saveSelected()">保存选中映射规则</button>
+                <button class="btn-primary" type="button" onclick="applyAutoMapping()">应用到正式 Mapping</button>
             </div>
         </section>
 
@@ -174,12 +142,12 @@
             document.getElementById('statusText').textContent = text;
         }
 
-        function emptyMessage(text) {
-            return `<div class="message warning">${escapeHtml(text)}</div>`;
+        function setMappingStatus(text) {
+            document.getElementById('mappingStatusText').textContent = text;
         }
 
-        function rowId(prefix, index) {
-            return `${prefix}_${index}`;
+        function emptyMessage(text) {
+            return `<div class="message warning">${escapeHtml(text)}</div>`;
         }
 
         function input(name, value, type = 'text') {
@@ -201,6 +169,7 @@
                                 <th>source_path</th>
                                 <th>target_cell</th>
                                 <th>confidence</th>
+                                <th>status</th>
                                 <th>reason</th>
                             </tr>
                         </thead>
@@ -212,6 +181,7 @@
                                     <td>${input('source_path', item.source_path || '')}</td>
                                     <td>${input('target_cell', item.target_cell || '')}</td>
                                     <td><span class="small">${escapeHtml(item.confidence || '')}</span></td>
+                                    <td><span class="small">${escapeHtml(item.status || '')}</span></td>
                                     <td><span class="small">${escapeHtml(item.reason || '')}</span></td>
                                 </tr>
                             `).join('')}
@@ -235,6 +205,7 @@
                                 <th>table_name</th>
                                 <th>start_row</th>
                                 <th>sheet</th>
+                                <th>semantic_type</th>
                                 <th>columns</th>
                                 <th>confidence</th>
                             </tr>
@@ -246,6 +217,7 @@
                                     <td>${input('table_name', item.table_name || '')}</td>
                                     <td>${input('start_row', item.start_row || '', 'number')}</td>
                                     <td>${input('sheet', item.sheet || '')}</td>
+                                    <td><span class="small">${escapeHtml(item.semantic_type || '')}</span></td>
                                     <td>
                                         <div class="column-editor">
                                             ${(item.columns || []).map((column, colIndex) => `
@@ -306,7 +278,7 @@
             document.getElementById('rejectedBody').innerHTML = `
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>reason</th></tr></thead>
+                        <thead><tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>status</th><th>reason</th></tr></thead>
                         <tbody>
                             ${items.map(item => `
                                 <tr>
@@ -314,6 +286,7 @@
                                     <td>${escapeHtml(item.source_path || '')}</td>
                                     <td>${escapeHtml(item.target_cell || '')}</td>
                                     <td>${escapeHtml(item.confidence || '')}</td>
+                                    <td>${escapeHtml(item.status || '')}</td>
                                     <td>${escapeHtml(item.reason || '')}</td>
                                 </tr>
                             `).join('')}
@@ -342,14 +315,31 @@
                 const data = result.auto_mapping_preview || {};
                 const total = ['structured', 'tables', 'blocks', 'needs_review', 'rejected_candidates']
                     .reduce((sum, key) => sum + (Array.isArray(data[key]) ? data[key].length : 0), 0);
-                if (!total) {
-                    setStatus('暂无 Auto Mapping Preview，请先进行模板分析');
-                } else {
-                    setStatus('Auto Mapping Preview 已加载');
-                }
+                setStatus(total ? 'Auto Mapping Preview 已加载' : '暂无 Auto Mapping Preview，请先进行模板分析');
                 renderPreview(data);
             } catch (error) {
                 setStatus(error.message || 'Auto Mapping Preview 加载失败');
+            }
+        }
+
+        async function refreshOfficialMappingStatus() {
+            try {
+                const [structuredRes, tableRes, blockRes] = await Promise.all([
+                    fetch('/api/v4/structured-mapping'),
+                    fetch('/api/v4/table-mapping'),
+                    fetch('/api/v4/block-merge-rules')
+                ]);
+                const [structured, tables, blocks] = await Promise.all([
+                    structuredRes.json(),
+                    tableRes.json(),
+                    blockRes.json()
+                ]);
+                const structuredCount = structured.data?.mappings?.length || 0;
+                const tableCount = tables.data?.tables?.length || 0;
+                const blockCount = blocks.data?.blocks?.length || 0;
+                setMappingStatus(`正式 Mapping：Structured ${structuredCount}，Tables ${tableCount}，Blocks ${blockCount}`);
+            } catch (error) {
+                setMappingStatus('正式 Mapping：刷新失败');
             }
         }
 
@@ -377,15 +367,24 @@
             return rows
                 .filter(row => row.querySelector('[data-select]')?.checked)
                 .map(row => {
-                    const columns = Array.from(row.querySelectorAll('[data-column-index]')).map(columnRow => ({
-                        label: columnRow.querySelector('[data-field="column_label"]')?.value.trim() || '',
-                        target_col: columnRow.querySelector('[data-field="column_target_col"]')?.value.trim() || ''
-                    })).filter(column => column.label && column.target_col);
+                    const original = preview.tables?.[Number(row.dataset.index)] || {};
+                    const columns = Array.from(row.querySelectorAll('[data-column-index]')).map(columnRow => {
+                        const columnIndex = Number(columnRow.dataset.columnIndex);
+                        const originalColumn = original.columns?.[columnIndex] || {};
+                        return {
+                            label: columnRow.querySelector('[data-field="column_label"]')?.value.trim() || '',
+                            target_col: columnRow.querySelector('[data-field="column_target_col"]')?.value.trim() || '',
+                            field: originalColumn.field || ''
+                        };
+                    }).filter(column => column.label && column.target_col);
                     return {
+                        table_key: original.table_key || '',
                         table_name: fieldValue(row, 'table_name'),
+                        source_path: original.source_path || '',
                         start_row: fieldValue(row, 'start_row'),
                         sheet: fieldValue(row, 'sheet'),
-                        columns
+                        columns,
+                        semantic_type: original.semantic_type || ''
                     };
                 });
         }
@@ -394,42 +393,79 @@
             const rows = Array.from(document.querySelectorAll('tr[data-kind="blocks"]'));
             return rows
                 .filter(row => row.querySelector('[data-select]')?.checked)
-                .map(row => ({
-                    block_name: fieldValue(row, 'block_name'),
-                    target_cell: fieldValue(row, 'target_cell'),
-                    operation: 'write_block',
-                    lines: []
-                }));
+                .map(row => {
+                    const original = preview.blocks?.[Number(row.dataset.index)] || {};
+                    return {
+                        block_name: fieldValue(row, 'block_name'),
+                        target_cell: fieldValue(row, 'target_cell'),
+                        operation: 'write_block',
+                        lines: Array.isArray(original.lines) ? original.lines : [],
+                        source_path: original.source_path || '',
+                        semantic_type: original.semantic_type || ''
+                    };
+                });
         }
 
-        async function saveSelected() {
-            const payload = {
+        function collectSelectedPayload() {
+            return {
                 structured: [...collectStructured('structured'), ...collectStructured('needs_review')],
                 tables: collectTables(),
                 blocks: collectBlocks()
             };
-            if (!payload.structured.length && !payload.tables.length && !payload.blocks.length) {
+        }
+
+        function hasSelected(payload) {
+            return Boolean(payload.structured.length || payload.tables.length || payload.blocks.length);
+        }
+
+        async function postMappingPayload(url, progressText, fallbackError, successText) {
+            const payload = collectSelectedPayload();
+            if (!hasSelected(payload)) {
                 setStatus('没有选择任何映射');
-                return;
+                return null;
             }
             try {
-                setStatus('正在保存选中映射规则...');
-                const response = await fetch('/api/v4/mapping-workbench/save-selected', {
+                setStatus(progressText);
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.error || '映射规则保存失败');
+                    throw new Error(result.error || fallbackError);
                 }
-                setStatus(result.message || '映射规则保存成功');
+                setStatus(result.message || successText);
+                await refreshOfficialMappingStatus();
+                return result;
             } catch (error) {
-                setStatus(error.message || '映射规则保存失败');
+                setStatus(error.message || fallbackError);
+                return null;
             }
         }
 
-        document.addEventListener('DOMContentLoaded', loadPreview);
+        async function saveSelected() {
+            await postMappingPayload(
+                '/api/v4/mapping-workbench/save-selected',
+                '正在保存选中映射规则...',
+                '映射规则保存失败',
+                '映射规则保存成功'
+            );
+        }
+
+        async function applyAutoMapping() {
+            await postMappingPayload(
+                '/api/v4/apply-auto-mapping',
+                '正在写入正式 Mapping...',
+                '自动映射写入正式 Mapping 失败',
+                '已成功写入正式 Mapping'
+            );
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadPreview();
+            await refreshOfficialMappingStatus();
+        });
     </script>
 </body>
 </html>

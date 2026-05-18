@@ -55,6 +55,13 @@ def _default_state():
             },
             "summary": {},
         },
+        "template_learning": {
+            "last_run_time": None,
+            "success": False,
+            "summary": {},
+            "needs_review": [],
+            "rejected_candidates": [],
+        },
     }
 
 
@@ -196,5 +203,21 @@ def set_template_analysis(analysis):
             "rejected_candidates": [],
         },
         "summary": deepcopy(analysis.get("summary", {})) if isinstance(analysis.get("summary", {}), dict) else {},
+    }
+    return get_pipeline_state()
+
+
+def set_template_learning(result):
+    result = result if isinstance(result, dict) else {}
+    _PIPELINE_STATE["template_learning"] = {
+        "last_run_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "success": bool(result.get("success")),
+        "summary": deepcopy(result.get("summary", {})) if isinstance(result.get("summary", {}), dict) else {},
+        "needs_review": deepcopy(result.get("needs_review", []))
+        if isinstance(result.get("needs_review", []), list)
+        else [],
+        "rejected_candidates": deepcopy(result.get("rejected_candidates", []))
+        if isinstance(result.get("rejected_candidates", []), list)
+        else [],
     }
     return get_pipeline_state()

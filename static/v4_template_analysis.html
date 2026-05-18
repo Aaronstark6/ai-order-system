@@ -5,81 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>V4 Template Intelligence</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             background: #f6f7f5;
             color: #1f2933;
             font-family: Arial, "Microsoft YaHei", sans-serif;
             min-height: 100vh;
         }
-
-        header {
-            background: #2d3542;
-            color: #ffffff;
-            padding: 18px 24px;
-        }
-
-        .header-inner,
-        main {
-            margin: 0 auto;
-            max-width: 1120px;
-        }
-
-        .header-inner,
-        .toolbar,
-        .actions,
-        .panel-header {
+        header { background: #2d3542; color: #fff; padding: 18px 24px; }
+        .header-inner, main { margin: 0 auto; max-width: 1120px; }
+        .header-inner, .toolbar, .actions, .panel-header {
             align-items: center;
             display: flex;
             gap: 12px;
             justify-content: space-between;
         }
-
-        h1 {
-            font-size: 24px;
-            letter-spacing: 0;
-        }
-
-        .home-link {
-            color: #dfe7ee;
-            font-size: 14px;
-            text-decoration: none;
-        }
-
-        .home-link:hover {
-            color: #ffffff;
-        }
-
-        main {
-            display: grid;
-            gap: 16px;
-            padding: 24px;
-        }
-
-        .toolbar,
-        .panel {
-            background: #ffffff;
+        h1 { font-size: 24px; letter-spacing: 0; }
+        .home-link { color: #dfe7ee; font-size: 14px; text-decoration: none; }
+        .home-link:hover { color: #fff; }
+        main { display: grid; gap: 16px; padding: 24px; }
+        .toolbar, .panel {
+            background: #fff;
             border: 1px solid #d9e1dc;
             border-radius: 8px;
         }
-
-        .toolbar {
-            flex-wrap: wrap;
-            padding: 14px 16px;
-        }
-
-        .actions {
-            flex-wrap: wrap;
-            justify-content: flex-start;
-        }
-
-        button,
-        .file-button {
+        .toolbar { flex-wrap: wrap; padding: 14px 16px; }
+        .actions { flex-wrap: wrap; justify-content: flex-start; }
+        button, .file-button, .link-button {
             border: 1px solid transparent;
             border-radius: 6px;
             cursor: pointer;
@@ -87,99 +39,45 @@
             font-size: 14px;
             min-height: 36px;
             padding: 8px 14px;
+            text-decoration: none;
         }
-
-        .btn-primary {
-            background: #3e5f8a;
-            color: #ffffff;
-        }
-
-        .btn-primary:hover {
-            background: #314f76;
-        }
-
-        .btn-secondary,
-        .file-button {
-            background: #ffffff;
+        .btn-primary { background: #3e5f8a; color: #fff; }
+        .btn-primary:hover { background: #314f76; }
+        .btn-secondary, .file-button, .link-button {
+            background: #fff;
             border-color: #bcc8c3;
             color: #2d3542;
         }
-
-        .btn-secondary:hover,
-        .file-button:hover {
-            background: #eef2f6;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        .status {
-            color: #58665f;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        .panel {
-            overflow: hidden;
-        }
-
-        .panel-header {
-            background: #fbfcfb;
-            border-bottom: 1px solid #d9e1dc;
-            padding: 14px 16px;
-        }
-
-        .panel-title {
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        .panel-body {
-            display: grid;
-            gap: 12px;
-            padding: 16px;
-        }
-
+        .btn-secondary:hover, .file-button:hover, .link-button:hover { background: #eef2f6; }
+        input[type="file"] { display: none; }
+        .status { color: #58665f; font-size: 14px; line-height: 1.5; }
+        .panel { overflow: hidden; }
+        .panel-header { background: #fbfcfb; border-bottom: 1px solid #d9e1dc; padding: 14px 16px; }
+        .panel-title { font-size: 16px; font-weight: 700; }
+        .panel-body { display: grid; gap: 12px; padding: 16px; }
         .summary-grid {
             display: grid;
             gap: 12px;
             grid-template-columns: repeat(5, minmax(0, 1fr));
         }
-
         .summary-item {
             background: #f8faf9;
             border: 1px solid #d9e1dc;
             border-radius: 7px;
             padding: 12px;
         }
-
-        .label {
-            color: #58665f;
-            font-size: 13px;
-            margin-bottom: 6px;
-        }
-
-        .value {
-            color: #1f2933;
-            font-size: 18px;
-            font-weight: 700;
-            overflow-wrap: anywhere;
-        }
-
-        .message {
-            border-radius: 7px;
-            font-size: 14px;
-            line-height: 1.55;
-            padding: 12px;
-        }
-
+        .label { color: #58665f; font-size: 13px; margin-bottom: 6px; }
+        .value { color: #1f2933; font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+        .message { border-radius: 7px; font-size: 14px; line-height: 1.55; padding: 12px; }
+        .success { background: #e4f6ea; color: #176039; }
+        .warning { background: #fff4ce; color: #7a4f00; }
+        .error { background: #ffe2e0; color: #a8201a; }
+        .link-grid { display: flex; flex-wrap: wrap; gap: 10px; }
         .region-grid {
             display: grid;
             gap: 12px;
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
-
         .region-card {
             border: 1px solid #d9e1dc;
             border-left-width: 5px;
@@ -188,88 +86,16 @@
             gap: 8px;
             padding: 12px;
         }
-
-        .region-table {
-            background: #eef8f1;
-            border-left-color: #2f8f56;
-        }
-
-        .region-block {
-            background: #fff4ce;
-            border-left-color: #c98510;
-        }
-
-        .region-label {
-            background: #eef2f6;
-            border-left-color: #3e5f8a;
-        }
-
-        .region-type {
-            color: #58665f;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-
-        .region-name {
-            color: #1f2933;
-            font-size: 15px;
-            font-weight: 700;
-            overflow-wrap: anywhere;
-        }
-
-        .region-meta {
-            color: #58665f;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-
-        .success {
-            background: #e4f6ea;
-            color: #176039;
-        }
-
-        .warning {
-            background: #fff4ce;
-            color: #7a4f00;
-        }
-
-        .error {
-            background: #ffe2e0;
-            color: #a8201a;
-        }
-
-        table {
-            border-collapse: collapse;
-            font-size: 13px;
-            width: 100%;
-        }
-
-        th,
-        td {
-            border: 1px solid #d9e1dc;
-            padding: 8px 10px;
-            text-align: left;
-            vertical-align: top;
-        }
-
-        th {
-            background: #fbfcfb;
-            font-weight: 700;
-        }
-
-        details {
-            background: #101820;
-            border-radius: 7px;
-            color: #dfe7ee;
-            overflow: hidden;
-        }
-
-        summary {
-            cursor: pointer;
-            padding: 12px 14px;
-        }
-
+        .region-table { background: #eef8f1; border-left-color: #2f8f56; }
+        .region-block { background: #fff4ce; border-left-color: #c98510; }
+        .region-label { background: #eef2f6; border-left-color: #3e5f8a; }
+        .region-name { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+        .region-meta { color: #58665f; font-size: 13px; line-height: 1.5; }
+        table { border-collapse: collapse; font-size: 13px; width: 100%; }
+        th, td { border: 1px solid #d9e1dc; padding: 8px 10px; text-align: left; vertical-align: top; }
+        th { background: #fbfcfb; font-weight: 700; }
+        details { background: #101820; border-radius: 7px; color: #dfe7ee; overflow: hidden; }
+        summary { cursor: pointer; padding: 12px 14px; }
         pre {
             border-top: 1px solid #31404f;
             font-size: 13px;
@@ -279,21 +105,11 @@
             padding: 14px;
             white-space: pre-wrap;
         }
-
         @media (max-width: 760px) {
-            .header-inner,
-            .toolbar {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-
-            .summary-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .region-grid {
-                grid-template-columns: 1fr;
-            }
+            .header-inner, .toolbar { align-items: flex-start; flex-direction: column; }
+            .summary-grid, .region-grid { grid-template-columns: 1fr; }
+            table { min-width: 780px; }
+            .table-wrap { overflow-x: auto; }
         }
     </style>
 </head>
@@ -319,40 +135,43 @@
                 <button class="btn-secondary" type="button" onclick="runAnalysis()">扫描表格</button>
                 <button class="btn-secondary" type="button" onclick="runAnalysis()">扫描区块</button>
                 <button class="btn-secondary" type="button" onclick="runAnalysis()">自动推断 Mapping</button>
+                <button class="btn-primary" type="button" onclick="runTemplateLearn()">一键学习模板</button>
                 <button class="btn-primary" type="button" onclick="location.href='/v4-mapping-workbench'">进入 Mapping Workbench</button>
                 <button class="btn-secondary" type="button" onclick="loadResult()">刷新结果</button>
             </div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Summary</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Template Learning Result</div></div>
             <div class="panel-body">
-                <div id="summaryBody" class="summary-grid"></div>
+                <div id="learningMessage" class="message warning">尚未执行一键模板学习。</div>
+                <div id="learningSummaryBody" class="summary-grid"></div>
+                <div class="link-grid">
+                    <a class="link-button" href="/v4-structured-mapping">查看结构化映射</a>
+                    <a class="link-button" href="/v4-table-mapping">查看动态表格映射</a>
+                    <a class="link-button" href="/v4-block-merge-rules">查看区块合并规则</a>
+                    <a class="link-button" href="/v4-core-pipeline">进入核心流水线</a>
+                </div>
             </div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Region Summary</div>
-            </div>
-            <div class="panel-body">
-                <div id="regionSummaryBody" class="summary-grid"></div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Summary</div></div>
+            <div class="panel-body"><div id="summaryBody" class="summary-grid"></div></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Recommended Regions</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Region Summary</div></div>
+            <div class="panel-body"><div id="regionSummaryBody" class="summary-grid"></div></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><div class="panel-title">Recommended Regions</div></div>
             <div id="recommendedRegionsBody" class="panel-body"></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Auto Mapping Preview</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Auto Mapping Preview</div></div>
             <div class="panel-body">
                 <div id="autoStructuredBody"></div>
                 <div id="autoTablesBody"></div>
@@ -363,37 +182,27 @@
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Structure Graph Preview</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Structure Graph Preview</div></div>
             <div id="structureGraphBody" class="panel-body"></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Labels Preview</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Labels Preview</div></div>
             <div id="labelsBody" class="panel-body"></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Structured Mapping Preview</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Structured Mapping Preview</div></div>
             <div id="structuredBody" class="panel-body"></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Table Regions</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Table Regions</div></div>
             <div id="tablesBody" class="panel-body"></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Block Regions</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Block Regions</div></div>
             <div id="blocksBody" class="panel-body"></div>
         </section>
 
@@ -431,12 +240,40 @@
         }
 
         function renderSummary(summary) {
+            summary = summary || {};
             document.getElementById('summaryBody').innerHTML = `
                 ${summaryItem('Labels', summary.labels_count || 0)}
                 ${summaryItem('Structured Mapping', summary.structured_mapping_count || 0)}
                 ${summaryItem('Table Regions', summary.table_regions_count || 0)}
                 ${summaryItem('Block Regions', summary.block_regions_count || 0)}
                 ${summaryItem('Structure Regions', summary.structure_regions_count || 0)}
+            `;
+        }
+
+        function renderLearningResult(result) {
+            const message = document.getElementById('learningMessage');
+            const summary = result?.summary || {};
+            if (!result || !Object.keys(summary).length) {
+                message.className = 'message warning';
+                message.textContent = '尚未执行一键模板学习。';
+                document.getElementById('learningSummaryBody').innerHTML = `
+                    ${summaryItem('Structured Applied', 0)}
+                    ${summaryItem('Tables Applied', 0)}
+                    ${summaryItem('Blocks Applied', 0)}
+                    ${summaryItem('Needs Review', 0)}
+                    ${summaryItem('Rejected', 0)}
+                `;
+                return;
+            }
+
+            message.className = result.success ? 'message success' : 'message error';
+            message.textContent = result.success ? '模板学习完成，已写入正式 Mapping。' : '模板学习失败。';
+            document.getElementById('learningSummaryBody').innerHTML = `
+                ${summaryItem('Structured Applied', summary.structured_applied || 0)}
+                ${summaryItem('Tables Applied', summary.tables_applied || 0)}
+                ${summaryItem('Blocks Applied', summary.blocks_applied || 0)}
+                ${summaryItem('Needs Review', summary.needs_review || 0)}
+                ${summaryItem('Rejected', summary.rejected || 0)}
             `;
         }
 
@@ -451,13 +288,6 @@
             `;
         }
 
-        function boundsText(bounds) {
-            bounds = bounds || {};
-            const rows = bounds.start_row ? `${bounds.start_row}-${bounds.end_row || bounds.start_row}` : '-';
-            const cols = bounds.start_col ? `${bounds.start_col}-${bounds.end_col || bounds.start_col}` : '-';
-            return `rows ${rows}, cols ${cols}`;
-        }
-
         function rangeText(bounds) {
             bounds = bounds || {};
             if (!bounds.start_row || !bounds.end_row || !bounds.start_col || !bounds.end_col) {
@@ -466,42 +296,79 @@
             return `R${bounds.start_row}:C${bounds.start_col} - R${bounds.end_row}:C${bounds.end_col}`;
         }
 
+        function boundsText(bounds) {
+            bounds = bounds || {};
+            const rows = bounds.start_row ? `${bounds.start_row}-${bounds.end_row || bounds.start_row}` : '-';
+            const cols = bounds.start_col ? `${bounds.start_col}-${bounds.end_col || bounds.start_col}` : '-';
+            return `rows ${rows}, cols ${cols}`;
+        }
+
         function renderRecommendedRegions(structure) {
             const regions = Array.isArray(structure?.recommended_regions) ? structure.recommended_regions : [];
             if (!regions.length) {
                 renderEmpty('recommendedRegionsBody', '暂无 Recommended Regions');
                 return;
             }
-
             document.getElementById('recommendedRegionsBody').innerHTML = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>type</th>
-                            <th>suggested_name</th>
-                            <th>semantic_type</th>
-                            <th>sheet</th>
-                            <th>range</th>
-                            <th>score</th>
-                            <th>confidence</th>
-                            <th>matched_keywords</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${regions.map(region => `
+                <div class="table-wrap">
+                    <table>
+                        <thead>
                             <tr>
-                                <td>${escapeHtml(region.type || '')}</td>
-                                <td>${escapeHtml(region.suggested_name || region.name || '')}</td>
-                                <td>${escapeHtml(region.semantic_type || '')}</td>
-                                <td>${escapeHtml(region.sheet || '')}</td>
-                                <td>${escapeHtml(rangeText(region.bounds || {}))}</td>
-                                <td>${escapeHtml(region.score ?? '')}</td>
-                                <td>${escapeHtml(region.confidence || '')}</td>
-                                <td>${escapeHtml(Array.isArray(region.matched_keywords) ? region.matched_keywords.join('、') : '')}</td>
+                                <th>type</th>
+                                <th>suggested_name</th>
+                                <th>semantic_type</th>
+                                <th>sheet</th>
+                                <th>range</th>
+                                <th>score</th>
+                                <th>confidence</th>
+                                <th>matched_keywords</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            ${regions.map(region => `
+                                <tr>
+                                    <td>${escapeHtml(region.type || '')}</td>
+                                    <td>${escapeHtml(region.suggested_name || region.name || '')}</td>
+                                    <td>${escapeHtml(region.semantic_type || '')}</td>
+                                    <td>${escapeHtml(region.sheet || '')}</td>
+                                    <td>${escapeHtml(rangeText(region.bounds || {}))}</td>
+                                    <td>${escapeHtml(region.score ?? '')}</td>
+                                    <td>${escapeHtml(region.confidence || '')}</td>
+                                    <td>${escapeHtml(Array.isArray(region.matched_keywords) ? region.matched_keywords.join('、') : '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderCandidateTable(targetId, title, items) {
+            if (!Array.isArray(items) || !items.length) {
+                renderEmpty(targetId, `暂无 ${title}`);
+                return;
+            }
+            document.getElementById(targetId).innerHTML = `
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th colspan="6">${escapeHtml(title)}</th></tr>
+                            <tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>status</th><th>reason</th></tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.label || item.block_name || item.table_name || '')}</td>
+                                    <td>${escapeHtml(item.source_path || '')}</td>
+                                    <td>${escapeHtml(item.target_cell || '')}</td>
+                                    <td>${escapeHtml(item.confidence || '')}</td>
+                                    <td>${escapeHtml(item.status || '')}</td>
+                                    <td>${escapeHtml(item.reason || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
         }
 
@@ -511,24 +378,26 @@
                 return;
             }
             document.getElementById('autoStructuredBody').innerHTML = `
-                <table>
-                    <thead>
-                        <tr><th colspan="5">Structured Mapping</th></tr>
-                        <tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>status</th><th>reason</th></tr>
-                    </thead>
-                    <tbody>
-                        ${items.map(item => `
-                            <tr>
-                                <td>${escapeHtml(item.label || '')}</td>
-                                <td>${escapeHtml(item.source_path || '')}</td>
-                                <td>${escapeHtml(item.target_cell || '')}</td>
-                                <td>${escapeHtml(item.confidence || '')}</td>
-                                <td>${escapeHtml(item.status || '')}</td>
-                                <td>${escapeHtml(item.reason || '')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th colspan="6">Structured Mapping</th></tr>
+                            <tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>status</th><th>reason</th></tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.label || '')}</td>
+                                    <td>${escapeHtml(item.source_path || '')}</td>
+                                    <td>${escapeHtml(item.target_cell || '')}</td>
+                                    <td>${escapeHtml(item.confidence || '')}</td>
+                                    <td>${escapeHtml(item.status || '')}</td>
+                                    <td>${escapeHtml(item.reason || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
         }
 
@@ -538,24 +407,26 @@
                 return;
             }
             document.getElementById('autoTablesBody').innerHTML = `
-                <table>
-                    <thead>
-                        <tr><th colspan="5">Table Mapping</th></tr>
-                        <tr><th>table_name</th><th>sheet</th><th>start_row</th><th>confidence</th><th>status</th><th>columns</th></tr>
-                    </thead>
-                    <tbody>
-                        ${items.map(item => `
-                            <tr>
-                                <td>${escapeHtml(item.table_name || '')}</td>
-                                <td>${escapeHtml(item.sheet || '')}</td>
-                                <td>${escapeHtml(item.start_row ?? '')}</td>
-                                <td>${escapeHtml(item.confidence || '')}</td>
-                                <td>${escapeHtml(item.status || '')}</td>
-                                <td>${escapeHtml((item.columns || []).map(column => `${column.label || ''}:${column.target_col || ''}`).join('、'))}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th colspan="6">Table Mapping</th></tr>
+                            <tr><th>table_name</th><th>sheet</th><th>start_row</th><th>confidence</th><th>status</th><th>columns</th></tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.table_name || '')}</td>
+                                    <td>${escapeHtml(item.sheet || '')}</td>
+                                    <td>${escapeHtml(item.start_row ?? '')}</td>
+                                    <td>${escapeHtml(item.confidence || '')}</td>
+                                    <td>${escapeHtml(item.status || '')}</td>
+                                    <td>${escapeHtml((item.columns || []).map(column => `${column.label || ''}:${column.target_col || ''}`).join('、'))}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
         }
 
@@ -565,24 +436,26 @@
                 return;
             }
             document.getElementById('autoBlocksBody').innerHTML = `
-                <table>
-                    <thead>
-                        <tr><th colspan="5">Block Mapping</th></tr>
-                        <tr><th>block_name</th><th>target_cell</th><th>operation</th><th>confidence</th><th>status</th><th>reason</th></tr>
-                    </thead>
-                    <tbody>
-                        ${items.map(item => `
-                            <tr>
-                                <td>${escapeHtml(item.block_name || '')}</td>
-                                <td>${escapeHtml(item.target_cell || '')}</td>
-                                <td>${escapeHtml(item.operation || '')}</td>
-                                <td>${escapeHtml(item.confidence || '')}</td>
-                                <td>${escapeHtml(item.status || '')}</td>
-                                <td>${escapeHtml(item.reason || '')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th colspan="6">Block Mapping</th></tr>
+                            <tr><th>block_name</th><th>target_cell</th><th>operation</th><th>confidence</th><th>status</th><th>reason</th></tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.block_name || '')}</td>
+                                    <td>${escapeHtml(item.target_cell || '')}</td>
+                                    <td>${escapeHtml(item.operation || '')}</td>
+                                    <td>${escapeHtml(item.confidence || '')}</td>
+                                    <td>${escapeHtml(item.status || '')}</td>
+                                    <td>${escapeHtml(item.reason || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
         }
 
@@ -595,47 +468,18 @@
             renderCandidateTable('autoRejectedBody', 'Rejected Candidates', preview.rejected_candidates || []);
         }
 
-        function renderCandidateTable(targetId, title, items) {
-            if (!Array.isArray(items) || !items.length) {
-                renderEmpty(targetId, `暂无 ${title}`);
-                return;
-            }
-            document.getElementById(targetId).innerHTML = `
-                <table>
-                    <thead>
-                        <tr><th colspan="6">${escapeHtml(title)}</th></tr>
-                        <tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>status</th><th>reason</th></tr>
-                    </thead>
-                    <tbody>
-                        ${items.map(item => `
-                            <tr>
-                                <td>${escapeHtml(item.label || item.block_name || item.table_name || '')}</td>
-                                <td>${escapeHtml(item.source_path || '')}</td>
-                                <td>${escapeHtml(item.target_cell || '')}</td>
-                                <td>${escapeHtml(item.confidence || '')}</td>
-                                <td>${escapeHtml(item.status || '')}</td>
-                                <td>${escapeHtml(item.reason || '')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
-
         function renderStructureGraph(structure) {
             const regions = Array.isArray(structure?.regions) ? structure.regions : [];
             if (!regions.length) {
                 renderEmpty('structureGraphBody', '暂无 Structure Graph Preview');
                 return;
             }
-
             document.getElementById('structureGraphBody').innerHTML = `
                 <div class="region-grid">
                     ${regions.map(region => `
                         <div class="region-card region-${escapeHtml(region.type || 'label')}">
-                            <div class="region-type">${escapeHtml(region.type || '')}</div>
                             <div class="region-name">${escapeHtml(region.suggested_name || region.name || '-')}</div>
-                            <div class="region-meta">${escapeHtml(region.semantic_type || 'unknown')}</div>
+                            <div class="region-meta">${escapeHtml(region.type || '')} / ${escapeHtml(region.semantic_type || 'unknown')}</div>
                             <div class="region-meta">Sheet：${escapeHtml(region.sheet || '-')}</div>
                             <div class="region-meta">${escapeHtml(boundsText(region.bounds || {}))}</div>
                         </div>
@@ -650,18 +494,20 @@
                 return;
             }
             document.getElementById('labelsBody').innerHTML = `
-                <table>
-                    <thead><tr><th>Sheet</th><th>Cell</th><th>Value</th></tr></thead>
-                    <tbody>
-                        ${labels.map(item => `
-                            <tr>
-                                <td>${escapeHtml(item.sheet || '')}</td>
-                                <td>${escapeHtml(item.cell || '')}</td>
-                                <td>${escapeHtml(item.value || '')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Sheet</th><th>Cell</th><th>Value</th></tr></thead>
+                        <tbody>
+                            ${labels.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.sheet || '')}</td>
+                                    <td>${escapeHtml(item.cell || '')}</td>
+                                    <td>${escapeHtml(item.value || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
         }
 
@@ -671,19 +517,21 @@
                 return;
             }
             document.getElementById('structuredBody').innerHTML = `
-                <table>
-                    <thead><tr><th>Sheet</th><th>Label</th><th>Source Path</th><th>Target Cell</th></tr></thead>
-                    <tbody>
-                        ${mappings.map(item => `
-                            <tr>
-                                <td>${escapeHtml(item.sheet || '')}</td>
-                                <td>${escapeHtml(item.label || '')}</td>
-                                <td>${escapeHtml(item.source_path || '')}</td>
-                                <td>${escapeHtml(item.target_cell || '')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Sheet</th><th>Label</th><th>Source Path</th><th>Target Cell</th></tr></thead>
+                        <tbody>
+                            ${mappings.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.sheet || '')}</td>
+                                    <td>${escapeHtml(item.label || '')}</td>
+                                    <td>${escapeHtml(item.source_path || '')}</td>
+                                    <td>${escapeHtml(item.target_cell || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
         }
 
@@ -693,23 +541,25 @@
                 return;
             }
             document.getElementById('tablesBody').innerHTML = tables.map(table => `
-                <table>
-                    <thead>
-                        <tr><th colspan="5">${escapeHtml(table.table_name || '')} / ${escapeHtml(table.sheet || '')}</th></tr>
-                        <tr><th>Header Row</th><th>Start Cell</th><th>Label</th><th>Field</th><th>Target Col</th></tr>
-                    </thead>
-                    <tbody>
-                        ${(table.columns || []).map(column => `
-                            <tr>
-                                <td>${escapeHtml(table.header_row || '')}</td>
-                                <td>${escapeHtml(table.start_cell || '')}</td>
-                                <td>${escapeHtml(column.label || '')}</td>
-                                <td>${escapeHtml(column.field || '')}</td>
-                                <td>${escapeHtml(column.target_col || '')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th colspan="5">${escapeHtml(table.table_name || '')} / ${escapeHtml(table.sheet || '')}</th></tr>
+                            <tr><th>Header Row</th><th>Start Cell</th><th>Label</th><th>Field</th><th>Target Col</th></tr>
+                        </thead>
+                        <tbody>
+                            ${(table.columns || []).map(column => `
+                                <tr>
+                                    <td>${escapeHtml(table.header_row || '')}</td>
+                                    <td>${escapeHtml(table.start_cell || '')}</td>
+                                    <td>${escapeHtml(column.label || '')}</td>
+                                    <td>${escapeHtml(column.field || '')}</td>
+                                    <td>${escapeHtml(column.target_col || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `).join('');
         }
 
@@ -719,19 +569,21 @@
                 return;
             }
             document.getElementById('blocksBody').innerHTML = `
-                <table>
-                    <thead><tr><th>Sheet</th><th>Block Name</th><th>Source Cell</th><th>Target Cell</th></tr></thead>
-                    <tbody>
-                        ${blocks.map(item => `
-                            <tr>
-                                <td>${escapeHtml(item.sheet || '')}</td>
-                                <td>${escapeHtml(item.block_name || '')}</td>
-                                <td>${escapeHtml(item.source_cell || '')}</td>
-                                <td>${escapeHtml(item.target_cell || '')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Sheet</th><th>Block Name</th><th>Source Cell</th><th>Target Cell</th></tr></thead>
+                        <tbody>
+                            ${blocks.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.sheet || '')}</td>
+                                    <td>${escapeHtml(item.block_name || '')}</td>
+                                    <td>${escapeHtml(item.source_cell || '')}</td>
+                                    <td>${escapeHtml(item.target_cell || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
         }
 
@@ -773,18 +625,15 @@
                 setStatus('请先选择 Excel 模板');
                 return false;
             }
-
             const formData = new FormData();
             formData.append('template_file', currentFile);
-            const response = await fetch('/api/v4/template-analysis/upload', {
-                method: 'POST',
-                body: formData
-            });
+            const response = await fetch('/api/v4/template-analysis/upload', { method: 'POST', body: formData });
             const result = await response.json();
             if (!response.ok || !result.success) {
                 throw new Error(result.error || 'Excel 模板上传失败');
             }
             setStatus(result.message || 'Excel 模板已上传');
+            currentFile = null;
             return true;
         }
 
@@ -807,6 +656,27 @@
             }
         }
 
+        async function runTemplateLearn() {
+            try {
+                if (currentFile) {
+                    await uploadTemplate();
+                }
+                setStatus('正在一键学习模板...');
+                const response = await fetch('/api/v4/template-learn/run', { method: 'POST' });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || '模板学习失败');
+                }
+                renderLearningResult(result);
+                renderAnalysis(result.template_analysis || {});
+                await loadAutoMappingPreview();
+                setStatus('模板学习完成，已写入正式 Mapping');
+            } catch (error) {
+                renderLearningResult({ success: false, summary: {} });
+                setStatus(error.message || '模板学习失败');
+            }
+        }
+
         async function loadResult() {
             try {
                 const response = await fetch('/api/v4/template-analysis/result');
@@ -815,6 +685,7 @@
                     throw new Error(result.error || 'Template Analysis 结果加载失败');
                 }
                 renderAnalysis(result.template_analysis || {});
+                renderLearningResult(result.pipeline_state?.template_learning || {});
                 await loadAutoMappingPreview();
                 setStatus('Template Analysis 结果已加载');
             } catch (error) {
@@ -830,6 +701,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             renderAnalysis({});
+            renderLearningResult({});
             loadResult();
         });
     </script>

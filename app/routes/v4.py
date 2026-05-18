@@ -34,6 +34,7 @@ from app.v4_pipeline_state import (
     set_structured_operations,
     set_table_operations,
     set_template_analysis,
+    set_template_learning,
     set_unified_operations,
     set_validator_result,
 )
@@ -780,6 +781,134 @@ def api_v4_auto_mapping_preview():
     }
 
 
+def _recommended_auto_mapping_payload(preview):
+    preview = preview if isinstance(preview, dict) else {}
+
+    def recommended_items(key):
+        items = preview.get(key, [])
+        if not isinstance(items, list):
+            return []
+        return [
+            item
+            for item in items
+            if isinstance(item, dict) and str(item.get("status") or "") == "recommended"
+        ]
+
+    return {
+        "structured": recommended_items("structured"),
+        "tables": recommended_items("tables"),
+        "blocks": recommended_items("blocks"),
+    }
+
+
+@router.post("/api/v4/template-learn/run")
+def api_v4_template_learn_run():
+    from app.v4_mapping_generator import generate_auto_mapping
+    from app.v4_mapping_workbench import apply_auto_mapping
+    from app.v4_template_analysis import analyze_template
+
+    logger.info("V4 template learn run requested")
+    state = get_pipeline_state()
+    template_path = state.get("current_template_path")
+    if not template_path:
+        learning_state = set_template_learning(
+            {
+                "success": False,
+                "summary": {},
+                "needs_review": [],
+                "rejected_candidates": [],
+            }
+        )
+        return {
+            "success": False,
+            "error": "请先上传 Excel 模板",
+            "pipeline_state": learning_state,
+        }
+
+    path = Path(str(template_path))
+    if not path.is_file():
+        learning_state = set_template_learning(
+            {
+                "success": False,
+                "summary": {},
+                "needs_review": [],
+                "rejected_candidates": [],
+            }
+        )
+        return {
+            "success": False,
+            "error": "当前 Excel 模板不存在，请重新上传",
+            "pipeline_state": learning_state,
+        }
+
+    try:
+        analysis = analyze_template(path)
+        analysis["auto_mapping_preview"] = generate_auto_mapping(analysis)
+        preview = analysis.get("auto_mapping_preview", {})
+        payload = _recommended_auto_mapping_payload(preview)
+        apply_result = apply_auto_mapping(payload)
+        if not apply_result.get("success"):
+            raise ValueError(apply_result.get("error", "自动映射写入正式 Mapping 失败"))
+
+        summary = {
+            "structured_applied": apply_result.get("result", {}).get("structured_saved", 0),
+            "tables_applied": apply_result.get("result", {}).get("tables_saved", 0),
+            "blocks_applied": apply_result.get("result", {}).get("blocks_saved", 0),
+            "needs_review": len(preview.get("needs_review", [])) if isinstance(preview.get("needs_review", []), list) else 0,
+            "rejected": len(preview.get("rejected_candidates", []))
+            if isinstance(preview.get("rejected_candidates", []), list)
+            else 0,
+        }
+
+        set_template_analysis(analysis)
+        learning_state = set_template_learning(
+            {
+                "success": True,
+                "summary": summary,
+                "needs_review": preview.get("needs_review", []),
+                "rejected_candidates": preview.get("rejected_candidates", []),
+            }
+        )
+        return {
+            "success": True,
+            "message": "模板学习完成",
+            "summary": summary,
+            "auto_mapping_preview": preview,
+            "template_analysis": learning_state.get("template_analysis", {}),
+            "pipeline_state": learning_state,
+        }
+    except (BadZipFile, InvalidFileException) as exc:
+        logger.warning("V4 template learn invalid Excel: path=%s", path, exc_info=True)
+        learning_state = set_template_learning(
+            {
+                "success": False,
+                "summary": {},
+                "needs_review": [],
+                "rejected_candidates": [],
+            }
+        )
+        return {
+            "success": False,
+            "error": f"Excel 模板格式无效：{exc}",
+            "pipeline_state": learning_state,
+        }
+    except Exception as exc:
+        logger.exception("V4 template learn failed: path=%s", path)
+        learning_state = set_template_learning(
+            {
+                "success": False,
+                "summary": {},
+                "needs_review": [],
+                "rejected_candidates": [],
+            }
+        )
+        return {
+            "success": False,
+            "error": str(exc) or "模板学习失败",
+            "pipeline_state": learning_state,
+        }
+
+
 @router.get("/api/v4/mapping-workbench/preview")
 def api_v4_mapping_workbench_preview():
     logger.info("V4 mapping workbench preview requested")
@@ -796,6 +925,20 @@ def api_v4_mapping_workbench_save_selected(payload: Any = Body(None)):
         return {
             "success": False,
             "error": result.get("error", "映射规则保存失败"),
+        }
+    return result
+
+
+@router.post("/api/v4/apply-auto-mapping")
+def api_v4_apply_auto_mapping(payload: Any = Body(None)):
+    from app.v4_mapping_workbench import apply_auto_mapping
+
+    logger.info("V4 apply auto mapping requested")
+    result = apply_auto_mapping(payload if isinstance(payload, dict) else {})
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "自动映射写入正式 Mapping 失败"),
         }
     return result
 

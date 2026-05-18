@@ -1,5 +1,5 @@
 {
-  "version": "V4-Rebuild.4",
+  "version": "V4-Rebuild",
   "blocks": [
     {
       "block_name": "产品说明块",
@@ -17,8 +17,9 @@
     },
     {
       "block_name": "包装要求区域",
-      "target_cell": "B18",
-      "lines": []
+      "target_cell": "B13",
+      "lines": [],
+      "source_path": ""
     },
     {
       "block_name": "客户名称",
