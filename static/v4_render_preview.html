@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Render Preview</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #111820;
+            color: #e6edf3;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #1d2630;
+            border-bottom: 1px solid #31404f;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1120px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #b8c7d6;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .home-link:hover {
+            color: #ffffff;
+        }
+
+        main {
+            display: grid;
+            gap: 16px;
+            padding: 24px;
+        }
+
+        .toolbar,
+        .preview-shell,
+        details {
+            background: #18222d;
+            border: 1px solid #31404f;
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            padding: 14px 16px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .status {
+            color: #b8c7d6;
+            font-size: 14px;
+        }
+
+        button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-primary {
+            background: #4f7cac;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #416b97;
+        }
+
+        .btn-secondary {
+            background: #22303d;
+            border-color: #405366;
+            color: #d6e2ee;
+        }
+
+        .btn-secondary:hover {
+            background: #2a3a49;
+        }
+
+        .preview-shell {
+            overflow: hidden;
+        }
+
+        .preview-header {
+            align-items: center;
+            border-bottom: 1px solid #31404f;
+            display: flex;
+            justify-content: space-between;
+            padding: 14px 16px;
+        }
+
+        .preview-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .preview-body {
+            background: #f6f8fa;
+            color: #1f2933;
+            min-height: 420px;
+            padding: 20px;
+        }
+
+        .v4-render-target {
+            display: grid;
+            gap: 18px;
+        }
+
+        .render-section {
+            display: grid;
+            gap: 12px;
+        }
+
+        .render-section h2 {
+            color: #1d2630;
+            font-size: 18px;
+        }
+
+        .field-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .field-card,
+        .text-block,
+        .table-block {
+            background: #ffffff;
+            border: 1px solid #d7dee6;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .field-label,
+        .block-title,
+        .table-block h3 {
+            color: #1f2933;
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .field-meta {
+            color: #6b7785;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .field-value {
+            color: #263442;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        table {
+            border-collapse: collapse;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #d7dee6;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #eef3f8;
+            color: #1f2933;
+            font-weight: 700;
+        }
+
+        .text-block pre {
+            background: #f3f6f9;
+            border: 1px solid #d7dee6;
+            border-radius: 6px;
+            color: #263442;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            min-height: 96px;
+            padding: 10px;
+            white-space: pre-wrap;
+        }
+
+        .empty-preview {
+            background: #ffffff;
+            border: 1px solid #d7dee6;
+            border-radius: 8px;
+            color: #6b7785;
+            padding: 18px;
+        }
+
+        summary {
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 14px 16px;
+        }
+
+        pre.raw-json {
+            background: #0e141b;
+            color: #cfe1f1;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 320px;
+            overflow: auto;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 760px) {
+            main {
+                padding: 16px;
+            }
+
+            .header-inner,
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .field-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 Render Preview</h1>
+            <a class="home-link" href="/v4-core-pipeline">返回 Core Pipeline</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="toolbar">
+            <div class="status" id="statusText">准备加载 Unified Operations</div>
+            <div class="actions">
+                <button class="btn-secondary" type="button" onclick="loadUnifiedOperations()">加载 Unified Operations</button>
+                <button class="btn-primary" type="button" onclick="generateHtmlPreview()">生成 HTML Preview</button>
+            </div>
+        </div>
+
+        <section class="preview-shell">
+            <div class="preview-header">
+                <div class="preview-title">Rendered HTML</div>
+                <div class="status" id="operationCount">0 条 operations</div>
+            </div>
+            <div class="preview-body" id="previewBody">
+                <div class="empty-preview">尚未生成 HTML Preview</div>
+            </div>
+        </section>
+
+        <details>
+            <summary>Unified Operations</summary>
+            <pre class="raw-json" id="operationsPreview">[]</pre>
+        </details>
+    </main>
+
+    <script>
+        let currentUnifiedOperations = [];
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function updateOperationsPreview() {
+            document.getElementById('operationsPreview').textContent = JSON.stringify(currentUnifiedOperations, null, 2);
+            document.getElementById('operationCount').textContent = `${currentUnifiedOperations.length} 条 operations`;
+        }
+
+        async function loadUnifiedOperations() {
+            setStatus('正在加载 Unified Operations');
+            try {
+                const response = await fetch('/api/v4/pipeline-state');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const state = await response.json();
+                currentUnifiedOperations = Array.isArray(state?.operations?.unified) ? state.operations.unified : [];
+                updateOperationsPreview();
+                setStatus(currentUnifiedOperations.length ? 'Unified Operations 已加载' : '暂无 Unified Operations');
+                return currentUnifiedOperations;
+            } catch (error) {
+                currentUnifiedOperations = [];
+                updateOperationsPreview();
+                setStatus('Unified Operations 加载失败');
+                return [];
+            }
+        }
+
+        async function generateHtmlPreview() {
+            if (!currentUnifiedOperations.length) {
+                await loadUnifiedOperations();
+            }
+            if (!currentUnifiedOperations.length) {
+                setStatus('请先在 Core Pipeline 生成 Unified Operations');
+                return;
+            }
+
+            setStatus('正在生成 HTML Preview');
+            try {
+                const response = await fetch('/api/v4/render-preview/html', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operations: currentUnifiedOperations })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || 'HTML Preview 生成失败');
+                    return;
+                }
+                document.getElementById('previewBody').innerHTML = result.html || '<div class="empty-preview">暂无 HTML 内容</div>';
+                setStatus('HTML Preview 已生成');
+            } catch (error) {
+                setStatus('HTML Preview 生成失败');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadUnifiedOperations();
+            if (currentUnifiedOperations.length) {
+                await generateHtmlPreview();
+            }
+        });
+    </script>
+</body>
+</html>

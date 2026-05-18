@@ -1145,6 +1145,7 @@
             return `
                 <div class="export-actions">
                     <button class="btn-secondary" type="button" onclick="generateUnifiedOperationsPreview()">生成 Unified Operations</button>
+                    <button class="btn-secondary" type="button" onclick="openHtmlRenderPreview()">生成 HTML Preview</button>
                 </div>
             `;
         }
@@ -1221,6 +1222,19 @@
                     </tbody>
                 </table>
             `;
+        }
+
+        async function openHtmlRenderPreview() {
+            let unifiedOperations = Array.isArray(currentUnifiedOperationsResult?.operations) ? currentUnifiedOperationsResult.operations : [];
+            if (!unifiedOperations.length) {
+                const unifiedResult = await generateUnifiedOperationsPreview();
+                unifiedOperations = Array.isArray(unifiedResult?.operations) ? unifiedResult.operations : [];
+            }
+            if (!unifiedOperations.length) {
+                setStatus('尚未生成 Unified Operations');
+                return;
+            }
+            window.location.href = '/v4-render-preview';
         }
 
         function renderRealExcelControls() {

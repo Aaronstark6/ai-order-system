@@ -26,6 +26,7 @@ from app.v4_pipeline_state import (
     set_current_order_object,
     set_current_template_path,
     set_excel_result,
+    set_html_preview,
     set_operations,
     set_validator_result,
 )
@@ -51,6 +52,11 @@ from app.v4_validator import validate_example_order
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+@router.get("/v4-render-preview")
+def v4_render_preview_page():
+    return FileResponse(get_base_dir() / "static" / "v4_render_preview.html")
 
 
 def _save_v4_uploaded_template(file: UploadFile):
@@ -1075,6 +1081,28 @@ def api_v4_core_pipeline_unified_operations_preview(payload: Optional[dict] = Bo
         blocks=blocks,
     )
     set_operations("unified", result.get("operations", []))
+    return result
+
+
+@router.post("/api/v4/render-preview/html")
+def api_v4_render_preview_html(payload: Optional[Any] = Body(None)):
+    from app.v4_render_targets import render_unified_operations_to_html
+
+    logger.info("[RenderTarget] HTML preview requested")
+    payload_data = payload if payload is not None else {}
+    if isinstance(payload_data, dict):
+        unified_operations = payload_data.get("operations")
+        if unified_operations is None:
+            unified_operations = payload_data.get("unified_operations")
+    else:
+        unified_operations = payload_data
+
+    if unified_operations is None:
+        unified_operations = get_pipeline_state().get("operations", {}).get("unified", [])
+
+    result = render_unified_operations_to_html(unified_operations)
+    if result.get("success"):
+        set_html_preview(result.get("html", ""))
     return result
 
 

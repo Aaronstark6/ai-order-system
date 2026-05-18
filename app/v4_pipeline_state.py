@@ -22,6 +22,9 @@ def _default_state():
             "generated_file": None,
             "generated_time": None,
         },
+        "render_targets": {
+            "html_preview": None,
+        },
     }
 
 
@@ -88,4 +91,10 @@ def set_excel_result(generated_file, generated_time=None):
             "generated_file": str(generated_file) if generated_file else None,
             "generated_time": generated_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
+        return deepcopy(_STATE)
+
+
+def set_html_preview(html):
+    with _LOCK:
+        _STATE["render_targets"]["html_preview"] = str(html) if html is not None else None
         return deepcopy(_STATE)
