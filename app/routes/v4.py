@@ -214,6 +214,45 @@ def _resolve_v4_output_file(filename: str):
     return output_path, media_type
 
 
+def _v4_rules_dir():
+    rules_dir = get_base_dir() / "v4" / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    return rules_dir
+
+
+def _read_v4_rule_file(filename: str, default_data: dict):
+    path = _v4_rules_dir() / filename
+    if not path.is_file():
+        _write_v4_rule_file(filename, default_data)
+        return json.loads(json.dumps(default_data, ensure_ascii=False))
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        data = json.loads(json.dumps(default_data, ensure_ascii=False))
+        _write_v4_rule_file(filename, data)
+    return data if isinstance(data, dict) else json.loads(json.dumps(default_data, ensure_ascii=False))
+
+
+def _write_v4_rule_file(filename: str, data: dict):
+    path = _v4_rules_dir() / filename
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
+def _structured_rule_default():
+    return {"version": "V4-Rebuild", "mappings": []}
+
+
+def _table_rule_default():
+    return {"version": "V4-Rebuild", "tables": []}
+
+
+def _block_rule_default():
+    return {"version": "V4-Rebuild", "blocks": []}
+
+
 @router.get("/api/v4/product-schema")
 def api_v4_product_schema():
     logger.info("V4 product schema requested")
@@ -270,6 +309,78 @@ def api_v4_current_template_profile():
         "profile": profile,
         "validation": validation,
     }
+
+
+@router.get("/api/v4/structured-mapping")
+def api_v4_structured_mapping():
+    logger.info("V4 structured mapping requested")
+    return {
+        "success": True,
+        "data": _read_v4_rule_file("structured_excel_mapping.json", _structured_rule_default()),
+    }
+
+
+@router.post("/api/v4/structured-mapping/save")
+def api_v4_structured_mapping_save(payload: Any = Body(None)):
+    logger.info("V4 structured mapping save requested")
+    payload = payload if isinstance(payload, dict) else {}
+    mappings = payload.get("mappings", [])
+    if not isinstance(mappings, list):
+        mappings = []
+    data = {
+        "version": str(payload.get("version") or "V4-Rebuild"),
+        "mappings": mappings,
+    }
+    _write_v4_rule_file("structured_excel_mapping.json", data)
+    return {"success": True, "message": "结构化字段映射已保存", "data": data}
+
+
+@router.get("/api/v4/table-mapping")
+def api_v4_table_mapping():
+    logger.info("V4 table mapping requested")
+    return {
+        "success": True,
+        "data": _read_v4_rule_file("table_mapping.json", _table_rule_default()),
+    }
+
+
+@router.post("/api/v4/table-mapping/save")
+def api_v4_table_mapping_save(payload: Any = Body(None)):
+    logger.info("V4 table mapping save requested")
+    payload = payload if isinstance(payload, dict) else {}
+    tables = payload.get("tables", [])
+    if not isinstance(tables, list):
+        tables = []
+    data = {
+        "version": str(payload.get("version") or "V4-Rebuild"),
+        "tables": tables,
+    }
+    _write_v4_rule_file("table_mapping.json", data)
+    return {"success": True, "message": "动态表格映射已保存", "data": data}
+
+
+@router.get("/api/v4/block-merge-rules")
+def api_v4_block_merge_rules():
+    logger.info("V4 block merge rules requested")
+    return {
+        "success": True,
+        "data": _read_v4_rule_file("block_merge_rules.json", _block_rule_default()),
+    }
+
+
+@router.post("/api/v4/block-merge-rules/save")
+def api_v4_block_merge_rules_save(payload: Any = Body(None)):
+    logger.info("V4 block merge rules save requested")
+    payload = payload if isinstance(payload, dict) else {}
+    blocks = payload.get("blocks", [])
+    if not isinstance(blocks, list):
+        blocks = []
+    data = {
+        "version": str(payload.get("version") or "V4-Rebuild"),
+        "blocks": blocks,
+    }
+    _write_v4_rule_file("block_merge_rules.json", data)
+    return {"success": True, "message": "区块合并规则已保存", "data": data}
 
 
 @router.get("/api/v4/pipeline-state")
@@ -667,6 +778,26 @@ def api_v4_auto_mapping_preview():
             else [],
         },
     }
+
+
+@router.get("/api/v4/mapping-workbench/preview")
+def api_v4_mapping_workbench_preview():
+    logger.info("V4 mapping workbench preview requested")
+    return api_v4_auto_mapping_preview()
+
+
+@router.post("/api/v4/mapping-workbench/save-selected")
+def api_v4_mapping_workbench_save_selected(payload: Any = Body(None)):
+    from app.v4_mapping_workbench import save_selected_mappings
+
+    logger.info("V4 mapping workbench save selected requested")
+    result = save_selected_mappings(payload if isinstance(payload, dict) else {})
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "映射规则保存失败"),
+        }
+    return result
 
 
 @router.post("/api/v4/product-schema")

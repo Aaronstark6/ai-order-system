@@ -67,6 +67,12 @@
             background: #314f76;
         }
 
+        .entry-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         main {
             display: grid;
             gap: 16px;
@@ -164,7 +170,8 @@
 
         @media (max-width: 760px) {
             .header-inner,
-            .profile-grid {
+            .profile-grid,
+            .entry-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -184,6 +191,22 @@
     </header>
 
     <main>
+        <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">V4 配置入口</div>
+            </div>
+            <div class="panel-body">
+                <div class="entry-grid">
+                    <a class="entry-link" href="/v4-structured-mapping">结构化字段映射</a>
+                    <a class="entry-link" href="/v4-table-mapping">动态表格映射</a>
+                    <a class="entry-link" href="/v4-block-merge-rules">区块合并规则</a>
+                    <a class="entry-link" href="/v4-template-analysis">Template Analysis</a>
+                    <a class="entry-link" href="/v4-mapping-workbench">Mapping Workbench</a>
+                    <a class="entry-link" href="/v4-core-pipeline">Core Pipeline</a>
+                </div>
+            </div>
+        </section>
+
         <section class="panel">
             <div class="panel-header">
                 <div class="panel-title">Template Intelligence</div>

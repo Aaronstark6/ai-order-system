@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 区块合并规则</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #f6f7f5; color: #1f2933; font-family: Arial, "Microsoft YaHei", sans-serif; min-height: 100vh; }
+        header { background: #2d3542; color: #fff; padding: 18px 24px; }
+        .header-inner, main { margin: 0 auto; max-width: 1120px; }
+        .header-inner, .toolbar { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+        h1 { font-size: 24px; letter-spacing: 0; }
+        a { color: #dfe7ee; font-size: 14px; text-decoration: none; }
+        main { display: grid; gap: 16px; padding: 24px; }
+        .toolbar, .panel { background: #fff; border: 1px solid #d9e1dc; border-radius: 8px; }
+        .toolbar { flex-wrap: wrap; padding: 14px 16px; }
+        .panel { overflow: hidden; }
+        .panel-header { align-items: center; background: #fbfcfb; border-bottom: 1px solid #d9e1dc; display: flex; justify-content: space-between; padding: 14px 16px; }
+        .panel-body { display: grid; gap: 10px; padding: 16px; }
+        button { border: 1px solid transparent; border-radius: 6px; cursor: pointer; font-size: 14px; min-height: 36px; padding: 8px 14px; }
+        .btn-primary { background: #3e5f8a; color: #fff; }
+        .btn-secondary { background: #fff; border-color: #bcc8c3; color: #2d3542; }
+        .status { color: #58665f; font-size: 14px; }
+        input, textarea { border: 1px solid #bcc8c3; border-radius: 5px; font-family: inherit; min-height: 30px; padding: 5px 7px; width: 100%; }
+        textarea { min-height: 120px; }
+        .grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        label { color: #58665f; font-size: 13px; }
+        @media (max-width: 760px) { .grid, .header-inner, .toolbar { grid-template-columns: 1fr; flex-direction: column; align-items: flex-start; } }
+    </style>
+</head>
+<body>
+    <header><div class="header-inner"><h1>V4 区块合并规则</h1><a href="/v4-core-config">返回配置中心</a></div></header>
+    <main>
+        <section class="toolbar">
+            <div id="statusText" class="status">正在加载...</div>
+            <div><button class="btn-secondary" onclick="addBlock()">新增 block</button><button class="btn-primary" onclick="save()">保存</button></div>
+        </section>
+        <div id="blocks"></div>
+    </main>
+    <script>
+        let blocks = [];
+        function setStatus(text) { document.getElementById('statusText').textContent = text; }
+        function esc(value) { const div = document.createElement('div'); div.textContent = value ?? ''; return div.innerHTML; }
+        function render() {
+            document.getElementById('blocks').innerHTML = blocks.map((item, index) => `
+                <section class="panel">
+                    <div class="panel-header"><strong>${esc(item.block_name || '未命名区块')}</strong><button class="btn-secondary" onclick="removeBlock(${index})">删除</button></div>
+                    <div class="panel-body">
+                        <div class="grid">
+                            <label>block_name<input data-i="${index}" data-k="block_name" value="${esc(item.block_name || '')}"></label>
+                            <label>target_cell<input data-i="${index}" data-k="target_cell" value="${esc(item.target_cell || '')}"></label>
+                        </div>
+                        <label>lines JSON<textarea data-i="${index}" data-k="lines">${esc(JSON.stringify(item.lines || [], null, 2))}</textarea></label>
+                    </div>
+                </section>`).join('');
+        }
+        function sync() {
+            document.querySelectorAll('[data-i]').forEach(input => {
+                const item = blocks[Number(input.dataset.i)];
+                if (input.dataset.k === 'lines') {
+                    try { item.lines = JSON.parse(input.value || '[]'); } catch { item.lines = []; }
+                } else {
+                    item[input.dataset.k] = input.value.trim();
+                }
+            });
+        }
+        function addBlock() { sync(); blocks.push({ block_name: '', target_cell: '', lines: [] }); render(); }
+        function removeBlock(index) { sync(); blocks.splice(index, 1); render(); }
+        async function load() {
+            const response = await fetch('/api/v4/block-merge-rules');
+            const result = await response.json();
+            blocks = result.data?.blocks || [];
+            render();
+            setStatus('已加载 block_merge_rules.json');
+        }
+        async function save() {
+            sync();
+            const response = await fetch('/api/v4/block-merge-rules/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version: 'V4-Rebuild', blocks }) });
+            const result = await response.json();
+            setStatus(result.message || (result.success ? '已保存' : '保存失败'));
+        }
+        document.addEventListener('DOMContentLoaded', load);
+    </script>
+</body>
+</html>

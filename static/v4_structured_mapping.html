@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 结构化字段映射</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #f6f7f5; color: #1f2933; font-family: Arial, "Microsoft YaHei", sans-serif; min-height: 100vh; }
+        header { background: #2d3542; color: #fff; padding: 18px 24px; }
+        .header-inner, main { margin: 0 auto; max-width: 1120px; }
+        .header-inner, .toolbar { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+        h1 { font-size: 24px; letter-spacing: 0; }
+        a { color: #dfe7ee; font-size: 14px; text-decoration: none; }
+        main { display: grid; gap: 16px; padding: 24px; }
+        .toolbar, .panel { background: #fff; border: 1px solid #d9e1dc; border-radius: 8px; }
+        .toolbar { flex-wrap: wrap; padding: 14px 16px; }
+        .panel { overflow: hidden; }
+        .panel-header { background: #fbfcfb; border-bottom: 1px solid #d9e1dc; font-weight: 700; padding: 14px 16px; }
+        .panel-body { padding: 16px; }
+        button { border: 1px solid transparent; border-radius: 6px; cursor: pointer; font-size: 14px; min-height: 36px; padding: 8px 14px; }
+        .btn-primary { background: #3e5f8a; color: #fff; }
+        .btn-secondary { background: #fff; border-color: #bcc8c3; color: #2d3542; }
+        .status { color: #58665f; font-size: 14px; }
+        table { border-collapse: collapse; font-size: 13px; width: 100%; }
+        th, td { border: 1px solid #d9e1dc; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #fbfcfb; }
+        input { border: 1px solid #bcc8c3; border-radius: 5px; min-height: 30px; padding: 5px 7px; width: 100%; }
+        .table-wrap { overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <header><div class="header-inner"><h1>V4 结构化字段映射</h1><a href="/v4-core-config">返回配置中心</a></div></header>
+    <main>
+        <section class="toolbar">
+            <div id="statusText" class="status">正在加载...</div>
+            <div>
+                <button class="btn-secondary" onclick="addRow()">新增 mapping</button>
+                <button class="btn-primary" onclick="save()">保存</button>
+            </div>
+        </section>
+        <section class="panel">
+            <div class="panel-header">Mappings</div>
+            <div class="panel-body"><div class="table-wrap"><table><thead><tr><th>label</th><th>source_path</th><th>target_cell</th><th>operation</th><th>操作</th></tr></thead><tbody id="tbody"></tbody></table></div></div>
+        </section>
+    </main>
+    <script>
+        let mappings = [];
+        function setStatus(text) { document.getElementById('statusText').textContent = text; }
+        function esc(value) { const div = document.createElement('div'); div.textContent = value ?? ''; return div.innerHTML; }
+        function render() {
+            document.getElementById('tbody').innerHTML = mappings.map((item, index) => `
+                <tr>
+                    <td><input data-i="${index}" data-k="label" value="${esc(item.label || '')}"></td>
+                    <td><input data-i="${index}" data-k="source_path" value="${esc(item.source_path || '')}"></td>
+                    <td><input data-i="${index}" data-k="target_cell" value="${esc(item.target_cell || '')}"></td>
+                    <td><input data-i="${index}" data-k="operation" value="${esc(item.operation || 'write_text')}"></td>
+                    <td><button class="btn-secondary" onclick="removeRow(${index})">删除</button></td>
+                </tr>`).join('');
+        }
+        function sync() { document.querySelectorAll('input[data-i]').forEach(input => { mappings[Number(input.dataset.i)][input.dataset.k] = input.value.trim(); }); }
+        function addRow() { sync(); mappings.push({ label: '', source_path: '', target_cell: '', operation: 'write_text' }); render(); }
+        function removeRow(index) { sync(); mappings.splice(index, 1); render(); }
+        async function load() {
+            const response = await fetch('/api/v4/structured-mapping');
+            const result = await response.json();
+            mappings = result.data?.mappings || [];
+            render();
+            setStatus('已加载 structured_excel_mapping.json');
+        }
+        async function save() {
+            sync();
+            const response = await fetch('/api/v4/structured-mapping/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version: 'V4-Rebuild', mappings }) });
+            const result = await response.json();
+            setStatus(result.message || (result.success ? '已保存' : '保存失败'));
+        }
+        document.addEventListener('DOMContentLoaded', load);
+    </script>
+</body>
+</html>

@@ -14,6 +14,16 @@
           "source_path": "product.product_type"
         }
       ]
+    },
+    {
+      "block_name": "包装要求区域",
+      "target_cell": "B18",
+      "lines": []
+    },
+    {
+      "block_name": "客户名称",
+      "target_cell": "C5",
+      "lines": []
     }
   ]
 }

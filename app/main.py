@@ -96,6 +96,26 @@ def v4_template_analysis_page():
     return FileResponse(STATIC_DIR / "v4_template_analysis.html")
 
 
+@app.get("/v4-mapping-workbench")
+def v4_mapping_workbench_page():
+    return FileResponse(STATIC_DIR / "v4_mapping_workbench.html")
+
+
+@app.get("/v4-structured-mapping")
+def v4_structured_mapping_page():
+    return FileResponse(STATIC_DIR / "v4_structured_mapping.html")
+
+
+@app.get("/v4-table-mapping")
+def v4_table_mapping_page():
+    return FileResponse(STATIC_DIR / "v4_table_mapping.html")
+
+
+@app.get("/v4-block-merge-rules")
+def v4_block_merge_rules_page():
+    return FileResponse(STATIC_DIR / "v4_block_merge_rules.html")
+
+
 # ====================
 # Health Check
 # ====================

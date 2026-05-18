@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Mapping Workbench</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+        header {
+            background: #2d3542;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+        .header-inner, main { margin: 0 auto; max-width: 1180px; }
+        .header-inner, .toolbar, .panel-header {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+        }
+        h1 { font-size: 24px; letter-spacing: 0; }
+        .home-link { color: #dfe7ee; font-size: 14px; text-decoration: none; }
+        .home-link:hover { color: #ffffff; }
+        main { display: grid; gap: 16px; padding: 24px; }
+        .toolbar, .panel {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+        .toolbar { flex-wrap: wrap; padding: 14px 16px; }
+        .panel { overflow: hidden; }
+        .panel-header {
+            background: #fbfcfb;
+            border-bottom: 1px solid #d9e1dc;
+            padding: 14px 16px;
+        }
+        .panel-title { font-size: 16px; font-weight: 700; }
+        .panel-body { display: grid; gap: 12px; padding: 16px; }
+        button, .link-button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+            text-decoration: none;
+        }
+        .btn-primary { background: #3e5f8a; color: #ffffff; }
+        .btn-primary:hover { background: #314f76; }
+        .btn-secondary, .link-button {
+            background: #ffffff;
+            border-color: #bcc8c3;
+            color: #2d3542;
+        }
+        .btn-secondary:hover, .link-button:hover { background: #eef2f6; }
+        .status { color: #58665f; font-size: 14px; line-height: 1.5; }
+        .message {
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.55;
+            padding: 12px;
+        }
+        .success { background: #e4f6ea; color: #176039; }
+        .warning { background: #fff4ce; color: #7a4f00; }
+        .error { background: #ffe2e0; color: #a8201a; }
+        table {
+            border-collapse: collapse;
+            font-size: 13px;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #d9e1dc;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th { background: #fbfcfb; font-weight: 700; }
+        input[type="text"], input[type="number"] {
+            border: 1px solid #bcc8c3;
+            border-radius: 5px;
+            color: #1f2933;
+            font-size: 13px;
+            min-height: 30px;
+            padding: 5px 7px;
+            width: 100%;
+        }
+        .small { color: #58665f; font-size: 12px; }
+        .column-editor {
+            display: grid;
+            gap: 6px;
+            min-width: 220px;
+        }
+        .column-row {
+            display: grid;
+            gap: 6px;
+            grid-template-columns: minmax(120px, 1fr) 72px;
+        }
+        @media (max-width: 760px) {
+            .header-inner, .toolbar { align-items: flex-start; flex-direction: column; }
+            table { min-width: 880px; }
+            .table-wrap { overflow-x: auto; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 Mapping Workbench</h1>
+            <a class="home-link" href="/v4-template-analysis">返回 Template Intelligence</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="toolbar">
+            <div>
+                <div id="statusText" class="status">正在加载 Auto Mapping Preview...</div>
+                <div class="status">推荐项默认勾选；Needs Review 默认不勾选；Rejected 只读展示。</div>
+            </div>
+            <div>
+                <button class="btn-secondary" type="button" onclick="loadPreview()">刷新 Preview</button>
+                <button class="btn-primary" type="button" onclick="saveSelected()">保存选中映射规则</button>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><div class="panel-title">Recommended Structured</div></div>
+            <div id="structuredBody" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><div class="panel-title">Needs Review</div></div>
+            <div id="needsReviewBody" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><div class="panel-title">Recommended Tables</div></div>
+            <div id="tablesBody" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><div class="panel-title">Recommended Blocks</div></div>
+            <div id="blocksBody" class="panel-body"></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><div class="panel-title">Rejected Candidates</div></div>
+            <div id="rejectedBody" class="panel-body"></div>
+        </section>
+    </main>
+
+    <script>
+        let preview = {
+            structured: [],
+            tables: [],
+            blocks: [],
+            needs_review: [],
+            rejected_candidates: []
+        };
+
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
+        }
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function emptyMessage(text) {
+            return `<div class="message warning">${escapeHtml(text)}</div>`;
+        }
+
+        function rowId(prefix, index) {
+            return `${prefix}_${index}`;
+        }
+
+        function input(name, value, type = 'text') {
+            return `<input type="${type}" data-field="${escapeHtml(name)}" value="${escapeHtml(value ?? '')}">`;
+        }
+
+        function renderStructuredTable(targetId, items, prefix, checkedDefault, selectable) {
+            if (!Array.isArray(items) || !items.length) {
+                document.getElementById(targetId).innerHTML = emptyMessage('暂无数据');
+                return;
+            }
+            document.getElementById(targetId).innerHTML = `
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>保存</th>
+                                <th>label</th>
+                                <th>source_path</th>
+                                <th>target_cell</th>
+                                <th>confidence</th>
+                                <th>reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map((item, index) => `
+                                <tr data-kind="${prefix}" data-index="${index}">
+                                    <td><input type="checkbox" data-select ${checkedDefault ? 'checked' : ''} ${selectable ? '' : 'disabled'}></td>
+                                    <td>${input('label', item.label || '')}</td>
+                                    <td>${input('source_path', item.source_path || '')}</td>
+                                    <td>${input('target_cell', item.target_cell || '')}</td>
+                                    <td><span class="small">${escapeHtml(item.confidence || '')}</span></td>
+                                    <td><span class="small">${escapeHtml(item.reason || '')}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderTables(items) {
+            if (!Array.isArray(items) || !items.length) {
+                document.getElementById('tablesBody').innerHTML = emptyMessage('暂无 Recommended Tables');
+                return;
+            }
+            document.getElementById('tablesBody').innerHTML = `
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>保存</th>
+                                <th>table_name</th>
+                                <th>start_row</th>
+                                <th>sheet</th>
+                                <th>columns</th>
+                                <th>confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map((item, index) => `
+                                <tr data-kind="tables" data-index="${index}">
+                                    <td><input type="checkbox" data-select checked></td>
+                                    <td>${input('table_name', item.table_name || '')}</td>
+                                    <td>${input('start_row', item.start_row || '', 'number')}</td>
+                                    <td>${input('sheet', item.sheet || '')}</td>
+                                    <td>
+                                        <div class="column-editor">
+                                            ${(item.columns || []).map((column, colIndex) => `
+                                                <div class="column-row" data-column-index="${colIndex}">
+                                                    ${input('column_label', column.label || '')}
+                                                    ${input('column_target_col', column.target_col || '')}
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </td>
+                                    <td><span class="small">${escapeHtml(item.confidence || '')}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderBlocks(items) {
+            if (!Array.isArray(items) || !items.length) {
+                document.getElementById('blocksBody').innerHTML = emptyMessage('暂无 Recommended Blocks');
+                return;
+            }
+            document.getElementById('blocksBody').innerHTML = `
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>保存</th>
+                                <th>block_name</th>
+                                <th>target_cell</th>
+                                <th>semantic_type</th>
+                                <th>reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map((item, index) => `
+                                <tr data-kind="blocks" data-index="${index}">
+                                    <td><input type="checkbox" data-select checked></td>
+                                    <td>${input('block_name', item.block_name || '')}</td>
+                                    <td>${input('target_cell', item.target_cell || '')}</td>
+                                    <td><span class="small">${escapeHtml(item.semantic_type || '')}</span></td>
+                                    <td><span class="small">${escapeHtml(item.reason || '')}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderRejected(items) {
+            if (!Array.isArray(items) || !items.length) {
+                document.getElementById('rejectedBody').innerHTML = emptyMessage('暂无 Rejected Candidates');
+                return;
+            }
+            document.getElementById('rejectedBody').innerHTML = `
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>reason</th></tr></thead>
+                        <tbody>
+                            ${items.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.label || '')}</td>
+                                    <td>${escapeHtml(item.source_path || '')}</td>
+                                    <td>${escapeHtml(item.target_cell || '')}</td>
+                                    <td>${escapeHtml(item.confidence || '')}</td>
+                                    <td>${escapeHtml(item.reason || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderPreview(data) {
+            preview = data || {};
+            renderStructuredTable('structuredBody', preview.structured || [], 'structured', true, true);
+            renderStructuredTable('needsReviewBody', preview.needs_review || [], 'needs_review', false, true);
+            renderTables(preview.tables || []);
+            renderBlocks(preview.blocks || []);
+            renderRejected(preview.rejected_candidates || []);
+        }
+
+        async function loadPreview() {
+            try {
+                const response = await fetch('/api/v4/mapping-workbench/preview');
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || '暂无 Auto Mapping Preview，请先进行模板分析');
+                }
+                const data = result.auto_mapping_preview || {};
+                const total = ['structured', 'tables', 'blocks', 'needs_review', 'rejected_candidates']
+                    .reduce((sum, key) => sum + (Array.isArray(data[key]) ? data[key].length : 0), 0);
+                if (!total) {
+                    setStatus('暂无 Auto Mapping Preview，请先进行模板分析');
+                } else {
+                    setStatus('Auto Mapping Preview 已加载');
+                }
+                renderPreview(data);
+            } catch (error) {
+                setStatus(error.message || 'Auto Mapping Preview 加载失败');
+            }
+        }
+
+        function fieldValue(row, field) {
+            const element = row.querySelector(`[data-field="${field}"]`);
+            return element ? element.value.trim() : '';
+        }
+
+        function collectStructured(kind) {
+            const rows = Array.from(document.querySelectorAll(`tr[data-kind="${kind}"]`));
+            return rows
+                .filter(row => row.querySelector('[data-select]')?.checked)
+                .map(row => ({
+                    label: fieldValue(row, 'label'),
+                    source_path: fieldValue(row, 'source_path'),
+                    target_cell: fieldValue(row, 'target_cell'),
+                    operation: 'write_text',
+                    auto_generated: true,
+                    confirmed: true
+                }));
+        }
+
+        function collectTables() {
+            const rows = Array.from(document.querySelectorAll('tr[data-kind="tables"]'));
+            return rows
+                .filter(row => row.querySelector('[data-select]')?.checked)
+                .map(row => {
+                    const columns = Array.from(row.querySelectorAll('[data-column-index]')).map(columnRow => ({
+                        label: columnRow.querySelector('[data-field="column_label"]')?.value.trim() || '',
+                        target_col: columnRow.querySelector('[data-field="column_target_col"]')?.value.trim() || ''
+                    })).filter(column => column.label && column.target_col);
+                    return {
+                        table_name: fieldValue(row, 'table_name'),
+                        start_row: fieldValue(row, 'start_row'),
+                        sheet: fieldValue(row, 'sheet'),
+                        columns
+                    };
+                });
+        }
+
+        function collectBlocks() {
+            const rows = Array.from(document.querySelectorAll('tr[data-kind="blocks"]'));
+            return rows
+                .filter(row => row.querySelector('[data-select]')?.checked)
+                .map(row => ({
+                    block_name: fieldValue(row, 'block_name'),
+                    target_cell: fieldValue(row, 'target_cell'),
+                    operation: 'write_block',
+                    lines: []
+                }));
+        }
+
+        async function saveSelected() {
+            const payload = {
+                structured: [...collectStructured('structured'), ...collectStructured('needs_review')],
+                tables: collectTables(),
+                blocks: collectBlocks()
+            };
+            if (!payload.structured.length && !payload.tables.length && !payload.blocks.length) {
+                setStatus('没有选择任何映射');
+                return;
+            }
+            try {
+                setStatus('正在保存选中映射规则...');
+                const response = await fetch('/api/v4/mapping-workbench/save-selected', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || '映射规则保存失败');
+                }
+                setStatus(result.message || '映射规则保存成功');
+            } catch (error) {
+                setStatus(error.message || '映射规则保存失败');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadPreview);
+    </script>
+</body>
+</html>
