@@ -2,8 +2,11 @@ from copy import deepcopy
 from datetime import datetime
 from threading import Lock
 
+from app.v4_schema_version import get_current_schema_version, validate_schema_version
+
 
 def _default_state():
+    schema_result = validate_schema_version()
     return {
         "current_order_object": None,
         "current_template_path": None,
@@ -30,6 +33,13 @@ def _default_state():
             "processed_operations": [],
             "stages": [],
         },
+        "schema": {
+            "current_version": get_current_schema_version(),
+            "order_object_version": schema_result.get("order_object_version"),
+            "compatible": schema_result.get("compatible", True),
+            "status": schema_result.get("status", "warning"),
+            "message": schema_result.get("message", ""),
+        },
     }
 
 
@@ -50,8 +60,33 @@ def reset_pipeline_state():
 
 
 def set_current_order_object(order_object):
+    schema_result = validate_schema_version(order_object=order_object)
     with _LOCK:
         _STATE["current_order_object"] = deepcopy(order_object)
+        _STATE["schema"] = {
+            "current_version": get_current_schema_version(),
+            "order_object_version": schema_result.get("order_object_version"),
+            "compatible": schema_result.get("compatible", True),
+            "status": schema_result.get("status", "warning"),
+            "message": schema_result.get("message", ""),
+        }
+        return deepcopy(_STATE)
+
+
+def set_schema_status(order_object=None, mappings=None, pipeline_state=None):
+    schema_result = validate_schema_version(
+        order_object=order_object,
+        mappings=mappings,
+        pipeline_state=pipeline_state,
+    )
+    with _LOCK:
+        _STATE["schema"] = {
+            "current_version": get_current_schema_version(),
+            "order_object_version": schema_result.get("order_object_version"),
+            "compatible": schema_result.get("compatible", True),
+            "status": schema_result.get("status", "warning"),
+            "message": schema_result.get("message", ""),
+        }
         return deepcopy(_STATE)
 
 

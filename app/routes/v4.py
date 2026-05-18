@@ -29,10 +29,12 @@ from app.v4_pipeline_state import (
     set_html_preview,
     set_operations_pipeline,
     set_operations,
+    set_schema_status,
     set_validator_result,
 )
 from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
+from app.v4_schema_version import get_current_schema_version, validate_schema_version
 from app.v4_template_cache import (
     delete_cached_template,
     get_cached_template_detail,
@@ -814,10 +816,39 @@ def api_v4_product_types():
     }
 
 
+def _load_raw_order_object_for_schema():
+    order_object_path = get_base_dir() / "v4" / "examples" / "order_object.json"
+    try:
+        with order_object_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        logger.warning("[SchemaVersion] Raw order object read failed", exc_info=True)
+        return None
+
+
 @router.get("/api/v4/pipeline-state")
 def api_v4_pipeline_state():
     logger.info("[PipelineState] State requested")
-    return get_pipeline_state()
+    state = get_pipeline_state()
+    try:
+        state = set_schema_status(order_object=_load_raw_order_object_for_schema())
+    except Exception:
+        logger.warning("[PipelineState] Schema state sync failed", exc_info=True)
+    return state
+
+
+@router.get("/api/v4/schema-version")
+def api_v4_schema_version():
+    logger.info("[SchemaVersion] Version requested")
+    result = validate_schema_version(order_object=_load_raw_order_object_for_schema())
+    return {
+        "success": True,
+        "current_version": get_current_schema_version(),
+        "order_object_version": result.get("order_object_version"),
+        "compatible": result.get("compatible", True),
+        "status": result.get("status", "warning"),
+        "message": result.get("message", ""),
+    }
 
 
 @router.post("/api/v4/pipeline-state/reset")
@@ -827,7 +858,7 @@ def api_v4_pipeline_state_reset():
 
 
 def _regression_item(name, ok, ok_message, error_message, warning=False):
-    if ok and warning:
+    if warning:
         status = "warning"
     else:
         status = "ok" if ok else "error"
@@ -902,6 +933,7 @@ def api_v4_core_regression_status():
         "pipeline",
         "excel",
         "render_targets",
+        "schema",
     ]
     pipeline_state = [
         _regression_item(
@@ -937,12 +969,42 @@ def api_v4_core_regression_status():
             )
         )
 
+    schema_state = state.get("schema", {}) if isinstance(state.get("schema"), dict) else {}
+    schema_order_object = _load_raw_order_object_for_schema()
+    schema_version = validate_schema_version(order_object=schema_order_object, pipeline_state=state)
+    current_version = schema_state.get("current_version") or schema_version.get("current_version")
+    order_object_version = schema_state.get("order_object_version") or schema_version.get("order_object_version")
+    compatible = bool(schema_version.get("compatible", schema_state.get("compatible", True)))
+    schema_message = schema_version.get("message") or schema_state.get("message") or "Schema Version incompatible"
+    schema_version_items = [
+        _regression_item(
+            "current_version",
+            bool(current_version),
+            f"当前 Schema Version：{current_version}",
+            "缺少 current_version",
+        ),
+        _regression_item(
+            "order_object_version",
+            bool(order_object_version),
+            f"Order Object Version：{order_object_version}",
+            "Order Object 缺少 schema_version",
+            warning=not bool(order_object_version),
+        ),
+        _regression_item(
+            "compatible",
+            compatible,
+            "Schema Version compatible",
+            schema_message,
+        ),
+    ]
+
     return {
         "success": True,
         "pages": pages,
         "rule_files": rule_files,
         "pipeline_state": pipeline_state,
         "operations": operations,
+        "schema_version": schema_version_items,
     }
 
 

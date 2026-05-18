@@ -1,4 +1,5 @@
 {
+  "schema_version": "v4.1",
   "customer": {
     "name": "Anna",
     "country": "美国",

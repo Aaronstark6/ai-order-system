@@ -213,6 +213,54 @@
             white-space: nowrap;
         }
 
+        .schema-version-card {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .schema-version-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+
+        .schema-version-item {
+            display: grid;
+            gap: 6px;
+        }
+
+        .version-badge {
+            align-items: center;
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 700;
+            justify-content: center;
+            padding: 4px 10px;
+            width: fit-content;
+        }
+
+        .version-badge.neutral {
+            background: #eef6ff;
+            color: #2563eb;
+        }
+
+        .version-badge.compatible {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .version-badge.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .version-badge.incompatible {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
         .state {
             padding: 14px 16px;
             border-radius: 8px;
@@ -770,6 +818,27 @@
             </div>
         </div>
 
+        <section class="card schema-version-card">
+            <div class="card-header">
+                <h2 class="card-title">Schema Version</h2>
+                <span id="schemaCompatibilityBadge" class="version-badge warning">加载中</span>
+            </div>
+            <div class="schema-version-grid">
+                <div class="schema-version-item">
+                    <div class="label">当前 Schema Version</div>
+                    <span id="currentSchemaVersion" class="version-badge neutral">-</span>
+                </div>
+                <div class="schema-version-item">
+                    <div class="label">当前 Order Object Version</div>
+                    <span id="orderObjectSchemaVersion" class="version-badge warning">-</span>
+                </div>
+                <div class="schema-version-item">
+                    <div class="label">Compatibility 状态</div>
+                    <div id="schemaVersionMessage" class="value">正在加载 Schema Version...</div>
+                </div>
+            </div>
+        </section>
+
         <div class="state notice">&#24403;&#21069;&#20026; V4 &#23454;&#39564;&#21151;&#33021;&#65292;&#20445;&#23384;&#21069;&#20250;&#33258;&#21160;&#22791;&#20221;&#26087; schema&#12290;</div>
         <section class="section" id="templateFingerprintSection">
             <div class="section-header">
@@ -1177,6 +1246,7 @@
         let currentExampleOrder = null;
         let currentExcelRenderRules = {};
         let currentTemplateProfiles = [];
+        let schemaVersionState = null;
         let operationPreviewState = {
             operations: [],
             warnings: [],
@@ -1325,6 +1395,50 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#39;");
+        }
+
+        function setBadgeClass(element, state) {
+            element.classList.remove("compatible", "warning", "incompatible", "neutral");
+            element.classList.add(state);
+        }
+
+        function renderSchemaVersion(result) {
+            const currentVersion = document.getElementById("currentSchemaVersion");
+            const orderVersion = document.getElementById("orderObjectSchemaVersion");
+            const compatibilityBadge = document.getElementById("schemaCompatibilityBadge");
+            const message = document.getElementById("schemaVersionMessage");
+            const status = result.status === "warning"
+                ? "warning"
+                : (result.compatible ? "compatible" : "incompatible");
+
+            currentVersion.textContent = result.current_version || "-";
+            orderVersion.textContent = result.order_object_version || "未声明";
+            compatibilityBadge.textContent = status;
+            message.textContent = result.message || (result.compatible ? "Schema Version compatible" : "Schema Version incompatible");
+
+            setBadgeClass(currentVersion, "neutral");
+            setBadgeClass(orderVersion, result.order_object_version ? "neutral" : "warning");
+            setBadgeClass(compatibilityBadge, status);
+        }
+
+        async function loadSchemaVersion() {
+            try {
+                const response = await fetch("/api/v4/schema-version");
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || t("loadingFailed"));
+                }
+
+                schemaVersionState = result;
+                renderSchemaVersion(result);
+            } catch (error) {
+                const compatibilityBadge = document.getElementById("schemaCompatibilityBadge");
+                const message = document.getElementById("schemaVersionMessage");
+                compatibilityBadge.textContent = "warning";
+                setBadgeClass(compatibilityBadge, "warning");
+                message.textContent = `Schema Version 加载失败：${error.message || error}`;
+            }
         }
 
         function displayValue(value) {
@@ -4808,6 +4922,7 @@
         document.getElementById("saveSchemaButton").addEventListener("click", saveSchemaFromEditor);
         document.getElementById("cancelSchemaButton").addEventListener("click", hideSchemaEditor);
 
+        loadSchemaVersion();
         loadSchema();
         loadExcelRenderRules();
         loadTemplateProfilesForV4();

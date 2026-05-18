@@ -6,12 +6,14 @@ from json import JSONDecodeError
 
 from app.logger import get_logger
 from app.runtime_paths import get_base_dir
+from app.v4_schema_version import get_current_schema_version
 
 
 logger = get_logger(__name__)
 
 
 DEFAULT_ORDER_OBJECT = {
+    "schema_version": get_current_schema_version(),
     "customer": {
         "name": "",
         "country": "",
@@ -91,7 +93,11 @@ def _normalize_order_object(data):
     if not isinstance(data, dict):
         return normalized
 
+    normalized["schema_version"] = str(data.get("schema_version") or get_current_schema_version()).strip() or get_current_schema_version()
+
     for section, defaults in DEFAULT_ORDER_OBJECT.items():
+        if section == "schema_version":
+            continue
         source_section = data.get(section, {})
         if not isinstance(source_section, dict):
             continue

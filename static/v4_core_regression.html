@@ -288,6 +288,15 @@
 
         <section class="panel">
             <div class="panel-header">
+                <div class="panel-title">Schema Version 检查</div>
+            </div>
+            <div class="panel-body" id="schemaVersionBody">
+                <div class="empty">尚未运行</div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
                 <div class="panel-title">Operations 检查</div>
             </div>
             <div class="panel-body" id="operationsBody">
@@ -338,6 +347,7 @@
                 .concat(result.pages || [])
                 .concat(result.rule_files || [])
                 .concat(result.pipeline_state || [])
+                .concat(result.schema_version || [])
                 .concat(result.operations || []);
             return allItems.reduce((counts, item) => {
                 const status = item.status || 'warning';
@@ -370,6 +380,7 @@
             renderRows('pagesBody', result.pages);
             renderRows('ruleFilesBody', result.rule_files);
             renderRows('pipelineStateBody', result.pipeline_state);
+            renderRows('schemaVersionBody', result.schema_version);
             renderRows('operationsBody', result.operations);
             document.getElementById('rawJson').textContent = JSON.stringify(result, null, 2);
         }
