@@ -126,6 +126,11 @@ def v4_table_mapping_page():
     return FileResponse(STATIC_DIR / "v4_table_mapping.html")
 
 
+@app.get("/v4-core-regression")
+def v4_core_regression_page():
+    return FileResponse(STATIC_DIR / "v4_core_regression.html")
+
+
 # ====================
 # Health Check
 # ====================

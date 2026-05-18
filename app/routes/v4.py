@@ -826,6 +826,126 @@ def api_v4_pipeline_state_reset():
     return reset_pipeline_state()
 
 
+def _regression_item(name, ok, ok_message, error_message, warning=False):
+    if ok and warning:
+        status = "warning"
+    else:
+        status = "ok" if ok else "error"
+    return {
+        "name": name,
+        "status": status,
+        "message": ok_message if ok else error_message,
+    }
+
+
+@router.get("/api/v4/core-regression-status")
+def api_v4_core_regression_status():
+    logger.info("[CoreRegression] Status requested")
+    base_dir = get_base_dir()
+    static_dir = base_dir / "static"
+
+    page_specs = [
+        ("/v4-product-types", "v4_product_types.html"),
+        ("/v4-order-object", "v4_order_object.html"),
+        ("/v4-validator", "v4_validator.html"),
+        ("/v4-renderer-core", "v4_renderer_core.html"),
+        ("/v4-core-pipeline", "v4_core_pipeline.html"),
+        ("/v4-structured-mapping", "v4_structured_mapping.html"),
+        ("/v4-table-mapping", "v4_table_mapping.html"),
+        ("/v4-block-merge-rules", "v4_block_merge_rules.html"),
+        ("/v4-template-locator", "v4_template_locator.html"),
+        ("/v4-core-config", "v4_core_config.html"),
+        ("/v4-render-preview", "v4_render_preview.html"),
+        ("/v4-schema", "v4_schema.html"),
+    ]
+    pages = [
+        _regression_item(
+            path,
+            (static_dir / filename).is_file(),
+            f"页面入口可用：{filename}",
+            f"页面文件不存在：{filename}",
+        )
+        for path, filename in page_specs
+    ]
+
+    rule_specs = [
+        "v4/rules/structured_excel_mapping.json",
+        "v4/rules/table_mapping.json",
+        "v4/rules/block_merge_rules.json",
+    ]
+    rule_files = []
+    for relative_path in rule_specs:
+        path = base_dir / relative_path
+        exists = path.is_file()
+        json_ok = False
+        if exists:
+            try:
+                with path.open("r", encoding="utf-8") as f:
+                    json.load(f)
+                json_ok = True
+            except Exception:
+                logger.warning("[CoreRegression] Rule JSON check failed: path=%s", path, exc_info=True)
+        rule_files.append(
+            _regression_item(
+                relative_path,
+                exists and json_ok,
+                "规则文件存在且 JSON 可读取",
+                "规则文件不存在或 JSON 不可读取",
+            )
+        )
+
+    state = get_pipeline_state()
+    required_state_keys = [
+        "current_order_object",
+        "validator",
+        "operations",
+        "pipeline",
+        "excel",
+        "render_targets",
+    ]
+    pipeline_state = [
+        _regression_item(
+            key,
+            key in state,
+            "Pipeline State 字段存在",
+            "Pipeline State 字段缺失",
+            warning=(key == "current_order_object" and state.get(key) is None),
+        )
+        for key in required_state_keys
+    ]
+
+    operations_state = state.get("operations", {}) if isinstance(state.get("operations"), dict) else {}
+    pipeline = state.get("pipeline", {}) if isinstance(state.get("pipeline"), dict) else {}
+    operation_specs = [
+        ("operations.structured", operations_state.get("structured")),
+        ("operations.tables", operations_state.get("tables")),
+        ("operations.blocks", operations_state.get("blocks")),
+        ("operations.unified", operations_state.get("unified")),
+        ("pipeline.processed_operations", pipeline.get("processed_operations")),
+    ]
+    operations = []
+    for name, value in operation_specs:
+        is_list = isinstance(value, list)
+        count = len(value) if is_list else 0
+        operations.append(
+            _regression_item(
+                name,
+                is_list,
+                f"字段存在，当前数量：{count}",
+                "字段缺失或不是 list",
+                warning=(is_list and count == 0),
+            )
+        )
+
+    return {
+        "success": True,
+        "pages": pages,
+        "rule_files": rule_files,
+        "pipeline_state": pipeline_state,
+        "operations": operations,
+    }
+
+
 @router.get("/api/v4/order-object")
 def api_v4_order_object():
     from app.v4_order_object import load_order_object
