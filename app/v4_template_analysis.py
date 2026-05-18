@@ -2,6 +2,7 @@ from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 from app.v4_template_intelligence import infer_structured_mapping_from_labels
+from app.v4_mapping_generator import generate_auto_mapping
 from app.v4_template_scanner import scan_excel_labels
 
 
@@ -739,8 +740,7 @@ def analyze_template(template_path):
     table_regions = scan_table_regions(template_path)
     block_regions = scan_block_regions(template_path)
     template_structure = build_template_structure(labels, table_regions, block_regions)
-
-    return {
+    analysis = {
         "success": True,
         "labels": labels,
         "structured_mapping_preview": structured_mapping_preview,
@@ -758,3 +758,6 @@ def analyze_template(template_path):
             "recommended_regions_count": len(template_structure.get("recommended_regions", [])),
         },
     }
+    analysis["auto_mapping_preview"] = generate_auto_mapping(analysis)
+
+    return analysis

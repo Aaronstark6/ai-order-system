@@ -526,6 +526,13 @@ def api_v4_template_analysis_upload(template_file: UploadFile = File(...)):
                     "blocks": [],
                     "labels": [],
                 },
+                "auto_mapping_preview": {
+                    "structured": [],
+                    "tables": [],
+                    "blocks": [],
+                    "needs_review": [],
+                    "rejected_candidates": [],
+                },
                 "summary": {},
             }
         )
@@ -630,6 +637,34 @@ def api_v4_template_structure():
             "tables": [],
             "blocks": [],
             "labels": [],
+        },
+    }
+
+
+@router.get("/api/v4/auto-mapping-preview")
+def api_v4_auto_mapping_preview():
+    from app.v4_mapping_generator import generate_auto_mapping
+
+    logger.info("V4 auto mapping preview requested")
+    state = get_pipeline_state()
+    analysis = state.get("template_analysis", {})
+    if not isinstance(analysis, dict):
+        analysis = {}
+    preview = analysis.get("auto_mapping_preview")
+    if not isinstance(preview, dict):
+        preview = generate_auto_mapping(analysis)
+    return {
+        "success": True,
+        "auto_mapping_preview": {
+            "structured": preview.get("structured", []) if isinstance(preview.get("structured", []), list) else [],
+            "tables": preview.get("tables", []) if isinstance(preview.get("tables", []), list) else [],
+            "blocks": preview.get("blocks", []) if isinstance(preview.get("blocks", []), list) else [],
+            "needs_review": preview.get("needs_review", [])
+            if isinstance(preview.get("needs_review", []), list)
+            else [],
+            "rejected_candidates": preview.get("rejected_candidates", [])
+            if isinstance(preview.get("rejected_candidates", []), list)
+            else [],
         },
     }
 

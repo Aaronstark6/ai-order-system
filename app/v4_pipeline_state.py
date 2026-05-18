@@ -46,6 +46,13 @@ def _default_state():
                 "blocks": [],
                 "labels": [],
             },
+            "auto_mapping_preview": {
+                "structured": [],
+                "tables": [],
+                "blocks": [],
+                "needs_review": [],
+                "rejected_candidates": [],
+            },
             "summary": {},
         },
     }
@@ -178,6 +185,15 @@ def set_template_analysis(analysis):
             "tables": [],
             "blocks": [],
             "labels": [],
+        },
+        "auto_mapping_preview": deepcopy(analysis.get("auto_mapping_preview", {}))
+        if isinstance(analysis.get("auto_mapping_preview", {}), dict)
+        else {
+            "structured": [],
+            "tables": [],
+            "blocks": [],
+            "needs_review": [],
+            "rejected_candidates": [],
         },
         "summary": deepcopy(analysis.get("summary", {})) if isinstance(analysis.get("summary", {}), dict) else {},
     }

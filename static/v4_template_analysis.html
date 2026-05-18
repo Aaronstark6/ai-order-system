@@ -350,6 +350,19 @@
 
         <section class="panel">
             <div class="panel-header">
+                <div class="panel-title">Auto Mapping Preview</div>
+            </div>
+            <div class="panel-body">
+                <div id="autoStructuredBody"></div>
+                <div id="autoTablesBody"></div>
+                <div id="autoBlocksBody"></div>
+                <div id="autoNeedsReviewBody"></div>
+                <div id="autoRejectedBody"></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
                 <div class="panel-title">Structure Graph Preview</div>
             </div>
             <div id="structureGraphBody" class="panel-body"></div>
@@ -491,6 +504,123 @@
             `;
         }
 
+        function renderAutoStructured(items) {
+            if (!Array.isArray(items) || !items.length) {
+                renderEmpty('autoStructuredBody', '暂无 Structured Mapping');
+                return;
+            }
+            document.getElementById('autoStructuredBody').innerHTML = `
+                <table>
+                    <thead>
+                        <tr><th colspan="5">Structured Mapping</th></tr>
+                        <tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>status</th><th>reason</th></tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.label || '')}</td>
+                                <td>${escapeHtml(item.source_path || '')}</td>
+                                <td>${escapeHtml(item.target_cell || '')}</td>
+                                <td>${escapeHtml(item.confidence || '')}</td>
+                                <td>${escapeHtml(item.status || '')}</td>
+                                <td>${escapeHtml(item.reason || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderAutoTables(items) {
+            if (!Array.isArray(items) || !items.length) {
+                renderEmpty('autoTablesBody', '暂无 Table Mapping');
+                return;
+            }
+            document.getElementById('autoTablesBody').innerHTML = `
+                <table>
+                    <thead>
+                        <tr><th colspan="5">Table Mapping</th></tr>
+                        <tr><th>table_name</th><th>sheet</th><th>start_row</th><th>confidence</th><th>status</th><th>columns</th></tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.table_name || '')}</td>
+                                <td>${escapeHtml(item.sheet || '')}</td>
+                                <td>${escapeHtml(item.start_row ?? '')}</td>
+                                <td>${escapeHtml(item.confidence || '')}</td>
+                                <td>${escapeHtml(item.status || '')}</td>
+                                <td>${escapeHtml((item.columns || []).map(column => `${column.label || ''}:${column.target_col || ''}`).join('、'))}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderAutoBlocks(items) {
+            if (!Array.isArray(items) || !items.length) {
+                renderEmpty('autoBlocksBody', '暂无 Block Mapping');
+                return;
+            }
+            document.getElementById('autoBlocksBody').innerHTML = `
+                <table>
+                    <thead>
+                        <tr><th colspan="5">Block Mapping</th></tr>
+                        <tr><th>block_name</th><th>target_cell</th><th>operation</th><th>confidence</th><th>status</th><th>reason</th></tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.block_name || '')}</td>
+                                <td>${escapeHtml(item.target_cell || '')}</td>
+                                <td>${escapeHtml(item.operation || '')}</td>
+                                <td>${escapeHtml(item.confidence || '')}</td>
+                                <td>${escapeHtml(item.status || '')}</td>
+                                <td>${escapeHtml(item.reason || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderAutoMapping(preview) {
+            preview = preview || {};
+            renderAutoStructured(preview.structured || []);
+            renderAutoTables(preview.tables || []);
+            renderAutoBlocks(preview.blocks || []);
+            renderCandidateTable('autoNeedsReviewBody', 'Needs Review', preview.needs_review || []);
+            renderCandidateTable('autoRejectedBody', 'Rejected Candidates', preview.rejected_candidates || []);
+        }
+
+        function renderCandidateTable(targetId, title, items) {
+            if (!Array.isArray(items) || !items.length) {
+                renderEmpty(targetId, `暂无 ${title}`);
+                return;
+            }
+            document.getElementById(targetId).innerHTML = `
+                <table>
+                    <thead>
+                        <tr><th colspan="6">${escapeHtml(title)}</th></tr>
+                        <tr><th>label</th><th>source_path</th><th>target_cell</th><th>confidence</th><th>status</th><th>reason</th></tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.label || item.block_name || item.table_name || '')}</td>
+                                <td>${escapeHtml(item.source_path || '')}</td>
+                                <td>${escapeHtml(item.target_cell || '')}</td>
+                                <td>${escapeHtml(item.confidence || '')}</td>
+                                <td>${escapeHtml(item.status || '')}</td>
+                                <td>${escapeHtml(item.reason || '')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
         function renderStructureGraph(structure) {
             const regions = Array.isArray(structure?.regions) ? structure.regions : [];
             if (!regions.length) {
@@ -614,7 +744,27 @@
             renderStructured(currentAnalysis.structured_mapping_preview || []);
             renderTables(currentAnalysis.table_regions || []);
             renderBlocks(currentAnalysis.block_regions || []);
+            renderAutoMapping(currentAnalysis.auto_mapping_preview || {});
             document.getElementById('debugJson').textContent = JSON.stringify(currentAnalysis, null, 2);
+        }
+
+        async function loadAutoMappingPreview() {
+            try {
+                const response = await fetch('/api/v4/auto-mapping-preview');
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Auto Mapping Preview 加载失败');
+                }
+                currentAnalysis.auto_mapping_preview = result.auto_mapping_preview || {};
+                renderAutoMapping(currentAnalysis.auto_mapping_preview || {});
+                document.getElementById('debugJson').textContent = JSON.stringify(currentAnalysis, null, 2);
+            } catch (error) {
+                renderEmpty('autoStructuredBody', error.message || 'Auto Mapping Preview 加载失败');
+                renderEmpty('autoTablesBody', '暂无 Table Mapping');
+                renderEmpty('autoBlocksBody', '暂无 Block Mapping');
+                renderEmpty('autoNeedsReviewBody', '暂无 Needs Review');
+                renderEmpty('autoRejectedBody', '暂无 Rejected Candidates');
+            }
         }
 
         async function uploadTemplate() {
@@ -649,6 +799,7 @@
                     throw new Error(result.error || 'Template Analysis 执行失败');
                 }
                 renderAnalysis(result.template_analysis || {});
+                await loadAutoMappingPreview();
                 setStatus('Template Analysis 已完成');
             } catch (error) {
                 setStatus(error.message || 'Template Analysis 执行失败');
@@ -663,6 +814,7 @@
                     throw new Error(result.error || 'Template Analysis 结果加载失败');
                 }
                 renderAnalysis(result.template_analysis || {});
+                await loadAutoMappingPreview();
                 setStatus('Template Analysis 结果已加载');
             } catch (error) {
                 setStatus(error.message || 'Template Analysis 结果加载失败');
