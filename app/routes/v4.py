@@ -936,6 +936,28 @@ def api_v4_core_pipeline_table_operations_preview(order_object: Optional[dict] =
     return order_object_to_table_operations(order_object, mapping)
 
 
+@router.get("/api/v4/core-config-summary")
+def api_v4_core_config_summary():
+    from app.v4_block_merge_engine import load_block_merge_rules
+    from app.v4_structured_excel_mapping import load_structured_excel_mapping
+    from app.v4_table_renderer import load_table_mapping
+
+    def count_list(config, key):
+        items = config.get(key, []) if isinstance(config, dict) else []
+        return len(items) if isinstance(items, list) else 0
+
+    logger.info("[CoreConfig] Summary requested")
+    structured_mapping = load_structured_excel_mapping()
+    table_mapping = load_table_mapping()
+    block_merge_rules = load_block_merge_rules()
+    return {
+        "success": True,
+        "structured_mapping_count": count_list(structured_mapping, "mappings"),
+        "table_mapping_count": count_list(table_mapping, "tables"),
+        "block_merge_count": count_list(block_merge_rules, "blocks"),
+    }
+
+
 @router.get("/api/v4/table-mapping")
 def api_v4_table_mapping():
     from app.v4_table_renderer import load_table_mapping

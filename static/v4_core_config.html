@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Core 配置中心</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #2d3542;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1120px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #dfe7ee;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .home-link:hover {
+            color: #ffffff;
+        }
+
+        main {
+            padding: 24px;
+        }
+
+        .toolbar,
+        .config-card {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+        }
+
+        .status {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        button,
+        .card-link {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-secondary,
+        .card-link {
+            background: #ffffff;
+            border-color: #bcc8c3;
+            color: #2d3542;
+        }
+
+        .btn-secondary:hover,
+        .card-link:hover {
+            background: #eef2f6;
+        }
+
+        .config-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .config-card {
+            display: grid;
+            gap: 14px;
+            min-height: 180px;
+            padding: 18px;
+        }
+
+        .card-title {
+            color: #2d3542;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .card-desc {
+            color: #58665f;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .card-count {
+            align-items: baseline;
+            color: #1f2933;
+            display: flex;
+            gap: 8px;
+        }
+
+        .count-number {
+            font-size: 34px;
+            font-weight: 700;
+        }
+
+        .count-label {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        .card-link {
+            align-self: end;
+            display: inline-flex;
+            justify-content: center;
+            text-decoration: none;
+            width: fit-content;
+        }
+
+        .message {
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.55;
+            margin-bottom: 16px;
+            padding: 12px;
+        }
+
+        .error {
+            background: #ffe2e0;
+            color: #a8201a;
+        }
+
+        @media (max-width: 860px) {
+            main {
+                padding: 16px;
+            }
+
+            .header-inner,
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 Core 配置中心</h1>
+            <a class="home-link" href="/">返回首页</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="toolbar">
+            <div class="status" id="statusText">准备加载核心配置状态</div>
+            <button class="btn-secondary" type="button" onclick="loadSummary()">刷新状态</button>
+        </div>
+
+        <div id="messageBox"></div>
+
+        <section class="config-grid">
+            <article class="config-card">
+                <div class="card-title">结构化字段映射</div>
+                <div class="card-desc">字段 → 单元格</div>
+                <div class="card-count">
+                    <span class="count-number" id="structuredCount">-</span>
+                    <span class="count-label">条映射</span>
+                </div>
+                <a class="card-link" href="/v4-structured-mapping">进入配置</a>
+            </article>
+
+            <article class="config-card">
+                <div class="card-title">动态表格规则</div>
+                <div class="card-desc">数组数据 → Excel 多行表格</div>
+                <div class="card-count">
+                    <span class="count-number" id="tableCount">-</span>
+                    <span class="count-label">张表</span>
+                </div>
+                <a class="card-link" href="/v4-table-mapping">进入配置</a>
+            </article>
+
+            <article class="config-card">
+                <div class="card-title">区块合并规则</div>
+                <div class="card-desc">多字段 → 文本区块</div>
+                <div class="card-count">
+                    <span class="count-number" id="blockCount">-</span>
+                    <span class="count-label">个区块</span>
+                </div>
+                <a class="card-link" href="/v4-block-merge-rules">进入配置</a>
+            </article>
+
+            <article class="config-card">
+                <div class="card-title">模板定位工具</div>
+                <div class="card-desc">扫描 Excel 标签和区块，辅助生成映射。</div>
+                <div class="card-count">
+                    <span class="count-number">-</span>
+                    <span class="count-label">辅助工具</span>
+                </div>
+                <a class="card-link" href="/v4-template-locator">进入工具</a>
+            </article>
+        </section>
+    </main>
+
+    <script>
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function showMessage(text) {
+            document.getElementById('messageBox').innerHTML = text
+                ? `<div class="message error">${escapeHtml(text)}</div>`
+                : '';
+        }
+
+        function setCount(id, value) {
+            document.getElementById(id).textContent = Number.isFinite(Number(value)) ? String(value) : '0';
+        }
+
+        async function loadSummary() {
+            setStatus('正在加载核心配置状态');
+            showMessage('');
+            try {
+                const response = await fetch('/api/v4/core-config-summary');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || '加载失败');
+                }
+                setCount('structuredCount', result.structured_mapping_count);
+                setCount('tableCount', result.table_mapping_count);
+                setCount('blockCount', result.block_merge_count);
+                setStatus('核心配置状态已加载');
+            } catch (error) {
+                setCount('structuredCount', 0);
+                setCount('tableCount', 0);
+                setCount('blockCount', 0);
+                setStatus('核心配置状态加载失败');
+                showMessage('核心配置状态加载失败');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', loadSummary);
+    </script>
+</body>
+</html>

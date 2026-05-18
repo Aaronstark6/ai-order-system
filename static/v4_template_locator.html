@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 模板定位工具</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f6f7f5;
+            color: #1f2933;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #2d3542;
+            color: #ffffff;
+            padding: 18px 24px;
+        }
+
+        .header-inner,
+        main {
+            margin: 0 auto;
+            max-width: 1180px;
+        }
+
+        .header-inner {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .home-link {
+            color: #dfe7ee;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        main {
+            padding: 24px;
+        }
+
+        .toolbar,
+        .panel {
+            background: #ffffff;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+        }
+
+        .status,
+        .meta {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .panel-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .panel {
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: #fbfcfb;
+            border-bottom: 1px solid #d9e1dc;
+            padding: 14px 16px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .panel-body {
+            display: grid;
+            gap: 14px;
+            padding: 16px;
+        }
+
+        .locator-row {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        button {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 14px;
+        }
+
+        .btn-primary {
+            background: #3e5f8a;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #314f76;
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: #bcc8c3;
+            color: #2d3542;
+        }
+
+        .btn-secondary:hover {
+            background: #eef2f6;
+        }
+
+        .file-control {
+            align-items: center;
+            border: 1px dashed #aebbb5;
+            border-radius: 6px;
+            color: #2d3542;
+            display: inline-flex;
+            font-size: 14px;
+            gap: 8px;
+            min-height: 36px;
+            padding: 7px 10px;
+        }
+
+        .file-control input {
+            max-width: 260px;
+        }
+
+        .locator-file-name {
+            color: #58665f;
+            font-size: 14px;
+        }
+
+        .result-table {
+            border-collapse: collapse;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .result-table th,
+        .result-table td {
+            border: 1px solid #d9e1dc;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .result-table th {
+            background: #fbfcfb;
+            font-weight: 700;
+        }
+
+        .message {
+            border-radius: 7px;
+            font-size: 14px;
+            line-height: 1.55;
+            padding: 12px;
+        }
+
+        .success {
+            background: #dff5e6;
+            color: #176039;
+        }
+
+        .error {
+            background: #ffe2e0;
+            color: #a8201a;
+        }
+
+        @media (max-width: 860px) {
+            main {
+                padding: 16px;
+            }
+
+            .header-inner,
+            .locator-row,
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .result-table {
+                min-width: 720px;
+            }
+
+            .table-wrap {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>V4 模板定位工具</h1>
+            <a class="home-link" href="/v4-core-config">返回配置中心</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="toolbar">
+            <div>
+                <div class="status" id="statusText">准备加载结构化映射</div>
+                <div class="meta" id="mappingMeta">当前映射：未加载</div>
+            </div>
+            <div class="actions">
+                <button class="btn-secondary" type="button" onclick="loadMapping()">重新加载映射</button>
+                <button class="btn-secondary" type="button" onclick="window.location.href='/v4-structured-mapping'">编辑结构化映射</button>
+            </div>
+        </div>
+
+        <div class="panel-list">
+            <section class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">标签定位</div>
+                </div>
+                <div class="panel-body">
+                    <div class="locator-row">
+                        <label class="file-control">
+                            上传 Excel 模板
+                            <input id="locatorTemplateInput" type="file" accept=".xlsx" onchange="handleLocatorTemplateChange(event)">
+                        </label>
+                        <div class="locator-file-name" id="locatorTemplateName">当前模板：未选择</div>
+                        <button class="btn-secondary" type="button" onclick="scanTemplateLabels()">扫描标签位置</button>
+                        <button class="btn-primary" type="button" onclick="applyLocatorMatches()">应用定位结果到 structured mapping</button>
+                    </div>
+                    <div id="locatorMessageBox"></div>
+                    <div class="table-wrap">
+                        <table class="result-table">
+                            <thead>
+                                <tr>
+                                    <th>字段名称</th>
+                                    <th>标签单元格</th>
+                                    <th>目标单元格</th>
+                                    <th>推导结果</th>
+                                </tr>
+                            </thead>
+                            <tbody id="locatorRows">
+                                <tr><td colspan="4">尚未扫描模板。</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">模板区块分析</div>
+                </div>
+                <div class="panel-body">
+                    <div class="locator-row">
+                        <label class="file-control">
+                            上传 Excel 模板
+                            <input id="blockTemplateInput" type="file" accept=".xlsx" onchange="handleBlockTemplateChange(event)">
+                        </label>
+                        <div class="locator-file-name" id="blockTemplateName">当前模板：未选择</div>
+                        <button class="btn-secondary" type="button" onclick="scanTemplateBlocks()">扫描模板区块</button>
+                    </div>
+                    <div id="blockMessageBox"></div>
+                    <div class="table-wrap">
+                        <table class="result-table">
+                            <thead>
+                                <tr>
+                                    <th>区块名称</th>
+                                    <th>Sheet</th>
+                                    <th>命中标签</th>
+                                    <th>范围</th>
+                                </tr>
+                            </thead>
+                            <tbody id="blockRows">
+                                <tr><td colspan="4">尚未扫描模板区块。</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        let currentMapping = {
+            mapping_name: '结构化字段映射',
+            target: 'real_excel',
+            mappings: []
+        };
+        let locatorTemplateFile = null;
+        let locatorResult = null;
+        let blockTemplateFile = null;
+        let blockResult = null;
+
+        function setStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function setMappingMeta() {
+            const count = Array.isArray(currentMapping.mappings) ? currentMapping.mappings.length : 0;
+            document.getElementById('mappingMeta').textContent = `当前映射：${count} 条`;
+        }
+
+        function showLocatorMessage(text, type) {
+            const box = document.getElementById('locatorMessageBox');
+            box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
+        }
+
+        function showBlockMessage(text, type) {
+            const box = document.getElementById('blockMessageBox');
+            box.innerHTML = text ? `<div class="message ${type || 'success'}">${escapeHtml(text)}</div>` : '';
+        }
+
+        async function loadMapping() {
+            setStatus('正在加载结构化映射');
+            try {
+                const response = await fetch('/api/v4/structured-mapping');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    setStatus(result.error || '结构化映射加载失败');
+                    return;
+                }
+                currentMapping = normalizeMapping(result.data || {});
+                setMappingMeta();
+                setStatus('结构化映射已加载');
+            } catch (error) {
+                setStatus('结构化映射加载失败');
+            }
+        }
+
+        function normalizeMapping(mapping) {
+            const mappings = Array.isArray(mapping.mappings) ? mapping.mappings : [];
+            return {
+                mapping_name: mapping.mapping_name || '结构化字段映射',
+                target: mapping.target || 'real_excel',
+                mappings: mappings.map(item => ({
+                    label: item.label || '',
+                    source_path: item.source_path || '',
+                    target_cell: item.target_cell || '',
+                    target_direction: item.target_direction === 'below' ? 'below' : 'right',
+                    operation: item.operation || 'write_text'
+                }))
+            };
+        }
+
+        function collectMapping() {
+            return {
+                mapping_name: currentMapping.mapping_name || '结构化字段映射',
+                target: currentMapping.target || 'real_excel',
+                mappings: currentMapping.mappings
+                    .map(item => ({
+                        label: String(item.label || '').trim(),
+                        source_path: String(item.source_path || '').trim(),
+                        target_cell: String(item.target_cell || '').trim(),
+                        target_direction: item.target_direction === 'below' ? 'below' : 'right',
+                        operation: 'write_text'
+                    }))
+                    .filter(item => item.label || item.source_path || item.target_cell)
+            };
+        }
+
+        async function saveMapping() {
+            const response = await fetch('/api/v4/structured-mapping', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(collectMapping())
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.error || '结构化映射保存失败');
+            }
+            currentMapping = normalizeMapping(result.data || {});
+            setMappingMeta();
+        }
+
+        function handleLocatorTemplateChange(event) {
+            locatorTemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
+            document.getElementById('locatorTemplateName').textContent = locatorTemplateFile
+                ? `当前模板：${locatorTemplateFile.name}`
+                : '当前模板：未选择';
+            showLocatorMessage('', '');
+            setStatus(locatorTemplateFile ? `已选择模板：${locatorTemplateFile.name}` : '请先上传 Excel 模板');
+        }
+
+        function getDirectionText(direction) {
+            return direction === 'below' ? '下方一格' : '右侧一格';
+        }
+
+        function getMatchKey(label, direction) {
+            return `${label}::${direction === 'below' ? 'below' : 'right'}`;
+        }
+
+        function getScannableMappings() {
+            return currentMapping.mappings
+                .map(item => ({
+                    label: String(item.label || '').trim(),
+                    target_direction: item.target_direction === 'below' ? 'below' : 'right'
+                }))
+                .filter(item => item.label)
+                .filter((item, index, mappings) => {
+                    const key = getMatchKey(item.label, item.target_direction);
+                    return mappings.findIndex(candidate => getMatchKey(candidate.label, candidate.target_direction) === key) === index;
+                });
+        }
+
+        async function scanTemplateLabels() {
+            if (!locatorTemplateFile) {
+                showLocatorMessage('请先上传 Excel 模板', 'error');
+                setStatus('请先上传 Excel 模板');
+                return;
+            }
+
+            const mappings = getScannableMappings();
+            if (!mappings.length) {
+                showLocatorMessage('没有可扫描的字段标签', 'error');
+                setStatus('没有可扫描的字段标签');
+                return;
+            }
+
+            setStatus('正在扫描模板标签');
+            showLocatorMessage('', '');
+            try {
+                const formData = new FormData();
+                formData.append('template_file', locatorTemplateFile);
+                formData.append('mappings_json', JSON.stringify(mappings));
+
+                const response = await fetch('/api/v4/scan-template-labels', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                locatorResult = result;
+                renderLocatorRows();
+                if (!result.success) {
+                    showLocatorMessage(result.error || '模板扫描失败', 'error');
+                    setStatus(result.error || '模板扫描失败');
+                    return;
+                }
+
+                if (!Array.isArray(result.matches) || !result.matches.length) {
+                    showLocatorMessage('未找到任何匹配标签', 'error');
+                    setStatus('未找到任何匹配标签');
+                    return;
+                }
+
+                const warningText = Array.isArray(result.warnings) && result.warnings.length
+                    ? `扫描完成，存在 ${result.warnings.length} 条提示。`
+                    : '标签位置扫描完成';
+                showLocatorMessage(warningText, 'success');
+                setStatus('标签位置扫描完成');
+            } catch (error) {
+                locatorResult = null;
+                renderLocatorRows();
+                showLocatorMessage('模板扫描失败', 'error');
+                setStatus('模板扫描失败');
+            }
+        }
+
+        function renderLocatorRows() {
+            const rows = document.getElementById('locatorRows');
+            const matches = Array.isArray(locatorResult?.matches) ? locatorResult.matches : [];
+            const unmatched = Array.isArray(locatorResult?.unmatched_labels) ? locatorResult.unmatched_labels : [];
+            const warnings = Array.isArray(locatorResult?.warnings) ? locatorResult.warnings : [];
+
+            const matchRows = matches.map(match => `
+                <tr>
+                    <td>${escapeHtml(match.label || '')}</td>
+                    <td>${escapeHtml(`${match.sheet || ''}!${match.label_cell || ''}`)}</td>
+                    <td>${escapeHtml(match.target_cell || '')}</td>
+                    <td>${escapeHtml(`${match.label || ''}：${match.label_cell || ''} → ${match.target_cell || ''}（${getDirectionText(match.target_direction)}）`)}</td>
+                </tr>
+            `);
+            const unmatchedRows = unmatched.map(label => `
+                <tr>
+                    <td>${escapeHtml(label)}</td>
+                    <td>未匹配</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+            `);
+
+            rows.innerHTML = matchRows.concat(unmatchedRows).join('') || '<tr><td colspan="4">尚未扫描模板。</td></tr>';
+            if (warnings.length) {
+                showLocatorMessage(warnings.join('；'), 'success');
+            }
+        }
+
+        async function applyLocatorMatches() {
+            const matches = Array.isArray(locatorResult?.matches) ? locatorResult.matches : [];
+            if (!matches.length) {
+                showLocatorMessage('未找到任何匹配标签', 'error');
+                setStatus('未找到任何匹配标签');
+                return;
+            }
+
+            const targetByKey = {};
+            matches.forEach(match => {
+                if (match.label && match.target_cell) {
+                    targetByKey[getMatchKey(match.label, match.target_direction)] = match.target_cell;
+                }
+            });
+
+            let updatedCount = 0;
+            currentMapping.mappings.forEach(item => {
+                const label = String(item.label || '').trim();
+                const direction = item.target_direction === 'below' ? 'below' : 'right';
+                const key = getMatchKey(label, direction);
+                if (targetByKey[key]) {
+                    item.target_cell = targetByKey[key];
+                    updatedCount += 1;
+                }
+            });
+
+            if (!updatedCount) {
+                showLocatorMessage('没有可应用的定位结果', 'error');
+                setStatus('没有可应用的定位结果');
+                return;
+            }
+
+            try {
+                await saveMapping();
+                showLocatorMessage(`已应用并保存 ${updatedCount} 条定位结果。`, 'success');
+                setStatus('定位结果已应用并保存');
+            } catch (error) {
+                showLocatorMessage('定位结果应用失败', 'error');
+                setStatus('定位结果应用失败');
+            }
+        }
+
+        function handleBlockTemplateChange(event) {
+            blockTemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
+            document.getElementById('blockTemplateName').textContent = blockTemplateFile
+                ? `当前模板：${blockTemplateFile.name}`
+                : '当前模板：未选择';
+            showBlockMessage('', '');
+            setStatus(blockTemplateFile ? `已选择模板：${blockTemplateFile.name}` : '请先上传 Excel 模板');
+        }
+
+        async function scanTemplateBlocks() {
+            if (!blockTemplateFile) {
+                showBlockMessage('请先上传 Excel 模板', 'error');
+                setStatus('请先上传 Excel 模板');
+                return;
+            }
+
+            setStatus('正在扫描模板区块');
+            showBlockMessage('', '');
+            try {
+                const formData = new FormData();
+                formData.append('template_file', blockTemplateFile);
+
+                const response = await fetch('/api/v4/scan-template-blocks', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                blockResult = result;
+                renderBlockRows();
+                if (!result.success) {
+                    showBlockMessage(result.error || '模板区块扫描失败', 'error');
+                    setStatus(result.error || '模板区块扫描失败');
+                    return;
+                }
+
+                const blocks = Array.isArray(result.blocks) ? result.blocks : [];
+                if (!blocks.length) {
+                    showBlockMessage('未识别到模板区块', 'error');
+                    setStatus('未识别到模板区块');
+                    return;
+                }
+
+                const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+                showBlockMessage(warnings.length ? `模板区块扫描完成，存在 ${warnings.length} 条提示。` : '模板区块扫描完成', 'success');
+                setStatus('模板区块扫描完成');
+            } catch (error) {
+                blockResult = null;
+                renderBlockRows();
+                showBlockMessage('模板区块扫描失败', 'error');
+                setStatus('模板区块扫描失败');
+            }
+        }
+
+        function renderBlockRows() {
+            const rows = document.getElementById('blockRows');
+            const blocks = Array.isArray(blockResult?.blocks) ? blockResult.blocks : [];
+            const warnings = Array.isArray(blockResult?.warnings) ? blockResult.warnings : [];
+
+            if (!blocks.length) {
+                rows.innerHTML = '<tr><td colspan="4">尚未扫描模板区块。</td></tr>';
+                if (warnings.length) {
+                    showBlockMessage(warnings.join('；'), 'error');
+                }
+                return;
+            }
+
+            rows.innerHTML = blocks.map(block => {
+                const labels = Array.isArray(block.matched_labels)
+                    ? block.matched_labels.map(item => `${item.label || ''}(${item.cell || ''})`).join('、')
+                    : '';
+                return `
+                    <tr>
+                        <td>${escapeHtml(block.block_name || '')}</td>
+                        <td>${escapeHtml(block.sheet || '')}</td>
+                        <td>${escapeHtml(labels)}</td>
+                        <td>${escapeHtml(block.range || '')}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (warnings.length) {
+                showBlockMessage(warnings.join('；'), 'success');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', loadMapping);
+    </script>
+</body>
+</html>

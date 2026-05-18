@@ -101,6 +101,16 @@ def v4_core_pipeline_page():
     return FileResponse(STATIC_DIR / "v4_core_pipeline.html")
 
 
+@app.get("/v4-core-config")
+def v4_core_config_page():
+    return FileResponse(STATIC_DIR / "v4_core_config.html")
+
+
+@app.get("/v4-template-locator")
+def v4_template_locator_page():
+    return FileResponse(STATIC_DIR / "v4_template_locator.html")
+
+
 @app.get("/v4-structured-mapping")
 def v4_structured_mapping_page():
     return FileResponse(STATIC_DIR / "v4_structured_mapping.html")
