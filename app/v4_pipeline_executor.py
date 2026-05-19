@@ -1,3 +1,5 @@
+import logging
+
 from app.v4_operations_pipeline import process_operations_pipeline
 from app.v4_pipeline_builder import (
     build_block_operations,
@@ -11,7 +13,22 @@ from app.v4_render_preview import build_render_preview
 from app.v4_validator import validate_order_object
 
 
-def run_operation_pipeline(order_object):
+def run_operation_pipeline(order_object, profile=None):
+    logger = logging.getLogger(__name__)
+
+    profile = profile if isinstance(profile, dict) else {}
+    structured_mapping_file = profile.get("structured_mapping_file") if profile else None
+    table_mapping_file = profile.get("table_mapping_file") if profile else None
+    block_rules_file = profile.get("block_rules_file") if profile else None
+
+    logger.info(
+        "[Pipeline] profile=%s structured_mapping=%s table_mapping=%s block_rules=%s",
+        profile.get("profile_id") if profile else "None",
+        structured_mapping_file or "default",
+        table_mapping_file or "default",
+        block_rules_file or "default",
+    )
+
     validation = validate_order_object(order_object)
     if not validation.get("valid"):
         return {
@@ -40,9 +57,9 @@ def run_operation_pipeline(order_object):
         }
 
     mapping_counts = count_enabled_mappings()
-    structured_result = build_structured_operations(order_object)
-    table_result = build_table_operations(order_object)
-    block_result = build_block_operations(order_object)
+    structured_result = build_structured_operations(order_object, structured_mapping_file)
+    table_result = build_table_operations(order_object, table_mapping_file)
+    block_result = build_block_operations(order_object, block_rules_file)
 
     structured_operations = structured_result.get("operations", [])
     table_operations = table_result.get("operations", [])

@@ -457,7 +457,7 @@ def api_v4_core_pipeline_run():
             }
         order_object = load_result.get("pipeline_state", {}).get("current_order_object", {})
 
-    result = run_operation_pipeline(order_object)
+    result = run_operation_pipeline(order_object, profile=current_profile)
     validation = result.get("validation", {})
     set_validator_result(validation)
     if not result.get("success"):

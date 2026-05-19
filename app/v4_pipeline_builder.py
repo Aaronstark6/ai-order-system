@@ -32,15 +32,24 @@ def _read_rule_file(path, default_value):
     return data if isinstance(data, dict) else deepcopy(default_value)
 
 
-def load_structured_mapping():
+def load_structured_mapping(path=None):
+    if path is not None:
+        resolved_path = get_base_dir() / path if not str(path).startswith("/") else Path(path)
+        return _read_rule_file(resolved_path, {"version": "V4-Rebuild", "mappings": []})
     return _read_rule_file(STRUCTURED_MAPPING_PATH, {"version": "V4-Rebuild", "mappings": []})
 
 
-def load_table_mapping():
+def load_table_mapping(path=None):
+    if path is not None:
+        resolved_path = get_base_dir() / path if not str(path).startswith("/") else Path(path)
+        return _read_rule_file(resolved_path, {"version": "V4-Rebuild", "tables": []})
     return _read_rule_file(TABLE_MAPPING_PATH, {"version": "V4-Rebuild", "tables": []})
 
 
-def load_block_rules():
+def load_block_rules(path=None):
+    if path is not None:
+        resolved_path = get_base_dir() / path if not str(path).startswith("/") else Path(path)
+        return _read_rule_file(resolved_path, {"version": "V4-Rebuild", "blocks": []})
     return _read_rule_file(BLOCK_RULES_PATH, {"version": "V4-Rebuild", "blocks": []})
 
 
@@ -393,8 +402,8 @@ def detect_mapping_conflicts(operations):
     }
 
 
-def build_structured_operations(order_object):
-    mapping = load_structured_mapping()
+def build_structured_operations(order_object, structured_mapping_path=None):
+    mapping = load_structured_mapping(structured_mapping_path)
     operations = []
     warnings = []
     for item in mapping.get("mappings", []) if isinstance(mapping.get("mappings"), list) else []:
