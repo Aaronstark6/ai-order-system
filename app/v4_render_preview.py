@@ -1,5 +1,8 @@
 from copy import deepcopy
 import re
+from pathlib import Path
+from openpyxl import load_workbook
+from openpyxl.utils.cell import coordinate_to_tuple
 
 
 def _as_list(value):
@@ -15,6 +18,83 @@ def _parse_cell(cell_ref):
     if not match:
         return "", None
     return match.group(1).upper(), int(match.group(2))
+
+
+def _load_merged_ranges(template_path):
+    if not template_path:
+        return []
+    try:
+        path = Path(template_path)
+        if not path.is_file():
+            return []
+        workbook = load_workbook(path, read_only=False, data_only=False)
+        ranges = []
+        for worksheet in workbook.worksheets:
+            for merged_range in worksheet.merged_cells.ranges:
+                ranges.append(
+                    {
+                        "sheet": worksheet.title,
+                        "range": str(merged_range),
+                        "min_row": merged_range.min_row,
+                        "max_row": merged_range.max_row,
+                        "min_col": merged_range.min_col,
+                        "max_col": merged_range.max_col,
+                    }
+                )
+        workbook.close()
+        return ranges
+    except Exception:
+        return []
+
+
+def _merged_display_info(cell_ref, merged_ranges):
+    column, row = _parse_cell(cell_ref)
+    if not column or row is None:
+        return {
+            "display_cell": cell_ref,
+            "merged_range": "",
+            "display_note": "",
+        }
+
+    try:
+        cell_row, cell_col = coordinate_to_tuple(cell_ref)
+    except Exception:
+        return {
+            "display_cell": cell_ref,
+            "merged_range": "",
+            "display_note": "",
+        }
+
+    for merged_range in merged_ranges:
+        if (
+            merged_range["min_row"] <= cell_row <= merged_range["max_row"]
+            and merged_range["min_col"] <= cell_col <= merged_range["max_col"]
+        ):
+            display_cell = f"{column_from_index(merged_range['min_col'])}{merged_range['min_row']}"
+            range_text = merged_range["range"]
+            if display_cell == cell_ref:
+                note = f"{cell_ref} 位于合并区域 {range_text} 的左上角"
+            else:
+                note = f"{cell_ref} 显示于 {display_cell}（合并区域 {range_text}）"
+            return {
+                "display_cell": display_cell,
+                "merged_range": range_text,
+                "display_note": note,
+            }
+
+    return {
+        "display_cell": cell_ref,
+        "merged_range": "",
+        "display_note": "",
+    }
+
+
+def column_from_index(index):
+    letters = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(65 + remainder) + letters
+    return letters
 
 
 def _normalize_operation(operation):
@@ -68,7 +148,7 @@ def _overwrite_cells(mapping_safety):
     return cells
 
 
-def build_render_preview(processed_operations, mapping_safety=None):
+def build_render_preview(processed_operations, mapping_safety=None, template_path=None):
     mapping_safety = mapping_safety if isinstance(mapping_safety, dict) else {}
     conflict_cells = _conflict_cells(mapping_safety)
     overwrite_cells = _overwrite_cells(mapping_safety)
@@ -77,6 +157,7 @@ def build_render_preview(processed_operations, mapping_safety=None):
     cell_preview = []
     table_groups = {}
     block_preview = []
+    merged_ranges = _load_merged_ranges(template_path)
 
     for index, operation in enumerate(_as_list(processed_operations), start=1):
         item = _normalize_operation(operation)
@@ -88,10 +169,14 @@ def build_render_preview(processed_operations, mapping_safety=None):
         target_cell = item.get("target_cell")
         value = item.get("value")
         status = _status(item, conflict_cells, overwrite_cells)
+        display_info = _merged_display_info(target_cell, merged_ranges)
         if target_cell:
             cells.append(
                 {
                     "cell": target_cell,
+                    "display_cell": display_info.get("display_cell", target_cell),
+                    "merged_range": display_info.get("merged_range", ""),
+                    "display_note": display_info.get("display_note", ""),
                     "value": value,
                     "operation_type": item.get("op_type"),
                     "source": source,
@@ -103,6 +188,9 @@ def build_render_preview(processed_operations, mapping_safety=None):
             cell_preview.append(
                 {
                     "cell": target_cell,
+                    "display_cell": display_info.get("display_cell", target_cell),
+                    "merged_range": display_info.get("merged_range", ""),
+                    "display_note": display_info.get("display_note", ""),
                     "source": source,
                     "op_type": item.get("op_type"),
                     "value": value,
@@ -118,7 +206,13 @@ def build_render_preview(processed_operations, mapping_safety=None):
                 continue
             table = table_groups.setdefault(_table_name(item), {})
             row = table.setdefault(row_number, {})
-            row[column] = {"value": value, **status}
+            row[column] = {
+                "value": value,
+                "display_cell": display_info.get("display_cell", target_cell),
+                "merged_range": display_info.get("merged_range", ""),
+                "display_note": display_info.get("display_note", ""),
+                **status,
+            }
             continue
 
         if source == "block":
@@ -126,6 +220,9 @@ def build_render_preview(processed_operations, mapping_safety=None):
                 {
                     "block_name": _block_name(item),
                     "target_cell": target_cell,
+                    "display_cell": display_info.get("display_cell", target_cell),
+                    "merged_range": display_info.get("merged_range", ""),
+                    "display_note": display_info.get("display_note", ""),
                     "value": value,
                     **status,
                 }

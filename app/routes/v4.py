@@ -550,7 +550,7 @@ def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
 
         state = merge_mapping_safety(result.get("mapping_safety", {}))
         merged_safety = state.get("mapping_safety", {})
-        preview = build_render_preview(processed_operations, merged_safety)
+        preview = build_render_preview(processed_operations, merged_safety, template_path)
         state = set_render_preview(preview)
         html_result = render_preview_to_html(state.get("render_preview", {}))
         if html_result.get("success"):
@@ -605,7 +605,7 @@ def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
             "render_preview": get_pipeline_state().get("render_preview", {}),
         }
 
-    preview = build_render_preview(processed_operations, state.get("mapping_safety", {}))
+    preview = build_render_preview(processed_operations, state.get("mapping_safety", {}), state.get("current_template_path"))
     state = set_render_preview(preview)
     saved_preview = state.get("render_preview", {})
     html_result = render_preview_to_html(saved_preview)
