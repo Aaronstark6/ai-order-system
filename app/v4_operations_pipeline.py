@@ -27,7 +27,10 @@ def _normalize_operations(operations):
         item["op_type"] = str(item.get("op_type") or "").strip().lower()
         item["source"] = str(item.get("source") or "").strip().lower()
         item["target_cell"] = _normalize_target_cell(item.get("target_cell"))
-        item["value"] = "" if item.get("value") is None else str(item.get("value"))
+        if item["op_type"] == "write_number" and isinstance(item.get("value"), (int, float)):
+            item["value"] = item.get("value")
+        else:
+            item["value"] = "" if item.get("value") is None else str(item.get("value"))
         if item.get("target_cell") and item.get("op_type"):
             normalized.append(item)
     return normalized
@@ -35,6 +38,8 @@ def _normalize_operations(operations):
 
 def _format_value(operation):
     item = deepcopy(operation)
+    if item.get("op_type") == "write_number" and isinstance(item.get("value"), (int, float)):
+        return item
     value = str(item.get("value") or "").strip()
     if item.get("op_type") == "write_block":
         lines = [line.strip() for line in re.split(r"\r\n|\r|\n", value)]

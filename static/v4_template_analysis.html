@@ -257,9 +257,9 @@
                 message.className = 'message warning';
                 message.textContent = '尚未执行一键模板学习。';
                 document.getElementById('learningSummaryBody').innerHTML = `
-                    ${summaryItem('Structured Applied', 0)}
-                    ${summaryItem('Tables Applied', 0)}
-                    ${summaryItem('Blocks Applied', 0)}
+                    ${summaryItem('Structured Candidates', 0)}
+                    ${summaryItem('Table Candidates', 0)}
+                    ${summaryItem('Block Candidates', 0)}
                     ${summaryItem('Needs Review', 0)}
                     ${summaryItem('Rejected', 0)}
                 `;
@@ -267,11 +267,11 @@
             }
 
             message.className = result.success ? 'message success' : 'message error';
-            message.textContent = result.success ? '模板学习完成，已写入正式 Mapping。' : '模板学习失败。';
+            message.textContent = result.success ? '模板学习完成，候选映射已保存，未写入正式 Mapping。' : '模板学习失败。';
             document.getElementById('learningSummaryBody').innerHTML = `
-                ${summaryItem('Structured Applied', summary.structured_applied || 0)}
-                ${summaryItem('Tables Applied', summary.tables_applied || 0)}
-                ${summaryItem('Blocks Applied', summary.blocks_applied || 0)}
+                ${summaryItem('Structured Candidates', summary.structured_candidates || 0)}
+                ${summaryItem('Table Candidates', summary.table_candidates || 0)}
+                ${summaryItem('Block Candidates', summary.block_candidates || 0)}
                 ${summaryItem('Needs Review', summary.needs_review || 0)}
                 ${summaryItem('Rejected', summary.rejected || 0)}
             `;
@@ -670,7 +670,7 @@
                 renderLearningResult(result);
                 renderAnalysis(result.template_analysis || {});
                 await loadAutoMappingPreview();
-                setStatus('模板学习完成，已写入正式 Mapping');
+                setStatus('模板学习完成，候选映射已保存，未写入正式 Mapping');
             } catch (error) {
                 renderLearningResult({ success: false, summary: {} });
                 setStatus(error.message || '模板学习失败');

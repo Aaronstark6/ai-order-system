@@ -87,13 +87,12 @@
         <section class="toolbar">
             <div>
                 <div id="statusText" class="status">正在加载 Auto Mapping Preview...</div>
-                <div class="status">Recommended 默认勾选；Needs Review 默认不勾选；Rejected 只读展示。</div>
+                <div class="status">只有勾选并人工确认的项目才会写入正式规则；Auto Mapping 只会先进入候选映射。</div>
                 <div id="mappingStatusText" class="status">正式 Mapping：尚未刷新</div>
             </div>
             <div class="toolbar-actions">
                 <button class="btn-secondary" type="button" onclick="loadPreview()">刷新 Preview</button>
                 <button class="btn-primary" type="button" onclick="saveSelected()">保存选中映射规则</button>
-                <button class="btn-primary" type="button" onclick="applyAutoMapping()">应用到正式 Mapping</button>
             </div>
         </section>
 
@@ -358,7 +357,8 @@
                     target_cell: fieldValue(row, 'target_cell'),
                     operation: 'write_text',
                     auto_generated: true,
-                    confirmed: true
+                    confirmed: true,
+                    mapping_source: "human_confirmed"
                 }));
         }
 
@@ -449,16 +449,16 @@
                 '/api/v4/mapping-workbench/save-selected',
                 '正在保存选中映射规则...',
                 '映射规则保存失败',
-                '映射规则保存成功'
+                '已保存选中且确认的映射规则'
             );
         }
 
         async function applyAutoMapping() {
             await postMappingPayload(
                 '/api/v4/apply-auto-mapping',
-                '正在写入正式 Mapping...',
-                '自动映射写入正式 Mapping 失败',
-                '已成功写入正式 Mapping'
+                '正在保存候选映射...',
+                '自动映射候选保存失败',
+                '已保存候选映射，未写入正式 Mapping'
             );
         }
 

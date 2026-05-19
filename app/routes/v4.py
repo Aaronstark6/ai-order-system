@@ -23,11 +23,14 @@ from app.v4_examples import list_examples, load_example, save_example
 from app.v4_pipeline_state import (
     get_pipeline_state,
     load_order_object_into_pipeline,
+    merge_mapping_safety,
     reset_pipeline_state,
     set_block_operations,
     set_current_profile,
     set_current_template,
     set_excel_result,
+    set_mapping_counts,
+    set_mapping_safety,
     set_pipeline_result,
     set_render_preview,
     set_render_targets,
@@ -439,12 +442,7 @@ def api_v4_load_order_object():
 
 @router.post("/api/v4/core-pipeline/run")
 def api_v4_core_pipeline_run():
-    from app.v4_block_merge_engine import build_block_operations
-    from app.v4_operations_pipeline import process_operations_pipeline
-    from app.v4_structured_excel_mapping import build_structured_operations
-    from app.v4_table_renderer import build_table_operations
-    from app.v4_unified_operations import build_unified_operations
-    from app.v4_validator import validate_order_object
+    from app.v4_pipeline_executor import run_operation_pipeline
 
     logger.info("V4 core pipeline run requested")
     state = get_pipeline_state()
@@ -459,9 +457,10 @@ def api_v4_core_pipeline_run():
             }
         order_object = load_result.get("pipeline_state", {}).get("current_order_object", {})
 
-    validation = validate_order_object(order_object)
+    result = run_operation_pipeline(order_object)
+    validation = result.get("validation", {})
     set_validator_result(validation)
-    if not validation.get("valid"):
+    if not result.get("success"):
         return {
             "success": False,
             "error": "Validator 校验失败",
@@ -469,51 +468,50 @@ def api_v4_core_pipeline_run():
             "pipeline_state": get_pipeline_state(),
         }
 
-    structured_result = build_structured_operations(order_object)
-    structured_ops = structured_result.get("operations", [])
+    structured_ops = result.get("structured_operations", [])
     set_structured_operations(structured_ops)
 
-    table_result = build_table_operations(order_object)
-    table_ops = table_result.get("operations", [])
+    table_ops = result.get("table_operations", [])
     set_table_operations(table_ops)
 
-    block_result = build_block_operations(order_object)
-    block_ops = block_result.get("operations", [])
+    block_ops = result.get("block_operations", [])
     set_block_operations(block_ops)
 
-    unified_result = build_unified_operations(structured_ops, table_ops, block_ops)
-    unified_ops = unified_result.get("operations", [])
+    unified_ops = result.get("unified_operations", [])
     set_unified_operations(unified_ops)
 
-    pipeline_result = process_operations_pipeline(unified_ops)
-    processed_ops = pipeline_result.get("processed_operations", [])
-    stages = pipeline_result.get("stages", [])
+    processed_ops = result.get("processed_operations", [])
+    stages = result.get("stages", [])
+    mapping_safety = result.get("mapping_safety", {})
+    set_mapping_safety(mapping_safety)
+    mapping_counts = result.get("mapping_counts", {})
+    set_mapping_counts(mapping_counts)
     set_pipeline_result(processed_ops, stages)
+    set_render_preview(result.get("render_preview", {}))
 
-    warnings = (
-        validation.get("warnings", [])
-        + structured_result.get("warnings", [])
-        + table_result.get("warnings", [])
-        + block_result.get("warnings", [])
-    )
     return {
         "success": True,
         "validation": validation,
-        "warnings": warnings,
+        "warnings": result.get("warnings", []),
         "structured_operations": structured_ops,
         "table_operations": table_ops,
         "block_operations": block_ops,
         "unified_operations": unified_ops,
         "processed_operations": processed_ops,
+        "mapping_safety": mapping_safety,
+        "mapping_counts": mapping_counts,
         "stages": stages,
-        "render_ready": pipeline_result.get("render_ready", False),
+        "render_ready": result.get("render_ready", False),
+        "render_preview": result.get("render_preview", {}),
         "pipeline_state": get_pipeline_state(),
     }
 
 
 @router.post("/api/v4/core-pipeline/export-excel")
 def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
-    from app.v4_core_excel_executor import execute_processed_operations_to_excel
+    from app.v4_excel_executor import execute_processed_operations_to_excel
+    from app.v4_render_preview import build_render_preview
+    from app.v4_render_targets import render_preview_to_html
 
     logger.info("V4 core pipeline export Excel requested: filename=%s", template_file.filename)
     template_path = None
@@ -541,14 +539,22 @@ def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
                 "pipeline_state": get_pipeline_state(),
             }
 
-        set_excel_result(result.get("filename"))
+        state = merge_mapping_safety(result.get("mapping_safety", {}))
+        merged_safety = state.get("mapping_safety", {})
+        preview = build_render_preview(processed_operations, merged_safety)
+        state = set_render_preview(preview)
+        html_result = render_preview_to_html(state.get("render_preview", {}))
+        if html_result.get("success"):
+            state = set_render_targets({"html_preview": html_result.get("html", "")})
+        state = set_excel_result(result.get("filename"))
         return {
             "success": True,
             "filename": result.get("filename", ""),
             "download_url": result.get("download_url", ""),
             "operations_written": result.get("operations_written", 0),
             "warnings": result.get("warnings", []),
-            "pipeline_state": get_pipeline_state(),
+            "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
+            "pipeline_state": state,
         }
     except ValueError as exc:
         return {
@@ -579,8 +585,9 @@ def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
     elif isinstance(payload, list):
         processed_operations = payload
 
+    state = get_pipeline_state()
     if processed_operations is None:
-        processed_operations = get_pipeline_state().get("pipeline", {}).get("processed_operations", [])
+        processed_operations = state.get("pipeline", {}).get("processed_operations", [])
 
     if not isinstance(processed_operations, list) or not processed_operations:
         return {
@@ -589,7 +596,7 @@ def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
             "render_preview": get_pipeline_state().get("render_preview", {}),
         }
 
-    preview = build_render_preview(processed_operations)
+    preview = build_render_preview(processed_operations, state.get("mapping_safety", {}))
     state = set_render_preview(preview)
     saved_preview = state.get("render_preview", {})
     html_result = render_preview_to_html(saved_preview)
@@ -804,7 +811,7 @@ def _recommended_auto_mapping_payload(preview):
 @router.post("/api/v4/template-learn/run")
 def api_v4_template_learn_run():
     from app.v4_mapping_generator import generate_auto_mapping
-    from app.v4_mapping_workbench import apply_auto_mapping
+    from app.v4_mapping_workbench import save_auto_mapping_candidates
     from app.v4_template_analysis import analyze_template
 
     logger.info("V4 template learn run requested")
@@ -846,14 +853,14 @@ def api_v4_template_learn_run():
         analysis["auto_mapping_preview"] = generate_auto_mapping(analysis)
         preview = analysis.get("auto_mapping_preview", {})
         payload = _recommended_auto_mapping_payload(preview)
-        apply_result = apply_auto_mapping(payload)
-        if not apply_result.get("success"):
-            raise ValueError(apply_result.get("error", "自动映射写入正式 Mapping 失败"))
+        candidate_result = save_auto_mapping_candidates(payload)
+        if not candidate_result.get("success"):
+            raise ValueError(candidate_result.get("error", "自动映射候选保存失败"))
 
         summary = {
-            "structured_applied": apply_result.get("result", {}).get("structured_saved", 0),
-            "tables_applied": apply_result.get("result", {}).get("tables_saved", 0),
-            "blocks_applied": apply_result.get("result", {}).get("blocks_saved", 0),
+            "structured_candidates": candidate_result.get("result", {}).get("structured_candidates", 0),
+            "table_candidates": candidate_result.get("result", {}).get("table_candidates", 0),
+            "block_candidates": candidate_result.get("result", {}).get("block_candidates", 0),
             "needs_review": len(preview.get("needs_review", [])) if isinstance(preview.get("needs_review", []), list) else 0,
             "rejected": len(preview.get("rejected_candidates", []))
             if isinstance(preview.get("rejected_candidates", []), list)
@@ -871,7 +878,7 @@ def api_v4_template_learn_run():
         )
         return {
             "success": True,
-            "message": "模板学习完成",
+            "message": "模板学习完成，候选映射已保存，未写入正式 Mapping",
             "summary": summary,
             "auto_mapping_preview": preview,
             "template_analysis": learning_state.get("template_analysis", {}),
@@ -938,7 +945,7 @@ def api_v4_apply_auto_mapping(payload: Any = Body(None)):
     if not result.get("success"):
         return {
             "success": False,
-            "error": result.get("error", "自动映射写入正式 Mapping 失败"),
+            "error": result.get("error", "自动映射候选保存失败"),
         }
     return result
 

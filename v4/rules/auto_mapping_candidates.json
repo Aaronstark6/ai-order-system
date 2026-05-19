@@ -1,0 +1,10 @@
+{
+  "version": "V4-Rebuild",
+  "generated_at": null,
+  "note": "Auto Mapping 候选区。不会进入正式 mapping，必须在 Mapping Workbench 人工勾选确认后才能写入正式规则。",
+  "candidates": {
+    "structured": [],
+    "tables": [],
+    "blocks": []
+  }
+}

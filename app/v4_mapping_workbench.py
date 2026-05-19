@@ -1,6 +1,7 @@
 import json
 import re
 from copy import deepcopy
+from datetime import datetime
 
 from app.runtime_paths import get_base_dir
 
@@ -9,6 +10,7 @@ RULES_DIR = get_base_dir() / "v4" / "rules"
 STRUCTURED_RULE_PATH = RULES_DIR / "structured_excel_mapping.json"
 TABLE_RULE_PATH = RULES_DIR / "table_mapping.json"
 BLOCK_RULE_PATH = RULES_DIR / "block_merge_rules.json"
+CANDIDATE_RULE_PATH = RULES_DIR / "auto_mapping_candidates.json"
 RULE_VERSION = "V4-Rebuild"
 
 
@@ -30,6 +32,10 @@ def _write_json(path, data):
         f.write("\n")
 
 
+def _now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 def _safe_key(value):
     text = str(value or "").strip().lower()
     text = re.sub(r"\s+", "_", text)
@@ -39,30 +45,19 @@ def _safe_key(value):
 
 def _field_key(value):
     text = _safe_key(value)
-    if text in {"原料名", "原料"}:
-        return "name"
-    if text == "含量":
-        return "amount"
-    if text == "百分比":
-        return "percentage"
-    if text == "标准":
-        return "standard"
-    if text == "结果":
-        return "result"
-    return text
-
-
-def _valid_structured(item):
-    return (
-        isinstance(item, dict)
-        and str(item.get("label") or "").strip()
-        and str(item.get("source_path") or "").strip()
-        and str(item.get("target_cell") or "").strip()
-    )
+    aliases = {
+        "原料名": "name",
+        "原料": "name",
+        "含量": "amount",
+        "百分比": "percentage",
+        "标准": "standard",
+        "结果": "result",
+    }
+    return aliases.get(text, text)
 
 
 def _start_cell(item):
-    start_cell = str(item.get("start_cell") or "").strip()
+    start_cell = str(item.get("start_cell") or "").strip().upper()
     if start_cell:
         return start_cell
 
@@ -70,7 +65,7 @@ def _start_cell(item):
     columns = item.get("columns", [])
     first_col = "A"
     if isinstance(columns, list) and columns:
-        first_col = str(columns[0].get("target_col") or "A").strip() or "A"
+        first_col = str(columns[0].get("target_col") or "A").strip().upper() or "A"
     return f"{first_col}{start_row}" if start_row else ""
 
 
@@ -83,253 +78,87 @@ def _normalize_columns(columns, add_field=True):
         if not isinstance(column, dict):
             continue
         label = str(column.get("label") or "").strip()
-        target_col = str(column.get("target_col") or "").strip()
+        target_col = str(column.get("target_col") or "").strip().upper()
         if not label or not target_col:
             continue
 
-        normalized = deepcopy(column)
-        normalized["label"] = label
-        normalized["target_col"] = target_col
-        if add_field and not str(normalized.get("field") or "").strip():
+        normalized = {
+            "label": label,
+            "target_col": target_col,
+        }
+        field = str(column.get("field") or "").strip()
+        if field:
+            normalized["field"] = field
+        elif add_field:
             normalized["field"] = _field_key(label)
         normalized_columns.append(normalized)
     return normalized_columns
 
 
-def _normalize_structured_for_save(item, include_confirmation=True):
+def _confirmation_meta():
+    return {
+        "enabled": True,
+        "confirmed": True,
+        "confirmed_at": _now(),
+        "mapping_source": "human_confirmed",
+    }
+
+
+def _candidate_meta(source):
+    return {
+        "enabled": False,
+        "confirmed": False,
+        "mapping_source": source,
+        "candidate_created_at": _now(),
+    }
+
+
+def _valid_structured(item):
+    return (
+        isinstance(item, dict)
+        and str(item.get("label") or "").strip()
+        and str(item.get("source_path") or "").strip()
+        and str(item.get("target_cell") or "").strip()
+    )
+
+
+def _normalize_structured(item, confirmed=False):
     mapping = {
         "label": str(item.get("label") or "").strip(),
         "source_path": str(item.get("source_path") or "").strip(),
-        "target_cell": str(item.get("target_cell") or "").strip(),
+        "target_cell": str(item.get("target_cell") or "").strip().upper(),
         "operation": str(item.get("operation") or "write_text").strip() or "write_text",
     }
-    if include_confirmation:
-        mapping["auto_generated"] = True
-        mapping["confirmed"] = True
+    mapping.update(_confirmation_meta() if confirmed else _candidate_meta("auto_mapping_candidate"))
     return mapping
 
 
-def _save_structured(items):
-    data = _read_json(STRUCTURED_RULE_PATH, {"version": RULE_VERSION, "mappings": []})
-    mappings = data.get("mappings", [])
-    if not isinstance(mappings, list):
-        mappings = []
-
-    index = {
-        (str(item.get("label") or "").strip(), str(item.get("target_cell") or "").strip()): idx
-        for idx, item in enumerate(mappings)
-        if isinstance(item, dict)
+def _normalize_table(item, confirmed=False):
+    table_name = str(item.get("table_name") or "").strip()
+    table_key = str(item.get("table_key") or _safe_key(table_name)).strip()
+    table = {
+        "table_key": table_key,
+        "table_name": table_name,
+        "source_path": str(item.get("source_path") or f"product.tables.{table_key}").strip(),
+        "start_cell": _start_cell(item),
+        "columns": _normalize_columns(item.get("columns", []), add_field=True),
     }
-    saved = 0
-    for item in items:
-        if not _valid_structured(item):
-            continue
-        mapping = _normalize_structured_for_save(item, include_confirmation=True)
-        key = (mapping["label"], mapping["target_cell"])
-        if key in index:
-            mappings[index[key]].update(mapping)
-        else:
-            index[key] = len(mappings)
-            mappings.append(mapping)
-        saved += 1
-
-    data["version"] = data.get("version") or RULE_VERSION
-    data["mappings"] = mappings
-    _write_json(STRUCTURED_RULE_PATH, data)
-    return saved
+    if item.get("semantic_type"):
+        table["semantic_type"] = item.get("semantic_type")
+    table.update(_confirmation_meta() if confirmed else _candidate_meta("auto_mapping_candidate"))
+    return table
 
 
-def _save_tables(items):
-    data = _read_json(TABLE_RULE_PATH, {"version": RULE_VERSION, "tables": []})
-    tables = data.get("tables", [])
-    if not isinstance(tables, list):
-        tables = []
-
-    index = {
-        str(item.get("table_name") or "").strip(): idx
-        for idx, item in enumerate(tables)
-        if isinstance(item, dict) and str(item.get("table_name") or "").strip()
+def _normalize_block(item, confirmed=False):
+    block = {
+        "block_name": str(item.get("block_name") or "").strip(),
+        "target_cell": str(item.get("target_cell") or "").strip().upper(),
+        "operation": str(item.get("operation") or "write_block").strip() or "write_block",
+        "lines": deepcopy(item.get("lines")) if isinstance(item.get("lines"), list) else [],
+        "source_path": str(item.get("source_path") or "").strip(),
     }
-    saved = 0
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        table_name = str(item.get("table_name") or "").strip()
-        if not table_name:
-            continue
-
-        table = {
-            "table_key": str(item.get("table_key") or _safe_key(table_name)),
-            "table_name": table_name,
-            "source_path": str(item.get("source_path") or f"product.tables.{_safe_key(table_name)}"),
-            "start_cell": _start_cell(item),
-            "columns": _normalize_columns(item.get("columns", []), add_field=True),
-        }
-        if item.get("semantic_type"):
-            table["semantic_type"] = item.get("semantic_type")
-
-        if table_name in index:
-            tables[index[table_name]].update(table)
-        else:
-            index[table_name] = len(tables)
-            tables.append(table)
-        saved += 1
-
-    data["version"] = data.get("version") or RULE_VERSION
-    data["tables"] = tables
-    _write_json(TABLE_RULE_PATH, data)
-    return saved
-
-
-def _save_blocks(items):
-    data = _read_json(BLOCK_RULE_PATH, {"version": RULE_VERSION, "blocks": []})
-    blocks = data.get("blocks", [])
-    if not isinstance(blocks, list):
-        blocks = []
-
-    index = {
-        str(item.get("block_name") or "").strip(): idx
-        for idx, item in enumerate(blocks)
-        if isinstance(item, dict) and str(item.get("block_name") or "").strip()
-    }
-    saved = 0
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        block_name = str(item.get("block_name") or "").strip()
-        target_cell = str(item.get("target_cell") or "").strip()
-        if not block_name or not target_cell:
-            continue
-        block = {
-            "block_name": block_name,
-            "target_cell": target_cell,
-            "lines": item.get("lines") if isinstance(item.get("lines"), list) else [],
-        }
-        if item.get("source_path"):
-            block["source_path"] = item.get("source_path")
-
-        if block_name in index:
-            blocks[index[block_name]].update(block)
-        else:
-            index[block_name] = len(blocks)
-            blocks.append(block)
-        saved += 1
-
-    data["version"] = data.get("version") or RULE_VERSION
-    data["blocks"] = blocks
-    _write_json(BLOCK_RULE_PATH, data)
-    return saved
-
-
-def _apply_structured(items):
-    data = _read_json(STRUCTURED_RULE_PATH, {"version": RULE_VERSION, "mappings": []})
-    existing = data.get("mappings", [])
-    mappings = [item for item in existing if isinstance(item, dict)] if isinstance(existing, list) else []
-
-    saved = 0
-    for item in items:
-        if not _valid_structured(item):
-            continue
-        mapping = _normalize_structured_for_save(item, include_confirmation=False)
-        label = mapping["label"]
-        target_cell = mapping["target_cell"]
-
-        mappings = [
-            current
-            for current in mappings
-            if str(current.get("target_cell") or "").strip() != target_cell
-            and (
-                str(current.get("label") or "").strip(),
-                str(current.get("target_cell") or "").strip(),
-            )
-            != (label, target_cell)
-        ]
-        mappings.append(mapping)
-        saved += 1
-
-    data["version"] = RULE_VERSION
-    data["mappings"] = mappings
-    _write_json(STRUCTURED_RULE_PATH, data)
-    return saved
-
-
-def _apply_tables(items):
-    data = _read_json(TABLE_RULE_PATH, {"version": RULE_VERSION, "tables": []})
-    existing = data.get("tables", [])
-    tables = [item for item in existing if isinstance(item, dict)] if isinstance(existing, list) else []
-
-    index = {
-        str(item.get("table_key") or "").strip(): idx
-        for idx, item in enumerate(tables)
-        if str(item.get("table_key") or "").strip()
-    }
-    saved = 0
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        table_name = str(item.get("table_name") or "").strip()
-        if not table_name:
-            continue
-        table_key = str(item.get("table_key") or _safe_key(table_name)).strip()
-        table = {
-            "table_key": table_key,
-            "table_name": table_name,
-            "source_path": str(item.get("source_path") or f"product.tables.{table_key}"),
-            "start_cell": _start_cell(item),
-            "columns": _normalize_columns(item.get("columns", []), add_field=True),
-        }
-        if item.get("semantic_type"):
-            table["semantic_type"] = item.get("semantic_type")
-
-        if table_key in index:
-            tables[index[table_key]] = table
-        else:
-            index[table_key] = len(tables)
-            tables.append(table)
-        saved += 1
-
-    data["version"] = RULE_VERSION
-    data["tables"] = tables
-    _write_json(TABLE_RULE_PATH, data)
-    return saved
-
-
-def _apply_blocks(items):
-    data = _read_json(BLOCK_RULE_PATH, {"version": RULE_VERSION, "blocks": []})
-    existing = data.get("blocks", [])
-    blocks = [item for item in existing if isinstance(item, dict)] if isinstance(existing, list) else []
-
-    index = {
-        str(item.get("block_name") or "").strip(): idx
-        for idx, item in enumerate(blocks)
-        if str(item.get("block_name") or "").strip()
-    }
-    saved = 0
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        block_name = str(item.get("block_name") or "").strip()
-        target_cell = str(item.get("target_cell") or "").strip()
-        if not block_name or not target_cell:
-            continue
-        block = {
-            "block_name": block_name,
-            "target_cell": target_cell,
-            "lines": deepcopy(item.get("lines")) if isinstance(item.get("lines"), list) else [],
-            "source_path": str(item.get("source_path") or ""),
-        }
-
-        if block_name in index:
-            blocks[index[block_name]] = block
-        else:
-            index[block_name] = len(blocks)
-            blocks.append(block)
-        saved += 1
-
-    data["version"] = RULE_VERSION
-    data["blocks"] = blocks
-    _write_json(BLOCK_RULE_PATH, data)
-    return saved
+    block.update(_confirmation_meta() if confirmed else _candidate_meta("auto_mapping_candidate"))
+    return block
 
 
 def _payload_lists(payload):
@@ -342,6 +171,77 @@ def _payload_lists(payload):
         "tables": tables if isinstance(tables, list) else [],
         "blocks": blocks if isinstance(blocks, list) else [],
     }
+
+
+def _upsert_by_key(items, next_item, keys):
+    next_key = tuple(str(next_item.get(key) or "").strip() for key in keys)
+    for index, item in enumerate(items):
+        current_key = tuple(str(item.get(key) or "").strip() for key in keys)
+        if current_key == next_key:
+            items[index] = next_item
+            return
+    items.append(next_item)
+
+
+def _save_structured(items):
+    data = _read_json(STRUCTURED_RULE_PATH, {"version": RULE_VERSION, "mappings": []})
+    mappings = data.get("mappings", [])
+    mappings = [item for item in mappings if isinstance(item, dict)] if isinstance(mappings, list) else []
+
+    saved = 0
+    for item in items:
+        if not _valid_structured(item):
+            continue
+        mapping = _normalize_structured(item, confirmed=True)
+        _upsert_by_key(mappings, mapping, ("source_path", "target_cell"))
+        saved += 1
+
+    data["version"] = RULE_VERSION
+    data["mappings"] = mappings
+    _write_json(STRUCTURED_RULE_PATH, data)
+    return saved
+
+
+def _save_tables(items):
+    data = _read_json(TABLE_RULE_PATH, {"version": RULE_VERSION, "tables": []})
+    tables = data.get("tables", [])
+    tables = [item for item in tables if isinstance(item, dict)] if isinstance(tables, list) else []
+
+    saved = 0
+    for item in items:
+        if not isinstance(item, dict) or not str(item.get("table_name") or "").strip():
+            continue
+        table = _normalize_table(item, confirmed=True)
+        if not table.get("start_cell") or not table.get("columns"):
+            continue
+        _upsert_by_key(tables, table, ("table_key",))
+        saved += 1
+
+    data["version"] = RULE_VERSION
+    data["tables"] = tables
+    _write_json(TABLE_RULE_PATH, data)
+    return saved
+
+
+def _save_blocks(items):
+    data = _read_json(BLOCK_RULE_PATH, {"version": RULE_VERSION, "blocks": []})
+    blocks = data.get("blocks", [])
+    blocks = [item for item in blocks if isinstance(item, dict)] if isinstance(blocks, list) else []
+
+    saved = 0
+    for item in items:
+        if not isinstance(item, dict) or not str(item.get("block_name") or "").strip():
+            continue
+        block = _normalize_block(item, confirmed=True)
+        if not block.get("target_cell"):
+            continue
+        _upsert_by_key(blocks, block, ("block_name",))
+        saved += 1
+
+    data["version"] = RULE_VERSION
+    data["blocks"] = blocks
+    _write_json(BLOCK_RULE_PATH, data)
+    return saved
 
 
 def save_selected_mappings(payload):
@@ -359,26 +259,55 @@ def save_selected_mappings(payload):
     }
     return {
         "success": True,
-        "message": "映射规则保存成功",
+        "message": "已保存选中且确认的映射规则",
         "result": result,
+    }
+
+
+def save_auto_mapping_candidates(payload):
+    lists = _payload_lists(payload)
+    candidates = {
+        "structured": [
+            _normalize_structured(item, confirmed=False)
+            for item in lists["structured"]
+            if _valid_structured(item)
+        ],
+        "tables": [
+            _normalize_table(item, confirmed=False)
+            for item in lists["tables"]
+            if isinstance(item, dict) and str(item.get("table_name") or "").strip()
+        ],
+        "blocks": [
+            _normalize_block(item, confirmed=False)
+            for item in lists["blocks"]
+            if isinstance(item, dict) and str(item.get("block_name") or "").strip()
+        ],
+    }
+
+    if not candidates["structured"] and not candidates["tables"] and not candidates["blocks"]:
+        return {
+            "success": False,
+            "error": "没有可保存的候选映射",
+        }
+
+    data = {
+        "version": RULE_VERSION,
+        "generated_at": _now(),
+        "note": "Auto Mapping 候选区。不会进入正式 mapping，必须在 Mapping Workbench 人工勾选确认后才能写入正式规则。",
+        "candidates": candidates,
+    }
+    _write_json(CANDIDATE_RULE_PATH, data)
+    return {
+        "success": True,
+        "message": "已保存为候选映射，未写入正式 Mapping",
+        "result": {
+            "structured_candidates": len(candidates["structured"]),
+            "table_candidates": len(candidates["tables"]),
+            "block_candidates": len(candidates["blocks"]),
+            "candidate_file": str(CANDIDATE_RULE_PATH),
+        },
     }
 
 
 def apply_auto_mapping(payload):
-    lists = _payload_lists(payload)
-    if not lists["structured"] and not lists["tables"] and not lists["blocks"]:
-        return {
-            "success": False,
-            "error": "没有选择任何映射",
-        }
-
-    result = {
-        "structured_saved": _apply_structured(lists["structured"]),
-        "tables_saved": _apply_tables(lists["tables"]),
-        "blocks_saved": _apply_blocks(lists["blocks"]),
-    }
-    return {
-        "success": True,
-        "message": "已成功写入正式 Mapping",
-        "result": result,
-    }
+    return save_auto_mapping_candidates(payload)

@@ -13,21 +13,41 @@ def _column_index(column):
     return total
 
 
+def _preview_value(value):
+    if isinstance(value, dict):
+        return value.get("value", "")
+    return value
+
+
+def _preview_status(value):
+    if not isinstance(value, dict):
+        return ""
+    labels = []
+    if value.get("skipped"):
+        labels.append("skipped")
+    if value.get("conflict"):
+        labels.append("conflict")
+    if value.get("overwrite_warning"):
+        labels.append("overwrite_warning")
+    return ", ".join(labels)
+
+
 def _render_cell_preview(items):
-    empty_row = '<tr><td colspan="4">暂无 Cell Preview</td></tr>'
+    empty_row = '<tr><td colspan="5">暂无 Cell Preview</td></tr>'
     rows = "".join(
         "<tr>"
         f"<td>{escape(str(item.get('cell') or ''))}</td>"
         f"<td>{escape(str(item.get('source') or ''))}</td>"
-        f"<td>{escape(str(item.get('op_type') or ''))}</td>"
+        f"<td>{escape(str(item.get('operation_type') or item.get('op_type') or ''))}</td>"
         f"<td>{escape(str(item.get('value') or ''))}</td>"
+        f"<td>{escape(_preview_status(item))}</td>"
         "</tr>"
         for item in _as_list(items)
         if isinstance(item, dict)
     )
     return (
         "<section><h2>Cell Preview</h2>"
-        "<table><thead><tr><th>cell</th><th>source</th><th>op_type</th><th>value</th></tr></thead>"
+        "<table><thead><tr><th>cell</th><th>source</th><th>op_type</th><th>value</th><th>safety</th></tr></thead>"
         f"<tbody>{rows or empty_row}</tbody></table></section>"
     )
 
@@ -51,10 +71,7 @@ def _render_table_preview(tables):
         body = "".join(
             "<tr>"
             f"<td>{escape(str(row.get('row_number') or ''))}</td>"
-            + "".join(
-                f"<td>{escape(str((row.get('cells') or {}).get(column, '')))}</td>"
-                for column in columns
-            )
+            + "".join(_render_table_cell((row.get("cells") or {}).get(column, "")) for column in columns)
             + "</tr>"
             for row in rows
             if isinstance(row, dict)
@@ -65,6 +82,12 @@ def _render_table_preview(tables):
             f"{header}</tr></thead><tbody>{body or '<tr><td>暂无表格数据</td></tr>'}</tbody></table></section>"
         )
     return "".join(sections) or "<section><h2>Table Preview</h2><p>暂无 Table Preview</p></section>"
+
+
+def _render_table_cell(value):
+    status = _preview_status(value)
+    suffix = f" · {escape(status)}" if status else ""
+    return f"<td>{escape(str(_preview_value(value) or ''))}{suffix}</td>"
 
 
 def _render_block_preview(blocks):
@@ -83,7 +106,7 @@ def render_preview_to_html(render_preview):
     render_preview = render_preview if isinstance(render_preview, dict) else {}
     html = (
         "<div class=\"v4-render-preview\">"
-        f"{_render_cell_preview(render_preview.get('cell_preview', []))}"
+        f"{_render_cell_preview(render_preview.get('cells') or render_preview.get('cell_preview', []))}"
         f"{_render_table_preview(render_preview.get('table_preview', []))}"
         f"{_render_block_preview(render_preview.get('block_preview', []))}"
         "</div>"

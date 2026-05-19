@@ -13,19 +13,38 @@ def _default_state():
             "tables": [],
             "blocks": [],
             "unified": [],
+            "structured_operations": [],
+            "table_operations": [],
+            "block_operations": [],
+            "unified_operations": [],
         },
         "pipeline": {
             "processed_operations": [],
             "stages": [],
+        },
+        "mapping_safety": {
+            "has_conflicts": False,
+            "conflicts": [],
+            "warnings": [],
+            "skipped_operations": [],
+            "overwrite_warnings": [],
+        },
+        "mapping_counts": {
+            "enabled_structured_mappings": 0,
+            "enabled_table_mappings": 0,
+            "enabled_block_rules": 0,
         },
         "excel": {
             "generated_file": None,
             "generated_time": None,
         },
         "render_preview": {
+            "cells": [],
             "cell_preview": [],
             "table_preview": [],
             "block_preview": [],
+            "skipped_preview": [],
+            "mapping_safety": {},
             "generated_time": None,
         },
         "render_targets": {
@@ -99,22 +118,30 @@ def set_validator_result(result):
 
 
 def set_structured_operations(ops):
-    _PIPELINE_STATE["operations"]["structured"] = deepcopy(ops) if isinstance(ops, list) else []
+    value = deepcopy(ops) if isinstance(ops, list) else []
+    _PIPELINE_STATE["operations"]["structured"] = value
+    _PIPELINE_STATE["operations"]["structured_operations"] = deepcopy(value)
     return get_pipeline_state()
 
 
 def set_table_operations(ops):
-    _PIPELINE_STATE["operations"]["tables"] = deepcopy(ops) if isinstance(ops, list) else []
+    value = deepcopy(ops) if isinstance(ops, list) else []
+    _PIPELINE_STATE["operations"]["tables"] = value
+    _PIPELINE_STATE["operations"]["table_operations"] = deepcopy(value)
     return get_pipeline_state()
 
 
 def set_block_operations(ops):
-    _PIPELINE_STATE["operations"]["blocks"] = deepcopy(ops) if isinstance(ops, list) else []
+    value = deepcopy(ops) if isinstance(ops, list) else []
+    _PIPELINE_STATE["operations"]["blocks"] = value
+    _PIPELINE_STATE["operations"]["block_operations"] = deepcopy(value)
     return get_pipeline_state()
 
 
 def set_unified_operations(ops):
-    _PIPELINE_STATE["operations"]["unified"] = deepcopy(ops) if isinstance(ops, list) else []
+    value = deepcopy(ops) if isinstance(ops, list) else []
+    _PIPELINE_STATE["operations"]["unified"] = value
+    _PIPELINE_STATE["operations"]["unified_operations"] = deepcopy(value)
     return get_pipeline_state()
 
 
@@ -132,18 +159,78 @@ def set_pipeline_result(processed_operations, stages):
         "stages": deepcopy(stages) if isinstance(stages, list) else [],
     }
     _PIPELINE_STATE["render_preview"] = {
+        "cells": [],
         "cell_preview": [],
         "table_preview": [],
         "block_preview": [],
+        "skipped_preview": [],
+        "mapping_safety": {},
         "generated_time": None,
     }
     _PIPELINE_STATE["render_targets"]["html_preview"] = ""
     return get_pipeline_state()
 
 
+def set_mapping_safety(mapping_safety):
+    mapping_safety = mapping_safety if isinstance(mapping_safety, dict) else {}
+    _PIPELINE_STATE["mapping_safety"] = {
+        "has_conflicts": bool(mapping_safety.get("has_conflicts")),
+        "conflicts": deepcopy(mapping_safety.get("conflicts", []))
+        if isinstance(mapping_safety.get("conflicts", []), list)
+        else [],
+        "warnings": deepcopy(mapping_safety.get("warnings", []))
+        if isinstance(mapping_safety.get("warnings", []), list)
+        else [],
+        "skipped_operations": deepcopy(mapping_safety.get("skipped_operations", []))
+        if isinstance(mapping_safety.get("skipped_operations", []), list)
+        else [],
+        "overwrite_warnings": deepcopy(mapping_safety.get("overwrite_warnings", []))
+        if isinstance(mapping_safety.get("overwrite_warnings", []), list)
+        else [],
+    }
+    return get_pipeline_state()
+
+
+def merge_mapping_safety(mapping_safety):
+    current = deepcopy(_PIPELINE_STATE.get("mapping_safety", {}))
+    incoming = mapping_safety if isinstance(mapping_safety, dict) else {}
+    conflicts = current.get("conflicts", []) if isinstance(current.get("conflicts"), list) else []
+    warnings = current.get("warnings", []) if isinstance(current.get("warnings"), list) else []
+    skipped = current.get("skipped_operations", []) if isinstance(current.get("skipped_operations"), list) else []
+    overwrite = current.get("overwrite_warnings", []) if isinstance(current.get("overwrite_warnings"), list) else []
+
+    conflicts.extend(incoming.get("conflicts", []) if isinstance(incoming.get("conflicts"), list) else [])
+    warnings.extend(incoming.get("warnings", []) if isinstance(incoming.get("warnings"), list) else [])
+    skipped.extend(incoming.get("skipped_operations", []) if isinstance(incoming.get("skipped_operations"), list) else [])
+    overwrite.extend(incoming.get("overwrite_warnings", []) if isinstance(incoming.get("overwrite_warnings"), list) else [])
+
+    return set_mapping_safety(
+        {
+            "has_conflicts": bool(current.get("has_conflicts") or incoming.get("has_conflicts") or conflicts),
+            "conflicts": conflicts,
+            "warnings": warnings,
+            "skipped_operations": skipped,
+            "overwrite_warnings": overwrite,
+        }
+    )
+
+
+def set_mapping_counts(mapping_counts):
+    mapping_counts = mapping_counts if isinstance(mapping_counts, dict) else {}
+    _PIPELINE_STATE["mapping_counts"] = {
+        "enabled_structured_mappings": int(mapping_counts.get("enabled_structured_mappings") or 0),
+        "enabled_table_mappings": int(mapping_counts.get("enabled_table_mappings") or 0),
+        "enabled_block_rules": int(mapping_counts.get("enabled_block_rules") or 0),
+    }
+    return get_pipeline_state()
+
+
 def set_render_preview(render_preview):
     render_preview = render_preview if isinstance(render_preview, dict) else {}
     _PIPELINE_STATE["render_preview"] = {
+        "cells": deepcopy(render_preview.get("cells", []))
+        if isinstance(render_preview.get("cells", []), list)
+        else [],
         "cell_preview": deepcopy(render_preview.get("cell_preview", []))
         if isinstance(render_preview.get("cell_preview", []), list)
         else [],
@@ -153,6 +240,12 @@ def set_render_preview(render_preview):
         "block_preview": deepcopy(render_preview.get("block_preview", []))
         if isinstance(render_preview.get("block_preview", []), list)
         else [],
+        "skipped_preview": deepcopy(render_preview.get("skipped_preview", []))
+        if isinstance(render_preview.get("skipped_preview", []), list)
+        else [],
+        "mapping_safety": deepcopy(render_preview.get("mapping_safety", {}))
+        if isinstance(render_preview.get("mapping_safety", {}), dict)
+        else {},
         "generated_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     return get_pipeline_state()

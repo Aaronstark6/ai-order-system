@@ -3,7 +3,11 @@
   "blocks": [
     {
       "block_name": "产品说明块",
-      "target_cell": "B20",
+      "target_cell": "",
+      "operation": "write_multiline",
+      "enabled": false,
+      "confirmed": false,
+      "mapping_source": "disabled_pending_real_template_cell",
       "lines": [
         {
           "label": "产品名称",
@@ -14,17 +18,6 @@
           "source_path": "product.product_type"
         }
       ]
-    },
-    {
-      "block_name": "包装要求区域",
-      "target_cell": "B13",
-      "lines": [],
-      "source_path": ""
-    },
-    {
-      "block_name": "客户名称",
-      "target_cell": "C5",
-      "lines": []
     }
   ]
 }

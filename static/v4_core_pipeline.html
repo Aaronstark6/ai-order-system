@@ -5,82 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>V4 Core Pipeline</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             background: #f6f7f5;
             color: #1f2933;
             font-family: Arial, "Microsoft YaHei", sans-serif;
             min-height: 100vh;
         }
-
-        header {
-            background: #2d3542;
-            color: #ffffff;
-            padding: 18px 24px;
-        }
-
-        .header-inner,
-        main {
-            margin: 0 auto;
-            max-width: 1120px;
-        }
-
-        .header-inner,
-        .toolbar,
-        .actions,
-        .panel-header {
+        header { background: #2d3542; color: #fff; padding: 18px 24px; }
+        .header-inner, main { margin: 0 auto; max-width: 1120px; }
+        .header-inner, .toolbar, .actions, .panel-header {
             align-items: center;
             display: flex;
             gap: 12px;
             justify-content: space-between;
         }
-
-        h1 {
-            font-size: 24px;
-            letter-spacing: 0;
-        }
-
-        .home-link {
-            color: #dfe7ee;
-            font-size: 14px;
-            text-decoration: none;
-        }
-
-        .home-link:hover {
-            color: #ffffff;
-        }
-
-        main {
-            display: grid;
-            gap: 16px;
-            padding: 24px;
-        }
-
-        .toolbar,
-        .panel {
-            background: #ffffff;
+        h1 { font-size: 24px; letter-spacing: 0; }
+        .home-link { color: #dfe7ee; font-size: 14px; text-decoration: none; }
+        .home-link:hover { color: #fff; }
+        main { display: grid; gap: 16px; padding: 24px; }
+        .toolbar, .panel {
+            background: #fff;
             border: 1px solid #d9e1dc;
             border-radius: 8px;
         }
-
-        .toolbar {
-            flex-wrap: wrap;
-            padding: 14px 16px;
-        }
-
-        .actions {
-            flex-wrap: wrap;
-            justify-content: flex-start;
-        }
-
-        button,
-        .btn-download,
-        .file-button {
+        .toolbar { flex-wrap: wrap; padding: 14px 16px; }
+        .actions { flex-wrap: wrap; justify-content: flex-start; }
+        button, .btn-download, .file-button {
             border: 1px solid transparent;
             border-radius: 6px;
             cursor: pointer;
@@ -90,128 +41,36 @@
             padding: 8px 14px;
             text-decoration: none;
         }
-
-        .btn-primary {
-            background: #3e5f8a;
-            color: #ffffff;
-        }
-
-        .btn-primary:hover {
-            background: #314f76;
-        }
-
-        .btn-secondary,
-        .file-button {
-            background: #ffffff;
+        .btn-primary { background: #3e5f8a; color: #fff; }
+        .btn-primary:hover { background: #314f76; }
+        .btn-secondary, .file-button {
+            background: #fff;
             border-color: #bcc8c3;
             color: #2d3542;
         }
-
-        .btn-secondary:hover,
-        .file-button:hover {
-            background: #eef2f6;
-        }
-
-        .btn-download {
-            background: #eef8f1;
-            border-color: #7ca58e;
-            color: #176039;
-        }
-
-        .status {
-            color: #58665f;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        .panel {
-            overflow: hidden;
-        }
-
-        .panel-header {
-            background: #fbfcfb;
-            border-bottom: 1px solid #d9e1dc;
-            padding: 14px 16px;
-        }
-
-        .panel-title {
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        .panel-body {
-            display: grid;
-            gap: 12px;
-            padding: 16px;
-        }
-
-        .state-grid {
-            display: grid;
-            gap: 12px;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
+        .btn-secondary:hover, .file-button:hover { background: #eef2f6; }
+        .btn-download { background: #eef8f1; border-color: #7ca58e; color: #176039; }
+        .status { color: #58665f; font-size: 14px; line-height: 1.5; }
+        .panel { overflow: hidden; }
+        .panel-header { background: #fbfcfb; border-bottom: 1px solid #d9e1dc; padding: 14px 16px; }
+        .panel-title { font-size: 16px; font-weight: 700; }
+        .panel-body { display: grid; gap: 12px; padding: 16px; }
+        .state-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .state-item {
             background: #f8faf9;
             border: 1px solid #d9e1dc;
             border-radius: 7px;
             padding: 12px;
         }
-
-        .label {
-            color: #58665f;
-            font-size: 13px;
-            margin-bottom: 6px;
-        }
-
-        .value {
-            color: #1f2933;
-            font-size: 15px;
-            line-height: 1.5;
-            overflow-wrap: anywhere;
-        }
-
-        .message {
-            border-radius: 7px;
-            font-size: 14px;
-            line-height: 1.55;
-            padding: 12px;
-        }
-
-        .success {
-            background: #e4f6ea;
-            color: #176039;
-        }
-
-        .warning {
-            background: #fff4ce;
-            color: #7a4f00;
-        }
-
-        .error {
-            background: #ffe2e0;
-            color: #a8201a;
-        }
-
-        table {
-            border-collapse: collapse;
-            font-size: 13px;
-            width: 100%;
-        }
-
-        th,
-        td {
-            border: 1px solid #d9e1dc;
-            padding: 8px 10px;
-            text-align: left;
-            vertical-align: top;
-        }
-
-        th {
-            background: #fbfcfb;
-            font-weight: 700;
-        }
-
+        .label { color: #58665f; font-size: 13px; margin-bottom: 6px; }
+        .value { color: #1f2933; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+        .message { border-radius: 7px; font-size: 14px; line-height: 1.55; padding: 12px; }
+        .success { background: #e4f6ea; color: #176039; }
+        .warning { background: #fff4ce; color: #7a4f00; }
+        .error { background: #ffe2e0; color: #a8201a; }
+        table { border-collapse: collapse; font-size: 13px; width: 100%; }
+        th, td { border: 1px solid #d9e1dc; padding: 8px 10px; text-align: left; vertical-align: top; }
+        th { background: #fbfcfb; font-weight: 700; }
         pre {
             background: #101820;
             color: #dfe7ee;
@@ -223,21 +82,10 @@
             padding: 16px;
             white-space: pre-wrap;
         }
-
-        input[type="file"] {
-            display: none;
-        }
-
+        input[type="file"] { display: none; }
         @media (max-width: 760px) {
-            .header-inner,
-            .toolbar {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-
-            .state-grid {
-                grid-template-columns: 1fr;
-            }
+            .header-inner, .toolbar { align-items: flex-start; flex-direction: column; }
+            .state-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -258,56 +106,45 @@
             <div class="actions">
                 <label class="file-button" for="templateFileInput">上传 Excel 模板</label>
                 <input id="templateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
-                <button class="btn-secondary" type="button" onclick="loadOrderObject()">加载当前 Order Object</button>
-                <button class="btn-primary" type="button" onclick="runCorePipeline()">执行核心流水线</button>
+                <button class="btn-secondary" type="button" onclick="loadOrderObject()">加载 Order Object</button>
+                <button class="btn-primary" type="button" onclick="runCorePipeline()">执行 Core Pipeline</button>
                 <button class="btn-secondary" type="button" onclick="generateRenderPreview()">生成 Render Preview</button>
                 <a class="btn-download" href="/v4-render-preview" target="_blank" rel="noopener">查看 Render Preview</a>
                 <button class="btn-primary" type="button" onclick="exportExcel()">导出 Excel</button>
-                <button class="btn-secondary" type="button" onclick="resetPipelineState()">重置 Pipeline State</button>
+                <button class="btn-secondary" type="button" onclick="resetPipelineState()">重置 State</button>
                 <a id="downloadLink" class="btn-download" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
             </div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">当前 Pipeline State</div>
-            </div>
-            <div class="panel-body">
-                <div id="stateGrid" class="state-grid"></div>
+            <div class="panel-header"><div class="panel-title">当前 Pipeline State</div></div>
+            <div class="panel-body"><div id="stateGrid" class="state-grid"></div></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><div class="panel-title">Mapping Safety Check</div></div>
+            <div id="mappingSafetyBody" class="panel-body">
+                <div class="message warning">尚未执行 Mapping Safety Check</div>
             </div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Validator 结果</div>
-            </div>
-            <div id="validatorBody" class="panel-body">
-                <div class="message warning">尚未执行校验</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Validator 结果</div></div>
+            <div id="validatorBody" class="panel-body"><div class="message warning">尚未执行校验</div></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Pipeline Stages</div>
-            </div>
-            <div id="stagesBody" class="panel-body">
-                <div class="message warning">尚未执行 Operations Pipeline</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Pipeline Stages</div></div>
+            <div id="stagesBody" class="panel-body"><div class="message warning">尚未执行 Operations Pipeline</div></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Render Preview 摘要</div>
-            </div>
-            <div id="renderPreviewBody" class="panel-body">
-                <div class="message warning">尚未生成 Render Preview</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">Render Preview 摘要</div></div>
+            <div id="renderPreviewBody" class="panel-body"><div class="message warning">尚未生成 Render Preview</div></div>
         </section>
 
         <section class="panel">
-            <div class="panel-header">
-                <div class="panel-title">高级调试</div>
-            </div>
+            <div class="panel-header"><div class="panel-title">高级调试</div></div>
             <pre id="debugJson">{}</pre>
         </section>
     </main>
@@ -318,12 +155,12 @@
         let latestRunResult = null;
 
         function setStatus(text) {
-            document.getElementById('statusText').textContent = text;
+            document.getElementById("statusText").textContent = text;
         }
 
         function escapeHtml(value) {
-            const div = document.createElement('div');
-            div.textContent = value ?? '';
+            const div = document.createElement("div");
+            div.textContent = value ?? "";
             return div.innerHTML;
         }
 
@@ -346,67 +183,100 @@
             const pipeline = currentPipelineState.pipeline || {};
             const excel = currentPipelineState.excel || {};
             const renderPreview = currentPipelineState.render_preview || {};
+            const mappingSafety = currentPipelineState.mapping_safety || {};
+            const mappingCounts = currentPipelineState.mapping_counts || {};
             const profile = currentPipelineState.current_profile || {};
             const validator = currentPipelineState.validator || {};
             const hasOrderObject = currentPipelineState.current_order_object && Object.keys(currentPipelineState.current_order_object).length > 0;
             const processedOperations = Array.isArray(pipeline.processed_operations) ? pipeline.processed_operations : [];
             const excelStatus = excel.generated_file
-                ? `${excel.generated_file}${excel.generated_time ? ` (${excel.generated_time})` : ''}`
-                : '未生成';
+                ? `${excel.generated_file}${excel.generated_time ? ` (${excel.generated_time})` : ""}`
+                : "未生成";
 
-            document.getElementById('stateGrid').innerHTML = `
-                ${stateItem('当前订单', hasOrderObject ? '已加载' : '未加载')}
-                ${stateItem('当前模板', currentTemplateFile?.name || currentPipelineState.current_template_path || '未选择')}
-                ${stateItem('当前 Profile', profile.profile_name || profile.profile_id || '未加载')}
-                ${stateItem('校验状态', validator.valid === true ? '通过' : (validator.valid === false ? '失败' : '未执行'))}
-                ${stateItem('Structured Operations 数量', countItems(operations.structured))}
-                ${stateItem('Table Operations 数量', countItems(operations.tables))}
-                ${stateItem('Block Operations 数量', countItems(operations.blocks))}
-                ${stateItem('Unified Operations 数量', countItems(operations.unified))}
-                ${stateItem('Processed Operations 数量', processedOperations.length)}
-                ${stateItem('Render Preview 状态', renderPreview.generated_time ? `已生成 (${renderPreview.generated_time})` : '未生成')}
-                ${stateItem('Excel 生成状态', excelStatus)}
+            document.getElementById("stateGrid").innerHTML = `
+                ${stateItem("当前订单", hasOrderObject ? "已加载" : "未加载")}
+                ${stateItem("当前模板", currentTemplateFile?.name || currentPipelineState.current_template_path || "未选择")}
+                ${stateItem("当前 Profile", profile.profile_name || profile.profile_id || "未加载")}
+                ${stateItem("校验状态", validator.valid === true ? "通过" : (validator.valid === false ? "失败" : "未执行"))}
+                ${stateItem("Structured Operations 数量", countItems(operations.structured))}
+                ${stateItem("Table Operations 数量", countItems(operations.tables))}
+                ${stateItem("Block Operations 数量", countItems(operations.blocks))}
+                ${stateItem("Unified Operations 数量", countItems(operations.unified))}
+                ${stateItem("Processed Operations 数量", processedOperations.length)}
+                ${stateItem("Enabled Structured Mappings", mappingCounts.enabled_structured_mappings || 0)}
+                ${stateItem("Enabled Table Mappings", mappingCounts.enabled_table_mappings || 0)}
+                ${stateItem("Enabled Block Rules", mappingCounts.enabled_block_rules || 0)}
+                ${stateItem("Conflicts 数量", countItems(mappingSafety.conflicts))}
+                ${stateItem("Warnings 数量", countItems(mappingSafety.warnings))}
+                ${stateItem("Skipped Operations 数量", countItems(mappingSafety.skipped_operations))}
+                ${stateItem("Render Preview 状态", renderPreview.generated_time ? `已生成 (${renderPreview.generated_time})` : "未生成")}
+                ${stateItem("Excel 生成状态", excelStatus)}
             `;
+            renderMappingSafety(mappingSafety);
             renderValidator(validator);
             renderStages(pipeline.stages || []);
             renderPreviewSummary(renderPreview);
             renderDebug();
         }
 
+        function renderMappingSafety(mappingSafety) {
+            const safety = mappingSafety || {};
+            const conflicts = Array.isArray(safety.conflicts) ? safety.conflicts : [];
+            const warnings = Array.isArray(safety.warnings) ? safety.warnings : [];
+            const skipped = Array.isArray(safety.skipped_operations) ? safety.skipped_operations : [];
+            const overwrite = Array.isArray(safety.overwrite_warnings) ? safety.overwrite_warnings : [];
+            const rows = warnings.slice(0, 20).map(item => `<div class="message warning">${escapeHtml(item.warning || item)}</div>`).join("");
+            const skippedRows = skipped.slice(0, 10).map(item => `
+                <tr>
+                    <td>${escapeHtml(item.target_cell || item.start_cell || "")}</td>
+                    <td>${escapeHtml(item.source || item.type || "")}</td>
+                    <td>${escapeHtml(item.skip_reason || "")}</td>
+                </tr>
+            `).join("");
+            document.getElementById("mappingSafetyBody").innerHTML = `
+                <div class="state-grid">
+                    ${stateItem("conflicts", conflicts.length)}
+                    ${stateItem("warnings", warnings.length)}
+                    ${stateItem("skipped operations", skipped.length)}
+                    ${stateItem("overwrite warnings", overwrite.length)}
+                </div>
+                ${conflicts.length ? `<div class="message warning">存在同单元格 mapping 冲突，已按 structured > table > block 保留优先级最高的 operation。</div>` : `<div class="message success">未发现同单元格冲突。</div>`}
+                ${rows}
+                ${skippedRows ? `
+                    <table>
+                        <thead><tr><th>cell</th><th>source</th><th>reason</th></tr></thead>
+                        <tbody>${skippedRows}</tbody>
+                    </table>
+                ` : ""}
+            `;
+        }
+
         function renderValidator(validator) {
             if (!validator || Object.keys(validator).length === 0) {
-                document.getElementById('validatorBody').innerHTML = '<div class="message warning">尚未执行校验</div>';
+                document.getElementById("validatorBody").innerHTML = '<div class="message warning">尚未执行校验</div>';
                 return;
             }
             const errors = Array.isArray(validator.errors) ? validator.errors : [];
             const warnings = Array.isArray(validator.warnings) ? validator.warnings : [];
-            document.getElementById('validatorBody').innerHTML = `
-                <div class="message ${validator.valid ? 'success' : 'error'}">${validator.valid ? 'Validator 通过' : 'Validator 失败'}</div>
-                ${errors.map(item => `<div class="message error">${escapeHtml(item)}</div>`).join('')}
-                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join('')}
+            document.getElementById("validatorBody").innerHTML = `
+                <div class="message ${validator.valid ? "success" : "error"}">${validator.valid ? "Validator 通过" : "Validator 失败"}</div>
+                ${errors.map(item => `<div class="message error">${escapeHtml(item)}</div>`).join("")}
+                ${warnings.map(item => `<div class="message warning">${escapeHtml(item)}</div>`).join("")}
             `;
         }
 
         function renderStages(stages) {
             if (!Array.isArray(stages) || !stages.length) {
-                document.getElementById('stagesBody').innerHTML = '<div class="message warning">尚未执行 Operations Pipeline</div>';
+                document.getElementById("stagesBody").innerHTML = '<div class="message warning">尚未执行 Operations Pipeline</div>';
                 return;
             }
-            document.getElementById('stagesBody').innerHTML = `
+            document.getElementById("stagesBody").innerHTML = `
                 <table>
-                    <thead>
-                        <tr>
-                            <th>Stage</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Stage</th><th>Status</th></tr></thead>
                     <tbody>
                         ${stages.map(stage => `
-                            <tr>
-                                <td>${escapeHtml(stage.name || '')}</td>
-                                <td>${escapeHtml(stage.status || '')}</td>
-                            </tr>
-                        `).join('')}
+                            <tr><td>${escapeHtml(stage.name || "")}</td><td>${escapeHtml(stage.status || "")}</td></tr>
+                        `).join("")}
                     </tbody>
                 </table>
             `;
@@ -414,16 +284,16 @@
 
         function renderPreviewSummary(renderPreview) {
             if (!renderPreview || !renderPreview.generated_time) {
-                document.getElementById('renderPreviewBody').innerHTML = '<div class="message warning">尚未生成 Render Preview</div>';
+                document.getElementById("renderPreviewBody").innerHTML = '<div class="message warning">尚未生成 Render Preview</div>';
                 return;
             }
-
-            document.getElementById('renderPreviewBody').innerHTML = `
+            document.getElementById("renderPreviewBody").innerHTML = `
                 <div class="state-grid">
-                    ${stateItem('cell 数量', countItems(renderPreview.cell_preview))}
-                    ${stateItem('table 数量', countItems(renderPreview.table_preview))}
-                    ${stateItem('block 数量', countItems(renderPreview.block_preview))}
-                    ${stateItem('generated_time', renderPreview.generated_time || '-')}
+                    ${stateItem("cell 数量", countItems(renderPreview.cells || renderPreview.cell_preview))}
+                    ${stateItem("table 数量", countItems(renderPreview.table_preview))}
+                    ${stateItem("block 数量", countItems(renderPreview.block_preview))}
+                    ${stateItem("skipped 标记", countItems(renderPreview.skipped_preview))}
+                    ${stateItem("generated_time", renderPreview.generated_time || "-")}
                 </div>
             `;
         }
@@ -432,12 +302,13 @@
             const state = currentPipelineState || {};
             const operations = state.operations || {};
             const pipeline = state.pipeline || {};
-            document.getElementById('debugJson').textContent = JSON.stringify({
+            document.getElementById("debugJson").textContent = JSON.stringify({
                 structured_operations: operations.structured || [],
                 table_operations: operations.tables || [],
                 block_operations: operations.blocks || [],
                 unified_operations: operations.unified || [],
                 processed_operations: pipeline.processed_operations || [],
+                mapping_safety: state.mapping_safety || {},
                 render_preview: state.render_preview || {},
                 latest_run_result: latestRunResult
             }, null, 2);
@@ -445,123 +316,119 @@
 
         async function refreshPipelineState() {
             try {
-                const response = await fetch('/api/v4/pipeline-state');
+                const response = await fetch("/api/v4/pipeline-state");
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.error || 'Pipeline State 加载失败');
+                    throw new Error(result.error || "Pipeline State 加载失败");
                 }
                 renderState(result.pipeline_state || {});
-                setStatus('Pipeline State 已加载');
+                setStatus("Pipeline State 已加载");
             } catch (error) {
-                setStatus(error.message || 'Pipeline State 加载失败');
+                setStatus(error.message || "Pipeline State 加载失败");
             }
         }
 
         async function loadOrderObject() {
-            setStatus('正在加载当前 Order Object...');
+            setStatus("正在加载当前 Order Object...");
             try {
-                const response = await fetch('/api/v4/load-order-object', { method: 'POST' });
+                const response = await fetch("/api/v4/load-order-object", { method: "POST" });
                 const result = await response.json();
                 renderState(result.pipeline_state || {});
-                setStatus(result.success ? result.message : (result.error || 'Order Object 加载失败'));
+                setStatus(result.success ? result.message : (result.error || "Order Object 加载失败"));
             } catch (error) {
-                setStatus(error.message || 'Order Object 加载失败');
+                setStatus(error.message || "Order Object 加载失败");
             }
         }
 
         async function runCorePipeline() {
-            setStatus('正在执行核心流水线...');
+            setStatus("正在执行 Core Pipeline...");
             try {
-                const response = await fetch('/api/v4/core-pipeline/run', { method: 'POST' });
+                const response = await fetch("/api/v4/core-pipeline/run", { method: "POST" });
                 const result = await response.json();
                 latestRunResult = result;
                 renderState(result.pipeline_state || {});
-                setStatus(result.success ? '核心流水线执行完成' : (result.error || '核心流水线执行失败'));
+                setStatus(result.success ? "Core Pipeline 执行完成" : (result.error || "Core Pipeline 执行失败"));
             } catch (error) {
-                setStatus(error.message || '核心流水线执行失败');
+                setStatus(error.message || "Core Pipeline 执行失败");
             }
         }
 
         async function exportExcel() {
             if (!currentTemplateFile) {
-                setStatus('请先上传 Excel 模板');
+                setStatus("请先上传 Excel 模板");
                 return;
             }
-
-            setStatus('正在导出 Excel...');
+            setStatus("正在导出 Excel...");
             try {
                 const formData = new FormData();
-                formData.append('template_file', currentTemplateFile);
-                const response = await fetch('/api/v4/core-pipeline/export-excel', {
-                    method: 'POST',
-                    body: formData
-                });
+                formData.append("template_file", currentTemplateFile);
+                const response = await fetch("/api/v4/core-pipeline/export-excel", { method: "POST", body: formData });
                 const result = await response.json();
                 renderState(result.pipeline_state || {});
                 if (!response.ok || !result.success) {
-                    setStatus(result.error || 'Excel 导出失败');
+                    setStatus(result.error || "Excel 导出失败");
                     return;
                 }
-
-                const downloadLink = document.getElementById('downloadLink');
+                const downloadLink = document.getElementById("downloadLink");
                 downloadLink.href = result.download_url;
-                downloadLink.style.display = 'inline-flex';
-                setStatus('Excel 已生成');
+                downloadLink.style.display = "inline-flex";
+                setStatus(`Excel 已生成，写入 ${result.operations_written || 0} 个 operation`);
             } catch (error) {
-                setStatus(error.message || 'Excel 导出失败');
+                setStatus(error.message || "Excel 导出失败");
             }
         }
 
         async function generateRenderPreview() {
             const processedOperations = currentPipelineState?.pipeline?.processed_operations || [];
             if (!Array.isArray(processedOperations) || !processedOperations.length) {
-                setStatus('请先执行核心流水线');
+                setStatus("请先执行 Core Pipeline");
                 return;
             }
-
-            setStatus('正在生成 Render Preview...');
+            setStatus("正在生成 Render Preview...");
             try {
-                const response = await fetch('/api/v4/render-preview/build', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const response = await fetch("/api/v4/render-preview/build", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ processed_operations: processedOperations })
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    setStatus(result.error || 'Render Preview 生成失败');
+                    setStatus(result.error || "Render Preview 生成失败");
                     return;
                 }
                 renderState(result.pipeline_state || {});
-                setStatus('Render Preview 已生成');
+                setStatus("Render Preview 已生成");
             } catch (error) {
-                setStatus(error.message || 'Render Preview 生成失败');
+                setStatus(error.message || "Render Preview 生成失败");
             }
         }
 
         async function resetPipelineState() {
-            setStatus('正在重置 Pipeline State...');
+            setStatus("正在重置 Pipeline State...");
             try {
-                const response = await fetch('/api/v4/reset-pipeline-state', { method: 'POST' });
+                const response = await fetch("/api/v4/reset-pipeline-state", { method: "POST" });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.error || 'Pipeline State 重置失败');
+                    throw new Error(result.error || "Pipeline State 重置失败");
                 }
                 latestRunResult = null;
-                document.getElementById('downloadLink').style.display = 'none';
+                document.getElementById("downloadLink").style.display = "none";
                 renderState(result.pipeline_state || {});
-                setStatus(result.message || 'Pipeline State 已重置');
+                setStatus(result.message || "Pipeline State 已重置");
             } catch (error) {
-                setStatus(error.message || 'Pipeline State 重置失败');
+                setStatus(error.message || "Pipeline State 重置失败");
             }
         }
 
-        document.getElementById('templateFileInput').addEventListener('change', event => {
+        document.getElementById("templateFileInput").addEventListener("change", event => {
             currentTemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
-            document.getElementById('templateName').textContent = currentTemplateFile ? `当前模板：${currentTemplateFile.name}` : '当前模板：未选择';
+            document.getElementById("templateName").textContent = currentTemplateFile
+                ? `当前模板：${currentTemplateFile.name}`
+                : "当前模板：未选择";
             renderState(currentPipelineState || {});
         });
 
-        document.addEventListener('DOMContentLoaded', refreshPipelineState);
+        document.addEventListener("DOMContentLoaded", refreshPipelineState);
     </script>
 </body>
 </html>
