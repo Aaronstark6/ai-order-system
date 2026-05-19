@@ -45,18 +45,18 @@
       ],
       "包装要求区域": [
         {
-          "盖子密封方式": "BARTON_TEST_B19",
-          "袋口密封": "BARTON_TEST_C19",
-          "瓶口热塑封": "BARTON_TEST_D19"
+          "盖子密封方式": "BARTON_TEST_B20",
+          "袋口密封": "BARTON_TEST_C20",
+          "瓶口热塑封": "BARTON_TEST_D20"
         }
       ],
       "生产日期批号区域": [
         {
-          "生产日期_批号": "BARTON_TEST_B22",
+          "生产日期_批号": "BARTON_TEST_B23",
           "不打批号日期": "",
-          "瓶底打批号日期": "BARTON_TEST_D22",
+          "瓶底打批号日期": "BARTON_TEST_D23",
           "标签打批号日期": "",
-          "其他": "BARTON_TEST_F22"
+          "其他": "BARTON_TEST_F23"
         }
       ]
     }
