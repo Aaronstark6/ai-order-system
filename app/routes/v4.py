@@ -309,7 +309,10 @@ def api_v4_template_profiles():
 @router.get("/api/v4/current-template-profile")
 def api_v4_current_template_profile():
     logger.info("V4 current template profile requested")
-    profile = get_current_template_profile()
+    state = get_pipeline_state()
+    profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not profile:
+        profile = get_current_template_profile()
     validation = validate_template_profile(profile)
     return {
         "success": True,
@@ -322,16 +325,50 @@ def api_v4_current_template_profile():
 def api_v4_pipeline_profile_debug():
     logger.info("V4 pipeline profile debug requested")
 
-    profile = get_current_template_profile()
+    state = get_pipeline_state()
+    profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not profile:
+        profile = get_current_template_profile()
     profile = profile if isinstance(profile, dict) else {}
 
     return {
         "success": True,
+        "active_profile_source": "pipeline_state" if state.get("current_profile") else "default_profile",
         "profile_id": profile.get("profile_id"),
         "profile_name": profile.get("profile_name"),
         "structured_mapping_file": profile.get("structured_mapping_file"),
         "table_mapping_file": profile.get("table_mapping_file"),
         "block_rules_file": profile.get("block_rules_file"),
+    }
+
+
+@router.post("/api/v4/set-current-template-profile")
+def api_v4_set_current_template_profile(payload: Any = Body(None)):
+    logger.info("V4 set current template profile requested")
+
+    payload = payload if isinstance(payload, dict) else {}
+    profile_id = str(payload.get("profile_id") or "").strip()
+    if not profile_id:
+        return {
+            "success": False,
+            "error": "profile_id 不能为空",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "Template Profile 不存在",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    state = set_current_profile(profile)
+    return {
+        "success": True,
+        "message": "Current Template Profile 已设置",
+        "profile": profile,
+        "pipeline_state": state,
     }
 
 
