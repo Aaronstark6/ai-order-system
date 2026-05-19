@@ -420,12 +420,33 @@
             }
         }
 
-        document.getElementById("templateFileInput").addEventListener("change", event => {
+        document.getElementById("templateFileInput").addEventListener("change", async event => {
             currentTemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
             document.getElementById("templateName").textContent = currentTemplateFile
                 ? `当前模板：${currentTemplateFile.name}`
                 : "当前模板：未选择";
             renderState(currentPipelineState || {});
+            
+            if (currentTemplateFile) {
+                try {
+                    setStatus("正在上传 Excel 模板...");
+                    const formData = new FormData();
+                    formData.append("template_file", currentTemplateFile);
+                    const response = await fetch("/api/v4/template-analysis/upload", {
+                        method: "POST",
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        renderState(result.pipeline_state || {});
+                        setStatus("Excel 模板已上传并写入 Pipeline State");
+                    } else {
+                        setStatus(result.error || "Excel 模板上传失败");
+                    }
+                } catch (error) {
+                    setStatus("Excel 模板上传失败");
+                }
+            }
         });
 
         document.addEventListener("DOMContentLoaded", refreshPipelineState);
