@@ -19,6 +19,7 @@ from app.v4_excel_renderer import export_description_fields_to_debug_excel
 from app.v4_excel_rule_preview import build_excel_rule_preview
 from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save_excel_render_rules
 from app.v4_excel_rules_validator import validate_excel_render_rules
+from app.v4_order_normalizer import normalize_flat_order_to_v4_order_object
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_pipeline_state import (
     get_pipeline_state,
@@ -593,6 +594,47 @@ def api_v4_load_order_object_from_payload(payload: Any = Body(None)):
         "success": True,
         "message": "Order Object 已从请求数据加载",
         "order_object_keys": list(order_object.keys()),
+        "pipeline_state": state,
+    }
+
+
+@router.post("/api/v4/normalize-flat-order")
+def api_v4_normalize_flat_order(payload: Any = Body(None)):
+    logger.info("V4 normalize flat order requested")
+
+    payload = payload if isinstance(payload, dict) else {}
+    flat_data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+
+    if not isinstance(flat_data, dict) or not flat_data:
+        return {
+            "success": False,
+            "error": "flat order data 不能为空",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    normalized = normalize_flat_order_to_v4_order_object(flat_data)
+    order_object = normalized.get("order_object") if isinstance(normalized, dict) else {}
+    if not isinstance(order_object, dict) or not order_object:
+        return {
+            "success": False,
+            "error": "Order Object 转换失败",
+            "normalized": normalized,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    state = load_order_object_into_pipeline(order_object)
+    current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not current_profile:
+        profile = get_current_template_profile()
+        if profile:
+            state = set_current_profile(profile)
+
+    return {
+        "success": True,
+        "message": "Flat order data 已转换为 V4 Order Object 并加载",
+        "warnings": normalized.get("warnings", []),
+        "source_keys": normalized.get("source_keys", []),
+        "order_object": order_object,
         "pipeline_state": state,
     }
 
