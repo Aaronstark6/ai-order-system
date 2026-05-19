@@ -433,8 +433,8 @@ def build_structured_operations(order_object, structured_mapping_path=None):
     return {"success": True, "operations": operations, "warnings": warnings}
 
 
-def build_table_operations(order_object):
-    mapping = load_table_mapping()
+def build_table_operations(order_object, table_mapping_path=None):
+    mapping = load_table_mapping(table_mapping_path)
     operations = []
     warnings = []
     for table in mapping.get("tables", []) if isinstance(mapping.get("tables"), list) else []:
@@ -517,8 +517,8 @@ def _line_value(order_object, line):
     return resolve_source_value(order_object, line.get("source_path"))
 
 
-def build_block_operations(order_object):
-    rules = load_block_rules()
+def build_block_operations(order_object, block_rules_path=None):
+    rules = load_block_rules(block_rules_path)
     operations = []
     warnings = []
     for block in rules.get("blocks", []) if isinstance(rules.get("blocks"), list) else []:
