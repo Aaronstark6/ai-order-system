@@ -13,7 +13,7 @@ from app.v4_render_preview import build_render_preview
 from app.v4_validator import validate_order_object
 
 
-def run_operation_pipeline(order_object, profile=None):
+def run_operation_pipeline(order_object, profile=None, template_path=None):
     logger = logging.getLogger(__name__)
 
     profile = profile if isinstance(profile, dict) else {}
@@ -22,8 +22,9 @@ def run_operation_pipeline(order_object, profile=None):
     block_rules_file = profile.get("block_rules_file") if profile else None
 
     logger.info(
-        "[Pipeline] profile=%s structured_mapping=%s table_mapping=%s block_rules=%s",
+        "[Pipeline] profile=%s template=%s structured_mapping=%s table_mapping=%s block_rules=%s",
         profile.get("profile_id") if profile else "None",
+        template_path or "None",
         structured_mapping_file or "default",
         table_mapping_file or "default",
         block_rules_file or "default",

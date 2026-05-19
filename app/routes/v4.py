@@ -462,8 +462,10 @@ def api_v4_core_pipeline_run():
         profile = get_current_template_profile()
         state = set_current_profile(profile)
         current_profile = state.get("current_profile", {})
+    
+    current_template_path = state.get("current_template_path") if isinstance(state.get("current_template_path"), str) else None
 
-    result = run_operation_pipeline(order_object, profile=current_profile)
+    result = run_operation_pipeline(order_object, profile=current_profile, template_path=current_template_path)
     validation = result.get("validation", {})
     set_validator_result(validation)
     if not result.get("success"):
