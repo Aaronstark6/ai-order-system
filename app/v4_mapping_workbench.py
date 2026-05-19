@@ -2,6 +2,7 @@ import json
 import re
 from copy import deepcopy
 from datetime import datetime
+from pathlib import Path
 
 from app.runtime_paths import get_base_dir
 
@@ -54,6 +55,27 @@ def _field_key(value):
         "结果": "result",
     }
     return aliases.get(text, text)
+
+
+def _resolve_rule_path(path_value, default_path):
+    text = str(path_value or "").strip()
+    if not text:
+        return default_path
+
+    path = Path(text)
+    if ".." in path.parts:
+        return default_path
+
+    return path if path.is_absolute() else get_base_dir() / path
+
+
+def _profile_rule_paths(profile=None):
+    profile = profile if isinstance(profile, dict) else {}
+    return {
+        "structured": _resolve_rule_path(profile.get("structured_mapping_file"), STRUCTURED_RULE_PATH),
+        "tables": _resolve_rule_path(profile.get("table_mapping_file"), TABLE_RULE_PATH),
+        "blocks": _resolve_rule_path(profile.get("block_rules_file"), BLOCK_RULE_PATH),
+    }
 
 
 def _start_cell(item):
@@ -183,8 +205,9 @@ def _upsert_by_key(items, next_item, keys):
     items.append(next_item)
 
 
-def _save_structured(items):
-    data = _read_json(STRUCTURED_RULE_PATH, {"version": RULE_VERSION, "mappings": []})
+def _save_structured(items, rule_path=None):
+    path = rule_path or STRUCTURED_RULE_PATH
+    data = _read_json(path, {"version": RULE_VERSION, "mappings": []})
     mappings = data.get("mappings", [])
     mappings = [item for item in mappings if isinstance(item, dict)] if isinstance(mappings, list) else []
 
@@ -198,12 +221,13 @@ def _save_structured(items):
 
     data["version"] = RULE_VERSION
     data["mappings"] = mappings
-    _write_json(STRUCTURED_RULE_PATH, data)
+    _write_json(path, data)
     return saved
 
 
-def _save_tables(items):
-    data = _read_json(TABLE_RULE_PATH, {"version": RULE_VERSION, "tables": []})
+def _save_tables(items, rule_path=None):
+    path = rule_path or TABLE_RULE_PATH
+    data = _read_json(path, {"version": RULE_VERSION, "tables": []})
     tables = data.get("tables", [])
     tables = [item for item in tables if isinstance(item, dict)] if isinstance(tables, list) else []
 
@@ -219,12 +243,13 @@ def _save_tables(items):
 
     data["version"] = RULE_VERSION
     data["tables"] = tables
-    _write_json(TABLE_RULE_PATH, data)
+    _write_json(path, data)
     return saved
 
 
-def _save_blocks(items):
-    data = _read_json(BLOCK_RULE_PATH, {"version": RULE_VERSION, "blocks": []})
+def _save_blocks(items, rule_path=None):
+    path = rule_path or BLOCK_RULE_PATH
+    data = _read_json(path, {"version": RULE_VERSION, "blocks": []})
     blocks = data.get("blocks", [])
     blocks = [item for item in blocks if isinstance(item, dict)] if isinstance(blocks, list) else []
 
@@ -240,11 +265,11 @@ def _save_blocks(items):
 
     data["version"] = RULE_VERSION
     data["blocks"] = blocks
-    _write_json(BLOCK_RULE_PATH, data)
+    _write_json(path, data)
     return saved
 
 
-def save_selected_mappings(payload):
+def save_selected_mappings(payload, profile=None):
     lists = _payload_lists(payload)
     if not lists["structured"] and not lists["tables"] and not lists["blocks"]:
         return {
@@ -252,10 +277,16 @@ def save_selected_mappings(payload):
             "error": "没有选择任何映射",
         }
 
+    rule_paths = _profile_rule_paths(profile)
     result = {
-        "structured_saved": _save_structured(lists["structured"]),
-        "tables_saved": _save_tables(lists["tables"]),
-        "blocks_saved": _save_blocks(lists["blocks"]),
+        "structured_saved": _save_structured(lists["structured"], rule_paths["structured"]),
+        "tables_saved": _save_tables(lists["tables"], rule_paths["tables"]),
+        "blocks_saved": _save_blocks(lists["blocks"], rule_paths["blocks"]),
+        "rule_files": {
+            "structured_mapping_file": str(rule_paths["structured"]),
+            "table_mapping_file": str(rule_paths["tables"]),
+            "block_rules_file": str(rule_paths["blocks"]),
+        },
     }
     return {
         "success": True,

@@ -57,7 +57,11 @@ def run_operation_pipeline(order_object, profile=None, template_path=None):
             },
         }
 
-    mapping_counts = count_enabled_mappings()
+    mapping_counts = count_enabled_mappings(
+        structured_mapping_file,
+        table_mapping_file,
+        block_rules_file,
+    )
     structured_result = build_structured_operations(order_object, structured_mapping_file)
     table_result = build_table_operations(order_object, table_mapping_file)
     block_result = build_block_operations(order_object, block_rules_file)

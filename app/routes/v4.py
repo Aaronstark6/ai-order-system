@@ -1010,7 +1010,18 @@ def api_v4_mapping_workbench_save_selected(payload: Any = Body(None)):
     from app.v4_mapping_workbench import save_selected_mappings
 
     logger.info("V4 mapping workbench save selected requested")
-    result = save_selected_mappings(payload if isinstance(payload, dict) else {})
+    payload = payload if isinstance(payload, dict) else {}
+    profile = {}
+    profile_id = str(payload.get("profile_id") or "").strip()
+    if profile_id:
+        profile = load_template_profile(profile_id)
+        if not profile:
+            return {
+                "success": False,
+                "error": "Template Profile 不存在，无法保存 Mapping Rules",
+            }
+
+    result = save_selected_mappings(payload, profile=profile)
     if not result.get("success"):
         return {
             "success": False,

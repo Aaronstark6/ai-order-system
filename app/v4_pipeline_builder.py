@@ -58,10 +58,10 @@ def _is_enabled(item):
     return isinstance(item, dict) and item.get("enabled") is not False
 
 
-def count_enabled_mappings():
-    structured = load_structured_mapping().get("mappings", [])
-    tables = load_table_mapping().get("tables", [])
-    blocks = load_block_rules().get("blocks", [])
+def count_enabled_mappings(structured_mapping_path=None, table_mapping_path=None, block_rules_path=None):
+    structured = load_structured_mapping(structured_mapping_path).get("mappings", [])
+    tables = load_table_mapping(table_mapping_path).get("tables", [])
+    blocks = load_block_rules(block_rules_path).get("blocks", [])
     structured = structured if isinstance(structured, list) else []
     tables = tables if isinstance(tables, list) else []
     blocks = blocks if isinstance(blocks, list) else []
