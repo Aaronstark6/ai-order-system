@@ -62,6 +62,7 @@
         .badge-conflict { background: #5d4817; color: #ffe6a8; }
         .badge-overwrite { background: #55346b; color: #f2dcff; }
         .badge-ok { background: #1f4b38; color: #b9f3d1; }
+        .small { color: #b8c7d6; font-size: 12px; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -125,14 +126,17 @@
             }
             document.getElementById("cellPreview").innerHTML = `
                 <table>
-                    <thead><tr><th>cell</th><th>preview value</th><th>operation type</th><th>source</th><th>safety</th><th>reason</th></tr></thead>
+                    <thead><tr><th>cell</th><th>display cell</th><th>merged range</th><th>preview value</th><th>operation type</th><th>source</th><th>display note</th><th>safety</th><th>reason</th></tr></thead>
                     <tbody>
                         ${items.map(item => `
                             <tr>
                                 <td>${escapeHtml(item.cell)}</td>
+                                <td>${escapeHtml(item.display_cell || item.cell || "")}</td>
+                                <td>${escapeHtml(item.merged_range || "")}</td>
                                 <td>${escapeHtml(item.value)}</td>
                                 <td>${escapeHtml(item.operation_type || item.op_type)}</td>
                                 <td>${escapeHtml(item.source)}</td>
+                                <td>${escapeHtml(item.display_note || "")}</td>
                                 <td>${badges(item)}</td>
                                 <td>${escapeHtml(item.skip_reason || "")}</td>
                             </tr>
@@ -154,14 +158,16 @@
                 return `
                     <h3>${escapeHtml(table.table_name || "未命名表格")}</h3>
                     <table>
-                        <thead><tr><th>row_number</th>${columns.map(column => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead>
+                        <thead><tr><th>row_number</th>${columns.map(column => `<th>${escapeHtml(column)}<br><span class="small">display / merged</span></th>`).join("")}</tr></thead>
                         <tbody>
                             ${rows.map(row => `
                                 <tr>
                                     <td>${escapeHtml(row.row_number)}</td>
                                     ${columns.map(column => {
                                         const item = (row.cells || {})[column];
-                                        return `<td>${escapeHtml(cellValue(item) || "")}<div>${badges(item || {})}</div></td>`;
+                                        const displayText = item?.display_note || "";
+                                        const mergedText = item?.merged_range ? `merged: ${item.merged_range}` : "";
+                                        return `<td>${escapeHtml(cellValue(item) || "")}${displayText ? `<div class="small">${escapeHtml(displayText)}</div>` : ""}${mergedText ? `<div class="small">${escapeHtml(mergedText)}</div>` : ""}<div>${badges(item || {})}</div></td>`;
                                     }).join("")}
                                 </tr>
                             `).join("")}

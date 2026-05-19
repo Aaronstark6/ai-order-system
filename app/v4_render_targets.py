@@ -33,13 +33,16 @@ def _preview_status(value):
 
 
 def _render_cell_preview(items):
-    empty_row = '<tr><td colspan="5">暂无 Cell Preview</td></tr>'
+    empty_row = '<tr><td colspan="8">暂无 Cell Preview</td></tr>'
     rows = "".join(
         "<tr>"
         f"<td>{escape(str(item.get('cell') or ''))}</td>"
+        f"<td>{escape(str(item.get('display_cell') or item.get('cell') or ''))}</td>"
+        f"<td>{escape(str(item.get('merged_range') or ''))}</td>"
         f"<td>{escape(str(item.get('source') or ''))}</td>"
         f"<td>{escape(str(item.get('operation_type') or item.get('op_type') or ''))}</td>"
         f"<td>{escape(str(item.get('value') or ''))}</td>"
+        f"<td>{escape(str(item.get('display_note') or ''))}</td>"
         f"<td>{escape(_preview_status(item))}</td>"
         "</tr>"
         for item in _as_list(items)
@@ -47,7 +50,7 @@ def _render_cell_preview(items):
     )
     return (
         "<section><h2>Cell Preview</h2>"
-        "<table><thead><tr><th>cell</th><th>source</th><th>op_type</th><th>value</th><th>safety</th></tr></thead>"
+        "<table><thead><tr><th>cell</th><th>display_cell</th><th>merged_range</th><th>source</th><th>op_type</th><th>value</th><th>display_note</th><th>safety</th></tr></thead>"
         f"<tbody>{rows or empty_row}</tbody></table></section>"
     )
 
@@ -87,6 +90,12 @@ def _render_table_preview(tables):
 def _render_table_cell(value):
     status = _preview_status(value)
     suffix = f" · {escape(status)}" if status else ""
+    if isinstance(value, dict):
+        display_note = str(value.get("display_note") or "")
+        merged_range = str(value.get("merged_range") or "")
+        note_html = f"<div>{escape(display_note)}</div>" if display_note else ""
+        merged_html = f"<div>merged: {escape(merged_range)}</div>" if merged_range else ""
+        return f"<td>{escape(str(_preview_value(value) or ''))}{note_html}{merged_html}{suffix}</td>"
     return f"<td>{escape(str(_preview_value(value) or ''))}{suffix}</td>"
 
 
