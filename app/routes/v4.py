@@ -568,6 +568,35 @@ def api_v4_load_order_object():
     }
 
 
+@router.post("/api/v4/load-order-object-from-payload")
+def api_v4_load_order_object_from_payload(payload: Any = Body(None)):
+    logger.info("V4 load order object from payload requested")
+
+    payload = payload if isinstance(payload, dict) else {}
+    order_object = payload.get("order_object") if isinstance(payload.get("order_object"), dict) else payload
+
+    if not isinstance(order_object, dict) or not order_object:
+        return {
+            "success": False,
+            "error": "Order Object 不能为空",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    state = load_order_object_into_pipeline(order_object)
+    current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not current_profile:
+        profile = get_current_template_profile()
+        if profile:
+            state = set_current_profile(profile)
+
+    return {
+        "success": True,
+        "message": "Order Object 已从请求数据加载",
+        "order_object_keys": list(order_object.keys()),
+        "pipeline_state": state,
+    }
+
+
 @router.post("/api/v4/core-pipeline/run")
 def api_v4_core_pipeline_run():
     from app.v4_pipeline_executor import run_operation_pipeline
