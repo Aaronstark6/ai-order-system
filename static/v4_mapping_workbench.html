@@ -87,7 +87,7 @@
         <section class="toolbar">
             <div>
                 <div id="statusText" class="status">正在加载 Auto Mapping Preview...</div>
-                <div class="status">只有勾选并人工确认的项目才会写入正式规则；Auto Mapping 只会先进入候选映射。</div>
+                <div class="status">Auto Mapping Preview 只是候选映射，不会被 Core Pipeline 直接使用；只有勾选并点击“保存选中映射规则”后，才会写入正式 Mapping Rules，并被 Core Pipeline 使用。</div></function></seed:tool_call>
                 <div id="mappingStatusText" class="status">正式 Mapping：尚未刷新</div>
             </div>
             <div class="toolbar-actions">
@@ -314,7 +314,7 @@
                 const data = result.auto_mapping_preview || {};
                 const total = ['structured', 'tables', 'blocks', 'needs_review', 'rejected_candidates']
                     .reduce((sum, key) => sum + (Array.isArray(data[key]) ? data[key].length : 0), 0);
-                setStatus(total ? 'Auto Mapping Preview 已加载' : '暂无 Auto Mapping Preview，请先进行模板分析');
+                setStatus(total ? 'Auto Mapping Preview 已加载（候选映射，尚未写入正式规则）' : '暂无 Auto Mapping Preview，请先进行模板分析');
                 renderPreview(data);
             } catch (error) {
                 setStatus(error.message || 'Auto Mapping Preview 加载失败');
@@ -447,9 +447,9 @@
         async function saveSelected() {
             await postMappingPayload(
                 '/api/v4/mapping-workbench/save-selected',
-                '正在保存选中映射规则...',
+                '正在写入正式 Mapping Rules...',
                 '映射规则保存失败',
-                '已保存选中且确认的映射规则'
+                '已写入正式 Mapping Rules，Core Pipeline 将使用这些规则'
             );
         }
 
