@@ -11,3 +11,8 @@ dist/
 
 # V4 runtime uploads
 data/v4_template_uploads/
+
+# V4 runtime generated template profiles and profile rules
+v4/rules/profiles/
+v4/template_profiles/*.json
+!v4/template_profiles/default_profile.json
