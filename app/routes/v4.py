@@ -455,7 +455,8 @@ def api_v4_core_pipeline_run():
                 "error": load_result.get("error", "请先加载 Order Object"),
                 "pipeline_state": get_pipeline_state(),
             }
-        order_object = load_result.get("pipeline_state", {}).get("current_order_object", {})
+        state = get_pipeline_state()
+        order_object = state.get("current_order_object") if isinstance(state.get("current_order_object"), dict) else {}
     
     current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
     if not current_profile:
