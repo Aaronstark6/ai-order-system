@@ -456,6 +456,12 @@ def api_v4_core_pipeline_run():
                 "pipeline_state": get_pipeline_state(),
             }
         order_object = load_result.get("pipeline_state", {}).get("current_order_object", {})
+    
+    current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not current_profile:
+        profile = get_current_template_profile()
+        state = set_current_profile(profile)
+        current_profile = state.get("current_profile", {})
 
     result = run_operation_pipeline(order_object, profile=current_profile)
     validation = result.get("validation", {})
