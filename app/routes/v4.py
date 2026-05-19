@@ -318,6 +318,23 @@ def api_v4_current_template_profile():
     }
 
 
+@router.get("/api/v4/pipeline-profile-debug")
+def api_v4_pipeline_profile_debug():
+    logger.info("V4 pipeline profile debug requested")
+
+    profile = get_current_template_profile()
+    profile = profile if isinstance(profile, dict) else {}
+
+    return {
+        "success": True,
+        "profile_id": profile.get("profile_id"),
+        "profile_name": profile.get("profile_name"),
+        "structured_mapping_file": profile.get("structured_mapping_file"),
+        "table_mapping_file": profile.get("table_mapping_file"),
+        "block_rules_file": profile.get("block_rules_file"),
+    }
+
+
 @router.get("/api/v4/template-profiles/{profile_id}")
 def api_v4_template_profile_detail(profile_id: str):
     logger.info("V4 template profile detail requested: profile_id=%s", profile_id)
@@ -1027,7 +1044,11 @@ def api_v4_mapping_workbench_save_selected(payload: Any = Body(None)):
             "success": False,
             "error": result.get("error", "映射规则保存失败"),
         }
-    return result
+    return {
+        **result,
+        "profile_id": profile.get("profile_id") if isinstance(profile, dict) else None,
+        "profile_name": profile.get("profile_name") if isinstance(profile, dict) else None,
+    }
 
 
 @router.post("/api/v4/apply-auto-mapping")
