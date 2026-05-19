@@ -193,7 +193,7 @@ def _save_structured(items):
         if not _valid_structured(item):
             continue
         mapping = _normalize_structured(item, confirmed=True)
-        _upsert_by_key(mappings, mapping, ("source_path", "target_cell"))
+        _upsert_by_key(mappings, mapping, ("label", "source_path"))
         saved += 1
 
     data["version"] = RULE_VERSION
