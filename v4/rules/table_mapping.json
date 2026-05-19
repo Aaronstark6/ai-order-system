@@ -57,7 +57,7 @@
       "table_key": "包装要求区域",
       "table_name": "包装要求区域",
       "source_path": "product.tables.包装要求区域",
-      "start_cell": "B19",
+      "start_cell": "B20",
       "columns": [
         {
           "label": "盖子密封方式",
@@ -85,7 +85,7 @@
       "table_key": "生产日期批号区域",
       "table_name": "生产日期批号区域",
       "source_path": "product.tables.生产日期批号区域",
-      "start_cell": "B22",
+      "start_cell": "B23",
       "columns": [
         {
           "label": "生产日期/批号",

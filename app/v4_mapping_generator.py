@@ -254,6 +254,12 @@ def _build_table_mapping(regions, result):
         if not isinstance(label_names, list):
             label_names = []
 
+        try:
+            header_row = int(bounds.get("start_row"))
+            data_start_row = header_row + 1
+        except (TypeError, ValueError):
+            data_start_row = bounds.get("start_row")
+
         columns = []
         for offset, label in enumerate(label_names):
             columns.append(
@@ -266,7 +272,7 @@ def _build_table_mapping(regions, result):
         result["tables"].append(
             {
                 "table_name": region.get("suggested_name") or region.get("name", ""),
-                "start_row": bounds.get("start_row"),
+                "start_row": data_start_row,
                 "sheet": region.get("sheet", ""),
                 "columns": columns,
                 "semantic_type": region.get("semantic_type", ""),
