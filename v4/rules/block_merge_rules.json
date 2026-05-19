@@ -18,6 +18,17 @@
           "source_path": "product.product_type"
         }
       ]
+    },
+    {
+      "block_name": "包装要求区域",
+      "target_cell": "B13",
+      "operation": "write_block",
+      "lines": [],
+      "source_path": "",
+      "enabled": true,
+      "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
+      "mapping_source": "human_confirmed"
     }
   ]
 }

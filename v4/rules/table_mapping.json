@@ -52,6 +52,72 @@
           "target_col": "C"
         }
       ]
+    },
+    {
+      "table_key": "包装要求区域",
+      "table_name": "包装要求区域",
+      "source_path": "product.tables.包装要求区域",
+      "start_cell": "B19",
+      "columns": [
+        {
+          "label": "盖子密封方式",
+          "target_col": "B",
+          "field": "盖子密封方式"
+        },
+        {
+          "label": "袋口密封",
+          "target_col": "C",
+          "field": "袋口密封"
+        },
+        {
+          "label": "瓶口热塑封",
+          "target_col": "D",
+          "field": "瓶口热塑封"
+        }
+      ],
+      "semantic_type": "packaging",
+      "enabled": true,
+      "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
+      "mapping_source": "human_confirmed"
+    },
+    {
+      "table_key": "生产日期批号区域",
+      "table_name": "生产日期批号区域",
+      "source_path": "product.tables.生产日期批号区域",
+      "start_cell": "B22",
+      "columns": [
+        {
+          "label": "生产日期/批号",
+          "target_col": "B",
+          "field": "生产日期_批号"
+        },
+        {
+          "label": "不打批号日期",
+          "target_col": "C",
+          "field": "不打批号日期"
+        },
+        {
+          "label": "瓶底打批号日期",
+          "target_col": "D",
+          "field": "瓶底打批号日期"
+        },
+        {
+          "label": "标签打批号日期",
+          "target_col": "E",
+          "field": "标签打批号日期"
+        },
+        {
+          "label": "其他",
+          "target_col": "F",
+          "field": "其他"
+        }
+      ],
+      "semantic_type": "production_batch",
+      "enabled": true,
+      "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
+      "mapping_source": "human_confirmed"
     }
   ]
 }

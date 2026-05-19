@@ -8,6 +8,7 @@
       "operation": "write_text",
       "enabled": true,
       "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
       "mapping_source": "human_confirmed"
     },
     {
@@ -17,6 +18,7 @@
       "operation": "write_text",
       "enabled": true,
       "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
       "mapping_source": "human_confirmed"
     },
     {
@@ -26,6 +28,7 @@
       "operation": "write_text",
       "enabled": true,
       "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
       "mapping_source": "human_confirmed"
     },
     {
@@ -35,6 +38,7 @@
       "operation": "write_text",
       "enabled": true,
       "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
       "mapping_source": "human_confirmed"
     },
     {
@@ -44,6 +48,7 @@
       "operation": "write_text",
       "enabled": true,
       "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
       "mapping_source": "human_confirmed"
     },
     {
@@ -53,6 +58,7 @@
       "operation": "write_text",
       "enabled": true,
       "confirmed": true,
+      "confirmed_at": "2026-05-19 13:24:17",
       "mapping_source": "human_confirmed"
     }
   ]
