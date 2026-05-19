@@ -8,3 +8,6 @@ logs/
 build/
 dist/
 *.spec
+
+# V4 runtime uploads
+data/v4_template_uploads/
