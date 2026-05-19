@@ -413,6 +413,9 @@
                 }
                 latestRunResult = null;
                 document.getElementById("downloadLink").style.display = "none";
+                currentTemplateFile = null;
+                document.getElementById("templateFileInput").value = "";
+                document.getElementById("templateName").textContent = "当前模板：未选择";
                 renderState(result.pipeline_state || {});
                 setStatus(result.message || "Pipeline State 已重置");
             } catch (error) {
