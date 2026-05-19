@@ -45,8 +45,11 @@ from app.v4_renderer import render_example_to_description_fields
 from app.v4_schema import get_product_form, get_product_forms, load_product_schema, save_product_schema
 from app.v4_schema_version import check_schema_compatibility, get_current_schema_version
 from app.v4_template_profiles import (
+    create_template_profile,
     get_current_template_profile,
     list_template_profiles,
+    load_template_profile,
+    save_template_profile,
     validate_template_profile,
 )
 from app.v4_template_cache import (
@@ -313,6 +316,77 @@ def api_v4_current_template_profile():
         "profile": profile,
         "validation": validation,
     }
+
+
+@router.get("/api/v4/template-profiles/{profile_id}")
+def api_v4_template_profile_detail(profile_id: str):
+    logger.info("V4 template profile detail requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "Template Profile 不存在",
+            "profile": {},
+            "validation": {
+                "valid": False,
+                "warnings": [],
+                "errors": ["Template Profile 不存在"],
+                "file_status": {},
+            },
+        }
+
+    validation = validate_template_profile(profile)
+    return {
+        "success": True,
+        "profile": profile,
+        "validation": validation,
+    }
+
+
+@router.post("/api/v4/template-profiles/create")
+def api_v4_template_profile_create(payload: Any = Body(None)):
+    logger.info("V4 template profile create requested")
+    try:
+        profile = create_template_profile(payload if isinstance(payload, dict) else {})
+        validation = validate_template_profile(profile)
+        return {
+            "success": True,
+            "message": "Template Profile 已创建",
+            "profile": profile,
+            "validation": validation,
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile create failed")
+        return {
+            "success": False,
+            "error": str(exc) or "Template Profile 创建失败",
+        }
+
+
+@router.post("/api/v4/template-profiles/save")
+def api_v4_template_profile_save(payload: Any = Body(None)):
+    logger.info("V4 template profile save requested")
+    try:
+        if not isinstance(payload, dict):
+            return {
+                "success": False,
+                "error": "payload 必须是 object",
+            }
+
+        profile = save_template_profile(payload)
+        validation = validate_template_profile(profile)
+        return {
+            "success": True,
+            "message": "Template Profile 已保存",
+            "profile": profile,
+            "validation": validation,
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile save failed")
+        return {
+            "success": False,
+            "error": str(exc) or "Template Profile 保存失败",
+        }
 
 
 @router.get("/api/v4/structured-mapping")
