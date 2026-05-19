@@ -426,26 +426,44 @@
                 ? `当前模板：${currentTemplateFile.name}`
                 : "当前模板：未选择";
             renderState(currentPipelineState || {});
-            
-            if (currentTemplateFile) {
-                try {
-                    setStatus("正在上传 Excel 模板...");
-                    const formData = new FormData();
-                    formData.append("template_file", currentTemplateFile);
-                    const response = await fetch("/api/v4/template-analysis/upload", {
-                        method: "POST",
-                        body: formData
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        renderState(result.pipeline_state || {});
-                        setStatus("Excel 模板已上传并写入 Pipeline State");
-                    } else {
-                        setStatus(result.error || "Excel 模板上传失败");
-                    }
-                } catch (error) {
-                    setStatus("Excel 模板上传失败");
+
+            if (!currentTemplateFile) {
+                return;
+            }
+
+            setStatus("正在上传 Excel 模板并写入 Pipeline State...");
+
+            try {
+                const formData = new FormData();
+                formData.append("template_file", currentTemplateFile);
+
+                const uploadResponse = await fetch("/api/v4/template-analysis/upload", {
+                    method: "POST",
+                    body: formData
+                });
+                const uploadResult = await uploadResponse.json();
+
+                if (!uploadResponse.ok || !uploadResult.success) {
+                    setStatus(uploadResult.error || "Excel 模板上传失败");
+                    return;
                 }
+
+                renderState(uploadResult.pipeline_state || {});
+                setStatus("Excel 模板已上传并写入 Pipeline State，正在执行 Template Analysis...");
+
+                const analysisResponse = await fetch("/api/v4/template-analysis/run");
+                const analysisResult = await analysisResponse.json();
+
+                if (!analysisResponse.ok || !analysisResult.success) {
+                    renderState(analysisResult.pipeline_state || uploadResult.pipeline_state || {});
+                    setStatus(analysisResult.error || "Template Analysis 执行失败");
+                    return;
+                }
+
+                renderState(analysisResult.pipeline_state || {});
+                setStatus("Excel 模板已上传，Template Analysis 已完成");
+            } catch (error) {
+                setStatus(error.message || "Excel 模板上传或 Template Analysis 执行失败");
             }
         });
 
