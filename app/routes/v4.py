@@ -723,6 +723,55 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
     }
 
 
+@router.post("/api/v4/parse-chat-run-pipeline")
+def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
+    logger.info("V4 parse chat and run pipeline requested")
+
+    parse_result = api_v4_parse_chat_to_order_object(payload)
+    if not parse_result.get("success"):
+        return {
+            "success": False,
+            "stage": "parse_chat_to_order_object",
+            "error": parse_result.get("error", "Chat 解析为 Order Object 失败"),
+            "parse_result": parse_result,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    pipeline_result = api_v4_core_pipeline_run()
+    if not pipeline_result.get("success"):
+        return {
+            "success": False,
+            "stage": "core_pipeline",
+            "error": pipeline_result.get("error", "Core Pipeline 执行失败"),
+            "parse_result": parse_result,
+            "pipeline_result": pipeline_result,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    return {
+        "success": True,
+        "message": "Chat 已解析并完成 V4 Core Pipeline",
+        "parse_result": {
+            "warnings": parse_result.get("warnings", []),
+            "source_keys": parse_result.get("source_keys", []),
+            "order_object": parse_result.get("order_object", {}),
+            "chat_preprocess": parse_result.get("chat_preprocess", {}),
+        },
+        "pipeline_result": {
+            "validation": pipeline_result.get("validation", {}),
+            "warnings": pipeline_result.get("warnings", []),
+            "mapping_counts": pipeline_result.get("mapping_counts", {}),
+            "structured_operations": pipeline_result.get("structured_operations", []),
+            "table_operations": pipeline_result.get("table_operations", []),
+            "block_operations": pipeline_result.get("block_operations", []),
+            "processed_operations": pipeline_result.get("processed_operations", []),
+            "render_preview": pipeline_result.get("render_preview", {}),
+            "render_ready": pipeline_result.get("render_ready", False),
+        },
+        "pipeline_state": get_pipeline_state(),
+    }
+
+
 @router.post("/api/v4/core-pipeline/run")
 def api_v4_core_pipeline_run():
     from app.v4_pipeline_executor import run_operation_pipeline
