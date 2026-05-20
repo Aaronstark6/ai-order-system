@@ -12,6 +12,8 @@ from fastapi.responses import FileResponse
 from openpyxl.utils.exceptions import InvalidFileException
 
 from app.logger import get_logger
+from app.ai_parser import parse_message
+from app.chat_preprocessor import preprocess_chat_text
 from app.runtime_paths import get_base_dir
 from app.v4_batch_template_executor import execute_batch_template_to_excel
 from app.v4_excel_rule_executor import execute_excel_rule_preview_to_workbook
@@ -635,6 +637,88 @@ def api_v4_normalize_flat_order(payload: Any = Body(None)):
         "warnings": normalized.get("warnings", []),
         "source_keys": normalized.get("source_keys", []),
         "order_object": order_object,
+        "pipeline_state": state,
+    }
+
+
+@router.post("/api/v4/parse-chat-to-order-object")
+def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
+    logger.info("V4 parse chat to order object requested")
+
+    payload = payload if isinstance(payload, dict) else {}
+    message = payload.get("chat_text")
+    if message is None:
+        message = payload.get("message", "")
+    message = str(message or "")
+
+    if not message.strip():
+        return {
+            "success": False,
+            "error": "message不能为空",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    chat_preprocess = preprocess_chat_text(message)
+    clean_message = str(chat_preprocess.get("clean_text") or "").strip()
+    preprocess_payload = {
+        "stats": chat_preprocess.get("stats") or {},
+        "removed_lines": chat_preprocess.get("removed_lines") or [],
+    }
+
+    if not clean_message:
+        return {
+            "success": False,
+            "error": "message 清洗后为空，无法解析",
+            "chat_preprocess": preprocess_payload,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    parsed = parse_message(clean_message)
+    if isinstance(parsed, dict) and parsed.get("error"):
+        return {
+            "success": False,
+            "error": parsed.get("error"),
+            "parsed": parsed,
+            "chat_preprocess": preprocess_payload,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    if not isinstance(parsed, dict) or not parsed:
+        return {
+            "success": False,
+            "error": "AI parse 未返回有效字段",
+            "parsed": parsed,
+            "chat_preprocess": preprocess_payload,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    normalized = normalize_flat_order_to_v4_order_object(parsed)
+    order_object = normalized.get("order_object") if isinstance(normalized, dict) else {}
+    if not isinstance(order_object, dict) or not order_object:
+        return {
+            "success": False,
+            "error": "Order Object 转换失败",
+            "parsed": parsed,
+            "normalized": normalized,
+            "chat_preprocess": preprocess_payload,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    state = load_order_object_into_pipeline(order_object)
+    current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not current_profile:
+        profile = get_current_template_profile()
+        if profile:
+            state = set_current_profile(profile)
+
+    return {
+        "success": True,
+        "message": "Chat 已解析为 V4 Order Object 并加载",
+        "parsed": parsed,
+        "warnings": normalized.get("warnings", []),
+        "source_keys": normalized.get("source_keys", []),
+        "order_object": order_object,
+        "chat_preprocess": preprocess_payload,
         "pipeline_state": state,
     }
 
