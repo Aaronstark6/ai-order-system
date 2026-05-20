@@ -328,8 +328,10 @@
         let latestV4ParseResult = null;
         let confirmedCells = [];
         let originalConfirmedCells = [];
+        let v4LayoutSections = [];
         window.confirmedCells = confirmedCells;
         window.originalConfirmedCells = originalConfirmedCells;
+        window.v4LayoutSections = v4LayoutSections;
 
         function escapeHtml(value) {
             const div = document.createElement("div");
@@ -384,6 +386,25 @@
             return visualCellSort(left, right);
         }
 
+        function findLayoutSectionForItem(item) {
+            if (!Array.isArray(v4LayoutSections) || !v4LayoutSections.length) return null;
+
+            const cell = getVisualCell(item);
+            const row = rowIndexFromCell(cell);
+            const col = columnIndexFromCell(cell);
+            if (!row || !col) return null;
+
+            return v4LayoutSections.find(section => {
+                const bounds = section.bounds || {};
+                const startRow = Number(bounds.start_row || 0);
+                const endRow = Number(bounds.end_row || 0);
+                const startCol = Number(bounds.start_col || 0);
+                const endCol = Number(bounds.end_col || 0);
+                if (!startRow || !endRow || !startCol || !endCol) return false;
+                return row >= startRow && row <= endRow && col >= startCol && col <= endCol;
+            }) || null;
+        }
+
         function friendlyLabel(item) {
             const rawLabel = item.label || item.field_label || item.display_note || item.field || "";
             if (rawLabel) return rawLabel;
@@ -407,7 +428,12 @@
         }
 
         function inferConfirmationSection(item) {
-            const cell = item.display_cell || item.cell || "";
+            const layoutSection = findLayoutSectionForItem(item);
+            if (layoutSection) {
+                return layoutSection.section_key || layoutSection.semantic_type || "other";
+            }
+
+            const cell = getVisualCell(item);
             const rowNumber = rowIndexFromCell(cell);
             const sourceText = String(item.source || "").toLowerCase();
             const typeText = String(item.operation_type || item.op_type || item.type || "").toLowerCase();
@@ -436,6 +462,13 @@
         }
 
         function sectionTitle(sectionKey) {
+            const layoutSection = Array.isArray(v4LayoutSections)
+                ? v4LayoutSections.find(section => section && section.section_key === sectionKey)
+                : null;
+            if (layoutSection && layoutSection.title) {
+                return layoutSection.title;
+            }
+
             const titles = {
                 document: "文档编号信息",
                 structured: "普通字段确认",
@@ -446,8 +479,20 @@
             return titles[sectionKey] || titles.other;
         }
 
+        function getConfirmationSectionOrder() {
+            const fallbackOrder = ["document", "structured", "table", "block", "other"];
+            if (!Array.isArray(v4LayoutSections) || !v4LayoutSections.length) {
+                return fallbackOrder;
+            }
+
+            const layoutOrder = v4LayoutSections
+                .map(section => section && section.section_key)
+                .filter(Boolean);
+            return Array.from(new Set([...layoutOrder, ...fallbackOrder]));
+        }
+
         function buildConfirmationSections(cells) {
-            const sectionOrder = ["document", "structured", "table", "block", "other"];
+            const sectionOrder = getConfirmationSectionOrder();
             const grouped = sectionOrder.reduce((result, key) => {
                 result[key] = [];
                 return result;
@@ -464,6 +509,10 @@
                     value: String(cellValue(item.value) ?? ""),
                     section: inferConfirmationSection({ ...item, label })
                 };
+                if (!grouped[normalized.section]) {
+                    grouped[normalized.section] = [];
+                    sectionOrder.push(normalized.section);
+                }
                 grouped[normalized.section].push(normalized);
             });
 
@@ -637,6 +686,22 @@
             }
         }
 
+        async function loadV4TemplateLayout() {
+            try {
+                const response = await fetch("/api/v4/template-layout");
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    v4LayoutSections = [];
+                } else {
+                    v4LayoutSections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
+                }
+                window.v4LayoutSections = v4LayoutSections;
+            } catch (error) {
+                v4LayoutSections = [];
+                window.v4LayoutSections = v4LayoutSections;
+            }
+        }
+
         async function setActiveV4Profile(profileId) {
             if (!profileId) {
                 setStatus("v4ProfileStatus", "请选择 Profile", "warning");
@@ -682,6 +747,7 @@
                 }
                 latestV4ParseResult = result;
                 renderConfirmation(result);
+                await loadV4TemplateLayout();
                 setStatus("v4ParseStatus", "AI解析完成，请在右侧确认订单信息。", "success");
             } catch (error) {
                 setStatus("v4ParseStatus", error.message || "AI解析失败", "error");
@@ -789,7 +855,10 @@
             setActiveV4Profile(event.target.value);
         });
 
-        document.addEventListener("DOMContentLoaded", loadV4Profiles);
+        document.addEventListener("DOMContentLoaded", async () => {
+            await loadV4Profiles();
+            await loadV4TemplateLayout();
+        });
     </script>
 </body>
 </html>
