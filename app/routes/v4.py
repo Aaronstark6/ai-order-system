@@ -848,6 +848,114 @@ def api_v4_core_pipeline_run():
     }
 
 
+@router.post("/api/v4/parse-chat-export-excel")
+def api_v4_parse_chat_export_excel(
+    template_file: UploadFile = File(...),
+    chat_text: str = Form(""),
+    message: str = Form(""),
+):
+    from app.v4_excel_executor import execute_processed_operations_to_excel
+    from app.v4_render_preview import build_render_preview
+    from app.v4_render_targets import render_preview_to_html
+
+    logger.info("V4 parse chat and export Excel requested: filename=%s", template_file.filename)
+
+    text = str(chat_text or "").strip()
+    if not text:
+        text = str(message or "").strip()
+    if not text:
+        return {
+            "success": False,
+            "stage": "input",
+            "error": "chat_text/message 不能为空",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    template_path = None
+    try:
+        pipeline_e2e_result = api_v4_parse_chat_run_pipeline({"chat_text": text})
+        if not pipeline_e2e_result.get("success"):
+            return {
+                "success": False,
+                "stage": pipeline_e2e_result.get("stage", "parse_chat_run_pipeline"),
+                "error": pipeline_e2e_result.get("error", "Chat 到 Pipeline 执行失败"),
+                "pipeline_e2e_result": pipeline_e2e_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        pipeline_result = pipeline_e2e_result.get("pipeline_result", {})
+        processed_operations = pipeline_result.get("processed_operations", [])
+        if not isinstance(processed_operations, list) or not processed_operations:
+            return {
+                "success": False,
+                "stage": "processed_operations",
+                "error": "暂无 processed operations，无法导出 Excel",
+                "pipeline_e2e_result": pipeline_e2e_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        template_path = _save_v4_uploaded_template(template_file)
+        set_current_template(Path(template_file.filename or "").name)
+
+        export_result = execute_processed_operations_to_excel(template_path, processed_operations)
+        if not export_result.get("success"):
+            return {
+                "success": False,
+                "stage": "excel_export",
+                "error": export_result.get("error", "Excel 导出失败"),
+                "warnings": export_result.get("warnings", []),
+                "pipeline_e2e_result": pipeline_e2e_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        state = merge_mapping_safety(export_result.get("mapping_safety", {}))
+        merged_safety = state.get("mapping_safety", {})
+        preview = build_render_preview(processed_operations, merged_safety, template_path)
+        state = set_render_preview(preview)
+
+        html_result = render_preview_to_html(state.get("render_preview", {}))
+        html_preview = ""
+        if html_result.get("success"):
+            html_preview = html_result.get("html", "")
+            state = set_render_targets({"html_preview": html_preview})
+
+        state = set_excel_result(export_result.get("filename"))
+
+        return {
+            "success": True,
+            "message": "Chat 已解析并导出 Excel",
+            "parse_result": pipeline_e2e_result.get("parse_result", {}),
+            "pipeline_result": pipeline_result,
+            "export_result": {
+                "filename": export_result.get("filename", ""),
+                "download_url": export_result.get("download_url", ""),
+                "operations_written": export_result.get("operations_written", 0),
+                "warnings": export_result.get("warnings", []),
+            },
+            "render_preview": get_pipeline_state().get("render_preview", {}),
+            "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
+            "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except ValueError as exc:
+        return {
+            "success": False,
+            "stage": "template_upload",
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 parse chat and export Excel failed")
+        return {
+            "success": False,
+            "stage": "unknown",
+            "error": str(exc) or "Chat 到 Excel 导出失败",
+            "pipeline_state": get_pipeline_state(),
+        }
+    finally:
+        _remove_v4_uploaded_template(template_path)
+
+
 @router.post("/api/v4/core-pipeline/export-excel")
 def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
     from app.v4_excel_executor import execute_processed_operations_to_excel
