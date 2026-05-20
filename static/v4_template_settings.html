@@ -63,6 +63,25 @@
             display: grid;
             gap: 14px;
         }
+        .template-upload {
+            background: #fafbfd;
+            border: 1px solid #e0e4ec;
+            border-radius: 10px;
+            display: grid;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 16px;
+        }
+        .template-upload h2 {
+            color: #222;
+            font-size: 18px;
+            margin: 0;
+        }
+        .upload-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
         .profile-card {
             border: 1px solid #e0e4ec;
             border-radius: 10px;
@@ -112,7 +131,7 @@
             font-weight: 700;
             margin-bottom: 6px;
         }
-        input {
+        input, select {
             border: 1px solid #ccc;
             border-radius: 6px;
             font-family: Arial, "Microsoft YaHei", sans-serif;
@@ -148,6 +167,7 @@
         @media (max-width: 900px) {
             body { padding: 16px; }
             .header { align-items: flex-start; flex-direction: column; gap: 8px; }
+            .upload-grid { grid-template-columns: 1fr; }
             .meta-grid { grid-template-columns: 1fr; }
         }
     </style>
@@ -161,8 +181,25 @@
         </header>
 
         <section class="panel">
-            <p class="hint">这里用于维护系统模板与公司模板文件的绑定关系。当前阶段仅支持查看 Template Profiles 并编辑 template_file_path。</p>
+            <p class="hint">这里用于维护系统模板与公司模板文件的绑定关系。上传公司 Excel 模板后，系统会分析模板结构并生成新的系统模板。生成后可在订单工作台中选择使用。</p>
             <div id="settingsStatus" class="status info">正在加载系统模板...</div>
+            <div class="template-upload">
+                <h2>新增系统模板</h2>
+                <div class="upload-grid">
+                    <div>
+                        <label for="newSystemTemplateNameInput">系统模板名称</label>
+                        <input id="newSystemTemplateNameInput" type="text" placeholder="例如 Anna 固体饮料模板">
+                    </div>
+                    <div>
+                        <label for="companyTemplateFileInput">Excel 模板文件</label>
+                        <input id="companyTemplateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
+                    </div>
+                </div>
+                <div class="actions">
+                    <button type="button" onclick="createSystemTemplateFromCompanyTemplate()">生成系统模板</button>
+                    <span id="analysisStatus" class="small">填写系统模板名称并选择公司模板文件后开始生成。</span>
+                </div>
+            </div>
             <div class="actions" style="margin-bottom: 14px;">
                 <button type="button" onclick="loadTemplateProfiles()">刷新</button>
             </div>
@@ -171,6 +208,8 @@
     </main>
 
     <script>
+        let templateProfiles = [];
+
         function escapeHtml(value) {
             const div = document.createElement("div");
             div.textContent = value ?? "";
@@ -250,6 +289,7 @@
                 }
 
                 const profiles = Array.isArray(result.profiles) ? result.profiles : [];
+                templateProfiles = profiles;
                 const details = await Promise.all(profiles.map(async profile => {
                     const profileId = profile.profile_id || "";
                     if (!profileId) return { profile, validation: {} };
@@ -268,6 +308,55 @@
                 setStatus(`已加载 ${details.length} 个系统模板。`, "success");
             } catch (error) {
                 setStatus(error.message || "系统模板加载失败", "error");
+            }
+        }
+
+        async function createSystemTemplateFromCompanyTemplate() {
+            const nameInput = document.getElementById("newSystemTemplateNameInput");
+            const profileName = nameInput ? nameInput.value.trim() : "";
+            const fileInput = document.getElementById("companyTemplateFileInput");
+            const analysisStatus = document.getElementById("analysisStatus");
+            const templateFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0] : null;
+
+            if (!profileName) {
+                if (analysisStatus) analysisStatus.textContent = "请填写系统模板名称。";
+                setStatus("请填写系统模板名称。", "warning");
+                return;
+            }
+            if (!templateFile) {
+                if (analysisStatus) analysisStatus.textContent = "请选择 Excel 模板文件。";
+                setStatus("请选择 Excel 模板文件。", "warning");
+                return;
+            }
+
+            try {
+                if (analysisStatus) analysisStatus.textContent = "正在上传并分析模板...";
+                setStatus("正在上传并分析公司模板...", "info");
+                const formData = new FormData();
+                formData.append("profile_name", profileName);
+                formData.append("template_file", templateFile);
+
+                const response = await fetch("/api/v4/template-profiles/analyze-template", {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "模板分析失败");
+                }
+
+                const summary = result.template_analysis_summary || {};
+                const layoutSummary = result.layout_summary || {};
+                if (analysisStatus) {
+                    analysisStatus.textContent = `系统模板已生成：labels ${summary.labels_count || 0}，regions ${layoutSummary.sections_count || 0}`;
+                }
+                setStatus("系统模板已生成。", "success");
+                if (nameInput) nameInput.value = "";
+                if (fileInput) fileInput.value = "";
+                await loadTemplateProfiles();
+            } catch (error) {
+                if (analysisStatus) analysisStatus.textContent = error.message || "模板分析失败";
+                setStatus(error.message || "模板分析失败", "error");
             }
         }
 

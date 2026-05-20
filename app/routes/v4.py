@@ -605,6 +605,117 @@ def api_v4_template_profile_template_file_update(profile_id: str, payload: Any =
         }
 
 
+@router.post("/api/v4/template-profiles/analyze-template")
+def api_v4_template_profile_analyze_template(
+    profile_name: str = Form(...),
+    template_file: UploadFile = File(...),
+):
+    from app.v4_template_analysis import analyze_template
+
+    requested_profile_name = str(profile_name or "").strip()
+    logger.info(
+        "V4 template profile analyze template requested: profile_name=%s filename=%s",
+        requested_profile_name,
+        template_file.filename,
+    )
+    if not requested_profile_name:
+        return {
+            "success": False,
+            "error": "系统模板名称不能为空",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    template_path = None
+    try:
+        original_name = Path(template_file.filename or "").name
+        if not original_name:
+            return {
+                "success": False,
+                "error": "模板文件名不能为空",
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        safe_name = _safe_output_filename_part(requested_profile_name)
+        profile_id = f"system_template_{safe_name}"
+        if load_template_profile(profile_id):
+            profile_id = f"{profile_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        profile = create_template_profile(
+            {
+                "profile_id": profile_id,
+                "profile_name": requested_profile_name,
+                "template_name": Path(original_name).stem,
+                "template_filename": original_name,
+            }
+        )
+
+        safe_profile_id = _safe_output_filename_part(profile_id)
+        safe_original_name = _safe_output_filename_part(Path(original_name).stem) + Path(original_name).suffix.lower()
+        system_templates_dir = get_base_dir() / "v4" / "system_templates"
+        system_templates_dir.mkdir(parents=True, exist_ok=True)
+        template_path = system_templates_dir / f"{safe_profile_id}_{safe_original_name}"
+        with template_path.open("wb") as buffer:
+            template_file.file.seek(0)
+            shutil.copyfileobj(template_file.file, buffer)
+
+        if template_path.stat().st_size <= 0:
+            template_path.unlink(missing_ok=True)
+            return {
+                "success": False,
+                "error": "模板文件为空",
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        analysis = analyze_template(template_path)
+        state = set_current_template(template_path.name)
+        state = set_template_analysis(analysis)
+        layout_result = build_layout_sections_from_template_analysis(analysis)
+
+        try:
+            template_file_path = str(template_path.resolve().relative_to(get_base_dir().resolve())).replace("\\", "/")
+        except ValueError:
+            template_file_path = str(template_path)
+
+        profile["template_name"] = Path(original_name or template_path.name).stem
+        profile["template_filename"] = original_name or template_path.name
+        profile["template_file_path"] = template_file_path
+        saved_profile = save_template_profile(profile)
+
+        validation = validate_template_profile(saved_profile)
+        return {
+            "success": True,
+            "message": "系统模板已生成",
+            "profile": saved_profile,
+            "validation": validation,
+            "template_path": str(template_path),
+            "template_file_path": template_file_path,
+            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "layout_summary": layout_result.get("summary", {}),
+            "layout_sections": layout_result.get("layout_sections", []),
+            "pipeline_state": state,
+        }
+    except (BadZipFile, InvalidFileException) as exc:
+        logger.warning("V4 template profile analyze invalid Excel: path=%s", template_path, exc_info=True)
+        return {
+            "success": False,
+            "error": f"Excel 模板格式无效：{exc}",
+            "pipeline_state": get_pipeline_state(),
+        }
+    except ValueError as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile analyze template failed")
+        return {
+            "success": False,
+            "error": str(exc) or "公司模板分析失败",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+
 @router.get("/api/v4/structured-mapping")
 def api_v4_structured_mapping():
     logger.info("V4 structured mapping requested")
