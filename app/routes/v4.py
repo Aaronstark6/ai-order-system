@@ -2,6 +2,7 @@ import json
 import re
 import shutil
 import uuid
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -110,6 +111,48 @@ def _remove_v4_uploaded_template(path):
         Path(path).unlink(missing_ok=True)
     except Exception:
         logger.warning("V4 temporary template cleanup failed: path=%s", path, exc_info=True)
+
+
+def _cell_key(value):
+    return str(value or "").strip().upper()
+
+
+def _override_operations_with_confirmed_cells(processed_operations, confirmed_cells):
+    operations = deepcopy(processed_operations) if isinstance(processed_operations, list) else []
+    confirmed_items = confirmed_cells if isinstance(confirmed_cells, list) else []
+    confirmed_by_cell = {}
+
+    for item in confirmed_items:
+        if not isinstance(item, dict):
+            continue
+        for key_name in ("cell", "display_cell"):
+            key = _cell_key(item.get(key_name))
+            if key:
+                confirmed_by_cell[key] = item
+
+    override_count = 0
+    for operation in operations:
+        if not isinstance(operation, dict):
+            continue
+        operation_cell = ""
+        for key_name in ("target_cell", "cell", "display_cell"):
+            operation_cell = _cell_key(operation.get(key_name))
+            if operation_cell:
+                break
+        confirmed_item = confirmed_by_cell.get(operation_cell)
+        if not confirmed_item:
+            continue
+
+        operation["value"] = confirmed_item.get("value", "")
+        operation["confirmed_override"] = True
+        operation["confirmed_label"] = confirmed_item.get("label", "")
+        operation["confirmed_source"] = confirmed_item.get("source", "")
+        override_count += 1
+
+    return {
+        "processed_operations": operations,
+        "override_count": override_count,
+    }
 
 
 @router.get("/api/v4/health")
@@ -950,6 +993,140 @@ def api_v4_parse_chat_export_excel(
             "success": False,
             "stage": "unknown",
             "error": str(exc) or "Chat 到 Excel 导出失败",
+            "pipeline_state": get_pipeline_state(),
+        }
+    finally:
+        _remove_v4_uploaded_template(template_path)
+
+
+@router.post("/api/v4/export-confirmed-excel")
+def api_v4_export_confirmed_excel(
+    template_file: UploadFile = File(...),
+    chat_text: str = Form(""),
+    confirmed_cells_json: str = Form("[]"),
+):
+    from app.v4_excel_executor import execute_processed_operations_to_excel
+    from app.v4_render_preview import build_render_preview
+    from app.v4_render_targets import render_preview_to_html
+
+    logger.info("V4 confirmed cells export requested: filename=%s", template_file.filename)
+
+    text = str(chat_text or "").strip()
+    if not text:
+        return {
+            "success": False,
+            "stage": "input",
+            "error": "chat_text 不能为空",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    try:
+        confirmed_cells = json.loads(str(confirmed_cells_json or "[]"))
+    except json.JSONDecodeError as exc:
+        return {
+            "success": False,
+            "stage": "confirmed_cells_json",
+            "error": f"confirmed_cells_json 解析失败: {exc}",
+            "pipeline_state": get_pipeline_state(),
+        }
+    if not isinstance(confirmed_cells, list):
+        return {
+            "success": False,
+            "stage": "confirmed_cells_json",
+            "error": "confirmed_cells_json 必须是 list",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    template_path = None
+    try:
+        pipeline_e2e_result = api_v4_parse_chat_run_pipeline({"chat_text": text})
+        if not pipeline_e2e_result.get("success"):
+            return {
+                "success": False,
+                "stage": pipeline_e2e_result.get("stage", "parse_chat_run_pipeline"),
+                "error": pipeline_e2e_result.get("error", "Chat 到 Pipeline 执行失败"),
+                "pipeline_e2e_result": pipeline_e2e_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        pipeline_result = pipeline_e2e_result.get("pipeline_result", {})
+        processed_operations = pipeline_result.get("processed_operations", [])
+        if not isinstance(processed_operations, list) or not processed_operations:
+            return {
+                "success": False,
+                "stage": "processed_operations",
+                "error": "暂无 processed operations，无法导出 Excel",
+                "pipeline_e2e_result": pipeline_e2e_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        override_result = _override_operations_with_confirmed_cells(processed_operations, confirmed_cells)
+        overridden_operations = override_result.get("processed_operations", [])
+        confirmed_override_count = override_result.get("override_count", 0)
+
+        template_path = _save_v4_uploaded_template(template_file)
+        set_current_template(Path(template_file.filename or "").name)
+
+        export_result = execute_processed_operations_to_excel(template_path, overridden_operations)
+        if not export_result.get("success"):
+            return {
+                "success": False,
+                "stage": "excel_export",
+                "error": export_result.get("error", "Excel 导出失败"),
+                "warnings": export_result.get("warnings", []),
+                "pipeline_e2e_result": pipeline_e2e_result,
+                "confirmed_override_count": confirmed_override_count,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        set_pipeline_result(overridden_operations, pipeline_result.get("stages", []))
+        state = merge_mapping_safety(export_result.get("mapping_safety", {}))
+        merged_safety = state.get("mapping_safety", {})
+        preview = build_render_preview(overridden_operations, merged_safety, template_path)
+        state = set_render_preview(preview)
+
+        html_result = render_preview_to_html(state.get("render_preview", {}))
+        html_preview = ""
+        if html_result.get("success"):
+            html_preview = html_result.get("html", "")
+            state = set_render_targets({"html_preview": html_preview})
+
+        state = set_excel_result(export_result.get("filename"))
+        response_pipeline_result = dict(pipeline_result)
+        response_pipeline_result["processed_operations"] = overridden_operations
+        response_pipeline_result["confirmed_override_count"] = confirmed_override_count
+        response_pipeline_result["render_preview"] = get_pipeline_state().get("render_preview", {})
+
+        return {
+            "success": True,
+            "message": "确认值已导出 Excel",
+            "confirmed_override_count": confirmed_override_count,
+            "parse_result": pipeline_e2e_result.get("parse_result", {}),
+            "pipeline_result": response_pipeline_result,
+            "export_result": {
+                "filename": export_result.get("filename", ""),
+                "download_url": export_result.get("download_url", ""),
+                "operations_written": export_result.get("operations_written", 0),
+                "warnings": export_result.get("warnings", []),
+            },
+            "render_preview": get_pipeline_state().get("render_preview", {}),
+            "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
+            "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except ValueError as exc:
+        return {
+            "success": False,
+            "stage": "template_upload",
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 confirmed cells export failed")
+        return {
+            "success": False,
+            "stage": "unknown",
+            "error": str(exc) or "确认值导出 Excel 失败",
             "pipeline_state": get_pipeline_state(),
         }
     finally:
