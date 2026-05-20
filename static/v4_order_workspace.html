@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>外贸订单解析系统 V4</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body { min-height: 100%; }
+        body {
+            background: #f5f6f8;
+            color: #333;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 24px;
+        }
+        .app-header {
+            align-items: center;
+            display: flex;
+            gap: 18px;
+            margin: 0 auto 18px;
+            max-width: 1280px;
+        }
+        h1 {
+            color: #333;
+            flex: 1 1 auto;
+            font-size: 30px;
+            line-height: 1.2;
+            margin: 0;
+        }
+        .nav-link {
+            color: #1677ff;
+            font-size: 15px;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .nav-link:hover { text-decoration: underline; }
+        .layout {
+            align-items: stretch;
+            display: grid;
+            gap: 24px;
+            grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+            margin: 0 auto;
+            max-width: 1280px;
+            min-height: calc(100vh - 96px);
+        }
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            min-height: 0;
+            padding: 22px;
+        }
+        .left-card {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .right-card {
+            display: grid;
+            gap: 16px;
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            max-height: calc(100vh - 96px);
+            overflow-y: auto;
+        }
+        h2 {
+            color: #222;
+            font-size: 22px;
+            margin: 0 0 6px;
+        }
+        h3 {
+            border-top: 1px solid #edf0f4;
+            color: #333;
+            font-size: 17px;
+            margin: 0;
+            padding-top: 16px;
+        }
+        h3:first-child {
+            border-top: none;
+            padding-top: 0;
+        }
+        label {
+            color: #333;
+            display: block;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        textarea, input, select {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            font-size: 15px;
+            padding: 10px;
+            width: 100%;
+        }
+        textarea {
+            flex: 1 1 auto;
+            line-height: 1.6;
+            min-height: 320px;
+            resize: vertical;
+        }
+        button, .download-link {
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 15px;
+            justify-content: center;
+            min-height: 40px;
+            padding: 10px 18px;
+            text-decoration: none;
+        }
+        button { background: #1677ff; color: #fff; }
+        button.secondary { background: #52c41a; }
+        button.ghost {
+            background: #eef2f7;
+            color: #344054;
+        }
+        .download-link {
+            background: #e9f8ef;
+            color: #16713b;
+        }
+        .actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .status {
+            border-radius: 7px;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 22px;
+            padding: 10px 12px;
+        }
+        .status.info { background: #f2f6ff; color: #315c9c; }
+        .status.success { background: #e9f8ef; color: #16713b; }
+        .status.warning { background: #fff7db; color: #8a6100; }
+        .status.error { background: #ffe9e7; color: #b42318; }
+        .section {
+            background: #fafbfd;
+            border: 1px solid #e0e4ec;
+            border-radius: 10px;
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+        }
+        .profile-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+        .confirmation-area {
+            display: grid;
+            gap: 14px;
+            min-height: 260px;
+        }
+        .confirmation-row {
+            align-items: center;
+            background: #fff;
+            border: 1px solid #e0e4ec;
+            border-radius: 8px;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 76px minmax(120px, 180px) minmax(180px, 1fr);
+            padding: 12px;
+        }
+        .cell-code {
+            color: #1677ff;
+            font-weight: 700;
+        }
+        .field-label {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .confirmation-row input { margin: 0; }
+        .fallback-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .fallback-card {
+            background: #fff;
+            border: 1px solid #e0e4ec;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .fallback-card h4 {
+            font-size: 15px;
+            margin: 0 0 10px;
+        }
+        .small {
+            color: #777;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        @media (max-width: 900px) {
+            body { padding: 16px; }
+            .app-header { align-items: flex-start; flex-direction: column; gap: 8px; }
+            .layout { grid-template-columns: 1fr; }
+            .right-card { max-height: none; }
+            .profile-grid, .fallback-grid { grid-template-columns: 1fr; }
+            .confirmation-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <h1>外贸订单解析系统 V4</h1>
+        <a class="nav-link" href="/">返回首页</a>
+        <a class="nav-link" href="/v4-core-pipeline">V4 Core Pipeline</a>
+        <a class="nav-link" href="/v4-render-preview">V4 Render Preview</a>
+    </header>
+
+    <main class="layout">
+        <section class="card left-card">
+            <h2>客户聊天内容</h2>
+            <textarea id="v4ChatText" placeholder="例如：客户Anna要做50000瓶固体饮料，日期2026-05-18，草莓味，使用赤藓糖醇。"></textarea>
+            <div>
+                <label for="v4ChatFileInput">导入聊天文件</label>
+                <input id="v4ChatFileInput" type="file" accept=".txt,.html,.htm">
+                <div class="small">支持 .txt .html .htm，导入后可继续编辑。</div>
+            </div>
+            <div class="actions">
+                <button id="v4ParseBtn" type="button" onclick="parseChatToConfirmation()">AI解析</button>
+                <button id="v4ClearBtn" class="ghost" type="button" onclick="clearV4Chat()">清空</button>
+            </div>
+            <div id="v4ParseStatus" class="status info">等待输入客户聊天内容。</div>
+        </section>
+
+        <section class="card right-card">
+            <h2>订单信息确认</h2>
+
+            <div class="section">
+                <h3>选择模板与 Profile</h3>
+                <div class="profile-grid">
+                    <div>
+                        <label for="v4TemplateFileInput">Excel 模板</label>
+                        <input id="v4TemplateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
+                    </div>
+                    <div>
+                        <label for="v4ProfileSelect">Template Profile</label>
+                        <select id="v4ProfileSelect"></select>
+                    </div>
+                </div>
+                <div id="v4ProfileStatus" class="status info">正在加载 Template Profiles...</div>
+            </div>
+
+            <div class="section">
+                <h3>模板化确认区</h3>
+                <div id="v4ConfirmationArea" class="confirmation-area">
+                    <div class="status warning">请先粘贴聊天内容并点击 AI解析。</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>操作区</h3>
+                <div class="actions">
+                    <button id="v4GenerateBtn" class="secondary" type="button" onclick="generateExcelFromConfirmation()">确认生成 Excel</button>
+                    <a id="v4DownloadLink" class="download-link" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
+                </div>
+                <div id="v4GenerateStatus" class="status info">确认信息后可生成 Excel。</div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let currentV4TemplateFile = null;
+        let v4Profiles = [];
+        let activeV4Profile = null;
+        let latestV4ParseResult = null;
+        let confirmedCells = [];
+        window.confirmedCells = confirmedCells;
+
+        function escapeHtml(value) {
+            const div = document.createElement("div");
+            div.textContent = value ?? "";
+            return div.innerHTML;
+        }
+
+        function setStatus(elementId, text, type = "info") {
+            const element = document.getElementById(elementId);
+            element.textContent = text;
+            element.className = `status ${type}`;
+        }
+
+        function columnIndexFromCell(cell) {
+            const column = String(cell || "").match(/^[A-Z]+/i)?.[0]?.toUpperCase() || "";
+            return column.split("").reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0);
+        }
+
+        function rowIndexFromCell(cell) {
+            return Number(String(cell || "").match(/\d+/)?.[0] || 0);
+        }
+
+        function sortCells(left, right) {
+            const leftRow = rowIndexFromCell(left.display_cell || left.cell);
+            const rightRow = rowIndexFromCell(right.display_cell || right.cell);
+            if (leftRow !== rightRow) return leftRow - rightRow;
+            return columnIndexFromCell(left.display_cell || left.cell) - columnIndexFromCell(right.display_cell || right.cell);
+        }
+
+        function friendlyLabel(item) {
+            const rawLabel = item.label || item.field_label || item.display_note || item.field || "";
+            if (rawLabel) return rawLabel;
+            const cell = item.display_cell || item.cell || "";
+            const knownLabels = {
+                C5: "客户名称",
+                C6: "数量",
+                F4: "日期",
+                C4: "文档编号",
+                F5: "客户性质",
+                F6: "负责人",
+                B13: "包装要求",
+                B20: "包装要求",
+                B23: "生产日期批号"
+            };
+            return knownLabels[cell] || item.source || "字段";
+        }
+
+        function cellValue(value) {
+            return value && typeof value === "object" ? value.value : value;
+        }
+
+        function syncConfirmedCellsFromInputs() {
+            confirmedCells = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]")).map(input => ({
+                cell: input.dataset.cell || "",
+                display_cell: input.dataset.displayCell || input.dataset.cell || "",
+                source: input.dataset.source || "",
+                label: input.dataset.label || "",
+                value: input.value
+            }));
+            window.confirmedCells = confirmedCells;
+        }
+
+        function renderCellConfirmation(cells) {
+            const safeCells = Array.isArray(cells) ? cells.filter(item => item && !item.skipped).slice().sort(sortCells) : [];
+            if (!safeCells.length) return false;
+
+            confirmedCells = safeCells.map(item => ({
+                cell: item.cell || "",
+                display_cell: item.display_cell || item.cell || "",
+                source: item.source || "",
+                label: friendlyLabel(item),
+                value: String(cellValue(item.value) ?? "")
+            }));
+
+            document.getElementById("v4ConfirmationArea").innerHTML = confirmedCells.map(item => `
+                <div class="confirmation-row">
+                    <div class="cell-code">${escapeHtml(item.display_cell || item.cell)}</div>
+                    <div class="field-label">${escapeHtml(item.label)}</div>
+                    <input
+                        type="text"
+                        value="${escapeHtml(item.value)}"
+                        data-cell="${escapeHtml(item.cell)}"
+                        data-display-cell="${escapeHtml(item.display_cell)}"
+                        data-source="${escapeHtml(item.source)}"
+                        data-label="${escapeHtml(item.label)}"
+                        oninput="syncConfirmedCellsFromInputs()"
+                    >
+                </div>
+            `).join("");
+            syncConfirmedCellsFromInputs();
+            return true;
+        }
+
+        function flattenObject(prefix, value) {
+            if (!value || typeof value !== "object" || Array.isArray(value)) {
+                return [{ label: prefix, value: value ?? "" }];
+            }
+            return Object.entries(value).flatMap(([key, nestedValue]) => flattenObject(key, nestedValue));
+        }
+
+        function renderOrderObjectFallback(orderObject) {
+            const safeOrder = orderObject || {};
+            const groups = [
+                ["客户信息", safeOrder.customer || {}],
+                ["订单信息", safeOrder.order || {}],
+                ["产品信息", safeOrder.product || {}]
+            ];
+            confirmedCells = [];
+            document.getElementById("v4ConfirmationArea").innerHTML = `
+                <div class="fallback-grid">
+                    ${groups.map(([title, data]) => `
+                        <div class="fallback-card">
+                            <h4>${escapeHtml(title)}</h4>
+                            ${flattenObject("", data).map(item => `
+                                <label>${escapeHtml(item.label)}</label>
+                                <input type="text" value="${escapeHtml(item.value)}" oninput="syncConfirmedCellsFromInputs()">
+                            `).join("") || '<div class="small">暂无数据</div>'}
+                        </div>
+                    `).join("")}
+                </div>
+            `;
+        }
+
+        function renderConfirmation(result) {
+            const parseResult = result.parse_result || {};
+            const pipelineResult = result.pipeline_result || {};
+            const renderPreview = pipelineResult.render_preview || {};
+            const cells = renderPreview.cells || renderPreview.cell_preview || [];
+            if (renderCellConfirmation(cells)) return;
+            renderOrderObjectFallback(parseResult.order_object || {});
+        }
+
+        async function loadV4Profiles() {
+            try {
+                const profilesResponse = await fetch("/api/v4/template-profiles");
+                const profilesResult = await profilesResponse.json();
+                if (!profilesResponse.ok || !profilesResult.success) {
+                    throw new Error(profilesResult.error || "Template Profiles 加载失败");
+                }
+
+                v4Profiles = Array.isArray(profilesResult.profiles) ? profilesResult.profiles : [];
+                document.getElementById("v4ProfileSelect").innerHTML = v4Profiles.map(profile => {
+                    const profileId = profile.profile_id || "";
+                    const label = profile.profile_name ? `${profile.profile_name} (${profileId})` : profileId;
+                    return `<option value="${escapeHtml(profileId)}">${escapeHtml(label)}</option>`;
+                }).join("");
+
+                const currentResponse = await fetch("/api/v4/current-template-profile");
+                const currentResult = await currentResponse.json();
+                if (!currentResponse.ok || !currentResult.success) {
+                    throw new Error(currentResult.error || "Active Profile 加载失败");
+                }
+
+                activeV4Profile = currentResult.profile || {};
+                if (activeV4Profile.profile_id) {
+                    document.getElementById("v4ProfileSelect").value = activeV4Profile.profile_id;
+                }
+                setStatus("v4ProfileStatus", `当前 Profile：${activeV4Profile.profile_name || activeV4Profile.profile_id || "未选择"}`, "success");
+            } catch (error) {
+                setStatus("v4ProfileStatus", error.message || "Template Profiles 加载失败", "error");
+            }
+        }
+
+        async function setActiveV4Profile(profileId) {
+            if (!profileId) {
+                setStatus("v4ProfileStatus", "请选择 Profile", "warning");
+                return;
+            }
+
+            try {
+                setStatus("v4ProfileStatus", "正在切换 Profile...", "info");
+                const response = await fetch("/api/v4/set-current-template-profile", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ profile_id: profileId })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "Profile 切换失败");
+                }
+                activeV4Profile = result.profile || {};
+                setStatus("v4ProfileStatus", `当前 Profile：${activeV4Profile.profile_name || activeV4Profile.profile_id || profileId}`, "success");
+            } catch (error) {
+                setStatus("v4ProfileStatus", error.message || "Profile 切换失败", "error");
+            }
+        }
+
+        async function parseChatToConfirmation() {
+            const chatText = document.getElementById("v4ChatText").value.trim();
+            if (!chatText) {
+                setStatus("v4ParseStatus", "请先输入客户聊天内容", "warning");
+                return;
+            }
+
+            try {
+                setStatus("v4ParseStatus", "AI 正在解析订单信息...", "info");
+                document.getElementById("v4DownloadLink").style.display = "none";
+                const response = await fetch("/api/v4/parse-chat-run-pipeline", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chat_text: chatText })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "AI解析失败");
+                }
+                latestV4ParseResult = result;
+                renderConfirmation(result);
+                setStatus("v4ParseStatus", "AI解析完成，请在右侧确认订单信息。", "success");
+            } catch (error) {
+                setStatus("v4ParseStatus", error.message || "AI解析失败", "error");
+            }
+        }
+
+        function clearV4Chat() {
+            document.getElementById("v4ChatText").value = "";
+            document.getElementById("v4ConfirmationArea").innerHTML = '<div class="status warning">请先粘贴聊天内容并点击 AI解析。</div>';
+            document.getElementById("v4DownloadLink").style.display = "none";
+            confirmedCells = [];
+            window.confirmedCells = confirmedCells;
+            latestV4ParseResult = null;
+            setStatus("v4ParseStatus", "等待输入客户聊天内容。", "info");
+            setStatus("v4GenerateStatus", "确认信息后可生成 Excel。", "info");
+        }
+
+        async function generateExcelFromConfirmation() {
+            const chatText = document.getElementById("v4ChatText").value.trim();
+            if (!chatText) {
+                setStatus("v4GenerateStatus", "请先输入客户聊天内容", "warning");
+                return;
+            }
+            if (!currentV4TemplateFile) {
+                setStatus("v4GenerateStatus", "请先上传 Excel 模板", "warning");
+                return;
+            }
+
+            syncConfirmedCellsFromInputs();
+            try {
+                setStatus("v4GenerateStatus", "正在生成 Excel...", "info");
+                const formData = new FormData();
+                formData.append("template_file", currentV4TemplateFile);
+                formData.append("chat_text", chatText);
+                const response = await fetch("/api/v4/parse-chat-export-excel", {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "Excel 生成失败");
+                }
+
+                const exportResult = result.export_result || {};
+                const warnings = Array.isArray(exportResult.warnings) ? exportResult.warnings : [];
+                const downloadUrl = exportResult.download_url || "";
+                const downloadLink = document.getElementById("v4DownloadLink");
+                downloadLink.href = downloadUrl || "#";
+                downloadLink.style.display = downloadUrl ? "inline-flex" : "none";
+                setStatus(
+                    "v4GenerateStatus",
+                    `Excel 已生成：${exportResult.filename || "-"}，写入 ${exportResult.operations_written || 0} 项，warnings ${warnings.length} 个。`,
+                    "success"
+                );
+            } catch (error) {
+                setStatus("v4GenerateStatus", error.message || "Excel 生成失败", "error");
+            }
+        }
+
+        document.getElementById("v4ChatFileInput").addEventListener("change", async event => {
+            const file = event.target.files && event.target.files.length ? event.target.files[0] : null;
+            if (!file) return;
+            try {
+                const text = await file.text();
+                document.getElementById("v4ChatText").value = text;
+                setStatus("v4ParseStatus", `已导入聊天文件：${file.name}`, "success");
+            } catch (error) {
+                setStatus("v4ParseStatus", error.message || "聊天文件读取失败", "error");
+            }
+        });
+
+        document.getElementById("v4TemplateFileInput").addEventListener("change", event => {
+            currentV4TemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
+            setStatus(
+                "v4GenerateStatus",
+                currentV4TemplateFile ? `已选择模板：${currentV4TemplateFile.name}` : "请先上传 Excel 模板",
+                currentV4TemplateFile ? "success" : "warning"
+            );
+        });
+
+        document.getElementById("v4ProfileSelect").addEventListener("change", event => {
+            setActiveV4Profile(event.target.value);
+        });
+
+        document.addEventListener("DOMContentLoaded", loadV4Profiles);
+    </script>
+</body>
+</html>
