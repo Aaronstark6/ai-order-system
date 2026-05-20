@@ -99,6 +99,31 @@
             min-height: 36px;
             padding: 8px 10px;
         }
+        .html-preview {
+            background: #f8faf9;
+            border: 1px solid #d9e1dc;
+            border-radius: 8px;
+            color: #1f2933;
+            padding: 16px;
+        }
+        .html-preview table { margin: 10px 0 16px; }
+        .html-preview th, .html-preview td { border-color: #d9e1dc; }
+        .badge {
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 12px;
+            margin: 0 4px 4px 0;
+            padding: 2px 8px;
+        }
+        .badge-skipped { background: #ffe2e0; color: #a8201a; }
+        .badge-conflict { background: #fff4ce; color: #7a4f00; }
+        .badge-overwrite { background: #eadcff; color: #5b247a; }
+        .badge-ok { background: #e4f6ea; color: #176039; }
+        .small {
+            color: #58665f;
+            font-size: 12px;
+            line-height: 1.4;
+        }
         input[type="file"] { display: none; }
         @media (max-width: 760px) {
             .header-inner, .toolbar { align-items: flex-start; flex-direction: column; }
@@ -213,6 +238,31 @@
         </section>
 
         <section class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Inline Render Preview</div>
+                <button class="btn-secondary" type="button" onclick="refreshInlineRenderPreview()">刷新 Inline Preview</button>
+            </div>
+            <div class="panel-body">
+                <div class="state-item">
+                    <div class="label">Cell Preview</div>
+                    <div id="inlineCellPreview" class="value"><div class="message warning">暂无 Inline Render Preview</div></div>
+                </div>
+                <div class="state-item">
+                    <div class="label">Table Preview</div>
+                    <div id="inlineTablePreview" class="value"><div class="message warning">暂无 Inline Render Preview</div></div>
+                </div>
+                <div class="state-item">
+                    <div class="label">Block Preview</div>
+                    <div id="inlineBlockPreview" class="value"><div class="message warning">暂无 Inline Render Preview</div></div>
+                </div>
+                <div class="state-item">
+                    <div class="label">HTML Preview</div>
+                    <div id="inlineHtmlPreview" class="value"><div class="message warning">暂无 Inline Render Preview</div></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
             <div class="panel-header"><div class="panel-title">高级调试</div></div>
             <pre id="debugJson">{}</pre>
         </section>
@@ -287,6 +337,7 @@
             renderValidator(validator);
             renderStages(pipeline.stages || []);
             renderPreviewSummary(renderPreview);
+            renderInlinePreviewFromState(currentPipelineState || {});
             renderDebug();
         }
 
@@ -367,6 +418,158 @@
                     ${stateItem("generated_time", renderPreview.generated_time || "-")}
                 </div>
             `;
+        }
+
+        function columnIndex(column) {
+            return String(column || "").split("").reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0);
+        }
+
+        function previewBadges(item) {
+            const safeItem = item || {};
+            const safety = String(safeItem.safety || "").toLowerCase();
+            const labels = [];
+            if (safeItem.skipped || safety === "skipped") labels.push('<span class="badge badge-skipped">skipped</span>');
+            if (safeItem.conflict || safety === "conflict") labels.push('<span class="badge badge-conflict">conflict</span>');
+            if (safeItem.overwrite_warning || safety === "overwrite") labels.push('<span class="badge badge-overwrite">overwrite_warning</span>');
+            if (!labels.length) labels.push('<span class="badge badge-ok">ok</span>');
+            return labels.join("");
+        }
+
+        function previewCellValue(value) {
+            return value && typeof value === "object" ? value.value : value;
+        }
+
+        function renderInlineCellPreview(items) {
+            if (!Array.isArray(items) || !items.length) {
+                document.getElementById("inlineCellPreview").innerHTML = '<div class="message warning">暂无 Inline Render Preview</div>';
+                return;
+            }
+            document.getElementById("inlineCellPreview").innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>cell</th>
+                            <th>display cell</th>
+                            <th>merged range</th>
+                            <th>value</th>
+                            <th>operation type</th>
+                            <th>source</th>
+                            <th>display note</th>
+                            <th>safety</th>
+                            <th>skip reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.cell || "")}</td>
+                                <td>${escapeHtml(item.display_cell || item.cell || "")}</td>
+                                <td>${escapeHtml(item.merged_range || "")}</td>
+                                <td>${escapeHtml(previewCellValue(item.value))}</td>
+                                <td>${escapeHtml(item.operation_type || item.op_type || "")}</td>
+                                <td>${escapeHtml(item.source || "")}</td>
+                                <td>${escapeHtml(item.display_note || "")}</td>
+                                <td>${previewBadges(item)}${item.safety ? `<div class="small">${escapeHtml(item.safety)}</div>` : ""}</td>
+                                <td>${escapeHtml(item.skip_reason || "")}</td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderInlineTablePreview(tables) {
+            if (!Array.isArray(tables) || !tables.length) {
+                document.getElementById("inlineTablePreview").innerHTML = '<div class="message warning">暂无 Inline Render Preview</div>';
+                return;
+            }
+            document.getElementById("inlineTablePreview").innerHTML = tables.map(table => {
+                const rows = Array.isArray(table.rows) ? table.rows : [];
+                const columns = Array.from(new Set(rows.flatMap(row => Object.keys(row.cells || {}))))
+                    .sort((left, right) => columnIndex(left) - columnIndex(right));
+                return `
+                    <div class="label">${escapeHtml(table.table_name || "未命名表格")}</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>row_number</th>
+                                ${columns.map(column => `<th>${escapeHtml(column)}<br><span class="small">display / merged</span></th>`).join("")}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.map(row => `
+                                <tr>
+                                    <td>${escapeHtml(row.row_number || "")}</td>
+                                    ${columns.map(column => {
+                                        const item = (row.cells || {})[column];
+                                        const displayText = item?.display_note || "";
+                                        const mergedText = item?.merged_range ? `merged: ${item.merged_range}` : "";
+                                        return `
+                                            <td>
+                                                ${escapeHtml(previewCellValue(item) || "")}
+                                                ${displayText ? `<div class="small">${escapeHtml(displayText)}</div>` : ""}
+                                                ${mergedText ? `<div class="small">${escapeHtml(mergedText)}</div>` : ""}
+                                                <div>${previewBadges(item || {})}</div>
+                                            </td>
+                                        `;
+                                    }).join("")}
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                `;
+            }).join("");
+        }
+
+        function renderInlineBlockPreview(blocks) {
+            if (!Array.isArray(blocks) || !blocks.length) {
+                document.getElementById("inlineBlockPreview").innerHTML = '<div class="message warning">暂无 Inline Render Preview</div>';
+                return;
+            }
+            document.getElementById("inlineBlockPreview").innerHTML = blocks.map(block => `
+                <div class="state-item">
+                    <div class="label">${escapeHtml(block.block_name || "未命名区块")} · ${escapeHtml(block.target_cell || "")}</div>
+                    <div>${previewBadges(block)}</div>
+                    <pre>${escapeHtml(block.value || "")}</pre>
+                </div>
+            `).join("");
+        }
+
+        function renderInlineHtmlPreview(html) {
+            document.getElementById("inlineHtmlPreview").innerHTML = html
+                ? `<div class="html-preview">${html}</div>`
+                : '<div class="message warning">暂无 HTML Preview</div>';
+        }
+
+        function renderInlinePreviewFromState(state) {
+            const safeState = state || {};
+            const renderPreview = safeState.render_preview || {};
+            const htmlPreview = safeState.render_targets?.html_preview || "";
+            renderInlineCellPreview(renderPreview.cells || renderPreview.cell_preview || []);
+            renderInlineTablePreview(renderPreview.table_preview || []);
+            renderInlineBlockPreview(renderPreview.block_preview || []);
+            renderInlineHtmlPreview(htmlPreview);
+        }
+
+        async function refreshInlineRenderPreview() {
+            try {
+                const response = await fetch("/api/v4/render-preview");
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "Inline Render Preview 加载失败");
+                }
+                const preview = result.render_preview || {};
+                renderInlineCellPreview(preview.cells || preview.cell_preview || []);
+                renderInlineTablePreview(preview.table_preview || []);
+                renderInlineBlockPreview(preview.block_preview || []);
+                renderInlineHtmlPreview(result.html_preview || result.render_targets?.html_preview || "");
+            } catch (error) {
+                const message = escapeHtml(error.message || "Inline Render Preview 加载失败");
+                document.getElementById("inlineCellPreview").innerHTML = `<div class="message error">${message}</div>`;
+                document.getElementById("inlineTablePreview").innerHTML = '<div class="message warning">暂无 Inline Render Preview</div>';
+                document.getElementById("inlineBlockPreview").innerHTML = '<div class="message warning">暂无 Inline Render Preview</div>';
+                document.getElementById("inlineHtmlPreview").innerHTML = '<div class="message warning">暂无 HTML Preview</div>';
+            }
         }
 
         function renderDebug() {
