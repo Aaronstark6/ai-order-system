@@ -352,11 +352,36 @@
             return Number(String(cell || "").match(/\d+/)?.[0] || 0);
         }
 
+        function getVisualCell(item) {
+            return item.display_cell || item.cell || "";
+        }
+
+        function visualCellSort(left, right) {
+            const leftCell = getVisualCell(left);
+            const rightCell = getVisualCell(right);
+            const leftRow = rowIndexFromCell(leftCell);
+            const rightRow = rowIndexFromCell(rightCell);
+            const leftHasCell = Boolean(leftCell);
+            const rightHasCell = Boolean(rightCell);
+
+            if (leftHasCell !== rightHasCell) {
+                return leftHasCell ? -1 : 1;
+            }
+            if (leftRow !== rightRow) {
+                return leftRow - rightRow;
+            }
+
+            const leftColumn = columnIndexFromCell(leftCell);
+            const rightColumn = columnIndexFromCell(rightCell);
+            if (leftColumn !== rightColumn) {
+                return leftColumn - rightColumn;
+            }
+
+            return String(left.label || "").localeCompare(String(right.label || ""), "zh-CN");
+        }
+
         function sortCells(left, right) {
-            const leftRow = rowIndexFromCell(left.display_cell || left.cell);
-            const rightRow = rowIndexFromCell(right.display_cell || right.cell);
-            if (leftRow !== rightRow) return leftRow - rightRow;
-            return columnIndexFromCell(left.display_cell || left.cell) - columnIndexFromCell(right.display_cell || right.cell);
+            return visualCellSort(left, right);
         }
 
         function friendlyLabel(item) {
@@ -428,7 +453,7 @@
                 return result;
             }, {});
 
-            const safeCells = Array.isArray(cells) ? cells.filter(item => item && !item.skipped).slice().sort(sortCells) : [];
+            const safeCells = Array.isArray(cells) ? cells.filter(item => item && !item.skipped) : [];
             safeCells.forEach(item => {
                 const label = friendlyLabel(item);
                 const normalized = {
@@ -440,6 +465,10 @@
                     section: inferConfirmationSection({ ...item, label })
                 };
                 grouped[normalized.section].push(normalized);
+            });
+
+            sectionOrder.forEach(key => {
+                grouped[key].sort(visualCellSort);
             });
 
             return sectionOrder
