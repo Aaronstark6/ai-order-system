@@ -20,6 +20,9 @@ FILE_FIELDS = [
     "table_mapping_file",
     "block_rules_file",
 ]
+OPTIONAL_FILE_FIELDS = [
+    "template_file_path",
+]
 
 
 def _profiles_dir():
@@ -129,6 +132,7 @@ def build_template_profile(
     layout_hash="",
     template_name="",
     template_filename="",
+    template_file_path="",
     template_note="",
 ):
     profile_id = _safe_profile_id(profile_id)
@@ -142,6 +146,7 @@ def build_template_profile(
         "layout_hash": str(layout_hash or "").strip(),
         "template_name": str(template_name or "").strip(),
         "template_filename": str(template_filename or "").strip(),
+        "template_file_path": str(template_file_path or "").strip(),
         "template_note": str(template_note or "").strip(),
         "structured_mapping_file": rule_paths["structured_mapping_file"],
         "table_mapping_file": rule_paths["table_mapping_file"],
@@ -171,6 +176,7 @@ def save_template_profile(profile):
     merged["profile_id"] = profile_id
     merged["profile_name"] = str(merged.get("profile_name") or profile_id).strip()
     merged["schema_version"] = str(merged.get("schema_version") or "v4.1").strip() or "v4.1"
+    merged["template_file_path"] = str(merged.get("template_file_path") or "").strip()
     merged["created_at"] = str(merged.get("created_at") or now_text)
     merged["updated_at"] = now_text
 
@@ -206,6 +212,7 @@ def create_template_profile(payload):
         layout_hash=payload.get("layout_hash") or "",
         template_name=payload.get("template_name") or "",
         template_filename=payload.get("template_filename") or "",
+        template_file_path=payload.get("template_file_path") or "",
         template_note=payload.get("template_note") or "",
     )
 
@@ -224,6 +231,18 @@ def validate_template_profile(profile):
 
     for field in FILE_FIELDS:
         path = _resolve_profile_file(profile.get(field))
+        if path and path.is_file():
+            file_status[field] = "ok"
+        else:
+            file_status[field] = "missing"
+            warnings.append(f"{field} 文件暂不存在")
+
+    for field in OPTIONAL_FILE_FIELDS:
+        value = str(profile.get(field) or "").strip()
+        if not value:
+            file_status[field] = "unbound"
+            continue
+        path = _resolve_profile_file(value)
         if path and path.is_file():
             file_status[field] = "ok"
         else:

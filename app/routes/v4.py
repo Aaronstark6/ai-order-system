@@ -79,6 +79,11 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+@router.get("/v4-template-settings")
+def v4_template_settings_page():
+    return FileResponse(get_base_dir() / "static" / "v4_template_settings.html")
+
+
 def _save_v4_uploaded_template(file: UploadFile):
     original_name = Path(file.filename or "").name
     if not original_name:
@@ -112,6 +117,65 @@ def _remove_v4_uploaded_template(path):
         Path(path).unlink(missing_ok=True)
     except Exception:
         logger.warning("V4 temporary template cleanup failed: path=%s", path, exc_info=True)
+
+
+def _current_template_profile_for_export():
+    state = get_pipeline_state()
+    profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not profile:
+        profile = get_current_template_profile()
+    return profile if isinstance(profile, dict) else {}
+
+
+def _resolve_bound_template_file_path(path_value):
+    raw_path = str(path_value or "").strip()
+    if not raw_path:
+        return None
+
+    path = Path(raw_path)
+    if ".." in path.parts:
+        raise ValueError("template_file_path 不允许包含 ..")
+
+    resolved = path if path.is_absolute() else get_base_dir() / path
+    resolved = resolved.resolve()
+    if not resolved.is_file():
+        raise FileNotFoundError(f"系统模板绑定文件不存在: {raw_path}")
+    return resolved
+
+
+def _resolve_export_template_source(template_file: Optional[UploadFile]):
+    profile = _current_template_profile_for_export()
+    profile_id = profile.get("profile_id") or ""
+    template_file_path = str(profile.get("template_file_path") or "").strip()
+    bound_error = ""
+
+    if template_file_path:
+        try:
+            bound_path = _resolve_bound_template_file_path(template_file_path)
+            set_current_template(bound_path.name)
+            logger.info(
+                "V4 export using bound template file: profile_id=%s path=%s",
+                profile_id,
+                bound_path,
+            )
+            return bound_path, False, "profile"
+        except (OSError, ValueError) as exc:
+            bound_error = str(exc)
+            logger.info(
+                "V4 bound template file unavailable, fallback to upload: profile_id=%s error=%s",
+                profile_id,
+                bound_error,
+            )
+
+    if template_file is not None and Path(template_file.filename or "").name:
+        upload_path = _save_v4_uploaded_template(template_file)
+        set_current_template(Path(template_file.filename or "").name)
+        logger.info("V4 export using uploaded template file: filename=%s", template_file.filename)
+        return upload_path, True, "upload"
+
+    if bound_error:
+        raise ValueError(f"系统模板绑定文件不可用: {bound_error}")
+    raise ValueError("请先上传 Excel 模板，或为系统模板绑定 template_file_path")
 
 
 def _cell_key(value):
@@ -383,6 +447,7 @@ def api_v4_pipeline_profile_debug():
         "active_profile_source": "pipeline_state" if state.get("current_profile") else "default_profile",
         "profile_id": profile.get("profile_id"),
         "profile_name": profile.get("profile_name"),
+        "template_file_path": profile.get("template_file_path"),
         "structured_mapping_file": profile.get("structured_mapping_file"),
         "table_mapping_file": profile.get("table_mapping_file"),
         "block_rules_file": profile.get("block_rules_file"),
@@ -411,6 +476,22 @@ def api_v4_set_current_template_profile(payload: Any = Body(None)):
         }
 
     state = set_current_profile(profile)
+    template_file_path = str(profile.get("template_file_path") or "").strip()
+    if template_file_path:
+        try:
+            bound_template_path = _resolve_bound_template_file_path(template_file_path)
+            state = set_current_template(bound_template_path.name)
+            logger.info(
+                "V4 current template profile bound template resolved: profile_id=%s path=%s",
+                profile.get("profile_id"),
+                bound_template_path,
+            )
+        except (OSError, ValueError) as exc:
+            logger.info(
+                "V4 current template profile bound template unavailable: profile_id=%s error=%s",
+                profile.get("profile_id"),
+                exc,
+            )
     return {
         "success": True,
         "message": "Current Template Profile 已设置",
@@ -487,6 +568,40 @@ def api_v4_template_profile_save(payload: Any = Body(None)):
         return {
             "success": False,
             "error": str(exc) or "Template Profile 保存失败",
+        }
+
+
+@router.post("/api/v4/template-profiles/{profile_id}/template-file")
+def api_v4_template_profile_template_file_update(profile_id: str, payload: Any = Body(None)):
+    logger.info("V4 template profile template file update requested: profile_id=%s", profile_id)
+    payload = payload if isinstance(payload, dict) else {}
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "Template Profile 不存在",
+        }
+
+    profile["template_file_path"] = str(payload.get("template_file_path") or "").strip()
+    try:
+        saved_profile = save_template_profile(profile)
+        state = get_pipeline_state()
+        current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+        if current_profile.get("profile_id") == saved_profile.get("profile_id"):
+            state = set_current_profile(saved_profile)
+        validation = validate_template_profile(saved_profile)
+        return {
+            "success": True,
+            "message": "Template Profile 模板文件已保存",
+            "profile": saved_profile,
+            "validation": validation,
+            "pipeline_state": state,
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile template file update failed")
+        return {
+            "success": False,
+            "error": str(exc) or "Template Profile 模板文件保存失败",
         }
 
 
@@ -894,7 +1009,7 @@ def api_v4_core_pipeline_run():
 
 @router.post("/api/v4/parse-chat-export-excel")
 def api_v4_parse_chat_export_excel(
-    template_file: UploadFile = File(...),
+    template_file: Optional[UploadFile] = File(None),
     chat_text: str = Form(""),
     message: str = Form(""),
 ):
@@ -902,7 +1017,10 @@ def api_v4_parse_chat_export_excel(
     from app.v4_render_preview import build_render_preview
     from app.v4_render_targets import render_preview_to_html
 
-    logger.info("V4 parse chat and export Excel requested: filename=%s", template_file.filename)
+    logger.info(
+        "V4 parse chat and export Excel requested: filename=%s",
+        template_file.filename if template_file else "",
+    )
 
     text = str(chat_text or "").strip()
     if not text:
@@ -916,6 +1034,8 @@ def api_v4_parse_chat_export_excel(
         }
 
     template_path = None
+    cleanup_template_path = False
+    template_source = ""
     try:
         pipeline_e2e_result = api_v4_parse_chat_run_pipeline({"chat_text": text})
         if not pipeline_e2e_result.get("success"):
@@ -938,8 +1058,7 @@ def api_v4_parse_chat_export_excel(
                 "pipeline_state": get_pipeline_state(),
             }
 
-        template_path = _save_v4_uploaded_template(template_file)
-        set_current_template(Path(template_file.filename or "").name)
+        template_path, cleanup_template_path, template_source = _resolve_export_template_source(template_file)
 
         export_result = execute_processed_operations_to_excel(template_path, processed_operations)
         if not export_result.get("success"):
@@ -975,6 +1094,7 @@ def api_v4_parse_chat_export_excel(
                 "download_url": export_result.get("download_url", ""),
                 "operations_written": export_result.get("operations_written", 0),
                 "warnings": export_result.get("warnings", []),
+                "template_source": template_source,
             },
             "render_preview": get_pipeline_state().get("render_preview", {}),
             "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
@@ -997,12 +1117,13 @@ def api_v4_parse_chat_export_excel(
             "pipeline_state": get_pipeline_state(),
         }
     finally:
-        _remove_v4_uploaded_template(template_path)
+        if cleanup_template_path:
+            _remove_v4_uploaded_template(template_path)
 
 
 @router.post("/api/v4/export-confirmed-excel")
 def api_v4_export_confirmed_excel(
-    template_file: UploadFile = File(...),
+    template_file: Optional[UploadFile] = File(None),
     chat_text: str = Form(""),
     confirmed_cells_json: str = Form("[]"),
 ):
@@ -1010,7 +1131,10 @@ def api_v4_export_confirmed_excel(
     from app.v4_render_preview import build_render_preview
     from app.v4_render_targets import render_preview_to_html
 
-    logger.info("V4 confirmed cells export requested: filename=%s", template_file.filename)
+    logger.info(
+        "V4 confirmed cells export requested: filename=%s",
+        template_file.filename if template_file else "",
+    )
 
     text = str(chat_text or "").strip()
     if not text:
@@ -1039,6 +1163,8 @@ def api_v4_export_confirmed_excel(
         }
 
     template_path = None
+    cleanup_template_path = False
+    template_source = ""
     try:
         pipeline_e2e_result = api_v4_parse_chat_run_pipeline({"chat_text": text})
         if not pipeline_e2e_result.get("success"):
@@ -1065,8 +1191,7 @@ def api_v4_export_confirmed_excel(
         overridden_operations = override_result.get("processed_operations", [])
         confirmed_override_count = override_result.get("override_count", 0)
 
-        template_path = _save_v4_uploaded_template(template_file)
-        set_current_template(Path(template_file.filename or "").name)
+        template_path, cleanup_template_path, template_source = _resolve_export_template_source(template_file)
 
         export_result = execute_processed_operations_to_excel(template_path, overridden_operations)
         if not export_result.get("success"):
@@ -1109,6 +1234,7 @@ def api_v4_export_confirmed_excel(
                 "download_url": export_result.get("download_url", ""),
                 "operations_written": export_result.get("operations_written", 0),
                 "warnings": export_result.get("warnings", []),
+                "template_source": template_source,
             },
             "render_preview": get_pipeline_state().get("render_preview", {}),
             "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
@@ -1131,17 +1257,23 @@ def api_v4_export_confirmed_excel(
             "pipeline_state": get_pipeline_state(),
         }
     finally:
-        _remove_v4_uploaded_template(template_path)
+        if cleanup_template_path:
+            _remove_v4_uploaded_template(template_path)
 
 
 @router.post("/api/v4/core-pipeline/export-excel")
-def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
+def api_v4_core_pipeline_export_excel(template_file: Optional[UploadFile] = File(None)):
     from app.v4_excel_executor import execute_processed_operations_to_excel
     from app.v4_render_preview import build_render_preview
     from app.v4_render_targets import render_preview_to_html
 
-    logger.info("V4 core pipeline export Excel requested: filename=%s", template_file.filename)
+    logger.info(
+        "V4 core pipeline export Excel requested: filename=%s",
+        template_file.filename if template_file else "",
+    )
     template_path = None
+    cleanup_template_path = False
+    template_source = ""
     try:
         state = get_pipeline_state()
         processed_operations = state.get("pipeline", {}).get("processed_operations", [])
@@ -1155,8 +1287,7 @@ def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
                 }
             processed_operations = run_result.get("processed_operations", [])
 
-        template_path = _save_v4_uploaded_template(template_file)
-        set_current_template(Path(template_file.filename or "").name)
+        template_path, cleanup_template_path, template_source = _resolve_export_template_source(template_file)
         result = execute_processed_operations_to_excel(template_path, processed_operations)
         if not result.get("success"):
             return {
@@ -1180,6 +1311,7 @@ def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
             "download_url": result.get("download_url", ""),
             "operations_written": result.get("operations_written", 0),
             "warnings": result.get("warnings", []),
+            "template_source": template_source,
             "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
             "pipeline_state": state,
         }
@@ -1197,7 +1329,8 @@ def api_v4_core_pipeline_export_excel(template_file: UploadFile = File(...)):
             "pipeline_state": get_pipeline_state(),
         }
     finally:
-        _remove_v4_uploaded_template(template_path)
+        if cleanup_template_path:
+            _remove_v4_uploaded_template(template_path)
 
 
 @router.post("/api/v4/render-preview/build")

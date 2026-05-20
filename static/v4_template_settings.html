@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统模板设置</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background: #f5f6f8;
+            color: #333;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 24px;
+        }
+        .page {
+            margin: 0 auto;
+            max-width: 1180px;
+        }
+        .header {
+            align-items: center;
+            display: flex;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        h1 {
+            flex: 1 1 auto;
+            font-size: 28px;
+            margin: 0;
+        }
+        a {
+            color: #1677ff;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        a:hover { text-decoration: underline; }
+        .panel {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 20px;
+        }
+        .hint {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0 0 16px;
+        }
+        .status {
+            border-radius: 7px;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 14px;
+            min-height: 22px;
+            padding: 10px 12px;
+        }
+        .status.info { background: #f2f6ff; color: #315c9c; }
+        .status.success { background: #e9f8ef; color: #16713b; }
+        .status.warning { background: #fff7db; color: #8a6100; }
+        .status.error { background: #ffe9e7; color: #b42318; }
+        .profile-list {
+            display: grid;
+            gap: 14px;
+        }
+        .profile-card {
+            border: 1px solid #e0e4ec;
+            border-radius: 10px;
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+        }
+        .profile-head {
+            align-items: baseline;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+        }
+        .profile-name {
+            color: #222;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .profile-id {
+            color: #666;
+            font-size: 13px;
+        }
+        .meta-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .meta-item {
+            background: #fafbfd;
+            border: 1px solid #edf0f4;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .meta-label {
+            color: #777;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .meta-value {
+            color: #333;
+            font-size: 14px;
+            overflow-wrap: anywhere;
+        }
+        label {
+            color: #333;
+            display: block;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        input {
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            font-size: 14px;
+            min-height: 40px;
+            padding: 9px 10px;
+            width: 100%;
+        }
+        .actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        button {
+            background: #1677ff;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 38px;
+            padding: 9px 16px;
+        }
+        button.secondary {
+            background: #eef2f7;
+            color: #344054;
+        }
+        .small {
+            color: #777;
+            font-size: 13px;
+        }
+        @media (max-width: 900px) {
+            body { padding: 16px; }
+            .header { align-items: flex-start; flex-direction: column; gap: 8px; }
+            .meta-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <header class="header">
+            <h1>系统模板设置</h1>
+            <a href="/v4-order-workspace">订单工作台</a>
+            <a href="/v4-core-pipeline">V4 Core Pipeline</a>
+        </header>
+
+        <section class="panel">
+            <p class="hint">这里用于维护系统模板与公司模板文件的绑定关系。当前阶段仅支持查看 Template Profiles 并编辑 template_file_path。</p>
+            <div id="settingsStatus" class="status info">正在加载系统模板...</div>
+            <div class="actions" style="margin-bottom: 14px;">
+                <button type="button" onclick="loadTemplateProfiles()">刷新</button>
+            </div>
+            <div id="profileList" class="profile-list"></div>
+        </section>
+    </main>
+
+    <script>
+        function escapeHtml(value) {
+            const div = document.createElement("div");
+            div.textContent = value ?? "";
+            return div.innerHTML;
+        }
+
+        function setStatus(text, type = "info") {
+            const element = document.getElementById("settingsStatus");
+            element.textContent = text;
+            element.className = `status ${type}`;
+        }
+
+        function templateFileStatus(validation) {
+            const fileStatus = validation && validation.file_status ? validation.file_status : {};
+            return fileStatus.template_file_path || "unbound";
+        }
+
+        function renderProfiles(items) {
+            const list = document.getElementById("profileList");
+            if (!items.length) {
+                list.innerHTML = '<div class="status warning">暂无系统模板。</div>';
+                return;
+            }
+
+            list.innerHTML = items.map(item => {
+                const profile = item.profile || {};
+                const validation = item.validation || {};
+                const profileId = profile.profile_id || "";
+                const templatePath = profile.template_file_path || "";
+                const status = templateFileStatus(validation);
+                return `
+                    <div class="profile-card" data-profile-id="${escapeHtml(profileId)}">
+                        <div class="profile-head">
+                            <div class="profile-name">${escapeHtml(profile.profile_name || profileId)}</div>
+                            <div class="profile-id">${escapeHtml(profileId)}</div>
+                        </div>
+                        <div class="meta-grid">
+                            <div class="meta-item">
+                                <div class="meta-label">template_file_path</div>
+                                <div class="meta-value">${escapeHtml(templatePath || "unbound")}</div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-label">validation.valid</div>
+                                <div class="meta-value">${validation.valid ? "true" : "false"}</div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-label">file_status.template_file_path</div>
+                                <div class="meta-value">${escapeHtml(status)}</div>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="templatePath-${escapeHtml(profileId)}">绑定模板文件路径</label>
+                            <input
+                                id="templatePath-${escapeHtml(profileId)}"
+                                type="text"
+                                value="${escapeHtml(templatePath)}"
+                                placeholder="例如 templates/order_template.xlsx"
+                            >
+                            <div class="small">留空表示 unbound，工作台将继续使用上传文件兼容模式。</div>
+                        </div>
+                        <div class="actions">
+                            <button type="button" onclick="saveTemplateFilePath('${escapeHtml(profileId)}')">保存</button>
+                            <span id="status-${escapeHtml(profileId)}" class="small"></span>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        async function loadTemplateProfiles() {
+            try {
+                setStatus("正在加载系统模板...", "info");
+                const response = await fetch("/api/v4/template-profiles");
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "系统模板加载失败");
+                }
+
+                const profiles = Array.isArray(result.profiles) ? result.profiles : [];
+                const details = await Promise.all(profiles.map(async profile => {
+                    const profileId = profile.profile_id || "";
+                    if (!profileId) return { profile, validation: {} };
+                    const detailResponse = await fetch(`/api/v4/template-profiles/${encodeURIComponent(profileId)}`);
+                    const detailResult = await detailResponse.json();
+                    if (!detailResponse.ok || !detailResult.success) {
+                        return { profile, validation: {} };
+                    }
+                    return {
+                        profile: detailResult.profile || profile,
+                        validation: detailResult.validation || {},
+                    };
+                }));
+
+                renderProfiles(details);
+                setStatus(`已加载 ${details.length} 个系统模板。`, "success");
+            } catch (error) {
+                setStatus(error.message || "系统模板加载失败", "error");
+            }
+        }
+
+        async function saveTemplateFilePath(profileId) {
+            const input = document.getElementById(`templatePath-${profileId}`);
+            const status = document.getElementById(`status-${profileId}`);
+            const templateFilePath = input ? input.value.trim() : "";
+            if (status) status.textContent = "正在保存...";
+
+            try {
+                const response = await fetch(`/api/v4/template-profiles/${encodeURIComponent(profileId)}/template-file`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ template_file_path: templateFilePath })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "保存失败");
+                }
+                if (status) status.textContent = "已保存";
+                await loadTemplateProfiles();
+            } catch (error) {
+                if (status) status.textContent = error.message || "保存失败";
+                setStatus(error.message || "保存失败", "error");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", loadTemplateProfiles);
+    </script>
+</body>
+</html>
