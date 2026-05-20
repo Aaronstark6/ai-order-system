@@ -56,6 +56,7 @@ from app.v4_template_profiles import (
     save_template_profile,
     validate_template_profile,
 )
+from app.v4_template_layout import build_layout_sections_from_template_analysis
 from app.v4_template_cache import (
     delete_cached_template,
     get_cached_template_detail,
@@ -1383,6 +1384,28 @@ def api_v4_template_structure():
             "blocks": [],
             "labels": [],
         },
+    }
+
+
+@router.get("/api/v4/template-layout")
+def api_v4_template_layout():
+    logger.info("V4 template layout requested")
+    state = get_pipeline_state()
+    template_analysis = state.get("template_analysis", {})
+    if not isinstance(template_analysis, dict):
+        template_analysis = {}
+
+    layout_result = build_layout_sections_from_template_analysis(template_analysis)
+    template_analysis_summary = template_analysis.get("summary", {})
+    if not isinstance(template_analysis_summary, dict):
+        template_analysis_summary = {}
+
+    return {
+        "success": True,
+        "layout_sections": layout_result.get("layout_sections", []),
+        "summary": layout_result.get("summary", {}),
+        "template_analysis_summary": template_analysis_summary,
+        "pipeline_state": get_pipeline_state(),
     }
 
 
