@@ -305,7 +305,9 @@
         let activeV4Profile = null;
         let latestV4ParseResult = null;
         let confirmedCells = [];
+        let originalConfirmedCells = [];
         window.confirmedCells = confirmedCells;
+        window.originalConfirmedCells = originalConfirmedCells;
 
         function escapeHtml(value) {
             const div = document.createElement("div");
@@ -448,6 +450,37 @@
             `;
         }
 
+        function hasConfirmedCellChanges() {
+            if (!Array.isArray(confirmedCells) || !Array.isArray(originalConfirmedCells)) {
+                return false;
+            }
+            if (confirmedCells.length !== originalConfirmedCells.length) {
+                return true;
+            }
+            return confirmedCells.some((item, index) => {
+                const original = originalConfirmedCells[index] || {};
+                return String(item.value ?? "") !== String(original.value ?? "");
+            });
+        }
+
+        function updateConfirmedEditNotice() {
+            const changed = hasConfirmedCellChanges();
+            const area = document.getElementById("v4GenerateStatus");
+            const confirmationArea = document.getElementById("v4ConfirmationArea");
+            if (confirmationArea) {
+                confirmationArea.dataset.hasManualChanges = changed ? "true" : "false";
+            }
+            if (!area) return;
+
+            if (changed) {
+                setStatus(
+                    "v4GenerateStatus",
+                    "已检测到人工修改。注意：当前版本已记录修改值，但导出仍使用 AI 原始解析结果；下一步将接入确认值导出。",
+                    "warning"
+                );
+            }
+        }
+
         function syncConfirmedCellsFromInputs() {
             confirmedCells = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]")).map(input => ({
                 cell: input.dataset.cell || "",
@@ -458,6 +491,7 @@
             }));
             window.confirmedCells = confirmedCells;
             document.getElementById("v4ConfirmationArea").dataset.confirmedCellsCount = String(confirmedCells.length);
+            updateConfirmedEditNotice();
         }
 
         function renderCellConfirmation(cells) {
@@ -471,6 +505,8 @@
                 label: item.label,
                 value: item.value
             })));
+            originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
+            window.originalConfirmedCells = originalConfirmedCells;
 
             document.getElementById("v4ConfirmationArea").innerHTML = sections.map(renderConfirmationSection).join("");
             syncConfirmedCellsFromInputs();
@@ -492,6 +528,9 @@
                 ["产品信息", safeOrder.product || {}]
             ];
             confirmedCells = [];
+            originalConfirmedCells = [];
+            window.confirmedCells = confirmedCells;
+            window.originalConfirmedCells = originalConfirmedCells;
             document.getElementById("v4ConfirmationArea").innerHTML = `
                 <div class="fallback-grid">
                     ${groups.map(([title, data]) => `
@@ -603,7 +642,9 @@
             document.getElementById("v4ConfirmationArea").innerHTML = '<div class="status warning">请先粘贴聊天内容并点击 AI解析。</div>';
             document.getElementById("v4DownloadLink").style.display = "none";
             confirmedCells = [];
+            originalConfirmedCells = [];
             window.confirmedCells = confirmedCells;
+            window.originalConfirmedCells = originalConfirmedCells;
             latestV4ParseResult = null;
             setStatus("v4ParseStatus", "等待输入客户聊天内容。", "info");
             setStatus("v4GenerateStatus", "确认信息后可生成 Excel。", "info");
@@ -621,8 +662,18 @@
             }
 
             syncConfirmedCellsFromInputs();
+            const hasManualChanges = hasConfirmedCellChanges();
+            if (hasManualChanges) {
+                setStatus(
+                    "v4GenerateStatus",
+                    "检测到人工修改。当前导出仍使用 AI 原始解析结果，人工修改暂不会写入 Excel。",
+                    "warning"
+                );
+            }
             try {
-                setStatus("v4GenerateStatus", "正在生成 Excel...", "info");
+                if (!hasManualChanges) {
+                    setStatus("v4GenerateStatus", "正在生成 Excel...", "info");
+                }
                 const formData = new FormData();
                 formData.append("template_file", currentV4TemplateFile);
                 formData.append("chat_text", chatText);
@@ -641,9 +692,13 @@
                 const downloadLink = document.getElementById("v4DownloadLink");
                 downloadLink.href = downloadUrl || "#";
                 downloadLink.style.display = downloadUrl ? "inline-flex" : "none";
+                window.lastExportConfirmedCells = confirmedCells.map(item => ({ ...item }));
+                window.lastExportHadManualChanges = hasManualChanges;
                 setStatus(
                     "v4GenerateStatus",
-                    `Excel 已生成：${exportResult.filename || "-"}，写入 ${exportResult.operations_written || 0} 项，warnings ${warnings.length} 个。`,
+                    hasManualChanges
+                        ? `Excel 已生成：${exportResult.filename || "-"}，写入 ${exportResult.operations_written || 0} 项，warnings ${warnings.length} 个。但人工修改尚未写入本次 Excel；下一步将接入确认值导出。`
+                        : `Excel 已生成：${exportResult.filename || "-"}，写入 ${exportResult.operations_written || 0} 项，warnings ${warnings.length} 个。`,
                     "success"
                 );
             } catch (error) {
