@@ -92,6 +92,13 @@
             resize: vertical;
             width: 100%;
         }
+        input[type="text"], select {
+            border: 1px solid #bcc8c3;
+            border-radius: 7px;
+            font-size: 14px;
+            min-height: 36px;
+            padding: 8px 10px;
+        }
         input[type="file"] { display: none; }
         @media (max-width: 760px) {
             .header-inner, .toolbar { align-items: flex-start; flex-direction: column; }
@@ -123,6 +130,32 @@
                 <button class="btn-primary" type="button" onclick="exportExcel()">导出 Excel</button>
                 <button class="btn-secondary" type="button" onclick="resetPipelineState()">重置 State</button>
                 <a id="downloadLink" class="btn-download" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header"><div class="panel-title">Template Profile</div></div>
+            <div class="panel-body">
+                <div class="state-grid">
+                    <div class="state-item">
+                        <div class="label">Active Profile</div>
+                        <div id="activeProfileSummary" class="value">正在加载 Active Profile...</div>
+                    </div>
+                    <div class="state-item">
+                        <div class="label">Rules 文件路径</div>
+                        <div id="profileRulesSummary" class="value">正在加载 rules 文件路径...</div>
+                    </div>
+                </div>
+                <div class="actions">
+                    <select id="profileSelect"></select>
+                    <button class="btn-primary" type="button" onclick="setActiveProfileFromSelect()">切换 Profile</button>
+                </div>
+                <div class="actions">
+                    <input id="newProfileIdInput" type="text" placeholder="profile_id，例如 anna_template">
+                    <input id="newProfileNameInput" type="text" placeholder="profile_name，例如 Anna Template">
+                    <button class="btn-secondary" type="button" onclick="createTemplateProfileFromInputs()">创建 Profile</button>
+                </div>
+                <div id="profileWorkspaceStatus" class="message warning">正在加载 Template Profiles...</div>
             </div>
         </section>
 
@@ -189,6 +222,8 @@
         let currentPipelineState = null;
         let currentTemplateFile = null;
         let latestRunResult = null;
+        let templateProfiles = [];
+        let activeTemplateProfile = null;
 
         function setStatus(text) {
             document.getElementById("statusText").textContent = text;
@@ -348,6 +383,162 @@
                 render_preview: state.render_preview || {},
                 latest_run_result: latestRunResult
             }, null, 2);
+        }
+
+        function renderProfileWorkspace(profile, validation) {
+            const safeProfile = profile || {};
+            const safeValidation = validation || {};
+            activeTemplateProfile = safeProfile;
+            document.getElementById("activeProfileSummary").innerHTML = `
+                profile_id: ${escapeHtml(safeProfile.profile_id || "-")}<br>
+                profile_name: ${escapeHtml(safeProfile.profile_name || "-")}<br>
+                schema_version: ${escapeHtml(safeProfile.schema_version || "-")}<br>
+                validation.valid: ${escapeHtml(safeValidation.valid ?? "-")}
+            `;
+            document.getElementById("profileRulesSummary").innerHTML = `
+                structured_mapping_file: ${escapeHtml(safeProfile.structured_mapping_file || "-")}<br>
+                table_mapping_file: ${escapeHtml(safeProfile.table_mapping_file || "-")}<br>
+                block_rules_file: ${escapeHtml(safeProfile.block_rules_file || "-")}
+            `;
+
+            const profileSelect = document.getElementById("profileSelect");
+            if (safeProfile.profile_id && Array.from(profileSelect.options).some(option => option.value === safeProfile.profile_id)) {
+                profileSelect.value = safeProfile.profile_id;
+            }
+        }
+
+        async function loadTemplateProfiles() {
+            const status = document.getElementById("profileWorkspaceStatus");
+            const profileSelect = document.getElementById("profileSelect");
+            status.textContent = "正在加载 Template Profiles...";
+            status.className = "message warning";
+
+            try {
+                const profilesResponse = await fetch("/api/v4/template-profiles");
+                const profilesResult = await profilesResponse.json();
+                if (!profilesResponse.ok || !profilesResult.success) {
+                    throw new Error(profilesResult.error || "Template Profiles 加载失败");
+                }
+
+                templateProfiles = Array.isArray(profilesResult.profiles) ? profilesResult.profiles : [];
+                profileSelect.innerHTML = templateProfiles.map(profile => {
+                    const profileId = profile.profile_id || "";
+                    const label = profile.profile_name ? `${profile.profile_name} (${profileId})` : profileId;
+                    return `<option value="${escapeHtml(profileId)}">${escapeHtml(label)}</option>`;
+                }).join("");
+
+                const currentResponse = await fetch("/api/v4/current-template-profile");
+                const currentResult = await currentResponse.json();
+                if (!currentResponse.ok || !currentResult.success) {
+                    throw new Error(currentResult.error || "Active Profile 加载失败");
+                }
+
+                activeTemplateProfile = currentResult.profile || {};
+                renderProfileWorkspace(activeTemplateProfile, currentResult.validation || {});
+                status.textContent = `Template Profiles 已加载：${templateProfiles.length} 个`;
+                status.className = "message success";
+            } catch (error) {
+                status.textContent = error.message || "Template Profiles 加载失败";
+                status.className = "message error";
+            }
+        }
+
+        async function setActiveProfileFromSelect() {
+            const selectedProfileId = document.getElementById("profileSelect").value;
+            const status = document.getElementById("profileWorkspaceStatus");
+            if (!selectedProfileId) {
+                status.textContent = "请选择 Profile";
+                status.className = "message warning";
+                return;
+            }
+
+            status.textContent = "正在切换 Template Profile...";
+            status.className = "message warning";
+
+            try {
+                const response = await fetch("/api/v4/set-current-template-profile", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ profile_id: selectedProfileId })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "Template Profile 切换失败");
+                }
+
+                let validation = {};
+                const currentResponse = await fetch("/api/v4/current-template-profile");
+                const currentResult = await currentResponse.json();
+                if (currentResponse.ok && currentResult.success) {
+                    validation = currentResult.validation || {};
+                    activeTemplateProfile = currentResult.profile || result.profile || {};
+                } else {
+                    activeTemplateProfile = result.profile || {};
+                }
+                renderProfileWorkspace(activeTemplateProfile, validation);
+                renderState(result.pipeline_state || currentPipelineState || {});
+                status.textContent = "Template Profile 切换成功";
+                status.className = "message success";
+            } catch (error) {
+                status.textContent = error.message || "Template Profile 切换失败";
+                status.className = "message error";
+            }
+        }
+
+        async function createTemplateProfileFromInputs() {
+            const profileIdInput = document.getElementById("newProfileIdInput");
+            const profileNameInput = document.getElementById("newProfileNameInput");
+            const profileId = profileIdInput.value.trim();
+            const profileName = profileNameInput.value.trim() || profileId;
+            const status = document.getElementById("profileWorkspaceStatus");
+
+            if (!profileId) {
+                status.textContent = "profile_id 不能为空";
+                status.className = "message warning";
+                return;
+            }
+
+            status.textContent = "正在创建 Template Profile...";
+            status.className = "message warning";
+
+            try {
+                const createResponse = await fetch("/api/v4/template-profiles/create", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        profile_id: profileId,
+                        profile_name: profileName
+                    })
+                });
+                const createResult = await createResponse.json();
+                if (!createResponse.ok || !createResult.success) {
+                    throw new Error(createResult.error || "Template Profile 创建失败");
+                }
+
+                profileIdInput.value = "";
+                profileNameInput.value = "";
+                await loadTemplateProfiles();
+                document.getElementById("profileSelect").value = profileId;
+
+                const setResponse = await fetch("/api/v4/set-current-template-profile", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ profile_id: profileId })
+                });
+                const setResult = await setResponse.json();
+                if (!setResponse.ok || !setResult.success) {
+                    throw new Error(setResult.error || "Template Profile 已创建，但自动切换失败");
+                }
+
+                activeTemplateProfile = setResult.profile || createResult.profile || {};
+                renderProfileWorkspace(activeTemplateProfile, createResult.validation || {});
+                renderState(setResult.pipeline_state || currentPipelineState || {});
+                status.textContent = "Template Profile 创建成功并已切换";
+                status.className = "message success";
+            } catch (error) {
+                status.textContent = error.message || "Template Profile 创建失败";
+                status.className = "message error";
+            }
         }
 
         function renderChatWorkspaceResult(result) {
@@ -602,7 +793,10 @@
             }
         });
 
-        document.addEventListener("DOMContentLoaded", refreshPipelineState);
+        document.addEventListener("DOMContentLoaded", () => {
+            refreshPipelineState();
+            loadTemplateProfiles();
+        });
     </script>
 </body>
 </html>
