@@ -19,7 +19,7 @@
             display: flex;
             gap: 18px;
             margin: 0 auto 18px;
-            max-width: 1280px;
+            max-width: 1440px;
         }
         h1 {
             color: #333;
@@ -39,9 +39,9 @@
             align-items: stretch;
             display: grid;
             gap: 24px;
-            grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+            grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
             margin: 0 auto;
-            max-width: 1280px;
+            max-width: 1440px;
             min-height: calc(100vh - 96px);
         }
         .card {
@@ -57,9 +57,9 @@
             gap: 14px;
         }
         .right-card {
-            display: grid;
+            display: flex;
+            flex-direction: column;
             gap: 16px;
-            grid-template-rows: auto minmax(0, 1fr) auto;
             max-height: calc(100vh - 96px);
             overflow-y: auto;
         }
@@ -94,11 +94,14 @@
             width: 100%;
         }
         textarea {
-            flex: 1 1 auto;
+            flex: 0 0 auto;
+            height: 420px;
             line-height: 1.6;
-            min-height: 320px;
+            max-height: 55vh;
+            min-height: 300px;
             resize: vertical;
         }
+        input, select { min-height: 42px; }
         button, .download-link {
             border: none;
             border-radius: 5px;
@@ -146,15 +149,28 @@
             gap: 12px;
             padding: 16px;
         }
+        .profile-section {
+            flex: 0 0 auto;
+        }
+        .confirmation-section-wrap {
+            flex: 1 1 auto;
+            min-height: 420px;
+        }
+        .operation-section {
+            background: #fafbfd;
+            flex: 0 0 auto;
+            margin-top: 2px;
+        }
         .profile-grid {
             display: grid;
             gap: 12px;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         }
+        .profile-grid > div { min-width: 0; }
         .confirmation-area {
             display: grid;
             gap: 14px;
-            min-height: 260px;
+            min-height: 360px;
         }
         .confirmation-row {
             align-items: center;
@@ -233,6 +249,12 @@
             .app-header { align-items: flex-start; flex-direction: column; gap: 8px; }
             .layout { grid-template-columns: 1fr; }
             .right-card { max-height: none; }
+            textarea {
+                height: 320px;
+                max-height: none;
+                min-height: 260px;
+            }
+            .confirmation-section-wrap { min-height: 320px; }
             .profile-grid, .fallback-grid { grid-template-columns: 1fr; }
             .confirmation-row { grid-template-columns: 1fr; }
             .confirmation-section-grid { grid-template-columns: 1fr; }
@@ -266,7 +288,7 @@
         <section class="card right-card">
             <h2>订单信息确认</h2>
 
-            <div class="section">
+            <div class="section profile-section">
                 <h3>选择模板与 Profile</h3>
                 <div class="profile-grid">
                     <div>
@@ -281,14 +303,14 @@
                 <div id="v4ProfileStatus" class="status info">正在加载 Template Profiles...</div>
             </div>
 
-            <div class="section">
+            <div class="section confirmation-section-wrap">
                 <h3>模板化确认区</h3>
                 <div id="v4ConfirmationArea" class="confirmation-area">
                     <div class="status warning">请先粘贴聊天内容并点击 AI解析。</div>
                 </div>
             </div>
 
-            <div class="section">
+            <div class="section operation-section">
                 <h3>操作区</h3>
                 <div class="actions">
                     <button id="v4GenerateBtn" class="secondary" type="button" onclick="generateExcelFromConfirmation()">确认生成 Excel</button>
