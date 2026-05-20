@@ -176,6 +176,38 @@
             line-height: 1.4;
         }
         .confirmation-row input { margin: 0; }
+        .confirmation-section {
+            background: #fff;
+            border: 1px solid #e0e4ec;
+            border-radius: 10px;
+            padding: 14px;
+        }
+        .confirmation-section-title {
+            color: #222;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+        .confirmation-section-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .confirmation-field-item {
+            min-width: 0;
+        }
+        .confirmation-field-item label {
+            margin-top: 0;
+        }
+        .confirmation-field-item input {
+            margin: 0;
+        }
+        .field-meta {
+            color: #888;
+            font-size: 12px;
+            line-height: 1.4;
+            margin-top: 4px;
+        }
         .fallback-grid {
             display: grid;
             gap: 12px;
@@ -203,6 +235,7 @@
             .right-card { max-height: none; }
             .profile-grid, .fallback-grid { grid-template-columns: 1fr; }
             .confirmation-row { grid-template-columns: 1fr; }
+            .confirmation-section-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -324,6 +357,97 @@
             return value && typeof value === "object" ? value.value : value;
         }
 
+        function inferConfirmationSection(item) {
+            const cell = item.display_cell || item.cell || "";
+            const rowNumber = rowIndexFromCell(cell);
+            const sourceText = String(item.source || "").toLowerCase();
+            const typeText = String(item.operation_type || item.op_type || item.type || "").toLowerCase();
+            const labelText = String(`${item.label || ""} ${item.field_label || ""} ${item.display_note || ""} ${cell}`).toLowerCase();
+            const isTable = typeText.includes("table") || sourceText.includes("table");
+            const isBlock = typeText.includes("block") || sourceText.includes("block");
+            const isDocument = [
+                "文档编号",
+                "订单编号",
+                "编号",
+                "日期",
+                "负责人",
+                "业务员",
+                "客户性质"
+            ].some(keyword => labelText.includes(keyword.toLowerCase()));
+
+            if (rowNumber >= 18) {
+                if (isTable) return "table";
+                if (isBlock) return "block";
+                return "other";
+            }
+            if (isDocument) return "document";
+            if (isTable) return "table";
+            if (isBlock) return "block";
+            return "structured";
+        }
+
+        function sectionTitle(sectionKey) {
+            const titles = {
+                document: "文档编号信息",
+                structured: "普通字段确认",
+                table: "表格字段确认",
+                block: "组合单元格确认",
+                other: "其他字段确认"
+            };
+            return titles[sectionKey] || titles.other;
+        }
+
+        function buildConfirmationSections(cells) {
+            const sectionOrder = ["document", "structured", "table", "block", "other"];
+            const grouped = sectionOrder.reduce((result, key) => {
+                result[key] = [];
+                return result;
+            }, {});
+
+            const safeCells = Array.isArray(cells) ? cells.filter(item => item && !item.skipped).slice().sort(sortCells) : [];
+            safeCells.forEach(item => {
+                const label = friendlyLabel(item);
+                const normalized = {
+                    cell: item.cell || "",
+                    display_cell: item.display_cell || item.cell || "",
+                    source: item.source || "",
+                    label,
+                    value: String(cellValue(item.value) ?? ""),
+                    section: inferConfirmationSection({ ...item, label })
+                };
+                grouped[normalized.section].push(normalized);
+            });
+
+            return sectionOrder
+                .map(key => ({ key, title: sectionTitle(key), items: grouped[key] }))
+                .filter(section => section.items.length);
+        }
+
+        function renderConfirmationSection(section) {
+            return `
+                <div class="confirmation-section" data-section="${escapeHtml(section.key)}">
+                    <div class="confirmation-section-title">${escapeHtml(section.title)}</div>
+                    <div class="confirmation-section-grid">
+                        ${section.items.map(item => `
+                            <div class="confirmation-field-item">
+                                <label>${escapeHtml(item.label)}</label>
+                                <input
+                                    type="text"
+                                    value="${escapeHtml(item.value)}"
+                                    data-cell="${escapeHtml(item.cell)}"
+                                    data-display-cell="${escapeHtml(item.display_cell)}"
+                                    data-source="${escapeHtml(item.source)}"
+                                    data-label="${escapeHtml(item.label)}"
+                                    oninput="syncConfirmedCellsFromInputs()"
+                                >
+                                <div class="field-meta">${escapeHtml(item.display_cell || item.cell)}${item.source ? ` · ${escapeHtml(item.source)}` : ""}</div>
+                            </div>
+                        `).join("")}
+                    </div>
+                </div>
+            `;
+        }
+
         function syncConfirmedCellsFromInputs() {
             confirmedCells = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]")).map(input => ({
                 cell: input.dataset.cell || "",
@@ -333,35 +457,22 @@
                 value: input.value
             }));
             window.confirmedCells = confirmedCells;
+            document.getElementById("v4ConfirmationArea").dataset.confirmedCellsCount = String(confirmedCells.length);
         }
 
         function renderCellConfirmation(cells) {
-            const safeCells = Array.isArray(cells) ? cells.filter(item => item && !item.skipped).slice().sort(sortCells) : [];
-            if (!safeCells.length) return false;
+            const sections = buildConfirmationSections(cells);
+            if (!sections.length) return false;
 
-            confirmedCells = safeCells.map(item => ({
-                cell: item.cell || "",
-                display_cell: item.display_cell || item.cell || "",
-                source: item.source || "",
-                label: friendlyLabel(item),
-                value: String(cellValue(item.value) ?? "")
-            }));
+            confirmedCells = sections.flatMap(section => section.items.map(item => ({
+                cell: item.cell,
+                display_cell: item.display_cell,
+                source: item.source,
+                label: item.label,
+                value: item.value
+            })));
 
-            document.getElementById("v4ConfirmationArea").innerHTML = confirmedCells.map(item => `
-                <div class="confirmation-row">
-                    <div class="cell-code">${escapeHtml(item.display_cell || item.cell)}</div>
-                    <div class="field-label">${escapeHtml(item.label)}</div>
-                    <input
-                        type="text"
-                        value="${escapeHtml(item.value)}"
-                        data-cell="${escapeHtml(item.cell)}"
-                        data-display-cell="${escapeHtml(item.display_cell)}"
-                        data-source="${escapeHtml(item.source)}"
-                        data-label="${escapeHtml(item.label)}"
-                        oninput="syncConfirmedCellsFromInputs()"
-                    >
-                </div>
-            `).join("");
+            document.getElementById("v4ConfirmationArea").innerHTML = sections.map(renderConfirmationSection).join("");
             syncConfirmedCellsFromInputs();
             return true;
         }
