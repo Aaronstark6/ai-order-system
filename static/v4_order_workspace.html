@@ -289,18 +289,19 @@
             <h2>订单信息确认</h2>
 
             <div class="section profile-section">
-                <h3>选择模板与 Profile</h3>
+                <h3>选择系统模板</h3>
                 <div class="profile-grid">
                     <div>
-                        <label for="v4TemplateFileInput">Excel 模板</label>
+                        <label for="v4TemplateFileInput">临时测试模板文件</label>
                         <input id="v4TemplateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
                     </div>
                     <div>
-                        <label for="v4ProfileSelect">Template Profile</label>
+                        <label for="v4ProfileSelect">系统模板</label>
                         <select id="v4ProfileSelect"></select>
                     </div>
                 </div>
-                <div id="v4ProfileStatus" class="status info">正在加载 Template Profiles...</div>
+                <div class="small">正式使用时，公司模板应先在设置页中生成“系统模板”；本页只选择系统模板并处理订单。当前文件上传仅用于测试阶段。</div>
+                <div id="v4ProfileStatus" class="status info">正在加载系统模板...</div>
             </div>
 
             <div class="section confirmation-section-wrap">
@@ -660,7 +661,7 @@
                 const profilesResponse = await fetch("/api/v4/template-profiles");
                 const profilesResult = await profilesResponse.json();
                 if (!profilesResponse.ok || !profilesResult.success) {
-                    throw new Error(profilesResult.error || "Template Profiles 加载失败");
+                    throw new Error(profilesResult.error || "系统模板加载失败");
                 }
 
                 v4Profiles = Array.isArray(profilesResult.profiles) ? profilesResult.profiles : [];
@@ -673,16 +674,16 @@
                 const currentResponse = await fetch("/api/v4/current-template-profile");
                 const currentResult = await currentResponse.json();
                 if (!currentResponse.ok || !currentResult.success) {
-                    throw new Error(currentResult.error || "Active Profile 加载失败");
+                    throw new Error(currentResult.error || "当前系统模板加载失败");
                 }
 
                 activeV4Profile = currentResult.profile || {};
                 if (activeV4Profile.profile_id) {
                     document.getElementById("v4ProfileSelect").value = activeV4Profile.profile_id;
                 }
-                setStatus("v4ProfileStatus", `当前 Profile：${activeV4Profile.profile_name || activeV4Profile.profile_id || "未选择"}`, "success");
+                setStatus("v4ProfileStatus", `当前系统模板：${activeV4Profile.profile_name || activeV4Profile.profile_id || "未选择"}`, "success");
             } catch (error) {
-                setStatus("v4ProfileStatus", error.message || "Template Profiles 加载失败", "error");
+                setStatus("v4ProfileStatus", error.message || "系统模板加载失败", "error");
             }
         }
 
@@ -704,12 +705,12 @@
 
         async function setActiveV4Profile(profileId) {
             if (!profileId) {
-                setStatus("v4ProfileStatus", "请选择 Profile", "warning");
+                setStatus("v4ProfileStatus", "请选择系统模板", "warning");
                 return;
             }
 
             try {
-                setStatus("v4ProfileStatus", "正在切换 Profile...", "info");
+                setStatus("v4ProfileStatus", "正在切换系统模板...", "info");
                 const response = await fetch("/api/v4/set-current-template-profile", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -717,12 +718,12 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.error || "Profile 切换失败");
+                    throw new Error(result.error || "系统模板切换失败");
                 }
                 activeV4Profile = result.profile || {};
-                setStatus("v4ProfileStatus", `当前 Profile：${activeV4Profile.profile_name || activeV4Profile.profile_id || profileId}`, "success");
+                setStatus("v4ProfileStatus", `当前系统模板：${activeV4Profile.profile_name || activeV4Profile.profile_id || profileId}`, "success");
             } catch (error) {
-                setStatus("v4ProfileStatus", error.message || "Profile 切换失败", "error");
+                setStatus("v4ProfileStatus", error.message || "系统模板切换失败", "error");
             }
         }
 
@@ -774,7 +775,7 @@
                 return;
             }
             if (!currentV4TemplateFile) {
-                setStatus("v4GenerateStatus", "请先上传 Excel 模板", "warning");
+                setStatus("v4GenerateStatus", "请先上传临时测试模板文件", "warning");
                 return;
             }
 
@@ -846,7 +847,7 @@
             currentV4TemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
             setStatus(
                 "v4GenerateStatus",
-                currentV4TemplateFile ? `已选择模板：${currentV4TemplateFile.name}` : "请先上传 Excel 模板",
+                currentV4TemplateFile ? `已选择临时测试模板文件：${currentV4TemplateFile.name}` : "请先上传临时测试模板文件",
                 currentV4TemplateFile ? "success" : "warning"
             );
         });
