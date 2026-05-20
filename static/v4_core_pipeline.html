@@ -124,6 +124,35 @@
             font-size: 12px;
             line-height: 1.4;
         }
+        .mode-toggle {
+            align-items: center;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .mode-pill {
+            border: 1px solid #bcc8c3;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 6px 12px;
+        }
+
+        .mode-pill.active {
+            background: #3e5f8a;
+            border-color: #3e5f8a;
+            color: #fff;
+        }
+
+        body.product-mode .debug-panel {
+            display: none;
+        }
+
+        body.debug-mode .debug-panel {
+            display: block;
+        }
+
         input[type="file"] { display: none; }
         @media (max-width: 760px) {
             .header-inner, .toolbar { align-items: flex-start; flex-direction: column; }
@@ -131,7 +160,7 @@
         }
     </style>
 </head>
-<body>
+<body class="product-mode">
     <header>
         <div class="header-inner">
             <h1>V4 Core Pipeline</h1>
@@ -144,6 +173,10 @@
             <div>
                 <div id="statusText" class="status">正在加载 Pipeline State...</div>
                 <div id="templateName" class="status">当前模板：未选择</div>
+                <div class="mode-toggle" style="margin-top:8px;">
+                    <button id="productModeButton" class="mode-pill active" type="button" onclick="setWorkspaceMode('product')">Product Mode</button>
+                    <button id="debugModeButton" class="mode-pill" type="button" onclick="setWorkspaceMode('debug')">Debug Mode</button>
+                </div>
             </div>
             <div class="actions">
                 <label class="file-button" for="templateFileInput">上传 Excel 模板</label>
@@ -210,29 +243,29 @@
             </div>
         </section>
 
-        <section class="panel">
+        <section class="panel debug-panel">
             <div class="panel-header"><div class="panel-title">当前 Pipeline State</div></div>
             <div class="panel-body"><div id="stateGrid" class="state-grid"></div></div>
         </section>
 
-        <section class="panel">
+        <section class="panel debug-panel">
             <div class="panel-header"><div class="panel-title">Mapping Safety Check</div></div>
             <div id="mappingSafetyBody" class="panel-body">
                 <div class="message warning">尚未执行 Mapping Safety Check</div>
             </div>
         </section>
 
-        <section class="panel">
+        <section class="panel debug-panel">
             <div class="panel-header"><div class="panel-title">Validator 结果</div></div>
             <div id="validatorBody" class="panel-body"><div class="message warning">尚未执行校验</div></div>
         </section>
 
-        <section class="panel">
+        <section class="panel debug-panel">
             <div class="panel-header"><div class="panel-title">Pipeline Stages</div></div>
             <div id="stagesBody" class="panel-body"><div class="message warning">尚未执行 Operations Pipeline</div></div>
         </section>
 
-        <section class="panel">
+        <section class="panel debug-panel">
             <div class="panel-header"><div class="panel-title">Render Preview 摘要</div></div>
             <div id="renderPreviewBody" class="panel-body"><div class="message warning">尚未生成 Render Preview</div></div>
         </section>
@@ -262,7 +295,7 @@
             </div>
         </section>
 
-        <section class="panel">
+        <section class="panel debug-panel">
             <div class="panel-header"><div class="panel-title">高级调试</div></div>
             <pre id="debugJson">{}</pre>
         </section>
@@ -277,6 +310,17 @@
 
         function setStatus(text) {
             document.getElementById("statusText").textContent = text;
+        }
+
+        function setWorkspaceMode(mode) {
+            const normalizedMode = mode === "debug" ? "debug" : "product";
+            document.body.classList.toggle("product-mode", normalizedMode === "product");
+            document.body.classList.toggle("debug-mode", normalizedMode === "debug");
+
+            document.getElementById("productModeButton").classList.toggle("active", normalizedMode === "product");
+            document.getElementById("debugModeButton").classList.toggle("active", normalizedMode === "debug");
+
+            setStatus(normalizedMode === "product" ? "Product Mode：显示核心工作流" : "Debug Mode：显示完整调试信息");
         }
 
         function escapeHtml(value) {
