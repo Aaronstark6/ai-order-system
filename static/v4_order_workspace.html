@@ -292,15 +292,10 @@
                 <h3>选择系统模板</h3>
                 <div class="profile-grid">
                     <div>
-                        <label for="v4TemplateFileInput">临时测试模板文件</label>
-                        <input id="v4TemplateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
-                    </div>
-                    <div>
                         <label for="v4ProfileSelect">系统模板</label>
                         <select id="v4ProfileSelect"></select>
                     </div>
                 </div>
-                <div class="small">正式使用时，公司模板应先在设置页中生成“系统模板”；本页只选择系统模板并处理订单。当前文件上传仅用于测试阶段。</div>
                 <div id="v4ProfileStatus" class="status info">正在加载系统模板...</div>
             </div>
 
@@ -323,7 +318,6 @@
     </main>
 
     <script>
-        let currentV4TemplateFile = null;
         let v4Profiles = [];
         let activeV4Profile = null;
         let latestV4ParseResult = null;
@@ -385,6 +379,13 @@
 
         function sortCells(left, right) {
             return visualCellSort(left, right);
+        }
+
+        function displaySystemTemplateName(profile, fallback = "") {
+            const rawName = profile && (profile.profile_name || profile.profile_id) ? (profile.profile_name || profile.profile_id) : fallback;
+            return String(rawName || "未选择")
+                .replace(new RegExp(["Template", "Profile"].join(" "), "g"), "系统模板")
+                .replace(new RegExp(["Pro", "file"].join(""), "g"), "模板");
         }
 
         function findLayoutSectionForItem(item) {
@@ -667,7 +668,7 @@
                 v4Profiles = Array.isArray(profilesResult.profiles) ? profilesResult.profiles : [];
                 document.getElementById("v4ProfileSelect").innerHTML = v4Profiles.map(profile => {
                     const profileId = profile.profile_id || "";
-                    const label = profile.profile_name ? `${profile.profile_name} (${profileId})` : profileId;
+                    const label = displaySystemTemplateName(profile, profileId);
                     return `<option value="${escapeHtml(profileId)}">${escapeHtml(label)}</option>`;
                 }).join("");
 
@@ -681,7 +682,7 @@
                 if (activeV4Profile.profile_id) {
                     document.getElementById("v4ProfileSelect").value = activeV4Profile.profile_id;
                 }
-                setStatus("v4ProfileStatus", `当前系统模板：${activeV4Profile.profile_name || activeV4Profile.profile_id || "未选择"}`, "success");
+                setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile)}`, "success");
             } catch (error) {
                 setStatus("v4ProfileStatus", error.message || "系统模板加载失败", "error");
             }
@@ -721,7 +722,7 @@
                     throw new Error(result.error || "系统模板切换失败");
                 }
                 activeV4Profile = result.profile || {};
-                setStatus("v4ProfileStatus", `当前系统模板：${activeV4Profile.profile_name || activeV4Profile.profile_id || profileId}`, "success");
+                setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
             } catch (error) {
                 setStatus("v4ProfileStatus", error.message || "系统模板切换失败", "error");
             }
@@ -774,10 +775,6 @@
                 setStatus("v4GenerateStatus", "请先输入客户聊天内容", "warning");
                 return;
             }
-            if (!currentV4TemplateFile) {
-                setStatus("v4GenerateStatus", "请先上传临时测试模板文件", "warning");
-                return;
-            }
 
             syncConfirmedCellsFromInputs();
             const hasManualChanges = hasConfirmedCellChanges();
@@ -793,7 +790,6 @@
                     setStatus("v4GenerateStatus", "正在生成 Excel...", "info");
                 }
                 const formData = new FormData();
-                formData.append("template_file", currentV4TemplateFile);
                 formData.append("chat_text", chatText);
                 formData.append("confirmed_cells_json", JSON.stringify(confirmedCells));
                 const response = await fetch("/api/v4/export-confirmed-excel", {
@@ -841,15 +837,6 @@
             } catch (error) {
                 setStatus("v4ParseStatus", error.message || "聊天文件读取失败", "error");
             }
-        });
-
-        document.getElementById("v4TemplateFileInput").addEventListener("change", event => {
-            currentV4TemplateFile = event.target.files && event.target.files.length ? event.target.files[0] : null;
-            setStatus(
-                "v4GenerateStatus",
-                currentV4TemplateFile ? `已选择临时测试模板文件：${currentV4TemplateFile.name}` : "请先上传临时测试模板文件",
-                currentV4TemplateFile ? "success" : "warning"
-            );
         });
 
         document.getElementById("v4ProfileSelect").addEventListener("change", event => {
