@@ -760,6 +760,7 @@
             const contract = Array.isArray(parseResult.last_extraction_contract)
                 ? parseResult.last_extraction_contract
                 : [];
+            const contractSummary = parseResult.ai_extraction_contract_summary || result.ai_extraction_contract_summary || {};
             const fieldBoundOperations = Array.isArray(parseResult.field_bound_operations)
                 ? parseResult.field_bound_operations
                 : [];
@@ -767,7 +768,8 @@
                 ? pipelineResult.processed_operations
                 : [];
             const metrics = [
-                ["Contract", contract.length],
+                ["Contract", Number(contractSummary.fields_count || contract.length)],
+                ["Options", Number(contractSummary.option_groups_count || 0)],
                 ["Bound Ops", fieldBoundOperations.length],
                 ["Added", Number(pipelineResult.field_bound_added_count || 0)],
                 ["Override", Number(pipelineResult.field_bound_override_count || 0)],
@@ -788,8 +790,8 @@
                     <strong>Extraction Contract（前 10 条）</strong>
                     ${renderSmartDebugTable([
                         { key: "field_key", label: "field_key" },
-                        { key: "field_label", label: "field_label" },
-                        { key: "cell", label: "cell" },
+                        { key: "label", label: "label" },
+                        { key: "target_cell", label: "target_cell" },
                         { key: "ai_extract_hint", label: "ai_extract_hint" },
                     ], contract)}
                 </div>
@@ -1160,7 +1162,13 @@
         function getParsedFieldValues(result = null) {
             const values = {};
             const parseResult = result?.parse_result || result || {};
+            if (parseResult.fields && typeof parseResult.fields === "object") {
+                flattenValueMap("", parseResult.fields, values);
+            }
             if (parseResult.parsed && typeof parseResult.parsed === "object") {
+                if (parseResult.parsed.fields && typeof parseResult.parsed.fields === "object") {
+                    flattenValueMap("", parseResult.parsed.fields, values);
+                }
                 flattenValueMap("", parseResult.parsed, values);
             }
             if (parseResult.order_object && typeof parseResult.order_object === "object") {

@@ -1042,51 +1042,130 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
     return candidates
 
 
-def _build_ai_extraction_contract_from_profile(profile):
-    configuration = _template_configuration_from_profile(profile)
-    contract = []
-    seen_keys = set()
+def _contract_field_type_from_workspace_field(field):
+    intent_type = str(field.get("intent_type") or "").strip()
+    write_mode = str(field.get("write_mode") or "").strip()
+    label_key = f"{field.get('label') or ''} {field.get('field_key') or ''}".lower()
+    if intent_type in {"option_checkbox", "option_text_choice"}:
+        return "single_choice"
+    if "日期" in label_key or "date" in label_key:
+        return "date"
+    if any(keyword in label_key for keyword in ("数量", "quantity", "qty", "number", "amount")):
+        return "number"
+    if any(keyword in label_key for keyword in ("备注", "要求", "描述", "说明", "other", "note", "description")):
+        return "textarea"
+    if write_mode in {"skip", "none"}:
+        return "readonly"
+    return "text"
 
-    def sort_key(item):
-        try:
-            return int(item.get("display_order") or 0)
-        except (TypeError, ValueError):
-            return 0
 
-    for cell, item in sorted(configuration.items(), key=lambda pair: sort_key(pair[1])):
-        if not isinstance(item, dict):
+def _contract_field_required(field):
+    label_key = f"{field.get('label') or ''} {field.get('field_key') or ''}".lower()
+    return any(keyword in label_key for keyword in ("客户名称", "数量", "日期", "产品", "product", "customer", "quantity"))
+
+
+def _build_ai_extraction_contract_from_workspace_fields(workspace_fields):
+    fields = []
+    option_groups_by_key = {}
+    option_field_by_key = {}
+    seen_field_keys = set()
+    hidden_intents = {"title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"}
+    hidden_write_modes = {"skip", "none"}
+
+    source_fields = workspace_fields if isinstance(workspace_fields, list) else []
+    sorted_fields = sorted(
+        [field for field in source_fields if isinstance(field, dict)],
+        key=lambda field: int(field.get("display_order") or 0) if str(field.get("display_order") or "").isdigit() else 0,
+    )
+
+    for field in sorted_fields:
+        field_key = str(field.get("field_key") or "").strip()
+        if not field_key:
             continue
-        if item.get("show_in_workspace") is False:
+
+        intent_type = str(field.get("intent_type") or "").strip()
+        write_mode = str(field.get("write_mode") or "").strip()
+        if intent_type in hidden_intents or write_mode in hidden_write_modes:
             continue
 
-        field_key = str(item.get("candidate_field_key") or item.get("field_key") or "").strip()
-        if not field_key or field_key in seen_keys:
+        label = str(field.get("label") or field_key).strip() or field_key
+        field_type = _contract_field_type_from_workspace_field(field)
+        option_value = str(field.get("option_value") or label).strip()
+
+        if field_type == "single_choice":
+            group = option_groups_by_key.setdefault(
+                field_key,
+                {
+                    "field_key": field_key,
+                    "label": str(field.get("ai_extract_hint") or field.get("section") or label or field_key).strip() or field_key,
+                    "options": [],
+                },
+            )
+            if option_value and option_value not in group["options"]:
+                group["options"].append(option_value)
+            option_field_by_key.setdefault(field_key, field)
             continue
 
-        field_label = (
-            str(item.get("candidate_field_label") or "").strip()
-            or str(item.get("field_label") or "").strip()
-            or str(item.get("label") or "").strip()
-            or field_key
-        )
-        ai_extract_hint = (
-            str(item.get("ai_extract_hint") or "").strip()
-            or field_label
-        )
+        if field_key in seen_field_keys:
+            continue
 
-        contract.append(
+        fields.append(
             {
                 "field_key": field_key,
-                "field_label": field_label,
-                "ai_extract_hint": ai_extract_hint,
-                "cell": str(cell or "").strip().upper(),
-                "display_order": sort_key(item),
-                "source": str(item.get("candidate_source") or "render_config").strip(),
+                "label": label,
+                "type": field_type,
+                "section": str(field.get("section") or "").strip(),
+                "required": _contract_field_required(field),
+                "ai_extract_hint": str(field.get("ai_extract_hint") or label).strip(),
+                "intent_type": intent_type,
+                "write_mode": write_mode,
+                "target_cell": _cell_key(field.get("cell")),
+                "source_cell": _cell_key(field.get("source_cell")),
+                "options": [],
             }
         )
-        seen_keys.add(field_key)
+        seen_field_keys.add(field_key)
 
-    return contract
+    for field_key, group in option_groups_by_key.items():
+        source_field = option_field_by_key.get(field_key, {})
+        label = str(group.get("label") or source_field.get("label") or field_key).strip() or field_key
+        fields.append(
+            {
+                "field_key": field_key,
+                "label": label,
+                "type": "single_choice",
+                "section": str(source_field.get("section") or "").strip(),
+                "required": _contract_field_required(source_field),
+                "ai_extract_hint": str(source_field.get("ai_extract_hint") or label).strip(),
+                "intent_type": str(source_field.get("intent_type") or "").strip(),
+                "write_mode": str(source_field.get("write_mode") or "").strip(),
+                "target_cell": _cell_key(source_field.get("cell")),
+                "source_cell": _cell_key(source_field.get("source_cell")),
+                "options": group["options"],
+            }
+        )
+
+    fields.sort(key=lambda field: (str(field.get("section") or ""), str(field.get("field_key") or "")))
+    option_groups = list(option_groups_by_key.values())
+    return {
+        "fields": fields,
+        "option_groups": option_groups,
+    }
+
+
+def _build_ai_extraction_contract_from_profile(profile):
+    return _build_ai_extraction_contract_from_workspace_fields(_build_workspace_fields_from_profile(profile))
+
+
+def _ai_extraction_contract_summary(contract):
+    contract = contract if isinstance(contract, dict) else {}
+    fields = contract.get("fields") if isinstance(contract.get("fields"), list) else []
+    option_groups = contract.get("option_groups") if isinstance(contract.get("option_groups"), list) else []
+    return {
+        "fields_count": len(fields),
+        "option_groups_count": len(option_groups),
+        "field_keys": [str(field.get("field_key") or "").strip() for field in fields if isinstance(field, dict) and str(field.get("field_key") or "").strip()],
+    }
 
 
 def _build_workspace_fields_from_profile(profile):
@@ -1163,14 +1242,20 @@ def _stringify_extracted_value(value):
 
 
 def _bind_parsed_fields_to_template_cells(parsed, profile):
-    parsed_fields = parsed if isinstance(parsed, dict) else {}
+    if not isinstance(parsed, dict):
+        parsed_fields = {}
+    elif isinstance(parsed.get("fields"), dict):
+        parsed_fields = parsed.get("fields", {})
+    else:
+        parsed_fields = parsed
     contract = _build_ai_extraction_contract_from_profile(profile)
+    contract_fields = contract.get("fields") if isinstance(contract, dict) and isinstance(contract.get("fields"), list) else []
     confirmed_cells = []
     operations = []
 
-    for item in contract:
+    for item in contract_fields:
         field_key = str(item.get("field_key") or "").strip()
-        cell = _cell_key(item.get("cell"))
+        cell = _cell_key(item.get("target_cell") or item.get("cell"))
         if not field_key or not cell:
             continue
         if field_key not in parsed_fields:
@@ -1181,16 +1266,20 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
             continue
 
         value = _stringify_extracted_value(raw_value)
-        label = str(item.get("field_label") or field_key).strip() or field_key
+        label = str(item.get("label") or item.get("field_label") or field_key).strip() or field_key
         source = "AI Extraction Contract"
         confirmed_cells.append(
             {
                 "cell": cell,
                 "display_cell": cell,
+                "source_cell": item.get("source_cell") or "",
                 "source": source,
                 "label": label,
                 "value": value,
                 "field_key": field_key,
+                "write_mode": item.get("write_mode") or "",
+                "intent_type": item.get("intent_type") or "",
+                "option_value": "",
             }
         )
         operations.append(
@@ -1203,6 +1292,9 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
                 "field_label": label,
                 "mapping_confirmed": True,
                 "ai_extraction_contract": True,
+                "write_mode": item.get("write_mode") or "",
+                "intent_type": item.get("intent_type") or "",
+                "source_cell": item.get("source_cell") or "",
             }
         )
 
@@ -2736,7 +2828,9 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
     current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
     if not current_profile:
         current_profile = get_current_template_profile() or {}
-    extraction_contract = _build_ai_extraction_contract_from_profile(current_profile)
+    workspace_fields = _build_workspace_fields_from_profile(current_profile)
+    extraction_contract = _build_ai_extraction_contract_from_workspace_fields(workspace_fields)
+    extraction_contract_summary = _ai_extraction_contract_summary(extraction_contract)
 
     parsed = parse_message(clean_message, extraction_contract=extraction_contract)
     if isinstance(parsed, dict) and parsed.get("error"):
@@ -2744,8 +2838,10 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "success": False,
             "error": parsed.get("error"),
             "parsed": parsed,
-            "last_extraction_contract": extraction_contract,
-            "workspace_fields": _build_workspace_fields_from_profile(current_profile),
+            "last_extraction_contract": extraction_contract.get("fields", []),
+            "extraction_contract": extraction_contract,
+            "ai_extraction_contract_summary": extraction_contract_summary,
+            "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -2755,8 +2851,10 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "success": False,
             "error": "AI parse 未返回有效字段",
             "parsed": parsed,
-            "last_extraction_contract": extraction_contract,
-            "workspace_fields": _build_workspace_fields_from_profile(current_profile),
+            "last_extraction_contract": extraction_contract.get("fields", []),
+            "extraction_contract": extraction_contract,
+            "ai_extraction_contract_summary": extraction_contract_summary,
+            "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -2771,10 +2869,12 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "error": "Order Object 转换失败",
             "parsed": parsed,
             "normalized": normalized,
-            "last_extraction_contract": extraction_contract,
+            "last_extraction_contract": extraction_contract.get("fields", []),
+            "extraction_contract": extraction_contract,
+            "ai_extraction_contract_summary": extraction_contract_summary,
             "confirmed_cells": field_binding_result.get("confirmed_cells", []),
             "field_bound_operations": field_binding_result.get("operations", []),
-            "workspace_fields": _build_workspace_fields_from_profile(current_profile),
+            "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -2790,10 +2890,12 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "success": True,
         "message": "Chat 已解析为 V4 Order Object 并加载",
         "parsed": parsed,
-        "last_extraction_contract": extraction_contract,
+        "last_extraction_contract": extraction_contract.get("fields", []),
+        "extraction_contract": extraction_contract,
+        "ai_extraction_contract_summary": extraction_contract_summary,
         "confirmed_cells": field_binding_result.get("confirmed_cells", []),
         "field_bound_operations": field_binding_result.get("operations", []),
-        "workspace_fields": _build_workspace_fields_from_profile(current_profile),
+        "workspace_fields": workspace_fields,
         "warnings": normalized.get("warnings", []),
         "source_keys": normalized.get("source_keys", []),
         "order_object": order_object,
@@ -2860,6 +2962,8 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "source_keys": parse_result.get("source_keys", []),
             "order_object": parse_result.get("order_object", {}),
             "last_extraction_contract": parse_result.get("last_extraction_contract", []),
+            "extraction_contract": parse_result.get("extraction_contract", {}),
+            "ai_extraction_contract_summary": parse_result.get("ai_extraction_contract_summary", {}),
             "confirmed_cells": parse_result.get("confirmed_cells", []),
             "field_bound_operations": field_bound_operations,
             "workspace_fields": workspace_fields,
@@ -2881,6 +2985,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "render_ready": pipeline_result.get("render_ready", False),
         },
         "workspace_fields": workspace_fields,
+        "ai_extraction_contract_summary": parse_result.get("ai_extraction_contract_summary", {}),
         "pipeline_state": get_pipeline_state(),
     }
 

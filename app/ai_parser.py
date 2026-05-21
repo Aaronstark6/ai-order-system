@@ -71,62 +71,129 @@ def annotate_description_sources(template_text: str, description_text: str):
 
 
 def _normalize_extraction_contract(extraction_contract):
-    if not isinstance(extraction_contract, list):
-        return []
+    if isinstance(extraction_contract, dict):
+        source_fields = extraction_contract.get("fields") if isinstance(extraction_contract.get("fields"), list) else []
+        source_option_groups = extraction_contract.get("option_groups") if isinstance(extraction_contract.get("option_groups"), list) else []
+    elif isinstance(extraction_contract, list):
+        source_fields = extraction_contract
+        source_option_groups = []
+    else:
+        return {"fields": [], "option_groups": []}
+
+    option_group_by_key = {}
+    for group in source_option_groups:
+        if not isinstance(group, dict):
+            continue
+        key = str(group.get("field_key") or "").strip()
+        if not key:
+            continue
+        options = group.get("options") if isinstance(group.get("options"), list) else []
+        option_group_by_key[key] = {
+            "field_key": key,
+            "label": str(group.get("label") or key).strip() or key,
+            "options": [str(option).strip() for option in options if str(option).strip()],
+        }
 
     fields = []
     seen_keys = set()
-    for item in extraction_contract:
+    for item in source_fields:
         if not isinstance(item, dict):
             continue
         key = str(item.get("field_key") or "").strip()
         if not key or key in seen_keys:
             continue
-        label = str(item.get("field_label") or key).strip() or key
+        label = str(item.get("label") or item.get("field_label") or key).strip() or key
         hint = str(item.get("ai_extract_hint") or label).strip()
+        options = item.get("options") if isinstance(item.get("options"), list) else []
+        if not options and key in option_group_by_key:
+            options = option_group_by_key[key].get("options", [])
         fields.append(
             {
+                "field_key": key,
                 "key": key,
                 "label": label,
+                "type": str(item.get("type") or "text").strip() or "text",
+                "required": bool(item.get("required")),
+                "ai_extract_hint": hint,
                 "description": hint,
-                "cell": str(item.get("cell") or "").strip(),
+                "section": str(item.get("section") or "").strip(),
+                "intent_type": str(item.get("intent_type") or "").strip(),
+                "write_mode": str(item.get("write_mode") or "").strip(),
+                "target_cell": str(item.get("target_cell") or item.get("cell") or "").strip(),
+                "source_cell": str(item.get("source_cell") or "").strip(),
+                "options": [str(option).strip() for option in options if str(option).strip()],
+                "cell": str(item.get("cell") or item.get("target_cell") or "").strip(),
                 "source": str(item.get("source") or "").strip(),
             }
         )
         seen_keys.add(key)
-    return fields
+
+    option_groups = []
+    for key, group in option_group_by_key.items():
+        if key not in seen_keys:
+            continue
+        option_groups.append(group)
+
+    return {"fields": fields, "option_groups": option_groups}
 
 
 def build_prompt(message: str, extraction_contract=None):
-    fields = load_fields()
-    contract_fields = _normalize_extraction_contract(extraction_contract)
+    default_fields = load_fields()
+    normalized_contract = _normalize_extraction_contract(extraction_contract)
+    contract_fields = normalized_contract["fields"]
+    option_groups = normalized_contract["option_groups"]
+    has_contract = bool(contract_fields)
 
     field_lines = []
     field_keys = []
 
-    for field in fields:
-        key = field.get("key", "")
+    fields_for_prompt = contract_fields if has_contract else default_fields
+    for field in fields_for_prompt:
+        key = field.get("field_key") or field.get("key", "")
         label = field.get("label", key)
-        description = field.get("description", "")
+        description = field.get("ai_extract_hint") or field.get("description", "")
+        field_type = field.get("type", "text")
+        required = "必填" if field.get("required") else "可选"
+        options = field.get("options") if isinstance(field.get("options"), list) else []
+        options_text = f"，选项：{' / '.join(options)}" if options else ""
+        section = f"，分组：{field.get('section')}" if field.get("section") else ""
+        key = field.get("key", "")
+        key = field.get("field_key") or key
 
         if not key:
             continue
 
         field_keys.append(key)
-        field_lines.append(f"{key}（{label}）：{description}")
-
-    for field in contract_fields:
-        key = field["key"]
-        if key in field_keys:
-            continue
-        field_keys.append(key)
-        field_lines.append(f"{key}（{field['label']}）：{field['description']}")
+        field_lines.append(f"{key}（{label}，{field_type}，{required}{section}{options_text}）：{description}")
 
     contract_lines = []
     for field in contract_fields:
-        location = f"，模板单元格 {field['cell']}" if field.get("cell") else ""
-        contract_lines.append(f"- {field['key']}（{field['label']}）：{field['description']}{location}")
+        options = field.get("options") if isinstance(field.get("options"), list) else []
+        options_text = f"，候选选项：{' / '.join(options)}" if options else ""
+        required = "必填" if field.get("required") else "可选"
+        location = f"，模板目标单元格 {field['target_cell']}" if field.get("target_cell") else ""
+        contract_lines.append(
+            f"- {field['field_key']}（{field['label']}）：type={field.get('type', 'text')}，{required}，hint={field['ai_extract_hint']}{options_text}{location}"
+        )
+    for group in option_groups:
+        contract_lines.append(
+            f"- 选项组 {group['field_key']}（{group['label']}）：只能从这些选项中选择最匹配的一项：{' / '.join(group.get('options', []))}"
+        )
     contract_block = "\n".join(contract_lines) if contract_lines else "无"
+    response_shape = """
+{
+  "fields": {
+    "customer_name": "Anna",
+    "quantity": "50000",
+    "product_type": "软胶囊"
+  },
+  "confidence": {
+    "customer_name": 0.95
+  },
+  "missing_fields": [],
+  "notes": []
+}
+""" if has_contract else "扁平 JSON 对象，例如 {\"customer_name\":\"Anna\"}"
 
     prompt = f"""
 你是一个外贸订单信息提取助手。
@@ -145,6 +212,8 @@ def build_prompt(message: str, extraction_contract=None):
 {field_keys}
 3. 没有识别到的字段，值填 null
 4. 不要返回 markdown，不要使用 ```json
+5. 如果当前映射字段合同不为空，必须按下面结构返回，fields 中只放业务字段值，不要输出 Excel 单元格、write_mode 或 intent_type：
+{response_shape}
 
 【客户聊天内容】
 {message}
@@ -204,9 +273,30 @@ def parse_message(message: str, extraction_contract=None):
             "raw": content
         }
 
-    for key in field_keys:
-        if key not in parsed:
-            parsed[key] = None
+    if not isinstance(parsed, dict):
+        return {
+            "error": "AI返回JSON不是对象",
+            "raw": content
+        }
+
+    if extraction_contract:
+        parsed_fields = parsed.get("fields") if isinstance(parsed.get("fields"), dict) else {}
+        if not parsed_fields:
+            parsed_fields = {key: parsed.get(key) for key in field_keys if key in parsed}
+        for key in field_keys:
+            if key not in parsed_fields:
+                parsed_fields[key] = None
+        _normalize_date_fields(parsed_fields)
+        parsed["fields"] = parsed_fields
+        parsed.setdefault("confidence", {})
+        parsed.setdefault("missing_fields", [key for key, value in parsed_fields.items() if value is None or str(value).strip() == ""])
+        parsed.setdefault("notes", [])
+        for key, value in parsed_fields.items():
+            parsed[key] = value
+    else:
+        for key in field_keys:
+            if key not in parsed:
+                parsed[key] = None
 
     _normalize_date_fields(parsed)
 
