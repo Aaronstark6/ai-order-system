@@ -228,8 +228,9 @@
         .profile-grid > div { min-width: 0; }
         .confirmation-area {
             display: grid;
-            gap: 14px;
-            min-height: 360px;
+            gap: 18px;
+            min-height: auto;
+            overflow: visible;
         }
         .native-template-hint {
             background: #f2f6ff;
@@ -337,6 +338,7 @@
             border: 1px solid #e0e4ec;
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(16,24,40,0.06);
+            margin-bottom: 18px;
             overflow: hidden;
         }
         .confirmation-section-header {
@@ -369,18 +371,19 @@
             grid-template-columns: 1fr;
         }
         .business-form-card .confirmation-section-body {
-            gap: 12px;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            padding: 14px;
+            display: grid;
+            gap: 18px;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            padding: 18px;
         }
         .business-field-card {
             background: #fff;
             border: 1px solid #e6eaf0;
-            border-radius: 8px;
+            border-radius: 10px;
             display: grid;
             gap: 8px;
             min-width: 0;
-            padding: 12px;
+            padding: 16px;
         }
         .business-field-card label {
             color: #344054;
@@ -389,7 +392,10 @@
             line-height: 1.4;
         }
         .business-field-card input {
+            box-sizing: border-box;
             margin: 0;
+            min-height: 44px;
+            width: 100%;
         }
         .business-field-meta {
             color: #667085;
