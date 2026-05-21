@@ -247,9 +247,6 @@
         .visual-grid th,
         .visual-grid td {
             border: 1px solid #edf0f4;
-            height: 28px;
-            max-width: 160px;
-            min-width: 70px;
             padding: 4px 6px;
             vertical-align: middle;
             white-space: nowrap;
@@ -267,7 +264,6 @@
             background: #f2f4f7;
             color: #667085;
             left: 0;
-            min-width: 42px;
             position: sticky;
             text-align: center;
             z-index: 2;
@@ -301,6 +297,37 @@
         .visual-detail-row:last-child { border-bottom: none; }
         .visual-detail-label { color: #667085; font-size: 12px; }
         .visual-detail-value { color: #1d2939; font-size: 13px; margin-top: 2px; word-break: break-all; }
+        .visual-detail-title {
+            color: #1d2939;
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .visual-detail-field { margin: 10px 0; }
+        .visual-detail-field label {
+            color: #667085;
+            display: block;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .visual-detail-field input,
+        .visual-detail-field select {
+            min-height: 34px;
+            padding: 7px 9px;
+        }
+        .visual-detail-field input[type="checkbox"] {
+            min-height: auto;
+            width: auto;
+        }
+        .visual-readonly {
+            background: #f2f4f7;
+            color: #667085;
+        }
+        .visual-detail-actions {
+            border-top: 1px solid #edf0f4;
+            margin-top: 12px;
+            padding-top: 12px;
+        }
         @media (max-width: 860px) {
             body { padding: 16px; }
             .page { max-width: 100%; }
@@ -658,6 +685,74 @@
             return cells.find((cell) => cell.cell === cellRef) || null;
         }
 
+        function clampNumber(value, min, max) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return min;
+            return Math.min(max, Math.max(min, number));
+        }
+
+        function visualColumnWidthPx(grid, col) {
+            const letter = columnName(col);
+            const width = Number(grid?.col_widths?.[letter] || 8.43);
+            return Math.round(clampNumber(width * 8, 48, 260));
+        }
+
+        function visualRowHeightPx(grid, row) {
+            const height = Number(grid?.row_heights?.[String(row)] || 15);
+            return Math.round(clampNumber(height * 1.35, 24, 120));
+        }
+
+        function renderVisualColGroup(grid, cols) {
+            const columns = Array.from({ length: cols }, (_, index) => {
+                return `<col style="width:${visualColumnWidthPx(grid, index + 1)}px">`;
+            }).join("");
+            return `<colgroup><col class="row-header-col" style="width:44px">${columns}</colgroup>`;
+        }
+
+        function getCachedCandidateForCell(cellRef) {
+            const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
+            const candidates = Array.isArray(cached?.candidates) ? cached.candidates : [];
+            return candidates.find((candidate) => normalizeCell(candidate?.cell) === normalizeCell(cellRef)) || {};
+        }
+
+        function getVisualCellEffectiveConfig(cell) {
+            if (!cell) return null;
+            const cellRef = normalizeCell(cell.cell);
+            const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
+            const saved = cached?.savedConfiguration && typeof cached.savedConfiguration === "object"
+                ? (cached.savedConfiguration[cellRef] || {})
+                : {};
+            const candidate = getCachedCandidateForCell(cellRef);
+            const pick = (savedKey, cellKey, candidateKey, fallback = "") => {
+                if (Object.prototype.hasOwnProperty.call(saved, savedKey)) return saved[savedKey];
+                if (cell && Object.prototype.hasOwnProperty.call(cell, cellKey)) return cell[cellKey];
+                if (candidate && Object.prototype.hasOwnProperty.call(candidate, candidateKey)) return candidate[candidateKey];
+                return fallback;
+            };
+            return {
+                ...cell,
+                cell: cellRef,
+                label: pick("label", "label", "field_label", ""),
+                show_in_workspace: typeof saved.show_in_workspace === "boolean" ? saved.show_in_workspace : true,
+                candidate_field_key: pick("candidate_field_key", "candidate_field_key", "field_key", ""),
+                candidate_field_label: pick("candidate_field_label", "candidate_field_label", "field_label", ""),
+                candidate_confidence: Number(pick("candidate_confidence", "candidate_confidence", "confidence", 0) || 0),
+                candidate_source: pick("candidate_source", "candidate_source", "source", ""),
+                candidate_reason: pick("candidate_reason", "candidate_reason", "candidate_reason", ""),
+                confidence_breakdown: saved.confidence_breakdown && typeof saved.confidence_breakdown === "object"
+                    ? saved.confidence_breakdown
+                    : (candidate.confidence_breakdown && typeof candidate.confidence_breakdown === "object" ? candidate.confidence_breakdown : {}),
+                intent_type: pick("intent_type", "intent_type", "intent_type", "unknown") || "unknown",
+                write_mode: pick("write_mode", "write_mode", "write_mode", "skip") || "skip",
+                label_cell: pick("label_cell", "label_cell", "label_cell", cellRef),
+                target_cell: pick("target_cell", "target_cell", "target_cell", ""),
+                option_value: pick("option_value", "option_value", "option_value", ""),
+                intent_confidence: Number(pick("intent_confidence", "intent_confidence", "intent_confidence", 0) || 0),
+                intent_reason: pick("intent_reason", "intent_reason", "intent_reason", ""),
+                ai_extract_hint: pick("ai_extract_hint", "ai_extract_hint", "ai_extract_hint", ""),
+            };
+        }
+
         function parseCellRange(rangeText) {
             const parts = String(rangeText || "").split(":");
             if (parts.length !== 2) return null;
@@ -750,29 +845,112 @@
             const area = document.getElementById("visualCellDetail");
             if (!area) return;
             if (!cell) {
-                area.innerHTML = '<div class="small">点击左侧模板单元格查看 V4 判断。</div>';
+                area.innerHTML = '<div class="small">点击左侧模板单元格查看并编辑配置。</div>';
                 return;
             }
-            const fields = [
-                ["单元格", cell.cell],
-                ["识别文本", cell.display_value || cell.value || "-"],
-                ["V4推荐字段", cell.candidate_field_key || "-"],
-                ["候选字段名", cell.candidate_field_label || "-"],
-                ["匹配可信度", cell.candidate_confidence ? Number(cell.candidate_confidence).toFixed(2) : "-"],
-                ["推荐原因", cell.candidate_reason || "-"],
-                ["填写意图", INTENT_LABELS[cell.intent_type] || cell.intent_type || "-"],
-                ["写入策略", WRITE_MODE_LABELS[cell.write_mode] || cell.write_mode || "-"],
-                ["目标写入单元格", cell.target_cell || "-"],
-                ["选项值", cell.option_value || "-"],
-                ["意图可信度", cell.intent_confidence ? Number(cell.intent_confidence).toFixed(2) : "-"],
-                ["意图判断原因", cell.intent_reason || "-"],
-            ];
-            area.innerHTML = fields.map(([label, value]) => `
-                <div class="visual-detail-row">
-                    <div class="visual-detail-label">${escapeHtml(label)}</div>
-                    <div class="visual-detail-value">${escapeHtml(value)}</div>
+            const config = getVisualCellEffectiveConfig(cell);
+            const confidenceText = [
+                config.candidate_confidence ? `匹配可信度：${Number(config.candidate_confidence).toFixed(2)}` : "",
+                config.candidate_source ? `来源：${config.candidate_source}` : "",
+                config.candidate_reason ? `原因：${config.candidate_reason}` : "",
+                config.intent_confidence ? `意图可信度：${Number(config.intent_confidence).toFixed(2)}` : "",
+                config.intent_reason ? `意图原因：${config.intent_reason}` : "",
+            ].filter(Boolean).join(" / ") || "-";
+            area.innerHTML = `
+                <div class="visual-detail-title">单元格配置</div>
+                <div class="visual-detail-field">
+                    <label>单元格</label>
+                    <input class="visual-readonly" data-visual-detail-field="cell" type="text" value="${escapeHtml(config.cell || "")}" readonly>
                 </div>
-            `).join("");
+                <div class="visual-detail-field">
+                    <label>识别文本</label>
+                    <input class="visual-readonly" data-visual-detail-field="text" type="text" value="${escapeHtml(config.display_value || config.value || "")}" readonly>
+                </div>
+                <div class="visual-detail-field">
+                    <label>字段名</label>
+                    <input data-visual-detail-field="label" type="text" value="${escapeHtml(config.label || config.candidate_field_label || "")}">
+                </div>
+                <div class="visual-detail-field">
+                    <label>字段标识</label>
+                    <input data-visual-detail-field="field_key" type="text" value="${escapeHtml(config.candidate_field_key || "")}">
+                </div>
+                <div class="visual-detail-field">
+                    <label><input data-visual-detail-field="show_in_workspace" type="checkbox" ${config.show_in_workspace ? "checked" : ""}> 是否在工作页显示</label>
+                </div>
+                <div class="visual-detail-field">
+                    <label>填写意图</label>
+                    <select data-visual-detail-field="intent_type">${renderSelectOptions(INTENT_TYPE_OPTIONS, config.intent_type || "unknown", INTENT_LABELS)}</select>
+                </div>
+                <div class="visual-detail-field">
+                    <label>写入策略</label>
+                    <select data-visual-detail-field="write_mode">${renderSelectOptions(WRITE_MODE_OPTIONS, config.write_mode || "skip", WRITE_MODE_LABELS)}</select>
+                </div>
+                <div class="visual-detail-field">
+                    <label>目标写入单元格</label>
+                    <input data-visual-detail-field="target_cell" type="text" value="${escapeHtml(config.target_cell || "")}">
+                </div>
+                <div class="visual-detail-field">
+                    <label>选项值</label>
+                    <input data-visual-detail-field="option_value" type="text" value="${escapeHtml(config.option_value || "")}">
+                </div>
+                <div class="visual-detail-field">
+                    <label>AI提取提示</label>
+                    <input data-visual-detail-field="ai_extract_hint" type="text" value="${escapeHtml(config.ai_extract_hint || "")}">
+                </div>
+                <div class="visual-detail-row">
+                    <div class="visual-detail-label">可信度/原因</div>
+                    <div class="visual-detail-value">${escapeHtml(confidenceText)}</div>
+                </div>
+                <div class="visual-detail-actions">
+                    <button type="button" onclick="applyVisualCellDetailToConfig()">应用到当前单元格</button>
+                    <div class="small" style="margin-top:8px;">应用后请点击页面下方“保存配置”完成保存。</div>
+                </div>
+            `;
+        }
+
+        function applyVisualCellDetailToConfig() {
+            if (!selectedMappingId || !selectedVisualCell) {
+                setStatus("请先选择一个单元格。", "warning");
+                return;
+            }
+            const cell = findVisualCell(selectedVisualCell) || { cell: selectedVisualCell };
+            const effective = getVisualCellEffectiveConfig(cell);
+            if (!effective) return;
+            const area = document.getElementById("visualCellDetail");
+            const readValue = (field) => area.querySelector(`[data-visual-detail-field='${field}']`)?.value || "";
+            const readChecked = (field) => Boolean(area.querySelector(`[data-visual-detail-field='${field}']`)?.checked);
+            const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
+            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object" ? { ...cached.savedConfiguration } : {};
+            collectEditableConfiguration().forEach((item) => {
+                const key = normalizeCell(item.cell);
+                if (!key) return;
+                savedConfiguration[key] = { ...(savedConfiguration[key] || {}), ...item };
+            });
+            const previous = savedConfiguration[effective.cell] && typeof savedConfiguration[effective.cell] === "object" ? savedConfiguration[effective.cell] : {};
+            savedConfiguration[effective.cell] = {
+                ...previous,
+                label: readValue("label").trim(),
+                show_in_workspace: readChecked("show_in_workspace"),
+                display_order: Number(previous.display_order || Object.keys(savedConfiguration).length + 1),
+                candidate_field_key: readValue("field_key").trim(),
+                candidate_field_label: previous.candidate_field_label || effective.candidate_field_label || "",
+                candidate_confidence: Number(previous.candidate_confidence ?? effective.candidate_confidence ?? 0),
+                candidate_source: previous.candidate_source || effective.candidate_source || "",
+                candidate_reason: previous.candidate_reason || effective.candidate_reason || "",
+                confidence_breakdown: previous.confidence_breakdown && typeof previous.confidence_breakdown === "object" ? previous.confidence_breakdown : (effective.confidence_breakdown || {}),
+                intent_type: readValue("intent_type").trim(),
+                write_mode: readValue("write_mode").trim(),
+                label_cell: previous.label_cell || effective.label_cell || effective.cell,
+                target_cell: normalizeCell(readValue("target_cell")),
+                option_value: readValue("option_value").trim(),
+                intent_confidence: Number(previous.intent_confidence ?? effective.intent_confidence ?? 0),
+                intent_reason: previous.intent_reason || effective.intent_reason || "",
+                ai_extract_hint: readValue("ai_extract_hint").trim(),
+            };
+            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
+            renderConfig();
+            renderVisualWorkbench();
+            setStatus("已应用到当前单元格，请点击页面下方“保存配置”完成保存。", "warning");
         }
 
         function selectVisualCell(cellRef) {
@@ -798,16 +976,21 @@
             const byCell = {};
             cells.forEach((cell) => { byCell[cell.cell] = cell; });
             const mergeLookup = buildMergeLookup(grid);
-            const header = Array.from({ length: cols }, (_, index) => `<th>${columnName(index + 1)}</th>`).join("");
+            const header = Array.from({ length: cols }, (_, index) => {
+                const col = index + 1;
+                return `<th style="width:${visualColumnWidthPx(grid, col)}px">${columnName(col)}</th>`;
+            }).join("");
             const bodyRows = [];
             for (let row = 1; row <= rows; row += 1) {
                 const tds = [];
+                const rowHeight = visualRowHeightPx(grid, row);
                 for (let col = 1; col <= cols; col += 1) {
                     const cellRef = `${columnName(col)}${row}`;
                     if (mergeLookup.skip.has(cellRef)) continue;
                     const cell = byCell[cellRef] || { cell: cellRef, display_value: "" };
+                    const effective = getVisualCellEffectiveConfig(cell) || cell;
                     const hasText = Boolean(cell.display_value || cell.value);
-                    const hasV4 = Boolean(cell.candidate_field_key || cell.intent_type);
+                    const hasV4 = Boolean(effective.candidate_field_key || (effective.intent_type && effective.intent_type !== "unknown"));
                     const mergeSize = mergeLookup.start[cellRef] || {};
                     const rowspan = Number(mergeSize.rowspan || 1);
                     const colspan = Number(mergeSize.colspan || 1);
@@ -819,14 +1002,16 @@
                         selectedVisualCell === cellRef ? "selected" : "",
                     ].filter(Boolean).join(" ");
                     const spanAttrs = `${rowspan > 1 ? ` rowspan="${rowspan}"` : ""}${colspan > 1 ? ` colspan="${colspan}"` : ""}`;
-                    tds.push(`<td class="${classes}"${spanAttrs} style="${visualCellStyle(cell)}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}">${escapeHtml(cell.display_value || "")}</td>`);
+                    const cellStyle = [`height:${rowHeight}px`, visualCellStyle(cell)].filter(Boolean).join(";");
+                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}">${escapeHtml(cell.display_value || "")}</td>`);
                 }
-                bodyRows.push(`<tr><th class="row-head">${row}</th>${tds.join("")}</tr>`);
+                bodyRows.push(`<tr style="height:${rowHeight}px"><th class="row-head" style="height:${rowHeight}px">${row}</th>${tds.join("")}</tr>`);
             }
 
             gridArea.className = "visual-grid-wrap";
             gridArea.innerHTML = `
                 <table class="visual-grid">
+                    ${renderVisualColGroup(grid, cols)}
                     <thead><tr><th class="corner-cell"></th>${header}</tr></thead>
                     <tbody>${bodyRows.join("")}</tbody>
                 </table>
@@ -929,6 +1114,26 @@
             });
         }
 
+        function appendSavedConfigurationRows(rows, savedConfiguration) {
+            const output = Array.isArray(rows) ? [...rows] : [];
+            const seen = new Set(output.map((row) => normalizeCell(row.cell)).filter(Boolean));
+            const saved = savedConfiguration && typeof savedConfiguration === "object" ? savedConfiguration : {};
+            Object.entries(saved).forEach(([cell, item]) => {
+                const key = normalizeCell(cell);
+                if (!key || seen.has(key)) return;
+                const visualCell = findVisualCell(key) || {};
+                output.push({
+                    cell: key,
+                    text: item?.label || visualCell.display_value || visualCell.value || "",
+                    section: "可视化单元格",
+                    sectionKey: "visual_cells",
+                    type: "",
+                });
+                seen.add(key);
+            });
+            return output;
+        }
+
         function applySavedConfiguration(rows, savedConfiguration, mappingCandidates) {
             const saved = savedConfiguration && typeof savedConfiguration === "object" ? savedConfiguration : {};
             const candidatesByCell = {};
@@ -1023,6 +1228,7 @@
                     show_in_workspace: showInput ? showInput.checked : true,
                     display_order: orderInput ? Number(orderInput.value || 0) : 0,
                     candidate_field_key: fieldKeyInput ? fieldKeyInput.value.trim() : "",
+                    candidate_field_label: row.dataset.candidateFieldLabel || "",
                     candidate_confidence: Number(row.dataset.candidateConfidence || 0),
                     candidate_source: row.dataset.candidateSource || "",
                     candidate_reason: row.dataset.candidateReason || "",
@@ -1115,7 +1321,8 @@
             const labels = Array.isArray(cached?.labels) ? cached.labels : (Array.isArray(selectedMapping?.template_labels) ? selectedMapping.template_labels : []);
             const structureLabels = Array.isArray(cached?.structureLabels) ? cached.structureLabels : [];
             const sections = Array.isArray(cached?.sections) ? cached.sections : (Array.isArray(selectedMapping?.layout_sections) ? selectedMapping.layout_sections : []);
-            const rows = applySavedConfiguration(buildConfigRows(labels, structureLabels, sections), cached?.savedConfiguration, cached?.candidates);
+            const baseRows = appendSavedConfigurationRows(buildConfigRows(labels, structureLabels, sections), cached?.savedConfiguration);
+            const rows = applySavedConfiguration(baseRows, cached?.savedConfiguration, cached?.candidates);
             const configSections = buildConfigSections(rows, sections, cached?.savedSectionConfiguration);
 
             if (!rows.length) {
@@ -1149,7 +1356,7 @@
                                 </thead>
                                 <tbody>
                                     ${section.rows.map((row) => `
-                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}"` : ""}>
+                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}"` : ""}>
                                             <td>${escapeHtml(row.cell || "-")}</td>
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>

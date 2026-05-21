@@ -440,6 +440,138 @@ def _load_template_intent_context(template_path):
     }
 
 
+def _excel_color_text(color):
+    if color is None:
+        return ""
+    rgb = getattr(color, "rgb", None)
+    if rgb and str(rgb) != "00000000":
+        return str(rgb)
+    indexed = getattr(color, "indexed", None)
+    if indexed is not None:
+        return f"indexed:{indexed}"
+    return ""
+
+
+def _merge_candidate_with_saved_configuration(candidate, saved_item):
+    candidate = candidate if isinstance(candidate, dict) else {}
+    saved_item = saved_item if isinstance(saved_item, dict) else {}
+    def saved_or_candidate(saved_key, candidate_key, default=""):
+        if saved_key in saved_item:
+            return saved_item.get(saved_key)
+        return candidate.get(candidate_key, default)
+
+    return {
+        "candidate_field_key": saved_or_candidate("candidate_field_key", "field_key"),
+        "candidate_field_label": saved_or_candidate("candidate_field_label", "field_label"),
+        "candidate_confidence": saved_or_candidate("candidate_confidence", "confidence", 0),
+        "candidate_source": saved_or_candidate("candidate_source", "source"),
+        "candidate_reason": saved_or_candidate("candidate_reason", "candidate_reason"),
+        "confidence_breakdown": saved_item.get("confidence_breakdown") if isinstance(saved_item.get("confidence_breakdown"), dict) else (candidate.get("confidence_breakdown") if isinstance(candidate.get("confidence_breakdown"), dict) else {}),
+        "intent_type": saved_or_candidate("intent_type", "intent_type"),
+        "write_mode": saved_or_candidate("write_mode", "write_mode"),
+        "label_cell": saved_or_candidate("label_cell", "label_cell"),
+        "target_cell": saved_or_candidate("target_cell", "target_cell"),
+        "option_value": saved_or_candidate("option_value", "option_value"),
+        "intent_confidence": saved_or_candidate("intent_confidence", "intent_confidence", 0),
+        "intent_reason": saved_or_candidate("intent_reason", "intent_reason"),
+        "ai_extract_hint": saved_or_candidate("ai_extract_hint", "ai_extract_hint"),
+    }
+
+
+def _build_visual_grid(template_path, mapping_candidates, template_configuration):
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+
+    workbook = load_workbook(template_path, data_only=False)
+    worksheet = workbook.active
+    rows = min(int(worksheet.max_row or 1), 80)
+    cols = min(int(worksheet.max_column or 1), 30)
+    default_row_height = float(worksheet.sheet_format.defaultRowHeight or 15)
+    default_col_width = float(worksheet.sheet_format.defaultColWidth or 8.43)
+    row_heights = {}
+    col_widths = {}
+
+    for row in range(1, rows + 1):
+        row_dimension = worksheet.row_dimensions.get(row)
+        height = row_dimension.height if row_dimension is not None else None
+        row_heights[str(row)] = float(height if height is not None else default_row_height)
+
+    for col in range(1, cols + 1):
+        column_letter = get_column_letter(col)
+        column_dimension = worksheet.column_dimensions.get(column_letter)
+        width = column_dimension.width if column_dimension is not None else None
+        col_widths[column_letter] = float(width if width is not None else default_col_width)
+
+    merges = []
+    merge_lookup = {}
+    for merged_range in worksheet.merged_cells.ranges:
+        range_text = str(merged_range)
+        start_cell = merged_range.start_cell.coordinate
+        if merged_range.min_row <= rows and merged_range.min_col <= cols:
+            merges.append(
+                {
+                    "range": range_text,
+                    "start_cell": start_cell,
+                    "start_row": merged_range.min_row,
+                    "start_col": merged_range.min_col,
+                    "end_row": min(merged_range.max_row, rows),
+                    "end_col": min(merged_range.max_col, cols),
+                }
+            )
+        for row in range(merged_range.min_row, min(merged_range.max_row, rows) + 1):
+            for col in range(merged_range.min_col, min(merged_range.max_col, cols) + 1):
+                merge_lookup[_cell_ref(row, col)] = {
+                    "range": range_text,
+                    "start_cell": start_cell,
+                    "merge_start": _cell_ref(row, col) == start_cell,
+                }
+
+    candidates_by_cell = {
+        str(item.get("cell") or "").strip().upper(): item
+        for item in mapping_candidates if isinstance(item, dict) and item.get("cell")
+    }
+    saved = template_configuration if isinstance(template_configuration, dict) else {}
+    cells = []
+
+    for row in range(1, rows + 1):
+        for col in range(1, cols + 1):
+            cell_obj = worksheet.cell(row=row, column=col)
+            cell_ref = cell_obj.coordinate
+            raw_value = _safe_cell_text(cell_obj.value)
+            merge_info = merge_lookup.get(cell_ref, {})
+            is_merged = bool(merge_info)
+            merge_start = bool(merge_info.get("merge_start", False))
+            display_value = raw_value if (not is_merged or merge_start) else ""
+            saved_item = saved.get(cell_ref, {})
+            v4_fields = _merge_candidate_with_saved_configuration(candidates_by_cell.get(cell_ref, {}), saved_item)
+            cells.append(
+                {
+                    "cell": cell_ref,
+                    "row": row,
+                    "col": col,
+                    "value": raw_value,
+                    "display_value": display_value,
+                    "font_bold": bool(cell_obj.font.bold),
+                    "font_size": float(cell_obj.font.sz or 0),
+                    "fill_color": _excel_color_text(cell_obj.fill.fgColor),
+                    "align": str(cell_obj.alignment.horizontal or ""),
+                    "merged_range": merge_info.get("range", ""),
+                    "is_merged": is_merged,
+                    "merge_start": merge_start,
+                    **v4_fields,
+                }
+            )
+
+    return {
+        "rows": rows,
+        "cols": cols,
+        "row_heights": row_heights,
+        "col_widths": col_widths,
+        "cells": cells,
+        "merges": merges,
+    }
+
+
 def _intent_cell_info(context, cell):
     cells = context.get("cells") if isinstance(context, dict) else {}
     return cells.get(str(cell or "").strip().upper(), {}) if isinstance(cells, dict) else {}
@@ -1554,6 +1686,62 @@ def api_v4_template_profile_configuration(profile_id: str):
             "error": str(exc) or "模板配置加载失败",
             "layout_sections": [],
             "template_analysis": {},
+        }
+
+
+@router.get("/api/v4/template-profiles/{profile_id}/visual-grid")
+def api_v4_template_profile_visual_grid(profile_id: str):
+    from app.v4_template_analysis import analyze_template
+
+    logger.info("V4 template profile visual grid requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "映射不存在",
+            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
+        }
+
+    template_file_path = str(profile.get("template_file_path") or "").strip()
+    if not template_file_path:
+        return {
+            "success": False,
+            "error": "当前映射尚未绑定模板文件。",
+            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
+        }
+
+    try:
+        bound_template_path = _resolve_bound_template_file_path(template_file_path)
+        analysis = analyze_template(bound_template_path)
+        layout_result = build_layout_sections_from_template_analysis(analysis)
+        layout_sections = layout_result.get("layout_sections", [])
+        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
+        template_configuration = _template_configuration_from_profile(profile)
+        visual_grid = _build_visual_grid(bound_template_path, mapping_candidates, template_configuration)
+        return {
+            "success": True,
+            "profile_id": profile.get("profile_id", ""),
+            "template_filename": profile.get("template_filename", ""),
+            "visual_grid": visual_grid,
+        }
+    except (BadZipFile, InvalidFileException) as exc:
+        return {
+            "success": False,
+            "error": f"Excel 模板格式无效：{exc}",
+            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
+        }
+    except (OSError, ValueError) as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile visual grid failed")
+        return {
+            "success": False,
+            "error": str(exc) or "可视化模板配置加载失败",
+            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
         }
 
 
