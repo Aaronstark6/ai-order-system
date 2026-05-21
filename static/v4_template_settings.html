@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>系统模板设置</title>
+    <title>系统模板管理</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -15,7 +15,7 @@
         }
         .page {
             margin: 0 auto;
-            max-width: 1180px;
+            max-width: 1120px;
         }
         .header {
             align-items: center;
@@ -28,6 +28,11 @@
             font-size: 28px;
             margin: 0;
         }
+        h2 {
+            color: #222;
+            font-size: 20px;
+            margin: 0 0 14px;
+        }
         a {
             color: #1677ff;
             text-decoration: none;
@@ -38,20 +43,14 @@
             background: #fff;
             border-radius: 10px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 16px;
             padding: 20px;
-        }
-        .hint {
-            color: #666;
-            font-size: 14px;
-            line-height: 1.6;
-            margin: 0 0 16px;
         }
         .status {
             border-radius: 7px;
             color: #666;
             font-size: 14px;
             line-height: 1.5;
-            margin-bottom: 14px;
             min-height: 22px;
             padding: 10px 12px;
         }
@@ -59,70 +58,31 @@
         .status.success { background: #e9f8ef; color: #16713b; }
         .status.warning { background: #fff7db; color: #8a6100; }
         .status.error { background: #ffe9e7; color: #b42318; }
-        .profile-list {
+        .form-grid {
             display: grid;
             gap: 14px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
-        .template-upload {
+        .summary-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .summary-card {
             background: #fafbfd;
-            border: 1px solid #e0e4ec;
-            border-radius: 10px;
-            display: grid;
-            gap: 12px;
-            margin-bottom: 16px;
-            padding: 16px;
+            border: 1px solid #e6eaf0;
+            border-radius: 9px;
+            padding: 14px;
         }
-        .template-upload h2 {
-            color: #222;
-            font-size: 18px;
-            margin: 0;
-        }
-        .upload-grid {
-            display: grid;
-            gap: 12px;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        }
-        .profile-card {
-            border: 1px solid #e0e4ec;
-            border-radius: 10px;
-            display: grid;
-            gap: 12px;
-            padding: 16px;
-        }
-        .profile-head {
-            align-items: baseline;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px 14px;
-        }
-        .profile-name {
-            color: #222;
-            font-size: 18px;
-            font-weight: 700;
-        }
-        .profile-id {
-            color: #666;
-            font-size: 13px;
-        }
-        .meta-grid {
-            display: grid;
-            gap: 10px;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-        .meta-item {
-            background: #fafbfd;
-            border: 1px solid #edf0f4;
-            border-radius: 8px;
-            padding: 10px;
-        }
-        .meta-label {
+        .summary-label {
             color: #777;
-            font-size: 12px;
-            margin-bottom: 4px;
+            font-size: 13px;
+            margin-bottom: 6px;
         }
-        .meta-value {
-            color: #333;
-            font-size: 14px;
+        .summary-value {
+            color: #222;
+            font-size: 16px;
+            font-weight: 700;
             overflow-wrap: anywhere;
         }
         label {
@@ -145,6 +105,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
+            margin-top: 14px;
         }
         button {
             background: #1677ff;
@@ -160,55 +121,127 @@
             background: #eef2f7;
             color: #344054;
         }
+        button.danger {
+            background: #f04438;
+        }
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
         .small {
             color: #777;
             font-size: 13px;
+            line-height: 1.5;
+        }
+        .config-empty {
+            background: #fafbfd;
+            border: 1px dashed #d8dee8;
+            border-radius: 9px;
+            color: #666;
+            line-height: 1.6;
+            padding: 18px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border-bottom: 1px solid #edf0f4;
+            font-size: 14px;
+            padding: 10px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: #fafbfd;
+            color: #555;
+            font-weight: 700;
+        }
+        td {
+            color: #333;
+            overflow-wrap: anywhere;
         }
         @media (max-width: 900px) {
             body { padding: 16px; }
             .header { align-items: flex-start; flex-direction: column; gap: 8px; }
-            .upload-grid { grid-template-columns: 1fr; }
-            .meta-grid { grid-template-columns: 1fr; }
+            .form-grid, .summary-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
     <main class="page">
         <header class="header">
-            <h1>系统模板设置</h1>
+            <h1>系统模板管理</h1>
             <a href="/v4-order-workspace">订单工作台</a>
             <a href="/v4-core-pipeline">V4 Core Pipeline</a>
         </header>
 
         <section class="panel">
-            <p class="hint">这里用于维护系统模板与公司模板文件的绑定关系。上传公司 Excel 模板后，系统会分析模板结构并生成新的系统模板。生成后可在订单工作台中选择使用。</p>
+            <h2>系统模板</h2>
             <div id="settingsStatus" class="status info">正在加载系统模板...</div>
-            <div class="template-upload">
-                <h2>新增系统模板</h2>
-                <div class="upload-grid">
-                    <div>
-                        <label for="newSystemTemplateNameInput">系统模板名称</label>
-                        <input id="newSystemTemplateNameInput" type="text" placeholder="例如 Anna 固体饮料模板">
-                    </div>
-                    <div>
-                        <label for="companyTemplateFileInput">Excel 模板文件</label>
-                        <input id="companyTemplateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
-                    </div>
+            <div class="form-grid" style="margin-top: 14px;">
+                <div>
+                    <label for="templateSelect">选择系统模板</label>
+                    <select id="templateSelect" onchange="selectSystemTemplate(this.value)"></select>
                 </div>
-                <div class="actions">
-                    <button type="button" onclick="createSystemTemplateFromCompanyTemplate()">生成系统模板</button>
-                    <span id="analysisStatus" class="small">填写系统模板名称并选择公司模板文件后开始生成。</span>
+                <div>
+                    <label for="newSystemTemplateNameInput">新建系统模板名称</label>
+                    <input id="newSystemTemplateNameInput" type="text" placeholder="例如 Anna 固体饮料模板">
+                </div>
+                <div>
+                    <label for="companyTemplateFileInput">公司 Excel 模板文件</label>
+                    <input id="companyTemplateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
                 </div>
             </div>
-            <div class="actions" style="margin-bottom: 14px;">
-                <button type="button" onclick="loadTemplateProfiles()">刷新</button>
+            <div class="actions">
+                <button type="button" onclick="createSystemTemplateFromCompanyTemplate()">生成系统模板</button>
+                <button type="button" class="secondary" onclick="loadTemplateProfiles()">刷新</button>
+                <span id="createStatus" class="small">填写名称并选择公司模板文件后生成新的系统模板。</span>
             </div>
-            <div id="profileList" class="profile-list"></div>
+        </section>
+
+        <section class="panel">
+            <h2>当前系统模板状态</h2>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-label">当前系统模板</div>
+                    <div id="currentTemplateName" class="summary-value">未选择</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">模板文件</div>
+                    <div id="currentTemplateFile" class="summary-value">未上传</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>模板文件操作</h2>
+            <div class="form-grid">
+                <div>
+                    <label for="replaceTemplateFileInput">选择新的模板文件</label>
+                    <input id="replaceTemplateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
+                </div>
+            </div>
+            <div class="actions">
+                <button type="button" onclick="replaceCurrentTemplateFile()">上传/替换模板</button>
+                <button type="button" class="danger" onclick="deleteCurrentTemplateFile()">删除模板文件</button>
+                <span id="fileActionStatus" class="small"></span>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>模板配置</h2>
+            <div id="templateConfigArea" class="config-empty">
+                当前阶段将显示模板分析识别出的可填写单元格。下一步将支持字段名、分组、顺序、是否显示到工作页配置。
+            </div>
         </section>
     </main>
 
     <script>
         let templateProfiles = [];
+        let selectedTemplateId = "";
+        let selectedTemplateDetail = null;
+        let configByTemplateId = {};
 
         function escapeHtml(value) {
             const div = document.createElement("div");
@@ -222,64 +255,159 @@
             element.className = `status ${type}`;
         }
 
-        function templateFileStatus(validation) {
-            const fileStatus = validation && validation.file_status ? validation.file_status : {};
-            return fileStatus.template_file_path || "unbound";
+        function setInlineStatus(id, text) {
+            const element = document.getElementById(id);
+            if (element) element.textContent = text;
         }
 
-        function renderProfiles(items) {
-            const list = document.getElementById("profileList");
-            if (!items.length) {
-                list.innerHTML = '<div class="status warning">暂无系统模板。</div>';
+        function templateName(profile) {
+            return profile?.profile_name || profile?.template_name || "未命名系统模板";
+        }
+
+        function templateFilename(profile) {
+            return profile?.template_filename || "未上传";
+        }
+
+        function selectedProfile() {
+            return selectedTemplateDetail || templateProfiles.find(item => item.profile_id === selectedTemplateId) || null;
+        }
+
+        function renderTemplateSelector() {
+            const select = document.getElementById("templateSelect");
+            if (!templateProfiles.length) {
+                select.innerHTML = '<option value="">暂无系统模板</option>';
+                select.value = "";
+                selectedTemplateId = "";
                 return;
             }
 
-            list.innerHTML = items.map(item => {
-                const profile = item.profile || {};
-                const validation = item.validation || {};
-                const profileId = profile.profile_id || "";
-                const templatePath = profile.template_file_path || "";
-                const status = templateFileStatus(validation);
-                return `
-                    <div class="profile-card" data-profile-id="${escapeHtml(profileId)}">
-                        <div class="profile-head">
-                            <div class="profile-name">${escapeHtml(profile.profile_name || profileId)}</div>
-                            <div class="profile-id">${escapeHtml(profileId)}</div>
-                        </div>
-                        <div class="meta-grid">
-                            <div class="meta-item">
-                                <div class="meta-label">template_file_path</div>
-                                <div class="meta-value">${escapeHtml(templatePath || "unbound")}</div>
-                            </div>
-                            <div class="meta-item">
-                                <div class="meta-label">validation.valid</div>
-                                <div class="meta-value">${validation.valid ? "true" : "false"}</div>
-                            </div>
-                            <div class="meta-item">
-                                <div class="meta-label">file_status.template_file_path</div>
-                                <div class="meta-value">${escapeHtml(status)}</div>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="templatePath-${escapeHtml(profileId)}">绑定模板文件路径</label>
-                            <input
-                                id="templatePath-${escapeHtml(profileId)}"
-                                type="text"
-                                value="${escapeHtml(templatePath)}"
-                                placeholder="例如 templates/order_template.xlsx"
-                            >
-                            <div class="small">留空表示 unbound，工作台将继续使用上传文件兼容模式。</div>
-                        </div>
-                        <div class="actions">
-                            <button type="button" onclick="saveTemplateFilePath('${escapeHtml(profileId)}')">保存</button>
-                            <span id="status-${escapeHtml(profileId)}" class="small"></span>
-                        </div>
-                    </div>
-                `;
+            select.innerHTML = templateProfiles.map(profile => {
+                const id = profile.profile_id || "";
+                return `<option value="${escapeHtml(id)}">${escapeHtml(templateName(profile))}</option>`;
             }).join("");
+
+            if (!selectedTemplateId || !templateProfiles.some(item => item.profile_id === selectedTemplateId)) {
+                selectedTemplateId = templateProfiles[0].profile_id || "";
+            }
+            select.value = selectedTemplateId;
         }
 
-        async function loadTemplateProfiles() {
+        function renderCurrentTemplateStatus() {
+            const profile = selectedProfile();
+            document.getElementById("currentTemplateName").textContent = profile ? templateName(profile) : "未选择";
+            document.getElementById("currentTemplateFile").textContent = profile ? templateFilename(profile) : "未上传";
+        }
+
+        function rowIndexFromCell(cell) {
+            const match = String(cell || "").match(/\d+/);
+            return match ? Number(match[0]) : 999999;
+        }
+
+        function columnIndexFromCell(cell) {
+            const letters = String(cell || "").match(/[A-Z]+/i);
+            if (!letters) return 999999;
+            return letters[0].toUpperCase().split("").reduce((sum, ch) => sum * 26 + ch.charCodeAt(0) - 64, 0);
+        }
+
+        function sectionForLabel(label, layoutSections) {
+            const cell = label?.cell || "";
+            const row = rowIndexFromCell(cell);
+            const col = columnIndexFromCell(cell);
+            const section = (layoutSections || []).find(item => {
+                const bounds = item.bounds || {};
+                const startRow = Number(bounds.start_row || 0);
+                const endRow = Number(bounds.end_row || 0);
+                const startCol = Number(bounds.start_col || 0);
+                const endCol = Number(bounds.end_col || 0);
+                return startRow && endRow && startCol && endCol
+                    && row >= startRow && row <= endRow
+                    && col >= startCol && col <= endCol;
+            });
+            return section?.title || "普通字段";
+        }
+
+        function renderTemplateConfigFromResult(result) {
+            const labels = Array.isArray(result?.template_labels) ? result.template_labels : [];
+            const sections = Array.isArray(result?.layout_sections) ? result.layout_sections : [];
+            const area = document.getElementById("templateConfigArea");
+
+            if (!labels.length) {
+                area.className = "config-empty";
+                area.innerHTML = "当前阶段将显示模板分析识别出的可填写单元格。下一步将支持字段名、分组、顺序、是否显示到工作页配置。";
+                return;
+            }
+
+            const rows = labels
+                .slice()
+                .sort((left, right) => {
+                    const rowDiff = rowIndexFromCell(left.cell) - rowIndexFromCell(right.cell);
+                    if (rowDiff) return rowDiff;
+                    return columnIndexFromCell(left.cell) - columnIndexFromCell(right.cell);
+                })
+                .slice(0, 120)
+                .map(label => {
+                    const text = label.label || label.text || label.value || "";
+                    const valueType = label.value_type || label.type || "文本";
+                    return `
+                        <tr>
+                            <td>${escapeHtml(label.cell || "")}</td>
+                            <td>${escapeHtml(text)}</td>
+                            <td>${escapeHtml(sectionForLabel(label, sections))}</td>
+                            <td>${escapeHtml(valueType)}</td>
+                        </tr>
+                    `;
+                }).join("");
+
+            area.className = "";
+            area.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>单元格</th>
+                            <th>可填写内容</th>
+                            <th>所属区域</th>
+                            <th>类型</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        }
+
+        function renderStoredTemplateConfig() {
+            renderTemplateConfigFromResult(configByTemplateId[selectedTemplateId] || {});
+        }
+
+        async function fetchTemplateDetail(profileId) {
+            if (!profileId) return null;
+            const response = await fetch(`/api/v4/template-profiles/${encodeURIComponent(profileId)}`);
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || "系统模板加载失败");
+            }
+            return result.profile || null;
+        }
+
+        async function selectSystemTemplate(profileId) {
+            selectedTemplateId = profileId || "";
+            selectedTemplateDetail = null;
+            try {
+                if (selectedTemplateId) {
+                    selectedTemplateDetail = await fetchTemplateDetail(selectedTemplateId);
+                    await fetch("/api/v4/set-current-template-profile", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ profile_id: selectedTemplateId })
+                    });
+                }
+                renderCurrentTemplateStatus();
+                renderStoredTemplateConfig();
+            } catch (error) {
+                setStatus(error.message || "系统模板加载失败", "error");
+            }
+        }
+
+        async function loadTemplateProfiles(preferredId = "") {
             try {
                 setStatus("正在加载系统模板...", "info");
                 const response = await fetch("/api/v4/template-profiles");
@@ -288,24 +416,11 @@
                     throw new Error(result.error || "系统模板加载失败");
                 }
 
-                const profiles = Array.isArray(result.profiles) ? result.profiles : [];
-                templateProfiles = profiles;
-                const details = await Promise.all(profiles.map(async profile => {
-                    const profileId = profile.profile_id || "";
-                    if (!profileId) return { profile, validation: {} };
-                    const detailResponse = await fetch(`/api/v4/template-profiles/${encodeURIComponent(profileId)}`);
-                    const detailResult = await detailResponse.json();
-                    if (!detailResponse.ok || !detailResult.success) {
-                        return { profile, validation: {} };
-                    }
-                    return {
-                        profile: detailResult.profile || profile,
-                        validation: detailResult.validation || {},
-                    };
-                }));
-
-                renderProfiles(details);
-                setStatus(`已加载 ${details.length} 个系统模板。`, "success");
+                templateProfiles = Array.isArray(result.profiles) ? result.profiles : [];
+                selectedTemplateId = preferredId || selectedTemplateId || "";
+                renderTemplateSelector();
+                await selectSystemTemplate(selectedTemplateId);
+                setStatus(`已加载 ${templateProfiles.length} 个系统模板。`, "success");
             } catch (error) {
                 setStatus(error.message || "系统模板加载失败", "error");
             }
@@ -313,25 +428,24 @@
 
         async function createSystemTemplateFromCompanyTemplate() {
             const nameInput = document.getElementById("newSystemTemplateNameInput");
-            const profileName = nameInput ? nameInput.value.trim() : "";
             const fileInput = document.getElementById("companyTemplateFileInput");
-            const analysisStatus = document.getElementById("analysisStatus");
+            const profileName = nameInput ? nameInput.value.trim() : "";
             const templateFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0] : null;
 
             if (!profileName) {
-                if (analysisStatus) analysisStatus.textContent = "请填写系统模板名称。";
-                setStatus("请填写系统模板名称。", "warning");
+                setStatus("请填写新建系统模板名称。", "warning");
+                setInlineStatus("createStatus", "请填写新建系统模板名称。");
                 return;
             }
             if (!templateFile) {
-                if (analysisStatus) analysisStatus.textContent = "请选择 Excel 模板文件。";
-                setStatus("请选择 Excel 模板文件。", "warning");
+                setStatus("请选择公司 Excel 模板文件。", "warning");
+                setInlineStatus("createStatus", "请选择公司 Excel 模板文件。");
                 return;
             }
 
             try {
-                if (analysisStatus) analysisStatus.textContent = "正在上传并分析模板...";
-                setStatus("正在上传并分析公司模板...", "info");
+                setStatus("正在生成系统模板...", "info");
+                setInlineStatus("createStatus", "正在上传并分析模板...");
                 const formData = new FormData();
                 formData.append("profile_name", profileName);
                 formData.append("template_file", templateFile);
@@ -342,49 +456,95 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.error || "模板分析失败");
+                    throw new Error(result.error || "系统模板生成失败");
                 }
 
-                const summary = result.template_analysis_summary || {};
-                const layoutSummary = result.layout_summary || {};
-                if (analysisStatus) {
-                    analysisStatus.textContent = `系统模板已生成：labels ${summary.labels_count || 0}，regions ${layoutSummary.sections_count || 0}`;
-                }
-                setStatus("系统模板已生成。", "success");
+                const newId = result.profile?.profile_id || "";
+                if (newId) configByTemplateId[newId] = result;
                 if (nameInput) nameInput.value = "";
                 if (fileInput) fileInput.value = "";
-                await loadTemplateProfiles();
+                setInlineStatus("createStatus", "系统模板已生成。");
+                await loadTemplateProfiles(newId);
+                renderTemplateConfigFromResult(result);
             } catch (error) {
-                if (analysisStatus) analysisStatus.textContent = error.message || "模板分析失败";
-                setStatus(error.message || "模板分析失败", "error");
+                setStatus(error.message || "系统模板生成失败", "error");
+                setInlineStatus("createStatus", error.message || "系统模板生成失败");
             }
         }
 
-        async function saveTemplateFilePath(profileId) {
-            const input = document.getElementById(`templatePath-${profileId}`);
-            const status = document.getElementById(`status-${profileId}`);
-            const templateFilePath = input ? input.value.trim() : "";
-            if (status) status.textContent = "正在保存...";
+        async function replaceCurrentTemplateFile() {
+            if (!selectedTemplateId) {
+                setStatus("请先选择系统模板。", "warning");
+                return;
+            }
+            const fileInput = document.getElementById("replaceTemplateFileInput");
+            const templateFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0] : null;
+            if (!templateFile) {
+                setStatus("请选择新的模板文件。", "warning");
+                setInlineStatus("fileActionStatus", "请选择新的模板文件。");
+                return;
+            }
 
             try {
-                const response = await fetch(`/api/v4/template-profiles/${encodeURIComponent(profileId)}/template-file`, {
+                setStatus("正在上传并分析模板文件...", "info");
+                setInlineStatus("fileActionStatus", "正在上传并分析模板文件...");
+                const formData = new FormData();
+                formData.append("template_file", templateFile);
+                const response = await fetch(`/api/v4/template-profiles/${encodeURIComponent(selectedTemplateId)}/replace-template-file`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ template_file_path: templateFilePath })
+                    body: formData
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.error || "保存失败");
+                    throw new Error(result.error || "模板文件更新失败");
                 }
-                if (status) status.textContent = "已保存";
-                await loadTemplateProfiles();
+
+                configByTemplateId[selectedTemplateId] = result;
+                if (fileInput) fileInput.value = "";
+                setInlineStatus("fileActionStatus", "模板文件已更新。");
+                await loadTemplateProfiles(selectedTemplateId);
+                renderTemplateConfigFromResult(result);
+                setStatus("模板文件已更新。", "success");
             } catch (error) {
-                if (status) status.textContent = error.message || "保存失败";
-                setStatus(error.message || "保存失败", "error");
+                setStatus(error.message || "模板文件更新失败", "error");
+                setInlineStatus("fileActionStatus", error.message || "模板文件更新失败");
             }
         }
 
-        document.addEventListener("DOMContentLoaded", loadTemplateProfiles);
+        async function deleteCurrentTemplateFile() {
+            if (!selectedTemplateId) {
+                setStatus("请先选择系统模板。", "warning");
+                return;
+            }
+            if (!confirm("确定删除当前模板文件吗？系统模板会保留。")) {
+                return;
+            }
+
+            try {
+                setStatus("正在删除模板文件...", "info");
+                setInlineStatus("fileActionStatus", "正在删除模板文件...");
+                const response = await fetch(`/api/v4/template-profiles/${encodeURIComponent(selectedTemplateId)}/delete-template-file`, {
+                    method: "POST"
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "模板文件删除失败");
+                }
+
+                delete configByTemplateId[selectedTemplateId];
+                setInlineStatus("fileActionStatus", "模板文件已删除。");
+                await loadTemplateProfiles(selectedTemplateId);
+                renderStoredTemplateConfig();
+                setStatus("模板文件已删除。", "success");
+            } catch (error) {
+                setStatus(error.message || "模板文件删除失败", "error");
+                setInlineStatus("fileActionStatus", error.message || "模板文件删除失败");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadTemplateProfiles();
+        });
     </script>
 </body>
 </html>

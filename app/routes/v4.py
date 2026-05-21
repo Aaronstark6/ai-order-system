@@ -119,6 +119,61 @@ def _remove_v4_uploaded_template(path):
         logger.warning("V4 temporary template cleanup failed: path=%s", path, exc_info=True)
 
 
+def _system_template_relative_path(path):
+    resolved = Path(path).resolve()
+    try:
+        return str(resolved.relative_to(get_base_dir().resolve())).replace("\\", "/")
+    except ValueError:
+        return str(resolved)
+
+
+def _save_v4_system_template_file(profile_id, file: UploadFile):
+    original_name = Path(file.filename or "").name
+    if not original_name:
+        raise ValueError("模板文件名不能为空")
+    suffix = Path(original_name).suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise ValueError("仅支持 .xlsx、.xlsm、.xltx、.xltm 格式的 Excel 模板")
+
+    system_templates_dir = get_base_dir() / "v4" / "system_templates"
+    system_templates_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_profile_id = _safe_output_filename_part(profile_id or "system_template")
+    safe_stem = _safe_output_filename_part(Path(original_name).stem or "template")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{safe_profile_id}_{safe_stem}_{timestamp}_{uuid.uuid4().hex[:8]}{suffix}"
+    output_path = system_templates_dir / filename
+
+    with output_path.open("wb") as buffer:
+        file.file.seek(0)
+        shutil.copyfileobj(file.file, buffer)
+
+    if output_path.stat().st_size <= 0:
+        output_path.unlink(missing_ok=True)
+        raise ValueError("模板文件为空")
+
+    return output_path, original_name
+
+
+def _resolve_template_file_path_for_delete(path_value):
+    raw_path = str(path_value or "").strip()
+    if not raw_path:
+        return None
+
+    path = Path(raw_path)
+    if ".." in path.parts:
+        raise ValueError("template_file_path 不允许包含 ..")
+
+    base_dir = get_base_dir().resolve()
+    resolved = path if path.is_absolute() else base_dir / path
+    resolved = resolved.resolve()
+    try:
+        resolved.relative_to(base_dir)
+    except ValueError as exc:
+        raise ValueError("模板文件不允许位于项目目录外") from exc
+    return resolved
+
+
 def _current_template_profile_for_export():
     state = get_pipeline_state()
     profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
@@ -599,6 +654,127 @@ def api_v4_template_profile_template_file_update(profile_id: str, payload: Any =
         }
 
 
+@router.post("/api/v4/template-profiles/{profile_id}/replace-template-file")
+def api_v4_template_profile_replace_template_file(profile_id: str, template_file: UploadFile = File(...)):
+    from app.v4_template_analysis import analyze_template
+
+    logger.info(
+        "V4 template profile replace template file requested: profile_id=%s filename=%s",
+        profile_id,
+        template_file.filename,
+    )
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "系统模板不存在",
+        }
+
+    template_path = None
+    try:
+        template_path, original_name = _save_v4_system_template_file(profile_id, template_file)
+        analysis = analyze_template(template_path)
+        state = set_current_template(template_path.name)
+        state = set_template_analysis(analysis)
+        layout_result = build_layout_sections_from_template_analysis(analysis)
+
+        profile["template_name"] = Path(original_name or template_path.name).stem
+        profile["template_filename"] = original_name or template_path.name
+        profile["template_file_path"] = _system_template_relative_path(template_path)
+        saved_profile = save_template_profile(profile)
+        state = set_current_profile(saved_profile)
+        validation = validate_template_profile(saved_profile)
+
+        return {
+            "success": True,
+            "message": "模板文件已更新",
+            "profile": saved_profile,
+            "validation": validation,
+            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
+            "layout_summary": layout_result.get("summary", {}),
+            "layout_sections": layout_result.get("layout_sections", []),
+            "pipeline_state": state,
+        }
+    except (BadZipFile, InvalidFileException) as exc:
+        if template_path:
+            template_path.unlink(missing_ok=True)
+        logger.warning("V4 template profile replace invalid Excel: path=%s", template_path, exc_info=True)
+        return {
+            "success": False,
+            "error": f"Excel 模板格式无效：{exc}",
+            "pipeline_state": get_pipeline_state(),
+        }
+    except ValueError as exc:
+        if template_path:
+            template_path.unlink(missing_ok=True)
+        return {
+            "success": False,
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        if template_path:
+            template_path.unlink(missing_ok=True)
+        logger.exception("V4 template profile replace template file failed")
+        return {
+            "success": False,
+            "error": str(exc) or "模板文件更新失败",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+
+@router.post("/api/v4/template-profiles/{profile_id}/delete-template-file")
+def api_v4_template_profile_delete_template_file(profile_id: str):
+    logger.info("V4 template profile delete template file requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "系统模板不存在",
+        }
+
+    try:
+        template_file_path = str(profile.get("template_file_path") or "").strip()
+        deleted = False
+        if template_file_path:
+            target_path = _resolve_template_file_path_for_delete(template_file_path)
+            if target_path and target_path.exists():
+                if not target_path.is_file():
+                    raise ValueError("模板文件路径不是文件")
+                target_path.unlink()
+                deleted = True
+
+        profile["template_file_path"] = ""
+        profile["template_filename"] = ""
+        profile["template_name"] = ""
+        saved_profile = save_template_profile(profile)
+        state = set_current_profile(saved_profile)
+        state = set_current_template(None)
+        validation = validate_template_profile(saved_profile)
+        return {
+            "success": True,
+            "message": "模板文件已删除" if deleted else "模板文件绑定已清空",
+            "profile": saved_profile,
+            "validation": validation,
+            "file_deleted": deleted,
+            "pipeline_state": state,
+        }
+    except ValueError as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile delete template file failed")
+        return {
+            "success": False,
+            "error": str(exc) or "模板文件删除失败",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+
 @router.post("/api/v4/template-profiles/analyze-template")
 def api_v4_template_profile_analyze_template(
     profile_name: str = Form(...),
@@ -665,15 +841,13 @@ def api_v4_template_profile_analyze_template(
         state = set_template_analysis(analysis)
         layout_result = build_layout_sections_from_template_analysis(analysis)
 
-        try:
-            template_file_path = str(template_path.resolve().relative_to(get_base_dir().resolve())).replace("\\", "/")
-        except ValueError:
-            template_file_path = str(template_path)
+        template_file_path = _system_template_relative_path(template_path)
 
         profile["template_name"] = Path(original_name or template_path.name).stem
         profile["template_filename"] = original_name or template_path.name
         profile["template_file_path"] = template_file_path
         saved_profile = save_template_profile(profile)
+        state = set_current_profile(saved_profile)
 
         validation = validate_template_profile(saved_profile)
         return {
@@ -684,6 +858,7 @@ def api_v4_template_profile_analyze_template(
             "template_path": str(template_path),
             "template_file_path": template_file_path,
             "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
             "layout_summary": layout_result.get("summary", {}),
             "layout_sections": layout_result.get("layout_sections", []),
             "pipeline_state": state,
