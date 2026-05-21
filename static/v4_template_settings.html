@@ -95,7 +95,12 @@
         }
         button.danger { background: #d92d20; }
         button:disabled { cursor: not-allowed; opacity: 0.55; }
-        button.small { min-height: 32px; padding: 5px 12px; font-size: 13px; }
+        button.small {
+            color: #fff;
+            min-height: 32px;
+            padding: 5px 12px;
+            font-size: 13px;
+        }
         .small { color: #667085; font-size: 13px; line-height: 1.5; }
         .config-empty {
             background: #fafbfd;
@@ -218,7 +223,7 @@
 
         <section class="panel">
             <h2>映射与模板管理</h2>
-            <div id="settingsStatus" class="status info">正在加载映射...</div>
+            <div id="settingsStatus" class="status info" style="display:none;"></div>
 
             <h3>映射选择</h3>
             <div class="row">
@@ -233,7 +238,6 @@
                 <button type="button" onclick="createMapping()">新建映射</button>
             </div>
 
-            <h3>当前映射状态</h3>
             <div class="mapping-status-inline">
                 <div>
                     <span style="color: #667085; font-size: 13px;">当前映射：</span>
@@ -279,8 +283,10 @@
 
         function setStatus(text, type = "info") {
             const element = document.getElementById("settingsStatus");
-            element.textContent = text;
+            if (!element) return;
+            element.textContent = text || "";
             element.className = `status ${type}`;
+            element.style.display = type === "error" || type === "warning" ? "block" : "none";
         }
 
         function setInlineStatus(text) {
@@ -755,7 +761,7 @@
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td class="show-col"><input class="show-checkbox" data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${row.cell ? "" : "disabled"}></td>
-                                            <td class="action-col"><button class="small" type="button" onclick="this.closest('tr').querySelector('.debug-toggle').click()">详情</button></td>
+                                            <td class="action-col"><button class="small" type="button">详情</button></td>
                                         </tr>
                                         <tr class="debug-row" style="display:none;">
                                             <td colspan="5">
