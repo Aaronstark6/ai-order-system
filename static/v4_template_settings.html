@@ -765,7 +765,7 @@
                                         </tr>
                                         <tr class="debug-row" style="display:none;">
                                             <td colspan="5">
-                                                <details class="debug-details">
+                                                <details class="debug-details" open>
                                                     <summary>智能推荐详情</summary>
                                                     <div class="debug-grid">
                                                         <div class="debug-item"><div class="debug-label">Confidence</div><div class="debug-value">${row.candidateConfidence ? row.candidateConfidence.toFixed(2) : "-"}</div></div>
@@ -795,7 +795,10 @@
                     const tr = btn.closest("tr");
                     const debugRow = tr.nextElementSibling;
                     if (debugRow && debugRow.classList.contains("debug-row")) {
-                        debugRow.style.display = debugRow.style.display === "none" ? "table-row" : "none";
+                        const shouldOpen = debugRow.style.display === "none";
+                        debugRow.style.display = shouldOpen ? "table-row" : "none";
+                        const details = debugRow.querySelector("details.debug-details");
+                        if (details) details.open = shouldOpen;
                     }
                 });
             });
