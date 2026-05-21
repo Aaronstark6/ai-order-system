@@ -694,6 +694,9 @@
                 const candidate = key ? candidatesByCell[key] || {} : {};
                 const savedOrder = Number(item.display_order);
                 const confidence = Number(item.candidate_confidence || candidate.confidence || 0);
+                const confidenceBreakdown = item.confidence_breakdown && typeof item.confidence_breakdown === "object"
+                    ? item.confidence_breakdown
+                    : (candidate.confidence_breakdown && typeof candidate.confidence_breakdown === "object" ? candidate.confidence_breakdown : {});
                 return {
                     ...row,
                     configLabel: typeof item.label === "string" && item.label.trim() ? item.label : row.text,
@@ -703,9 +706,37 @@
                     candidateFieldLabel: item.candidate_field_label || candidate.field_label || "",
                     candidateConfidence: Number.isFinite(confidence) && confidence > 0 ? confidence : 0,
                     candidateSource: item.candidate_source || candidate.source || "",
+                    candidateReason: item.candidate_reason || candidate.candidate_reason || "",
+                    confidenceBreakdown,
                     aiExtractHint: item.ai_extract_hint || candidate.ai_extract_hint || "",
                 };
             });
+        }
+
+        function parseObjectJson(value) {
+            try {
+                const parsed = JSON.parse(value || "{}");
+                return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+            } catch (_) {
+                return {};
+            }
+        }
+
+        function formatConfidenceBreakdown(breakdown) {
+            const data = breakdown && typeof breakdown === "object" ? breakdown : {};
+            const labels = {
+                keyword: "keyword",
+                section: "section",
+                neighbor: "neighbor",
+                reading_order: "reading",
+            };
+            const parts = Object.entries(labels)
+                .map(([key, label]) => {
+                    const value = Number(data[key] || 0);
+                    return value > 0 ? `${label}:${value.toFixed(2)}` : "";
+                })
+                .filter(Boolean);
+            return parts.join(" / ") || "-";
         }
 
         function collectEditableConfiguration() {
@@ -726,6 +757,8 @@
                     candidate_field_label: fieldLabelInput ? fieldLabelInput.value.trim() : "",
                     candidate_confidence: Number(row.dataset.candidateConfidence || 0),
                     candidate_source: row.dataset.candidateSource || "",
+                    candidate_reason: row.dataset.candidateReason || "",
+                    confidence_breakdown: parseObjectJson(row.dataset.confidenceBreakdown || "{}"),
                     ai_extract_hint: hintInput ? hintInput.value.trim() : "",
                 };
             }).filter((item) => item.cell);
@@ -866,6 +899,8 @@
                                     <th>V4候选字段</th>
                                     <th>候选名称</th>
                                     <th>Confidence</th>
+                                    <th>Reason</th>
+                                    <th>Confidence Breakdown</th>
                                     <th>AI Hint</th>
                                     <th>工作页显示</th>
                                     <th>顺序</th>
@@ -873,7 +908,7 @@
                             </thead>
                             <tbody>
                                 ${section.rows.map((row) => `
-                                    <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}"` : ""}>
+                                    <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}"` : ""}>
                                         <td>${escapeHtml(row.cell || "-")}</td>
                                         <td>${escapeHtml(row.text || "-")}</td>
                                         <td>${escapeHtml(row.section || "-")}</td>
@@ -888,6 +923,8 @@
                                             <input class="candidate-input" data-config-field="field_label" type="text" value="${escapeHtml(row.candidateFieldLabel || "")}" ${row.cell ? "" : "disabled"}>
                                         </td>
                                         <td>${row.candidateConfidence ? escapeHtml(row.candidateConfidence.toFixed(2)) : "-"}</td>
+                                        <td>${escapeHtml(row.candidateReason || "-")}</td>
+                                        <td>${escapeHtml(formatConfidenceBreakdown(row.confidenceBreakdown))}</td>
                                         <td>
                                             <input class="hint-input" data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" ${row.cell ? "" : "disabled"}>
                                         </td>

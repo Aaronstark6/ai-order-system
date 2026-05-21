@@ -232,6 +232,8 @@ def _normalize_template_configuration_items(items):
             "candidate_field_label": str(item.get("candidate_field_label") or item.get("field_label") or "").strip(),
             "candidate_confidence": float(item.get("candidate_confidence") or 0),
             "candidate_source": str(item.get("candidate_source") or "").strip(),
+            "candidate_reason": str(item.get("candidate_reason") or "").strip(),
+            "confidence_breakdown": item.get("confidence_breakdown") if isinstance(item.get("confidence_breakdown"), dict) else {},
             "ai_extract_hint": str(item.get("ai_extract_hint") or "").strip(),
         }
     return configuration
@@ -283,6 +285,36 @@ _MAPPING_CANDIDATE_RULES = [
 ]
 
 
+_SECTION_FIELD_HINTS = [
+    (
+        ["header", "order", "customer", "client", "basic", "info", "表头", "订单", "客户", "基本信息"],
+        {"customer_name": 0.22, "order_date": 0.18},
+    ),
+    (
+        ["product", "item", "spec", "packing", "package", "detail", "table", "产品", "品名", "规格", "包装", "明细", "表格"],
+        {"product_name": 0.22, "quantity": 0.16, "packaging": 0.18, "specification": 0.18},
+    ),
+    (
+        ["summary", "total", "amount", "price", "合计", "汇总", "金额", "总计", "价格"],
+        {"amount": 0.22, "quantity": 0.08},
+    ),
+]
+
+_GENERIC_LABEL_HINTS = {
+    "名称": {"customer_name": 0.34, "product_name": 0.34},
+    "name": {"customer_name": 0.34, "product_name": 0.34},
+    "日期": {"order_date": 0.42},
+    "date": {"order_date": 0.42},
+    "数量": {"quantity": 0.48},
+    "qty": {"quantity": 0.48},
+    "规格": {"specification": 0.48},
+    "型号": {"specification": 0.42},
+    "包装": {"packaging": 0.48},
+    "金额": {"amount": 0.48},
+    "价格": {"amount": 0.42},
+}
+
+
 def _normalize_candidate_text(value):
     text = str(value or "").strip().lower()
     text = re.sub(r"[\s:：/\\|,，.。;；()（）\[\]【】_-]+", "", text)
@@ -320,45 +352,165 @@ def _section_for_cell(layout_sections, cell):
     return {}
 
 
-def _candidate_for_label(label_text, section):
-    normalized_text = _normalize_candidate_text(label_text)
-    section_text = _normalize_candidate_text(
-        " ".join(
-            str(value or "")
-            for value in (
-                section.get("title") if isinstance(section, dict) else "",
-                section.get("source_region_name") if isinstance(section, dict) else "",
-                section.get("semantic_type") if isinstance(section, dict) else "",
-            )
-        )
-    )
-    haystack = f"{normalized_text} {section_text}"
+def _mapping_rule_by_key():
+    return {rule["field_key"]: rule for rule in _MAPPING_CANDIDATE_RULES}
 
+
+def _section_candidate_text(section):
+    if not isinstance(section, dict):
+        return ""
+    values = [
+        section.get("title"),
+        section.get("source_region_name"),
+        section.get("semantic_type"),
+        section.get("section_type"),
+        section.get("section_key"),
+    ]
+    matched_keywords = section.get("matched_keywords")
+    if isinstance(matched_keywords, list):
+        values.extend(matched_keywords)
+    return _normalize_candidate_text(" ".join(str(value or "") for value in values))
+
+
+def _keyword_score_for_rule(normalized_text, rule):
+    score = 0
+    for keyword in rule["keywords"]:
+        normalized_keyword = _normalize_candidate_text(keyword)
+        if not normalized_keyword:
+            continue
+        if normalized_text == normalized_keyword:
+            score = max(score, 0.68)
+        elif normalized_keyword in normalized_text:
+            score = max(score, 0.58)
+
+    for generic_label, hints in _GENERIC_LABEL_HINTS.items():
+        normalized_generic = _normalize_candidate_text(generic_label)
+        if normalized_generic and normalized_generic in normalized_text:
+            score = max(score, float(hints.get(rule["field_key"], 0) or 0))
+    return score
+
+
+def _section_score_for_rule(section_text, rule):
+    if not section_text:
+        return 0
+    score = 0
+    for keywords, field_scores in _SECTION_FIELD_HINTS:
+        if any(_normalize_candidate_text(keyword) in section_text for keyword in keywords):
+            score = max(score, float(field_scores.get(rule["field_key"], 0) or 0))
+    return score
+
+
+def _reading_order_score_for_rule(rule, label_index, total_labels, cell):
+    point = _cell_point(cell)
+    row = point[0] if point else 0
+    total = max(int(total_labels or 1), 1)
+    ratio = max(min((int(label_index or 1) - 1) / total, 1), 0)
+    field_key = rule["field_key"]
+
+    if field_key in {"customer_name", "order_date"} and (ratio <= 0.3 or (row and row <= 8)):
+        return 0.08
+    if field_key in {"product_name", "quantity", "specification", "packaging"} and ratio >= 0.25:
+        return 0.06
+    if field_key == "amount" and ratio >= 0.65:
+        return 0.07
+    return 0
+
+
+def _neighbor_score_for_rule(neighbor_text, rule):
+    normalized_neighbor = _normalize_candidate_text(neighbor_text)
+    if not normalized_neighbor:
+        return 0
+    score = 0
+    for keyword in rule["keywords"]:
+        normalized_keyword = _normalize_candidate_text(keyword)
+        if normalized_keyword and normalized_keyword in normalized_neighbor:
+            score = max(score, 0.08)
+    return score
+
+
+def _reason_from_breakdown(breakdown):
+    reason_keys = [
+        ("keyword", "keyword"),
+        ("section", "section"),
+        ("neighbor", "neighbor_label"),
+        ("reading_order", "reading_order"),
+    ]
+    return "+".join(label for key, label in reason_keys if float(breakdown.get(key) or 0) > 0) or ""
+
+
+def _candidate_for_label(label_text, section, label_index=1, total_labels=1, cell="", neighbor_text=""):
+    normalized_text = _normalize_candidate_text(label_text)
+    section_text = _section_candidate_text(section)
+    scored_candidates = []
     for rule in _MAPPING_CANDIDATE_RULES:
-        for keyword in rule["keywords"]:
-            normalized_keyword = _normalize_candidate_text(keyword)
-            if not normalized_keyword:
-                continue
-            if normalized_text == normalized_keyword:
-                confidence = 0.96
-            elif normalized_keyword in normalized_text:
-                confidence = 0.9
-            elif normalized_keyword in haystack:
-                confidence = 0.78
-            else:
-                continue
-            return {
+        keyword_score = _keyword_score_for_rule(normalized_text, rule)
+        section_score = _section_score_for_rule(section_text, rule)
+        neighbor_score = _neighbor_score_for_rule(neighbor_text, rule)
+        reading_order_score = _reading_order_score_for_rule(rule, label_index, total_labels, cell)
+
+        if keyword_score <= 0 and neighbor_score <= 0:
+            continue
+
+        breakdown = {
+            "keyword": round(keyword_score, 2),
+            "section": round(section_score, 2),
+            "neighbor": round(neighbor_score, 2),
+            "reading_order": round(reading_order_score, 2),
+        }
+        confidence = min(0.98, sum(breakdown.values()))
+        if confidence < 0.38:
+            continue
+        scored_candidates.append(
+            {
                 "field_key": rule["field_key"],
                 "field_label": rule["field_label"],
-                "confidence": confidence,
+                "confidence": round(confidence, 2),
                 "ai_extract_hint": rule["ai_extract_hint"],
+                "candidate_reason": _reason_from_breakdown(breakdown),
+                "confidence_breakdown": {key: value for key, value in breakdown.items() if value > 0},
             }
+        )
+
+    if scored_candidates:
+        scored_candidates.sort(key=lambda item: (-item["confidence"], item["field_key"]))
+        return scored_candidates[0]
+
     return {
         "field_key": "",
         "field_label": "",
         "confidence": 0,
         "ai_extract_hint": "",
+        "candidate_reason": "",
+        "confidence_breakdown": {},
     }
+
+
+def _neighbor_label_text(labels, index, cell):
+    point = _cell_point(cell)
+    texts = []
+    for offset in (-2, -1, 1, 2):
+        neighbor_index = index + offset
+        if 0 <= neighbor_index < len(labels):
+            neighbor = labels[neighbor_index] if isinstance(labels[neighbor_index], dict) else {}
+            neighbor_text = str(neighbor.get("value") or neighbor.get("name") or "").strip()
+            if neighbor_text:
+                texts.append(neighbor_text)
+
+    if point:
+        row, col = point
+        for neighbor in labels:
+            if not isinstance(neighbor, dict):
+                continue
+            neighbor_cell = str(neighbor.get("cell") or "").strip().upper()
+            neighbor_point = _cell_point(neighbor_cell)
+            if not neighbor_point or neighbor_cell == cell:
+                continue
+            neighbor_row, neighbor_col = neighbor_point
+            if abs(neighbor_row - row) <= 1 and abs(neighbor_col - col) <= 2:
+                neighbor_text = str(neighbor.get("value") or neighbor.get("name") or "").strip()
+                if neighbor_text:
+                    texts.append(neighbor_text)
+    return " ".join(texts)
 
 
 def _generate_mapping_candidates(template_analysis, layout_sections):
@@ -375,7 +527,8 @@ def _generate_mapping_candidates(template_analysis, layout_sections):
             continue
         seen_cells.add(cell)
         section = _section_for_cell(layout_sections, cell)
-        candidate = _candidate_for_label(label_text, section)
+        neighbor_text = _neighbor_label_text(labels, index - 1, cell)
+        candidate = _candidate_for_label(label_text, section, index, len(labels), cell, neighbor_text)
         section_name = (
             section.get("title")
             or section.get("source_region_name")
@@ -392,6 +545,8 @@ def _generate_mapping_candidates(template_analysis, layout_sections):
                 "confidence": candidate["confidence"],
                 "source": "template_analysis+layout_sections",
                 "ai_extract_hint": candidate["ai_extract_hint"],
+                "candidate_reason": candidate.get("candidate_reason", ""),
+                "confidence_breakdown": candidate.get("confidence_breakdown", {}),
                 "label_text": label_text,
                 "display_order": index,
             }
