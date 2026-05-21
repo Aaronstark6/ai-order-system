@@ -1089,6 +1089,62 @@ def _build_ai_extraction_contract_from_profile(profile):
     return contract
 
 
+def _build_workspace_fields_from_profile(profile):
+    configuration = _template_configuration_from_profile(profile)
+    workspace_fields = []
+    hidden_intents = {"title", "section_header", "note_instruction", "readonly_example"}
+    hidden_write_modes = {"skip", "none"}
+
+    def sort_key(item):
+        try:
+            return int(item.get("display_order") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    for source_cell, item in sorted(configuration.items(), key=lambda pair: sort_key(pair[1])):
+        if not isinstance(item, dict):
+            continue
+        if item.get("show_in_workspace") is False:
+            continue
+
+        field_key = str(item.get("candidate_field_key") or item.get("field_key") or "").strip()
+        if not field_key:
+            continue
+
+        intent_type = str(item.get("intent_type") or "").strip()
+        if intent_type in hidden_intents:
+            continue
+
+        write_mode = str(item.get("write_mode") or "").strip()
+        if write_mode in hidden_write_modes:
+            continue
+
+        normalized_source_cell = str(source_cell or "").strip().upper()
+        target_cell = str(item.get("target_cell") or "").strip().upper()
+        label = (
+            str(item.get("label") or "").strip()
+            or str(item.get("candidate_field_label") or "").strip()
+            or str(item.get("field_label") or "").strip()
+            or field_key
+        )
+        workspace_fields.append(
+            {
+                "cell": target_cell or normalized_source_cell,
+                "source_cell": str(item.get("label_cell") or normalized_source_cell).strip().upper(),
+                "field_key": field_key,
+                "label": label,
+                "intent_type": intent_type,
+                "write_mode": write_mode,
+                "option_value": str(item.get("option_value") or "").strip(),
+                "ai_extract_hint": str(item.get("ai_extract_hint") or "").strip(),
+                "section": str(item.get("section") or item.get("section_key") or "").strip(),
+                "display_order": sort_key(item),
+            }
+        )
+
+    return workspace_fields
+
+
 def _is_blank_extracted_value(value):
     if value is None:
         return True
@@ -1519,6 +1575,7 @@ def api_v4_current_template_profile():
     return {
         "success": True,
         "profile": profile,
+        "workspace_fields": _build_workspace_fields_from_profile(profile),
         "validation": validation,
     }
 
@@ -1587,6 +1644,7 @@ def api_v4_set_current_template_profile(payload: Any = Body(None)):
         "success": True,
         "message": "Current Template Profile 已设置",
         "profile": profile,
+        "workspace_fields": _build_workspace_fields_from_profile(profile),
         "pipeline_state": state,
     }
 
@@ -2438,6 +2496,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "error": parsed.get("error"),
             "parsed": parsed,
             "last_extraction_contract": extraction_contract,
+            "workspace_fields": _build_workspace_fields_from_profile(current_profile),
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -2448,6 +2507,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "error": "AI parse 未返回有效字段",
             "parsed": parsed,
             "last_extraction_contract": extraction_contract,
+            "workspace_fields": _build_workspace_fields_from_profile(current_profile),
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -2465,6 +2525,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "last_extraction_contract": extraction_contract,
             "confirmed_cells": field_binding_result.get("confirmed_cells", []),
             "field_bound_operations": field_binding_result.get("operations", []),
+            "workspace_fields": _build_workspace_fields_from_profile(current_profile),
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -2483,6 +2544,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "last_extraction_contract": extraction_contract,
         "confirmed_cells": field_binding_result.get("confirmed_cells", []),
         "field_bound_operations": field_binding_result.get("operations", []),
+        "workspace_fields": _build_workspace_fields_from_profile(current_profile),
         "warnings": normalized.get("warnings", []),
         "source_keys": normalized.get("source_keys", []),
         "order_object": order_object,
@@ -2517,6 +2579,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
         }
 
     field_bound_operations = parse_result.get("field_bound_operations", [])
+    workspace_fields = parse_result.get("workspace_fields", [])
     field_binding_merge = _merge_field_bound_operations(
         pipeline_result.get("processed_operations", []),
         field_bound_operations,
@@ -2543,12 +2606,14 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
         "success": True,
         "message": "Chat 已解析并完成 V4 Core Pipeline",
         "parse_result": {
+            "parsed": parse_result.get("parsed", {}),
             "warnings": parse_result.get("warnings", []),
             "source_keys": parse_result.get("source_keys", []),
             "order_object": parse_result.get("order_object", {}),
             "last_extraction_contract": parse_result.get("last_extraction_contract", []),
             "confirmed_cells": parse_result.get("confirmed_cells", []),
             "field_bound_operations": field_bound_operations,
+            "workspace_fields": workspace_fields,
             "chat_preprocess": parse_result.get("chat_preprocess", {}),
         },
         "pipeline_result": {
@@ -2562,9 +2627,11 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "field_bound_operation_count": pipeline_result.get("field_bound_operation_count", len(field_bound_operations)),
             "field_bound_added_count": pipeline_result.get("field_bound_added_count", 0),
             "field_bound_override_count": pipeline_result.get("field_bound_override_count", 0),
+            "workspace_fields": workspace_fields,
             "render_preview": pipeline_result.get("render_preview", {}),
             "render_ready": pipeline_result.get("render_ready", False),
         },
+        "workspace_fields": workspace_fields,
         "pipeline_state": get_pipeline_state(),
     }
 
@@ -2722,6 +2789,7 @@ def api_v4_parse_chat_export_excel(
             "message": "Chat 已解析并导出 Excel",
             "parse_result": pipeline_e2e_result.get("parse_result", {}),
             "pipeline_result": pipeline_result,
+            "workspace_fields": pipeline_e2e_result.get("workspace_fields", []),
             "export_result": {
                 "filename": export_result.get("filename", ""),
                 "download_url": export_result.get("download_url", ""),
@@ -3145,6 +3213,7 @@ def api_v4_template_layout():
     return {
         "success": True,
         "layout_sections": layout_result.get("layout_sections", []),
+        "workspace_fields": _build_workspace_fields_from_profile(_current_template_profile_for_export()),
         "summary": layout_result.get("summary", {}),
         "template_analysis_summary": template_analysis_summary,
         "pipeline_state": get_pipeline_state(),

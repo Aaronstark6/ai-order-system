@@ -443,9 +443,11 @@
         let confirmedCells = [];
         let originalConfirmedCells = [];
         let v4LayoutSections = [];
+        let v4WorkspaceFields = [];
         window.confirmedCells = confirmedCells;
         window.originalConfirmedCells = originalConfirmedCells;
         window.v4LayoutSections = v4LayoutSections;
+        window.v4WorkspaceFields = v4WorkspaceFields;
 
         function escapeHtml(value) {
             const div = document.createElement("div");
@@ -690,8 +692,79 @@
             };
         }
 
+        function normalizeWorkspaceField(field) {
+            if (!field || typeof field !== "object") return null;
+            const fieldKey = String(field.field_key || field.candidate_field_key || "").trim();
+            const cell = normalizeConfigCell(field.cell || field.target_cell);
+            if (!fieldKey || !cell) return null;
+            const sourceCell = normalizeConfigCell(field.source_cell || field.label_cell || field.cell || "");
+            const label = String(field.label || field.candidate_field_label || field.field_label || fieldKey).trim() || fieldKey;
+            const displayOrder = Number(field.display_order || 0);
+            const cellMeta = sourceCell && sourceCell !== cell ? `${sourceCell} → ${cell}` : cell;
+            return {
+                cell,
+                display_cell: cell,
+                source_cell: sourceCell || cell,
+                cell_meta: cellMeta,
+                field_key: fieldKey,
+                label,
+                intent_type: field.intent_type || "",
+                write_mode: field.write_mode || "",
+                option_value: field.option_value || "",
+                ai_extract_hint: field.ai_extract_hint || "",
+                section: field.section || "",
+                workspaceOrder: Number.isFinite(displayOrder) && displayOrder > 0 ? displayOrder : null,
+                source: "Visual Mapping",
+            };
+        }
+
+        function getWorkspaceFieldsFromResult(result = null) {
+            const candidates = [
+                result && Array.isArray(result.workspace_fields) ? result.workspace_fields : null,
+                result?.parse_result && Array.isArray(result.parse_result.workspace_fields) ? result.parse_result.workspace_fields : null,
+                result?.pipeline_result && Array.isArray(result.pipeline_result.workspace_fields) ? result.pipeline_result.workspace_fields : null,
+                Array.isArray(v4WorkspaceFields) ? v4WorkspaceFields : null,
+            ];
+            const fields = candidates.find(items => Array.isArray(items) && items.length) || [];
+            return fields.map(normalizeWorkspaceField).filter(Boolean);
+        }
+
         function cellValue(value) {
             return value && typeof value === "object" ? value.value : value;
+        }
+
+        function flattenValueMap(prefix, value, output) {
+            if (!value || typeof value !== "object" || Array.isArray(value)) {
+                if (prefix) output[prefix] = cellValue(value) ?? "";
+                return output;
+            }
+            Object.entries(value).forEach(([key, nestedValue]) => {
+                const nextKey = prefix ? `${prefix}_${key}` : key;
+                flattenValueMap(nextKey, nestedValue, output);
+            });
+            return output;
+        }
+
+        function getParsedFieldValues(result = null) {
+            const values = {};
+            const parseResult = result?.parse_result || result || {};
+            if (parseResult.parsed && typeof parseResult.parsed === "object") {
+                flattenValueMap("", parseResult.parsed, values);
+            }
+            if (parseResult.order_object && typeof parseResult.order_object === "object") {
+                flattenValueMap("", parseResult.order_object, values);
+            }
+            return values;
+        }
+
+        function parsedValueForField(fieldKey, parsedValues) {
+            if (!fieldKey || !parsedValues || typeof parsedValues !== "object") return "";
+            if (Object.prototype.hasOwnProperty.call(parsedValues, fieldKey)) {
+                return parsedValues[fieldKey];
+            }
+            const lowerKey = String(fieldKey).toLowerCase();
+            const matchKey = Object.keys(parsedValues).find(key => String(key).toLowerCase() === lowerKey);
+            return matchKey ? parsedValues[matchKey] : "";
         }
 
         function inferConfirmationSection(item) {
@@ -858,11 +931,13 @@
                                     value="${escapeHtml(item.value)}"
                                     data-cell="${escapeHtml(item.cell)}"
                                     data-display-cell="${escapeHtml(item.display_cell)}"
+                                    data-source-cell="${escapeHtml(item.source_cell || "")}"
+                                    data-field-key="${escapeHtml(item.field_key || "")}"
                                     data-source="${escapeHtml(item.source)}"
                                     data-label="${escapeHtml(item.label)}"
                                     oninput="syncConfirmedCellsFromInputs()"
                                 >
-                                <div class="field-meta">${escapeHtml(item.display_cell || item.cell)}${item.source ? ` · ${escapeHtml(item.source)}` : ""}</div>
+                                <div class="field-meta">${escapeHtml(item.cell_meta || item.display_cell || item.cell)}${item.source ? ` · ${escapeHtml(item.source)}` : ""}</div>
                             </div>
                         `).join("")}
                     </div>
@@ -902,6 +977,9 @@
         }
 
         function buildConfigurationPreviewSections() {
+            const workspaceSections = buildWorkspaceFieldSections(getWorkspaceFieldsFromResult(), {});
+            if (workspaceSections.length) return workspaceSections;
+
             const configuration = getTemplateConfiguration();
             const sectionKeys = getConfirmationSectionOrder();
             const grouped = sectionKeys.reduce((result, key) => {
@@ -949,6 +1027,61 @@
             });
 
             return sectionKeys
+                .map(key => ({ key, title: sectionTitle(key), items: grouped[key] || [] }))
+                .filter(section => section.items.length);
+        }
+
+        function buildWorkspaceFieldSections(workspaceFields, parsedValues) {
+            const fields = Array.isArray(workspaceFields) ? workspaceFields : [];
+            if (!fields.length) return [];
+
+            const sectionOrder = getConfirmationSectionOrder();
+            const grouped = sectionOrder.reduce((result, key) => {
+                result[key] = [];
+                return result;
+            }, {});
+
+            fields.forEach(field => {
+                const inferredSection = field.section || inferConfirmationSection({
+                    cell: field.source_cell || field.cell,
+                    display_cell: field.source_cell || field.cell,
+                    label: field.label,
+                    source: field.source,
+                });
+                const sectionKey = inferredSection || "structured";
+                if (!grouped[sectionKey]) {
+                    grouped[sectionKey] = [];
+                    sectionOrder.push(sectionKey);
+                }
+                const rawValue = parsedValueForField(field.field_key, parsedValues);
+                grouped[sectionKey].push({
+                    ...field,
+                    section: sectionKey,
+                    value: rawValue == null ? "" : String(rawValue),
+                });
+            });
+
+            sectionOrder.forEach(key => {
+                grouped[key].sort((left, right) => {
+                    const leftOrder = Number(left.workspaceOrder || 0);
+                    const rightOrder = Number(right.workspaceOrder || 0);
+                    if (leftOrder && rightOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
+                    if (leftOrder && !rightOrder) return -1;
+                    if (!leftOrder && rightOrder) return 1;
+                    return visualCellSort(left, right);
+                });
+            });
+
+            const orderedSections = getConfirmationSectionOrder();
+            const orderedSectionIndex = Object.fromEntries(orderedSections.map((key, index) => [key, index]));
+            sectionOrder.sort((left, right) => {
+                const leftOrder = getSectionDisplayOrder(left, orderedSections.indexOf(left));
+                const rightOrder = getSectionDisplayOrder(right, orderedSections.indexOf(right));
+                if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+                return (orderedSectionIndex[left] || 0) - (orderedSectionIndex[right] || 0);
+            });
+
+            return sectionOrder
                 .map(key => ({ key, title: sectionTitle(key), items: grouped[key] || [] }))
                 .filter(section => section.items.length);
         }
@@ -1015,6 +1148,8 @@
             confirmedCells = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]")).map(input => ({
                 cell: input.dataset.cell || "",
                 display_cell: input.dataset.displayCell || input.dataset.cell || "",
+                source_cell: input.dataset.sourceCell || "",
+                field_key: input.dataset.fieldKey || "",
                 source: input.dataset.source || "",
                 label: input.dataset.label || "",
                 value: input.value
@@ -1032,6 +1167,30 @@
                 cell: item.cell,
                 display_cell: item.display_cell,
                 source: item.source,
+                label: item.label,
+                value: item.value
+            })));
+            originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
+            window.originalConfirmedCells = originalConfirmedCells;
+
+            document.getElementById("v4ConfirmationArea").innerHTML = sections.map(renderConfirmationSection).join("");
+            syncConfirmedCellsFromInputs();
+            return true;
+        }
+
+        function renderWorkspaceFieldConfirmation(result) {
+            const workspaceFields = getWorkspaceFieldsFromResult(result);
+            if (!workspaceFields.length) return false;
+
+            const sections = buildWorkspaceFieldSections(workspaceFields, getParsedFieldValues(result));
+            if (!sections.length) return false;
+
+            confirmedCells = sections.flatMap(section => section.items.map(item => ({
+                cell: item.cell,
+                display_cell: item.display_cell || item.cell,
+                source_cell: item.source_cell || "",
+                field_key: item.field_key || "",
+                source: item.source || "Visual Mapping",
                 label: item.label,
                 value: item.value
             })));
@@ -1079,6 +1238,7 @@
         function renderConfirmation(result) {
             const parseResult = result.parse_result || {};
             const pipelineResult = result.pipeline_result || {};
+            if (renderWorkspaceFieldConfirmation(result)) return;
             const renderPreview = pipelineResult.render_preview || {};
             const cells = renderPreview.cells || renderPreview.cell_preview || [];
             if (renderCellConfirmation(cells)) return;
@@ -1107,6 +1267,8 @@
                 }
 
                 activeV4Profile = currentResult.profile || {};
+                v4WorkspaceFields = Array.isArray(currentResult.workspace_fields) ? currentResult.workspace_fields : [];
+                window.v4WorkspaceFields = v4WorkspaceFields;
                 if (activeV4Profile.profile_id) {
                     document.getElementById("v4ProfileSelect").value = activeV4Profile.profile_id;
                 }
@@ -1123,14 +1285,19 @@
                 const result = await response.json();
                 if (!response.ok || !result.success) {
                     v4LayoutSections = [];
+                    v4WorkspaceFields = [];
                 } else {
                     v4LayoutSections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
+                    v4WorkspaceFields = Array.isArray(result.workspace_fields) ? result.workspace_fields : [];
                 }
                 window.v4LayoutSections = v4LayoutSections;
+                window.v4WorkspaceFields = v4WorkspaceFields;
                 renderConfigurationPreview();
             } catch (error) {
                 v4LayoutSections = [];
+                v4WorkspaceFields = [];
                 window.v4LayoutSections = v4LayoutSections;
+                window.v4WorkspaceFields = v4WorkspaceFields;
                 renderConfigurationPreview();
             }
         }
@@ -1153,6 +1320,8 @@
                     throw new Error(result.error || "系统模板切换失败");
                 }
                 activeV4Profile = result.profile || {};
+                v4WorkspaceFields = Array.isArray(result.workspace_fields) ? result.workspace_fields : v4WorkspaceFields;
+                window.v4WorkspaceFields = v4WorkspaceFields;
                 setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
                 await loadV4TemplateLayout();
                 renderConfigurationPreview();
@@ -1181,6 +1350,8 @@
                     throw new Error(result.error || "AI解析失败");
                 }
                 latestV4ParseResult = result;
+                v4WorkspaceFields = getWorkspaceFieldsFromResult(result);
+                window.v4WorkspaceFields = v4WorkspaceFields;
                 renderConfirmation(result);
                 renderSmartMappingDebug(result);
                 await loadV4TemplateLayout();
