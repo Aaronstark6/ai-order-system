@@ -15,7 +15,7 @@
         }
         .page {
             margin: 0 auto;
-            max-width: 1120px;
+            max-width: 900px;
         }
         .header {
             align-items: center;
@@ -23,25 +23,10 @@
             gap: 16px;
             margin-bottom: 18px;
         }
-        h1 {
-            flex: 1 1 auto;
-            font-size: 28px;
-            margin: 0;
-        }
-        h2 {
-            font-size: 20px;
-            margin: 0 0 14px;
-        }
-        h3 {
-            color: #333;
-            font-size: 16px;
-            margin: 18px 0 10px;
-        }
-        a {
-            color: #1677ff;
-            text-decoration: none;
-            white-space: nowrap;
-        }
+        h1 { flex: 1 1 auto; font-size: 28px; margin: 0; }
+        h2 { font-size: 20px; margin: 0 0 14px; }
+        h3 { color: #333; font-size: 16px; margin: 18px 0 10px; }
+        a { color: #1677ff; text-decoration: none; white-space: nowrap; }
         a:hover { text-decoration: underline; }
         .panel {
             background: #fff;
@@ -76,34 +61,15 @@
             gap: 10px;
             margin-top: 12px;
         }
-        .summary-grid {
-            display: grid;
-            gap: 12px;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-        .summary-item {
+        .mapping-status-inline {
+            align-items: center;
             background: #fafbfd;
             border: 1px solid #e6eaf0;
             border-radius: 8px;
-            padding: 14px;
-        }
-        .summary-label {
-            color: #667085;
-            font-size: 13px;
-            margin-bottom: 6px;
-        }
-        .summary-value {
-            color: #1d2939;
-            font-size: 16px;
-            font-weight: 700;
-            overflow-wrap: anywhere;
-        }
-        label {
-            color: #344054;
-            display: block;
-            font-size: 14px;
-            font-weight: 700;
-            margin-bottom: 6px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            padding: 14px 18px;
         }
         input, select {
             border: 1px solid #cfd6e0;
@@ -115,53 +81,7 @@
             padding: 9px 10px;
             width: 100%;
         }
-        input[type="file"] {
-            max-width: 420px;
-            width: auto;
-        }
-        .config-actions {
-            align-items: center;
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            margin-bottom: 10px;
-        }
-        .config-section {
-            border: 1px solid #e6eaf0;
-            border-radius: 8px;
-            margin-bottom: 14px;
-            overflow: hidden;
-        }
-        .config-section-header {
-            align-items: end;
-            background: #fafbfd;
-            display: grid;
-            gap: 12px;
-            grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) 110px;
-            padding: 12px;
-        }
-        .config-section-title {
-            color: #1d2939;
-            font-size: 15px;
-            font-weight: 700;
-            padding-bottom: 10px;
-        }
-        .field-input {
-            min-width: 150px;
-        }
-        .candidate-input {
-            min-width: 130px;
-        }
-        .hint-input {
-            min-width: 180px;
-        }
-        .order-input {
-            max-width: 86px;
-        }
-        .show-checkbox {
-            min-height: auto;
-            width: auto;
-        }
+        input[type="file"] { max-width: 420px; width: auto; }
         button {
             background: #1677ff;
             border: none;
@@ -174,15 +94,9 @@
             white-space: nowrap;
         }
         button.danger { background: #d92d20; }
-        button:disabled {
-            cursor: not-allowed;
-            opacity: 0.55;
-        }
-        .small {
-            color: #667085;
-            font-size: 13px;
-            line-height: 1.5;
-        }
+        button:disabled { cursor: not-allowed; opacity: 0.55; }
+        button.small { min-height: 32px; padding: 5px 12px; font-size: 13px; }
+        .small { color: #667085; font-size: 13px; line-height: 1.5; }
         .config-empty {
             background: #fafbfd;
             border: 1px dashed #d8dee8;
@@ -191,45 +105,105 @@
             line-height: 1.6;
             padding: 18px;
         }
-        .mapping-status-inline {
+        .config-actions {
             align-items: center;
-            background: #fafbfd;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-bottom: 16px;
+        }
+        .config-section {
             border: 1px solid #e6eaf0;
             border-radius: 8px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 24px;
-            padding: 14px 18px;
+            margin-bottom: 14px;
+            overflow: hidden;
         }
-        table {
+        .config-section-header {
+            align-items: center;
+            background: #fafbfd;
+            cursor: pointer;
+            display: flex;
+            gap: 16px;
+            padding: 14px 16px;
+            user-select: none;
+        }
+        .config-section-header:hover { background: #f0f3f7; }
+        .config-section-header .toggle-icon {
+            font-size: 12px;
+            transition: transform 0.2s;
+        }
+        .config-section-header.collapsed .toggle-icon { transform: rotate(-90deg); }
+        .config-section-title {
+            color: #1d2939;
+            font-size: 15px;
+            font-weight: 700;
+            flex: 1;
+        }
+        .config-section-count {
+            color: #667085;
+            font-size: 13px;
+        }
+        .config-section-body { display: block; }
+        .config-section-body.collapsed { display: none; }
+        .config-table {
             border-collapse: collapse;
             width: 100%;
         }
-        th, td {
+        .config-table th, .config-table td {
             border-bottom: 1px solid #edf0f4;
-            font-size: 14px;
-            padding: 10px 8px;
+            font-size: 13px;
+            padding: 10px 12px;
             text-align: left;
-            vertical-align: top;
+            vertical-align: middle;
         }
-        th {
+        .config-table th {
             background: #fafbfd;
             color: #475467;
             font-weight: 700;
+            white-space: nowrap;
         }
-        td {
-            color: #333;
-            overflow-wrap: anywhere;
+        .config-table td { color: #333; }
+        .config-table .cell-col { min-width: 70px; }
+        .config-table .field-col { min-width: 140px; }
+        .config-table .key-col { min-width: 130px; }
+        .config-table .show-col { min-width: 80px; text-align: center; }
+        .config-table .action-col { min-width: 60px; text-align: center; }
+        .field-input, .candidate-input { min-width: 120px; }
+        .show-checkbox { min-height: auto; width: auto; }
+        .debug-details {
+            background: #fafbfd;
+            border-top: 1px solid #edf0f4;
+            padding: 12px 16px;
         }
+        .debug-details summary {
+            color: #667085;
+            cursor: pointer;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .debug-details summary:hover { color: #333; }
+        .debug-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        }
+        .debug-item {
+            background: #fff;
+            border: 1px solid #e6eaf0;
+            border-radius: 4px;
+            padding: 8px 10px;
+        }
+        .debug-label { color: #667085; font-size: 11px; margin-bottom: 2px; }
+        .debug-value { color: #1d2939; font-size: 12px; word-break: break-all; }
         @media (max-width: 860px) {
             body { padding: 16px; }
+            .page { max-width: 100%; }
             .header { align-items: flex-start; flex-direction: column; gap: 8px; }
-            .row, .summary-grid { grid-template-columns: 1fr; }
+            .row { grid-template-columns: 1fr; }
             input[type="file"] { width: 100%; }
             button { width: 100%; }
-            .config-actions { align-items: stretch; flex-direction: column; }
-            .config-section-header { grid-template-columns: 1fr; }
-            .field-input, .candidate-input, .hint-input, .order-input { max-width: none; width: 100%; }
+            .config-section-header { flex-wrap: wrap; }
+            .debug-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -295,9 +269,7 @@
         let selectedMapping = null;
         let configByMappingId = {};
 
-        function profileKey() {
-            return "profile" + "_id";
-        }
+        function profileKey() { return "profile" + "_id"; }
 
         function escapeHtml(value) {
             const div = document.createElement("div");
@@ -315,17 +287,9 @@
             document.getElementById("fileActionStatus").textContent = text || "";
         }
 
-        function getMappingId(mapping) {
-            return mapping?.[profileKey()] || "";
-        }
-
-        function getMappingName(mapping) {
-            return mapping?.profile_name || mapping?.template_name || "未命名映射";
-        }
-
-        function getTemplateFilename(mapping) {
-            return mapping?.template_filename || "";
-        }
+        function getMappingId(mapping) { return mapping?.[profileKey()] || ""; }
+        function getMappingName(mapping) { return mapping?.profile_name || mapping?.template_name || "未命名映射"; }
+        function getTemplateFilename(mapping) { return mapping?.template_filename || ""; }
 
         function updateCurrentState() {
             document.getElementById("currentMappingName").textContent = selectedMapping ? getMappingName(selectedMapping) : "未选择";
@@ -342,7 +306,6 @@
                 renderConfig();
                 return;
             }
-
             select.innerHTML = mappings.map((mapping) => {
                 const id = getMappingId(mapping);
                 const name = getMappingName(mapping);
@@ -371,17 +334,11 @@
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/configuration`);
             const analysis = result.template_analysis && typeof result.template_analysis === "object" ? result.template_analysis : {};
             const structure = analysis.template_structure && typeof analysis.template_structure === "object" ? analysis.template_structure : {};
-            const labels = Array.isArray(result.template_labels) ? result.template_labels : (
-                Array.isArray(analysis.labels) ? analysis.labels : []
-            );
+            const labels = Array.isArray(result.template_labels) ? result.template_labels : (Array.isArray(analysis.labels) ? analysis.labels : []);
             const structureLabels = Array.isArray(structure.labels) ? structure.labels : [];
             const sections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
-            const savedConfiguration = result.template_configuration && typeof result.template_configuration === "object"
-                ? result.template_configuration
-                : {};
-            const savedSectionConfiguration = result.section_configuration && typeof result.section_configuration === "object"
-                ? result.section_configuration
-                : {};
+            const savedConfiguration = result.template_configuration && typeof result.template_configuration === "object" ? result.template_configuration : {};
+            const savedSectionConfiguration = result.section_configuration && typeof result.section_configuration === "object" ? result.section_configuration : {};
             const candidates = Array.isArray(result.mapping_candidates) ? result.mapping_candidates : [];
             const config = { labels, structureLabels, sections, analysis, candidates, savedConfiguration, savedSectionConfiguration };
             configByMappingId[mappingId] = config;
@@ -392,13 +349,11 @@
             setStatus("正在加载映射...", "info");
             const result = await fetchJson("/api/v4/template-profiles");
             mappings = Array.isArray(result.profiles) ? result.profiles : [];
-
             if (preferredId && mappings.some((item) => getMappingId(item) === preferredId)) {
                 selectedMappingId = preferredId;
             } else if (!selectedMappingId || !mappings.some((item) => getMappingId(item) === selectedMappingId)) {
                 selectedMappingId = getMappingId(mappings[0]) || "";
             }
-
             setSelectOptions();
             if (selectedMappingId) {
                 await selectMapping(selectedMappingId, false);
@@ -417,7 +372,6 @@
                 renderConfig();
                 return;
             }
-
             if (showLoading) setStatus("正在切换映射...", "info");
             const body = {};
             body[profileKey()] = selectedMappingId;
@@ -426,7 +380,6 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
             });
-
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             await loadMappingConfiguration(selectedMappingId);
@@ -443,14 +396,12 @@
                 input.focus();
                 return;
             }
-
             setStatus("正在新建映射...", "info");
             const result = await fetchJson("/api/v4/template-profiles/create-empty", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ profile_name: profileName }),
             });
-
             input.value = "";
             const newId = getMappingId(result.profile);
             configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
@@ -459,17 +410,10 @@
         }
 
         async function uploadTemplateFile() {
-            if (!selectedMappingId) {
-                setStatus("请先选择映射。", "warning");
-                return;
-            }
+            if (!selectedMappingId) { setStatus("请先选择映射。", "warning"); return; }
             const input = document.getElementById("templateFileInput");
             const file = input.files && input.files[0];
-            if (!file) {
-                setStatus("请选择要上传的模板文件。", "warning");
-                return;
-            }
-
+            if (!file) { setStatus("请选择要上传的模板文件。", "warning"); return; }
             setStatus("正在上传并分析模板文件...", "info");
             setInlineStatus("上传中...");
             const formData = new FormData();
@@ -478,7 +422,6 @@
                 method: "POST",
                 body: formData,
             });
-
             input.value = "";
             selectedMapping = result.profile || selectedMapping;
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
@@ -490,17 +433,10 @@
         }
 
         async function deleteTemplateFile() {
-            if (!selectedMappingId) {
-                setStatus("请先选择映射。", "warning");
-                return;
-            }
+            if (!selectedMappingId) { setStatus("请先选择映射。", "warning"); return; }
             if (!confirm("确定删除当前模板文件吗？映射会保留。")) return;
-
             setStatus("正在删除模板文件...", "info");
-            const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/delete-template-file`, {
-                method: "POST",
-            });
-
+            const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/delete-template-file`, { method: "POST" });
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
@@ -511,17 +447,11 @@
         }
 
         async function deleteMapping() {
-            if (!selectedMappingId) {
-                setStatus("请先选择映射。", "warning");
-                return;
-            }
+            if (!selectedMappingId) { setStatus("请先选择映射。", "warning"); return; }
             const name = selectedMapping ? getMappingName(selectedMapping) : "当前映射";
-            if (!confirm(`确定删除“${name}”吗？对应模板文件也会一并删除。`)) return;
-
+            if (!confirm(`确定删除"${name}"吗？对应模板文件也会一并删除。`)) return;
             setStatus("正在删除映射...", "info");
-            await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/delete`, {
-                method: "POST",
-            });
+            await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/delete`, { method: "POST" });
             delete configByMappingId[selectedMappingId];
             selectedMappingId = "";
             selectedMapping = null;
@@ -530,38 +460,19 @@
             setStatus("映射已删除。", "success");
         }
 
-        function normalizeCell(value) {
-            return String(value || "").trim().toUpperCase();
-        }
-
-        function readCell(item) {
-            return item?.cell || item?.display_cell || item?.target_cell || item?.address || item?.range || "";
-        }
-
-        function readText(item) {
-            return item?.field_name || item?.label || item?.text || item?.raw_text || item?.name || item?.value || "";
-        }
-
-        function readType(item) {
-            return item?.type || item?.field_type || item?.label_type || item?.kind || "";
-        }
-
-        function readSectionName(section) {
-            return section?.title || section?.section_name || section?.name || section?.source_region_name || section?.section_key || "";
-        }
-
-        function readSectionKey(section) {
-            return section?.section_key || section?.semantic_type || section?.key || section?.title || section?.source_region_name || "other";
-        }
+        function normalizeCell(value) { return String(value || "").trim().toUpperCase(); }
+        function readCell(item) { return item?.cell || item?.display_cell || item?.target_cell || item?.address || item?.range || ""; }
+        function readText(item) { return item?.field_name || item?.label || item?.text || item?.raw_text || item?.name || item?.value || ""; }
+        function readType(item) { return item?.type || item?.field_type || item?.label_type || item?.kind || ""; }
+        function readSectionName(section) { return section?.title || section?.section_name || section?.name || section?.source_region_name || section?.section_key || ""; }
+        function readSectionKey(section) { return section?.section_key || section?.semantic_type || section?.key || section?.title || section?.source_region_name || "other"; }
 
         function cellToPoint(cell) {
             const match = String(cell || "").trim().match(/^([A-Z]+)(\d+)$/i);
             if (!match) return null;
             const letters = match[1].toUpperCase();
             let col = 0;
-            for (const char of letters) {
-                col = col * 26 + char.charCodeAt(0) - 64;
-            }
+            for (const char of letters) { col = col * 26 + char.charCodeAt(0) - 64; }
             return { row: Number(match[2]), col };
         }
 
@@ -630,24 +541,12 @@
                         if (typeof item === "string") {
                             rows.push({ cell: item, text: "", section: sectionName, sectionKey, type: "" });
                         } else {
-                            rows.push({
-                                cell: readCell(item),
-                                text: readText(item),
-                                section: item?.section || item?.section_name || sectionName,
-                                sectionKey: item?.section_key || sectionKey,
-                                type: readType(item),
-                            });
+                            rows.push({ cell: readCell(item), text: readText(item), section: item?.section || item?.section_name || sectionName, sectionKey: item?.section_key || sectionKey, type: readType(item) });
                         }
                     });
                 });
                 if (!rows.some((row) => row.section === sectionName)) {
-                    rows.push({
-                        cell: "",
-                        text: section?.source_region_name || "",
-                        section: sectionName,
-                        sectionKey,
-                        type: section?.section_type || section?.semantic_type || "",
-                    });
+                    rows.push({ cell: "", text: section?.source_region_name || "", section: sectionName, sectionKey, type: section?.section_type || section?.semantic_type || "" });
                 }
             });
             return rows;
@@ -660,15 +559,8 @@
                 const cell = readCell(item);
                 const sectionMatch = sectionLookup[normalizeCell(cell)] || findSectionForCell(sections, cell);
                 const sectionKey = item?.section_key || readSectionKey(sectionMatch || {});
-                return {
-                    cell,
-                    text: readText(item),
-                    section: item?.section || item?.section_name || readSectionName(sectionMatch || {}),
-                    sectionKey,
-                    type: readType(item),
-                };
+                return { cell, text: readText(item), section: item?.section || item?.section_name || readSectionName(sectionMatch || {}), sectionKey, type: readType(item) };
             }).filter((row) => row.cell || row.text);
-
             const rows = labelRows.length ? labelRows : rowsFromSections(sections);
             const seen = new Set();
             return rows.filter((row) => {
@@ -714,28 +606,16 @@
         }
 
         function parseObjectJson(value) {
-            try {
-                const parsed = JSON.parse(value || "{}");
-                return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-            } catch (_) {
-                return {};
-            }
+            try { return JSON.parse(value || "{}"); } catch (_) { return {}; }
         }
 
         function formatConfidenceBreakdown(breakdown) {
             const data = breakdown && typeof breakdown === "object" ? breakdown : {};
-            const labels = {
-                keyword: "keyword",
-                section: "section",
-                neighbor: "neighbor",
-                reading_order: "reading",
-            };
-            const parts = Object.entries(labels)
-                .map(([key, label]) => {
-                    const value = Number(data[key] || 0);
-                    return value > 0 ? `${label}:${value.toFixed(2)}` : "";
-                })
-                .filter(Boolean);
+            const labels = { keyword: "keyword", section: "section", neighbor: "neighbor", reading_order: "reading" };
+            const parts = Object.entries(labels).map(([key, label]) => {
+                const value = Number(data[key] || 0);
+                return value > 0 ? `${label}:${value.toFixed(2)}` : "";
+            }).filter(Boolean);
             return parts.join(" / ") || "-";
         }
 
@@ -746,15 +626,12 @@
                 const showInput = row.querySelector("input[data-config-field='show']");
                 const orderInput = row.querySelector("input[data-config-field='order']");
                 const fieldKeyInput = row.querySelector("input[data-config-field='field_key']");
-                const fieldLabelInput = row.querySelector("input[data-config-field='field_label']");
                 const hintInput = row.querySelector("input[data-config-field='ai_extract_hint']");
                 return {
-                    cell,
-                    label: labelInput ? labelInput.value.trim() : "",
+                    cell, label: labelInput ? labelInput.value.trim() : "",
                     show_in_workspace: showInput ? showInput.checked : true,
                     display_order: orderInput ? Number(orderInput.value || 0) : 0,
                     candidate_field_key: fieldKeyInput ? fieldKeyInput.value.trim() : "",
-                    candidate_field_label: fieldLabelInput ? fieldLabelInput.value.trim() : "",
                     candidate_confidence: Number(row.dataset.candidateConfidence || 0),
                     candidate_source: row.dataset.candidateSource || "",
                     candidate_reason: row.dataset.candidateReason || "",
@@ -769,11 +646,8 @@
             const layoutByKey = {};
             layoutSections.forEach((section, index) => {
                 const key = readSectionKey(section);
-                if (!layoutByKey[key]) {
-                    layoutByKey[key] = { section, naturalOrder: Number(section?.order || index + 1) };
-                }
+                if (!layoutByKey[key]) { layoutByKey[key] = { section, naturalOrder: Number(section?.order || index + 1) }; }
             });
-
             const groups = {};
             rows.forEach((row, index) => {
                 const key = row.sectionKey || "other";
@@ -788,15 +662,12 @@
                         sectionLabel: typeof sectionConfig.section_label === "string" && sectionConfig.section_label.trim()
                             ? sectionConfig.section_label
                             : (row.section || readSectionName(section) || "其他字段"),
-                        sectionOrder: Number.isFinite(savedOrder) && savedOrder > 0
-                            ? savedOrder
-                            : Number(layout.naturalOrder || index + 1),
+                        sectionOrder: Number.isFinite(savedOrder) && savedOrder > 0 ? savedOrder : Number(layout.naturalOrder || index + 1),
                         rows: [],
                     };
                 }
                 groups[key].rows.push(row);
             });
-
             return Object.values(groups).sort((left, right) => {
                 if (left.sectionOrder !== right.sectionOrder) return left.sectionOrder - right.sectionOrder;
                 return String(left.title || "").localeCompare(String(right.title || ""), "zh-CN");
@@ -808,26 +679,15 @@
                 const sectionKey = section.dataset.sectionKey || "";
                 const labelInput = section.querySelector("input[data-section-field='label']");
                 const orderInput = section.querySelector("input[data-section-field='order']");
-                return {
-                    section_key: sectionKey,
-                    section_label: labelInput ? labelInput.value.trim() : "",
-                    section_order: orderInput ? Number(orderInput.value || 0) : 0,
-                };
+                return { section_key: sectionKey, section_label: labelInput ? labelInput.value.trim() : "", section_order: orderInput ? Number(orderInput.value || 0) : 0 };
             }).filter((item) => item.section_key);
         }
 
         async function saveTemplateConfiguration() {
-            if (!selectedMappingId) {
-                setStatus("请先选择映射。", "warning");
-                return;
-            }
+            if (!selectedMappingId) { setStatus("请先选择映射。", "warning"); return; }
             const items = collectEditableConfiguration();
             const sections = collectEditableSectionConfiguration();
-            if (!items.length) {
-                setStatus("当前没有可保存的模板配置。", "warning");
-                return;
-            }
-
+            if (!items.length) { setStatus("当前没有可保存的模板配置。", "warning"); return; }
             setStatus("正在保存模板配置...", "info");
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/configuration`, {
                 method: "POST",
@@ -835,11 +695,7 @@
                 body: JSON.stringify({ items, sections }),
             });
             const cached = configByMappingId[selectedMappingId] || {};
-            configByMappingId[selectedMappingId] = {
-                ...cached,
-                savedConfiguration: result.template_configuration || {},
-                savedSectionConfiguration: result.section_configuration || {},
-            };
+            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration: result.template_configuration || {}, savedSectionConfiguration: result.section_configuration || {} };
             if (result.profile) {
                 selectedMapping = result.profile;
                 mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
@@ -847,21 +703,20 @@
             setStatus("模板配置已保存。", "success");
         }
 
+        function toggleSection(headerEl) {
+            const section = headerEl.closest(".config-section");
+            const body = section.querySelector(".config-section-body");
+            headerEl.classList.toggle("collapsed");
+            body.classList.toggle("collapsed");
+        }
+
         function renderConfig() {
             const area = document.getElementById("templateConfigArea");
             const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
-            const labels = Array.isArray(cached?.labels) ? cached.labels : (
-                Array.isArray(selectedMapping?.template_labels) ? selectedMapping.template_labels : []
-            );
+            const labels = Array.isArray(cached?.labels) ? cached.labels : (Array.isArray(selectedMapping?.template_labels) ? selectedMapping.template_labels : []);
             const structureLabels = Array.isArray(cached?.structureLabels) ? cached.structureLabels : [];
-            const sections = Array.isArray(cached?.sections) ? cached.sections : (
-                Array.isArray(selectedMapping?.layout_sections) ? selectedMapping.layout_sections : []
-            );
-            const rows = applySavedConfiguration(
-                buildConfigRows(labels, structureLabels, sections),
-                cached?.savedConfiguration,
-                cached?.candidates
-            );
+            const sections = Array.isArray(cached?.sections) ? cached.sections : (Array.isArray(selectedMapping?.layout_sections) ? selectedMapping.layout_sections : []);
+            const rows = applySavedConfiguration(buildConfigRows(labels, structureLabels, sections), cached?.savedConfiguration, cached?.candidates);
             const configSections = buildConfigSections(rows, sections, cached?.savedSectionConfiguration);
 
             if (!rows.length) {
@@ -877,70 +732,67 @@
                 </div>
                 ${configSections.map((section) => `
                     <div class="config-section" data-section-key="${escapeHtml(section.key)}">
-                        <div class="config-section-header">
-                            <div class="config-section-title">${escapeHtml(section.title || section.key)}</div>
-                            <div>
-                                <label>分区名称</label>
-                                <input data-section-field="label" type="text" value="${escapeHtml(section.sectionLabel || "")}">
-                            </div>
-                            <div>
-                                <label>分区顺序</label>
-                                <input class="order-input" data-section-field="order" type="number" min="1" value="${escapeHtml(section.sectionOrder || 1)}">
-                            </div>
+                        <div class="config-section-header collapsed" onclick="toggleSection(this)">
+                            <span class="toggle-icon">▼</span>
+                            <span class="config-section-title">${escapeHtml(section.title || section.key)}</span>
+                            <span class="config-section-count">${section.rows.length}项</span>
                         </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>单元格</th>
-                                    <th>字段名/识别文本</th>
-                                    <th>区域</th>
-                                    <th>类型</th>
-                                    <th>字段名称</th>
-                                    <th>V4候选字段</th>
-                                    <th>候选名称</th>
-                                    <th>Confidence</th>
-                                    <th>Reason</th>
-                                    <th>Confidence Breakdown</th>
-                                    <th>AI Hint</th>
-                                    <th>工作页显示</th>
-                                    <th>顺序</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${section.rows.map((row) => `
-                                    <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}"` : ""}>
-                                        <td>${escapeHtml(row.cell || "-")}</td>
-                                        <td>${escapeHtml(row.text || "-")}</td>
-                                        <td>${escapeHtml(row.section || "-")}</td>
-                                        <td>${escapeHtml(row.type || "-")}</td>
-                                        <td>
-                                            <input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}>
-                                        </td>
-                                        <td>
-                                            <input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}>
-                                        </td>
-                                        <td>
-                                            <input class="candidate-input" data-config-field="field_label" type="text" value="${escapeHtml(row.candidateFieldLabel || "")}" ${row.cell ? "" : "disabled"}>
-                                        </td>
-                                        <td>${row.candidateConfidence ? escapeHtml(row.candidateConfidence.toFixed(2)) : "-"}</td>
-                                        <td>${escapeHtml(row.candidateReason || "-")}</td>
-                                        <td>${escapeHtml(formatConfidenceBreakdown(row.confidenceBreakdown))}</td>
-                                        <td>
-                                            <input class="hint-input" data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" ${row.cell ? "" : "disabled"}>
-                                        </td>
-                                        <td>
-                                            <input class="show-checkbox" data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${row.cell ? "" : "disabled"}>
-                                        </td>
-                                        <td>
-                                            <input class="order-input" data-config-field="order" type="number" min="1" value="${escapeHtml(row.displayOrder || 1)}" ${row.cell ? "" : "disabled"}>
-                                        </td>
+                        <div class="config-section-body collapsed">
+                            <table class="config-table">
+                                <thead>
+                                    <tr>
+                                        <th class="cell-col">Cell</th>
+                                        <th class="field-col">字段名</th>
+                                        <th class="key-col">Field Key</th>
+                                        <th class="show-col">显示</th>
+                                        <th class="action-col">详情</th>
                                     </tr>
-                                `).join("")}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    ${section.rows.map((row) => `
+                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}"` : ""}>
+                                            <td>${escapeHtml(row.cell || "-")}</td>
+                                            <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
+                                            <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>
+                                            <td class="show-col"><input class="show-checkbox" data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${row.cell ? "" : "disabled"}></td>
+                                            <td class="action-col"><button class="small" type="button" onclick="this.closest('tr').querySelector('.debug-toggle').click()">详情</button></td>
+                                        </tr>
+                                        <tr class="debug-row" style="display:none;">
+                                            <td colspan="5">
+                                                <details class="debug-details">
+                                                    <summary>智能推荐详情</summary>
+                                                    <div class="debug-grid">
+                                                        <div class="debug-item"><div class="debug-label">Confidence</div><div class="debug-value">${row.candidateConfidence ? row.candidateConfidence.toFixed(2) : "-"}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Reason</div><div class="debug-value">${escapeHtml(row.candidateReason || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Confidence Breakdown</div><div class="debug-value">${escapeHtml(formatConfidenceBreakdown(row.confidenceBreakdown))}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Section Hint</div><div class="debug-value">${escapeHtml(row.aiExtractHint || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Candidate Source</div><div class="debug-value">${escapeHtml(row.candidateSource || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Section</div><div class="debug-value">${escapeHtml(row.section || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Type</div><div class="debug-value">${escapeHtml(row.type || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Candidate Label</div><div class="debug-value">${escapeHtml(row.candidateFieldLabel || "-")}</div></div>
+                                                    </div>
+                                                    <div style="margin-top:10px;"><label style="font-size:12px;color:#667085;margin-bottom:4px;">AI Hint</label><input data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" style="min-height:32px;font-size:13px;" ${row.cell ? "" : "disabled"}></div>
+                                                    <div style="margin-top:8px;display:none;"><input data-config-field="order" type="number" min="1" value="${escapeHtml(row.displayOrder || 1)}" ${row.cell ? "" : "disabled"}></div>
+                                                </details>
+                                            </td>
+                                        </tr>
+                                    `).join("")}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 `).join("")}
             `;
+
+            area.querySelectorAll("button.small").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const tr = btn.closest("tr");
+                    const debugRow = tr.nextElementSibling;
+                    if (debugRow && debugRow.classList.contains("debug-row")) {
+                        debugRow.style.display = debugRow.style.display === "none" ? "table-row" : "none";
+                    }
+                });
+            });
         }
 
         window.addEventListener("DOMContentLoaded", () => {
