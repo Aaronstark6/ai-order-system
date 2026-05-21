@@ -368,6 +368,41 @@
             gap: 0;
             grid-template-columns: 1fr;
         }
+        .business-form-card .confirmation-section-body {
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            padding: 14px;
+        }
+        .business-field-card {
+            background: #fff;
+            border: 1px solid #e6eaf0;
+            border-radius: 8px;
+            display: grid;
+            gap: 8px;
+            min-width: 0;
+            padding: 12px;
+        }
+        .business-field-card label {
+            color: #344054;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+        .business-field-card input {
+            margin: 0;
+        }
+        .business-field-meta {
+            color: #667085;
+            font-size: 12px;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+        }
+        .business-field-debug {
+            color: #98a2b3;
+            display: block;
+            font-size: 11px;
+            margin-top: 2px;
+        }
         .confirmation-form-row {
             align-items: center;
             border-bottom: 1px solid #f0f2f5;
@@ -500,9 +535,9 @@
             </div>
 
             <div class="section confirmation-section-wrap">
-                <h3>模板原生确认区</h3>
+                <h3>订单信息确认</h3>
                 <div id="v4ConfirmationArea" class="confirmation-area">
-                    <div class="native-template-hint">AI解析后会自动填入模板，可直接在模板中修改确认。</div>
+                    <div class="native-template-hint">AI解析后会自动填入表单，可直接修改确认。</div>
                     <div class="status warning">请先粘贴聊天内容并点击 AI解析。</div>
                 </div>
             </div>
@@ -897,6 +932,10 @@
             const fieldKey = String(field.field_key || field.candidate_field_key || "").trim();
             const cell = normalizeConfigCell(field.cell || field.target_cell);
             if (!fieldKey || !cell) return null;
+            const intentType = String(field.intent_type || "").trim();
+            const writeMode = String(field.write_mode || "").trim();
+            if (["title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"].includes(intentType)) return null;
+            if (["skip", "none"].includes(writeMode)) return null;
             const sourceCell = normalizeConfigCell(field.source_cell || field.label_cell || field.cell || "");
             const label = String(field.label || field.candidate_field_label || field.field_label || fieldKey).trim() || fieldKey;
             const displayOrder = Number(field.display_order || 0);
@@ -908,8 +947,8 @@
                 cell_meta: cellMeta,
                 field_key: fieldKey,
                 label,
-                intent_type: field.intent_type || "",
-                write_mode: field.write_mode || "",
+                intent_type: intentType,
+                write_mode: writeMode,
                 option_value: field.option_value || "",
                 ai_extract_hint: field.ai_extract_hint || "",
                 section: field.section || "",
@@ -927,6 +966,50 @@
             ];
             const fields = candidates.find(items => Array.isArray(items) && items.length) || [];
             return fields.map(normalizeWorkspaceField).filter(Boolean);
+        }
+
+        function businessSectionKey(value) {
+            return String(value || "other").trim().toLowerCase().replace(/[^\w\u4e00-\u9fa5.-]+/g, "_") || "other";
+        }
+
+        function businessGroupForField(field) {
+            const explicitSection = String(field.section || "").trim();
+            if (explicitSection) {
+                return { key: `section_${businessSectionKey(explicitSection)}`, title: explicitSection };
+            }
+
+            const layoutSection = findLayoutSectionForItem({
+                cell: field.source_cell || field.cell,
+                display_cell: field.source_cell || field.cell,
+                label: field.label,
+            });
+            if (layoutSection) {
+                const title = layoutSection.title || layoutSection.section_name || layoutSection.section_key || "";
+                if (title) return { key: layoutSection.section_key || businessSectionKey(title), title };
+            }
+
+            const intentType = String(field.intent_type || "");
+            const writeMode = String(field.write_mode || "");
+            const labelText = String(field.label || "").toLowerCase();
+            const row = rowIndexFromCell(field.source_cell || field.cell);
+            const documentKeywords = ["编号", "日期", "客户", "负责人", "业务员", "document", "date", "customer"];
+
+            if (["option_checkbox", "option_text_choice"].includes(intentType)) {
+                return { key: "options", title: "选择字段确认" };
+            }
+            if (intentType === "unknown") {
+                return { key: "other", title: "其他字段确认" };
+            }
+            if (intentType.includes("table") || writeMode.includes("table") || writeMode.includes("row_field")) {
+                return { key: "product", title: "产品规格确认" };
+            }
+            if (row >= 12 || labelText.includes("包装") || labelText.includes("要求")) {
+                return { key: "packaging", title: "包装要求确认" };
+            }
+            if (row && row <= 8 || documentKeywords.some(keyword => labelText.includes(keyword))) {
+                return { key: "document", title: "文档编号信息" };
+            }
+            return { key: "structured", title: "普通字段确认" };
         }
 
         function cellValue(value) {
@@ -1244,6 +1327,41 @@
             `;
         }
 
+        function renderBusinessFormSection(section) {
+            return `
+                <div class="confirmation-section-card business-form-card" data-section="${escapeHtml(section.key)}">
+                    <div class="confirmation-section-header">
+                        <div class="confirmation-section-name">${escapeHtml(section.title)}</div>
+                        <div class="confirmation-section-count">${section.items.length}项</div>
+                    </div>
+                    <div class="confirmation-section-body">
+                        ${section.items.map(item => `
+                            <div class="business-field-card">
+                                <label>${escapeHtml(item.label)}</label>
+                                <input
+                                    type="text"
+                                    value="${escapeHtml(item.value)}"
+                                    data-cell="${escapeHtml(item.cell)}"
+                                    data-display-cell="${escapeHtml(item.display_cell || item.cell)}"
+                                    data-source-cell="${escapeHtml(item.source_cell || "")}"
+                                    data-field-key="${escapeHtml(item.field_key || "")}"
+                                    data-source="${escapeHtml(item.source || "Visual Mapping")}"
+                                    data-label="${escapeHtml(item.label)}"
+                                    oninput="syncConfirmedCellsFromInputs()"
+                                >
+                                ${isSmartDebugMode() ? `
+                                    <div class="business-field-meta">
+                                        ${escapeHtml(item.source_cell && item.source_cell !== item.cell ? `${item.source_cell} → ${item.cell}` : item.cell)}
+                                        <span class="business-field-debug">${escapeHtml(item.field_key || "-")} · ${escapeHtml(item.intent_type || "-")} · ${escapeHtml(item.write_mode || "-")}</span>
+                                    </div>
+                                ` : ""}
+                            </div>
+                        `).join("")}
+                    </div>
+                </div>
+            `;
+        }
+
         function renderPreviewSection(section) {
             return `
                 <div class="confirmation-section-card" data-section="${escapeHtml(section.key)}">
@@ -1334,23 +1452,18 @@
             const fields = Array.isArray(workspaceFields) ? workspaceFields : [];
             if (!fields.length) return [];
 
-            const sectionOrder = getConfirmationSectionOrder();
-            const grouped = sectionOrder.reduce((result, key) => {
-                result[key] = [];
-                return result;
-            }, {});
+            const preferredOrder = ["document", "structured", "product", "packaging", "options", "other"];
+            const grouped = {};
+            const titles = {};
+            const sectionOrder = [];
 
             fields.forEach(field => {
-                const inferredSection = field.section || inferConfirmationSection({
-                    cell: field.source_cell || field.cell,
-                    display_cell: field.source_cell || field.cell,
-                    label: field.label,
-                    source: field.source,
-                });
-                const sectionKey = inferredSection || "structured";
+                const group = businessGroupForField(field);
+                const sectionKey = group.key || "other";
                 if (!grouped[sectionKey]) {
                     grouped[sectionKey] = [];
                     sectionOrder.push(sectionKey);
+                    titles[sectionKey] = group.title || sectionTitle(sectionKey);
                 }
                 const rawValue = parsedValueForField(field.field_key, parsedValues);
                 grouped[sectionKey].push({
@@ -1371,23 +1484,24 @@
                 });
             });
 
-            const orderedSections = getConfirmationSectionOrder();
-            const orderedSectionIndex = Object.fromEntries(orderedSections.map((key, index) => [key, index]));
+            const orderedSectionIndex = Object.fromEntries(preferredOrder.map((key, index) => [key, index]));
             sectionOrder.sort((left, right) => {
-                const leftOrder = getSectionDisplayOrder(left, orderedSections.indexOf(left));
-                const rightOrder = getSectionDisplayOrder(right, orderedSections.indexOf(right));
-                if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-                return (orderedSectionIndex[left] || 0) - (orderedSectionIndex[right] || 0);
+                const leftKnown = Object.prototype.hasOwnProperty.call(orderedSectionIndex, left);
+                const rightKnown = Object.prototype.hasOwnProperty.call(orderedSectionIndex, right);
+                if (leftKnown !== rightKnown) return leftKnown ? -1 : 1;
+                if (leftKnown && orderedSectionIndex[left] !== orderedSectionIndex[right]) {
+                    return orderedSectionIndex[left] - orderedSectionIndex[right];
+                }
+                return String(titles[left] || left).localeCompare(String(titles[right] || right), "zh-CN");
             });
 
             return sectionOrder
-                .map(key => ({ key, title: sectionTitle(key), items: grouped[key] || [] }))
+                .map(key => ({ key, title: titles[key] || sectionTitle(key), items: grouped[key] || [] }))
                 .filter(section => section.items.length);
         }
 
         function renderConfigurationPreview() {
             if (latestV4ParseResult) return;
-            if (renderNativeTemplateConfirmation(null)) return;
 
             confirmedCells = [];
             originalConfirmedCells = [];
@@ -1408,8 +1522,8 @@
             }
 
             area.innerHTML = `
-                <div class="preview-notice">当前为模板配置预览。AI解析后将在这里显示可确认和修改的订单信息。</div>
-                ${sections.map(renderPreviewSection).join("")}
+                <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
+                ${sections.map(renderBusinessFormSection).join("")}
             `;
         }
 
@@ -1482,7 +1596,7 @@
             return true;
         }
 
-        function renderWorkspaceFieldConfirmation(result) {
+        function renderBusinessFormWorkspace(result) {
             const workspaceFields = getWorkspaceFieldsFromResult(result);
             if (!workspaceFields.length) return false;
 
@@ -1501,9 +1615,16 @@
             originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
             window.originalConfirmedCells = originalConfirmedCells;
 
-            document.getElementById("v4ConfirmationArea").innerHTML = sections.map(renderConfirmationSection).join("");
+            document.getElementById("v4ConfirmationArea").innerHTML = `
+                <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
+                ${sections.map(renderBusinessFormSection).join("")}
+            `;
             syncConfirmedCellsFromInputs();
             return true;
+        }
+
+        function renderWorkspaceFieldConfirmation(result) {
+            return renderBusinessFormWorkspace(result);
         }
 
         function flattenObject(prefix, value) {
@@ -1542,8 +1663,7 @@
         function renderConfirmation(result) {
             const parseResult = result.parse_result || {};
             const pipelineResult = result.pipeline_result || {};
-            if (renderNativeTemplateConfirmation(result)) return;
-            if (renderWorkspaceFieldConfirmation(result)) return;
+            if (renderBusinessFormWorkspace(result)) return;
             const renderPreview = pipelineResult.render_preview || {};
             const cells = renderPreview.cells || renderPreview.cell_preview || [];
             if (renderCellConfirmation(cells)) return;
