@@ -437,6 +437,18 @@
             return configuration && typeof configuration === "object" ? configuration : {};
         }
 
+        function getSectionConfiguration() {
+            const renderConfig = activeV4Profile && typeof activeV4Profile.render_config === "object"
+                ? activeV4Profile.render_config
+                : {};
+            const configuration = renderConfig.section_configuration;
+            return configuration && typeof configuration === "object" ? configuration : {};
+        }
+
+        function getSectionConfig(sectionKey) {
+            return getSectionConfiguration()[sectionKey] || null;
+        }
+
         function getItemTemplateConfiguration(item) {
             const configuration = getTemplateConfiguration();
             const cell = normalizeConfigCell(item.cell);
@@ -502,6 +514,11 @@
         }
 
         function sectionTitle(sectionKey) {
+            const sectionConfig = getSectionConfig(sectionKey);
+            if (sectionConfig && typeof sectionConfig.section_label === "string" && sectionConfig.section_label.trim()) {
+                return sectionConfig.section_label.trim();
+            }
+
             const layoutSection = Array.isArray(v4LayoutSections)
                 ? v4LayoutSections.find(section => section && section.section_key === sectionKey)
                 : null;
@@ -519,16 +536,43 @@
             return titles[sectionKey] || titles.other;
         }
 
-        function getConfirmationSectionOrder() {
-            const fallbackOrder = ["document", "structured", "table", "block", "other"];
-            if (!Array.isArray(v4LayoutSections) || !v4LayoutSections.length) {
-                return fallbackOrder;
+        function getSectionDisplayOrder(sectionKey, fallbackIndex) {
+            const sectionConfig = getSectionConfig(sectionKey);
+            const configuredOrder = Number(sectionConfig && sectionConfig.section_order);
+            if (Number.isFinite(configuredOrder) && configuredOrder > 0) {
+                return configuredOrder;
             }
 
-            const layoutOrder = v4LayoutSections
-                .map(section => section && section.section_key)
-                .filter(Boolean);
-            return Array.from(new Set([...layoutOrder, ...fallbackOrder]));
+            const layoutSection = Array.isArray(v4LayoutSections)
+                ? v4LayoutSections.find(section => section && section.section_key === sectionKey)
+                : null;
+            const layoutOrder = Number(layoutSection && layoutSection.order);
+            if (Number.isFinite(layoutOrder) && layoutOrder > 0) {
+                return layoutOrder;
+            }
+
+            return 900 + fallbackIndex;
+        }
+
+        function getConfirmationSectionOrder() {
+            const fallbackOrder = ["document", "structured", "table", "block", "other"];
+            let order = fallbackOrder;
+            if (!Array.isArray(v4LayoutSections) || !v4LayoutSections.length) {
+                order = fallbackOrder;
+            } else {
+                const layoutOrder = v4LayoutSections
+                    .map(section => section && section.section_key)
+                    .filter(Boolean);
+                order = Array.from(new Set([...layoutOrder, ...fallbackOrder]));
+            }
+
+            const orderIndex = Object.fromEntries(order.map((key, index) => [key, index]));
+            return order.sort((left, right) => {
+                const leftOrder = getSectionDisplayOrder(left, orderIndex[left] || 0);
+                const rightOrder = getSectionDisplayOrder(right, orderIndex[right] || 0);
+                if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+                return (orderIndex[left] || 0) - (orderIndex[right] || 0);
+            });
         }
 
         function buildConfirmationSections(cells) {
@@ -569,17 +613,13 @@
                 });
             });
 
+            const orderedSections = getConfirmationSectionOrder();
+            const orderedSectionIndex = Object.fromEntries(orderedSections.map((key, index) => [key, index]));
             sectionOrder.sort((left, right) => {
-                const leftItems = grouped[left] || [];
-                const rightItems = grouped[right] || [];
-                const leftOrder = Math.min(...leftItems.map(item => Number(item.workspaceOrder || 0)).filter(Boolean));
-                const rightOrder = Math.min(...rightItems.map(item => Number(item.workspaceOrder || 0)).filter(Boolean));
-                const leftHasOrder = Number.isFinite(leftOrder);
-                const rightHasOrder = Number.isFinite(rightOrder);
-                if (leftHasOrder && rightHasOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
-                if (leftHasOrder && !rightHasOrder) return -1;
-                if (!leftHasOrder && rightHasOrder) return 1;
-                return getConfirmationSectionOrder().indexOf(left) - getConfirmationSectionOrder().indexOf(right);
+                const leftOrder = getSectionDisplayOrder(left, orderedSections.indexOf(left));
+                const rightOrder = getSectionDisplayOrder(right, orderedSections.indexOf(right));
+                if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+                return (orderedSectionIndex[left] || 0) - (orderedSectionIndex[right] || 0);
             });
 
             return sectionOrder

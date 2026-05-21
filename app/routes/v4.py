@@ -205,6 +205,14 @@ def _template_configuration_from_profile(profile):
     return deepcopy(configuration) if isinstance(configuration, dict) else {}
 
 
+def _section_configuration_from_profile(profile):
+    render_config = profile.get("render_config") if isinstance(profile, dict) else {}
+    if not isinstance(render_config, dict):
+        return {}
+    configuration = render_config.get("section_configuration")
+    return deepcopy(configuration) if isinstance(configuration, dict) else {}
+
+
 def _normalize_template_configuration_items(items):
     if not isinstance(items, list):
         raise ValueError("配置项必须是 list")
@@ -220,6 +228,26 @@ def _normalize_template_configuration_items(items):
             "label": str(item.get("label") or "").strip(),
             "show_in_workspace": bool(item.get("show_in_workspace", True)),
             "display_order": int(item.get("display_order") or index),
+        }
+    return configuration
+
+
+def _normalize_section_configuration_items(items):
+    if items is None:
+        return {}
+    if not isinstance(items, list):
+        raise ValueError("分区配置项必须是 list")
+
+    configuration = {}
+    for index, item in enumerate(items, 1):
+        if not isinstance(item, dict):
+            continue
+        section_key = str(item.get("section_key") or "").strip()
+        if not section_key:
+            continue
+        configuration[section_key] = {
+            "section_label": str(item.get("section_label") or "").strip(),
+            "section_order": int(item.get("section_order") or index),
         }
     return configuration
 
@@ -649,6 +677,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_labels": [],
             "template_analysis_summary": {},
             "template_configuration": _template_configuration_from_profile(profile),
+            "section_configuration": _section_configuration_from_profile(profile),
         }
 
     try:
@@ -665,6 +694,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
             "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
             "template_configuration": _template_configuration_from_profile(profile),
+            "section_configuration": _section_configuration_from_profile(profile),
         }
     except (BadZipFile, InvalidFileException) as exc:
         logger.warning("V4 template profile configuration invalid Excel: profile_id=%s", profile_id, exc_info=True)
@@ -704,10 +734,12 @@ def api_v4_template_profile_configuration_save(profile_id: str, payload: Any = B
     try:
         payload = payload if isinstance(payload, dict) else {}
         configuration = _normalize_template_configuration_items(payload.get("items"))
+        section_configuration = _normalize_section_configuration_items(payload.get("sections"))
         render_config = profile.get("render_config") if isinstance(profile.get("render_config"), dict) else {}
         profile["render_config"] = {
             **render_config,
             "template_configuration": configuration,
+            "section_configuration": section_configuration,
         }
         saved_profile = save_template_profile(profile)
         state = get_pipeline_state()
@@ -719,6 +751,7 @@ def api_v4_template_profile_configuration_save(profile_id: str, payload: Any = B
             "message": "模板配置已保存",
             "profile": saved_profile,
             "template_configuration": _template_configuration_from_profile(saved_profile),
+            "section_configuration": _section_configuration_from_profile(saved_profile),
             "pipeline_state": state,
         }
     except ValueError as exc:
