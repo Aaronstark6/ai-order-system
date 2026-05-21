@@ -413,6 +413,38 @@
             font-size: 11px;
             margin-top: 2px;
         }
+        .business-option-group {
+            background: #fff;
+            border: 1px solid #e6eaf0;
+            border-radius: 8px;
+            display: grid;
+            gap: 10px;
+            min-width: 0;
+            padding: 12px;
+        }
+        .business-option-title {
+            color: #344054;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.4;
+            margin: 0;
+        }
+        .business-option-list {
+            display: grid;
+            gap: 8px;
+        }
+        .business-option-item {
+            align-items: center;
+            color: #1d2939;
+            display: flex;
+            font-weight: 400;
+            gap: 8px;
+            margin: 0;
+        }
+        .business-option-item input {
+            min-height: auto;
+            width: auto;
+        }
         .confirmation-form-row {
             align-items: center;
             border-bottom: 1px solid #f0f2f5;
@@ -1060,6 +1092,92 @@
             return matchKey ? parsedValues[matchKey] : "";
         }
 
+        function isOptionWorkspaceField(field) {
+            return ["option_checkbox", "option_text_choice"].includes(String(field?.intent_type || ""));
+        }
+
+        function optionGroupKey(field) {
+            const fieldKey = String(field.field_key || "").trim();
+            if (fieldKey) return `field:${fieldKey}`;
+            const section = String(field.section || businessGroupForField(field).key || "options").trim();
+            const row = rowIndexFromCell(field.source_cell || field.cell) || "row";
+            return `row:${section}:${row}`;
+        }
+
+        function optionLabel(field) {
+            return String(field.option_value || field.label || field.field_key || field.cell || "").trim();
+        }
+
+        function optionGroupTitle(items) {
+            const first = items[0] || {};
+            const hint = String(first.ai_extract_hint || "").trim();
+            if (hint) return hint;
+            const section = String(first.section || "").trim();
+            if (section) return section;
+            const label = String(first.label || "").trim();
+            if (label && !items.some(item => label === optionLabel(item))) return label;
+            return "选择字段";
+        }
+
+        function optionValueMatches(parsedValue, option) {
+            const parsed = String(parsedValue ?? "").trim();
+            if (!parsed) return false;
+            const normalizedParsed = parsed.toLowerCase();
+            const candidates = [option.option_value, option.label]
+                .map(value => String(value || "").trim())
+                .filter(Boolean);
+            return candidates.some(value => {
+                const normalized = value.toLowerCase();
+                return normalizedParsed.includes(normalized) || normalized.includes(normalizedParsed);
+            });
+        }
+
+        function buildBusinessFormItems(fields, parsedValues) {
+            const normalFields = [];
+            const optionGroupsByKey = {};
+
+            (Array.isArray(fields) ? fields : []).forEach(field => {
+                const value = parsedValueForField(field.field_key, parsedValues);
+                const normalized = {
+                    ...field,
+                    type: "field",
+                    value: value == null ? "" : String(value),
+                };
+                if (!isOptionWorkspaceField(field)) {
+                    normalFields.push(normalized);
+                    return;
+                }
+
+                const groupKey = optionGroupKey(field);
+                if (!optionGroupsByKey[groupKey]) {
+                    optionGroupsByKey[groupKey] = {
+                        type: "option_group",
+                        group_key: groupKey,
+                        field_key: field.field_key || "",
+                        items: [],
+                        value: value == null ? "" : String(value),
+                    };
+                }
+                optionGroupsByKey[groupKey].items.push({
+                    ...field,
+                    label: optionLabel(field),
+                    option_value: String(field.option_value || optionLabel(field) || "").trim(),
+                });
+            });
+
+            const optionGroups = Object.values(optionGroupsByKey).map(group => {
+                group.items.sort((left, right) => visualCellSort(left, right));
+                group.label = optionGroupTitle(group.items);
+                if (!group.value) {
+                    const selected = group.items.find(item => optionValueMatches(parsedValueForField(group.field_key, parsedValues), item));
+                    group.value = selected ? (selected.option_value || selected.label || "") : "";
+                }
+                return group;
+            });
+
+            return { normal_fields: normalFields, option_groups: optionGroups };
+        }
+
         function workspaceFieldByCell(workspaceFields) {
             const byCell = {};
             (Array.isArray(workspaceFields) ? workspaceFields : []).forEach(field => {
@@ -1345,28 +1463,67 @@
                         <div class="confirmation-section-count">${section.items.length}项</div>
                     </div>
                     <div class="confirmation-section-body">
-                        ${section.items.map(item => `
-                            <div class="business-field-card">
-                                <label>${escapeHtml(item.label)}</label>
-                                <input
-                                    type="text"
-                                    value="${escapeHtml(item.value)}"
-                                    data-cell="${escapeHtml(item.cell)}"
-                                    data-display-cell="${escapeHtml(item.display_cell || item.cell)}"
-                                    data-source-cell="${escapeHtml(item.source_cell || "")}"
-                                    data-field-key="${escapeHtml(item.field_key || "")}"
-                                    data-source="${escapeHtml(item.source || "Visual Mapping")}"
-                                    data-label="${escapeHtml(item.label)}"
-                                    oninput="syncConfirmedCellsFromInputs()"
-                                >
-                                ${isSmartDebugMode() ? `
-                                    <div class="business-field-meta">
-                                        ${escapeHtml(item.source_cell && item.source_cell !== item.cell ? `${item.source_cell} → ${item.cell}` : item.cell)}
-                                        <span class="business-field-debug">${escapeHtml(item.field_key || "-")} · ${escapeHtml(item.intent_type || "-")} · ${escapeHtml(item.write_mode || "-")}</span>
-                                    </div>
-                                ` : ""}
-                            </div>
-                        `).join("")}
+                        ${section.items.map(item => item.type === "option_group" ? renderBusinessOptionGroup(item) : renderBusinessFieldCard(item)).join("")}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderBusinessFieldCard(item) {
+            return `
+                <div class="business-field-card">
+                    <label>${escapeHtml(item.label)}</label>
+                    <input
+                        type="text"
+                        value="${escapeHtml(item.value)}"
+                        data-cell="${escapeHtml(item.cell)}"
+                        data-display-cell="${escapeHtml(item.display_cell || item.cell)}"
+                        data-source-cell="${escapeHtml(item.source_cell || "")}"
+                        data-field-key="${escapeHtml(item.field_key || "")}"
+                        data-source="${escapeHtml(item.source || "Visual Mapping")}"
+                        data-label="${escapeHtml(item.label)}"
+                        oninput="syncConfirmedCellsFromInputs()"
+                    >
+                    ${isSmartDebugMode() ? `
+                        <div class="business-field-meta">
+                            ${escapeHtml(item.source_cell && item.source_cell !== item.cell ? `${item.source_cell} → ${item.cell}` : item.cell)}
+                            <span class="business-field-debug">${escapeHtml(item.field_key || "-")} · ${escapeHtml(item.intent_type || "-")} · ${escapeHtml(item.write_mode || "-")}</span>
+                        </div>
+                    ` : ""}
+                </div>
+            `;
+        }
+
+        function renderBusinessOptionGroup(group) {
+            const selectedValue = String(group.value || "").trim();
+            return `
+                <div class="business-option-group">
+                    <div class="business-option-title">${escapeHtml(group.label || "选择字段")}</div>
+                    <div class="business-option-list">
+                        ${group.items.map(option => {
+                            const value = option.option_value || option.label || "";
+                            const checked = optionValueMatches(selectedValue, option) ? "checked" : "";
+                            return `
+                                <label class="business-option-item">
+                                    <input
+                                        type="radio"
+                                        name="${escapeHtml(group.group_key)}"
+                                        value="${escapeHtml(value)}"
+                                        data-cell="${escapeHtml(option.cell)}"
+                                        data-display-cell="${escapeHtml(option.display_cell || option.cell)}"
+                                        data-source-cell="${escapeHtml(option.source_cell || "")}"
+                                        data-field-key="${escapeHtml(group.field_key || option.field_key || "")}"
+                                        data-source="${escapeHtml(option.source || "Visual Mapping")}"
+                                        data-label="${escapeHtml(group.label || "选择字段")}"
+                                        data-option-value="${escapeHtml(value)}"
+                                        ${checked}
+                                        onchange="syncConfirmedCellsFromInputs()"
+                                    >
+                                    <span>${escapeHtml(option.label || value)}</span>
+                                </label>
+                                ${isSmartDebugMode() ? `<div class="business-field-debug">${escapeHtml(option.cell || "-")} · ${escapeHtml(option.field_key || "-")} · ${escapeHtml(option.intent_type || "-")} · ${escapeHtml(option.write_mode || "-")}</div>` : ""}
+                            `;
+                        }).join("")}
                     </div>
                 </div>
             `;
@@ -1466,20 +1623,24 @@
             const grouped = {};
             const titles = {};
             const sectionOrder = [];
+            const formItems = buildBusinessFormItems(fields, parsedValues);
+            const businessItems = [
+                ...formItems.normal_fields,
+                ...formItems.option_groups,
+            ];
 
-            fields.forEach(field => {
-                const group = businessGroupForField(field);
+            businessItems.forEach(item => {
+                const referenceField = item.type === "option_group" ? (item.items[0] || item) : item;
+                const group = item.type === "option_group" ? { key: "options", title: "选择字段确认" } : businessGroupForField(referenceField);
                 const sectionKey = group.key || "other";
                 if (!grouped[sectionKey]) {
                     grouped[sectionKey] = [];
                     sectionOrder.push(sectionKey);
                     titles[sectionKey] = group.title || sectionTitle(sectionKey);
                 }
-                const rawValue = parsedValueForField(field.field_key, parsedValues);
                 grouped[sectionKey].push({
-                    ...field,
+                    ...item,
                     section: sectionKey,
-                    value: rawValue == null ? "" : String(rawValue),
                 });
             });
 
@@ -1569,7 +1730,9 @@
         }
 
         function collectConfirmedCellsFromInputs() {
-            return Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]")).map(input => ({
+            const textItems = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]"))
+                .filter(input => input.type !== "radio")
+                .map(input => ({
                 cell: input.dataset.cell || "",
                 display_cell: input.dataset.displayCell || input.dataset.cell || "",
                 source_cell: input.dataset.sourceCell || "",
@@ -1578,6 +1741,17 @@
                 label: input.dataset.label || "",
                 value: input.value
             }));
+            const radioItems = Array.from(document.querySelectorAll("#v4ConfirmationArea input[type='radio'][data-cell]:checked")).map(input => ({
+                cell: input.dataset.cell || "",
+                display_cell: input.dataset.displayCell || input.dataset.cell || "",
+                source_cell: input.dataset.sourceCell || "",
+                field_key: input.dataset.fieldKey || "",
+                source: input.dataset.source || "",
+                label: input.dataset.label || "",
+                option_value: input.dataset.optionValue || input.value,
+                value: input.value
+            }));
+            return [...textItems, ...radioItems];
         }
 
         function syncConfirmedCellsFromInputs() {
