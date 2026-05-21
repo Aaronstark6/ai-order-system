@@ -287,7 +287,7 @@
             box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2), 0 4px 12px rgba(24, 144, 255, 0.3);
             outline: none;
         }
-        .visual-cell.merge-child { color: transparent; }
+        .visual-cell.merged-cell { background-clip: padding-box; }
         .visual-detail {
             background: #fafbfd;
             border: 1px solid #e6eaf0;
@@ -658,6 +658,65 @@
             return cells.find((cell) => cell.cell === cellRef) || null;
         }
 
+        function parseCellRange(rangeText) {
+            const parts = String(rangeText || "").split(":");
+            if (parts.length !== 2) return null;
+            const start = cellToPoint(parts[0]);
+            const end = cellToPoint(parts[1]);
+            if (!start || !end) return null;
+            return {
+                startCell: normalizeCell(parts[0]),
+                startRow: Math.min(start.row, end.row),
+                startCol: Math.min(start.col, end.col),
+                endRow: Math.max(start.row, end.row),
+                endCol: Math.max(start.col, end.col),
+            };
+        }
+
+        function buildMergeLookup(grid) {
+            const skip = new Set();
+            const start = {};
+            const merges = Array.isArray(grid?.merges) ? grid.merges : [];
+            const cells = Array.isArray(grid?.cells) ? grid.cells : [];
+
+            function addMerge(range) {
+                if (!range) return;
+                const startCell = normalizeCell(range.start_cell || range.startCell || columnName(range.start_col || range.startCol) + (range.start_row || range.startRow || ""));
+                const startRow = Number(range.start_row || range.startRow || 0);
+                const startCol = Number(range.start_col || range.startCol || 0);
+                const endRow = Number(range.end_row || range.endRow || 0);
+                const endCol = Number(range.end_col || range.endCol || 0);
+                if (!startCell || !startRow || !startCol || !endRow || !endCol) return;
+                const rowspan = Math.max(1, endRow - startRow + 1);
+                const colspan = Math.max(1, endCol - startCol + 1);
+                if (rowspan <= 1 && colspan <= 1) return;
+                start[startCell] = { rowspan, colspan };
+                for (let row = startRow; row <= endRow; row += 1) {
+                    for (let col = startCol; col <= endCol; col += 1) {
+                        const cellRef = `${columnName(col)}${row}`;
+                        if (cellRef !== startCell) skip.add(cellRef);
+                    }
+                }
+            }
+
+            merges.forEach((merge) => addMerge(merge));
+            cells.forEach((cell) => {
+                if (!cell?.is_merged || !cell?.merged_range) return;
+                const parsed = parseCellRange(cell.merged_range);
+                if (parsed) {
+                    addMerge({
+                        start_cell: parsed.startCell,
+                        start_row: parsed.startRow,
+                        start_col: parsed.startCol,
+                        end_row: parsed.endRow,
+                        end_col: parsed.endCol,
+                    });
+                }
+            });
+
+            return { skip, start };
+        }
+
         const INTENT_LABELS = {
             "title": "标题",
             "section_header": "分组标题",
@@ -738,23 +797,29 @@
 
             const byCell = {};
             cells.forEach((cell) => { byCell[cell.cell] = cell; });
+            const mergeLookup = buildMergeLookup(grid);
             const header = Array.from({ length: cols }, (_, index) => `<th>${columnName(index + 1)}</th>`).join("");
             const bodyRows = [];
             for (let row = 1; row <= rows; row += 1) {
                 const tds = [];
                 for (let col = 1; col <= cols; col += 1) {
                     const cellRef = `${columnName(col)}${row}`;
+                    if (mergeLookup.skip.has(cellRef)) continue;
                     const cell = byCell[cellRef] || { cell: cellRef, display_value: "" };
                     const hasText = Boolean(cell.display_value || cell.value);
                     const hasV4 = Boolean(cell.candidate_field_key || cell.intent_type);
+                    const mergeSize = mergeLookup.start[cellRef] || {};
+                    const rowspan = Number(mergeSize.rowspan || 1);
+                    const colspan = Number(mergeSize.colspan || 1);
                     const classes = [
                         "visual-cell",
                         hasText ? "has-text" : "",
                         hasV4 ? "has-v4" : "",
-                        cell.is_merged && !cell.merge_start ? "merge-child" : "",
+                        cell.is_merged ? "merged-cell" : "",
                         selectedVisualCell === cellRef ? "selected" : "",
                     ].filter(Boolean).join(" ");
-                    tds.push(`<td class="${classes}" style="${visualCellStyle(cell)}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}">${escapeHtml(cell.display_value || "")}</td>`);
+                    const spanAttrs = `${rowspan > 1 ? ` rowspan="${rowspan}"` : ""}${colspan > 1 ? ` colspan="${colspan}"` : ""}`;
+                    tds.push(`<td class="${classes}"${spanAttrs} style="${visualCellStyle(cell)}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}">${escapeHtml(cell.display_value || "")}</td>`);
                 }
                 bodyRows.push(`<tr><th class="row-head">${row}</th>${tds.join("")}</tr>`);
             }
