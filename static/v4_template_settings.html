@@ -149,6 +149,12 @@
         .field-input {
             min-width: 150px;
         }
+        .candidate-input {
+            min-width: 130px;
+        }
+        .hint-input {
+            min-width: 180px;
+        }
         .order-input {
             max-width: 86px;
         }
@@ -223,7 +229,7 @@
             button { width: 100%; }
             .config-actions { align-items: stretch; flex-direction: column; }
             .config-section-header { grid-template-columns: 1fr; }
-            .field-input, .order-input { max-width: none; width: 100%; }
+            .field-input, .candidate-input, .hint-input, .order-input { max-width: none; width: 100%; }
         }
     </style>
 </head>
@@ -361,7 +367,7 @@
         }
 
         async function loadMappingConfiguration(mappingId) {
-            if (!mappingId) return { labels: [], structureLabels: [], sections: [], analysis: {}, savedConfiguration: {}, savedSectionConfiguration: {} };
+            if (!mappingId) return { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/configuration`);
             const analysis = result.template_analysis && typeof result.template_analysis === "object" ? result.template_analysis : {};
             const structure = analysis.template_structure && typeof analysis.template_structure === "object" ? analysis.template_structure : {};
@@ -376,7 +382,8 @@
             const savedSectionConfiguration = result.section_configuration && typeof result.section_configuration === "object"
                 ? result.section_configuration
                 : {};
-            const config = { labels, structureLabels, sections, analysis, savedConfiguration, savedSectionConfiguration };
+            const candidates = Array.isArray(result.mapping_candidates) ? result.mapping_candidates : [];
+            const config = { labels, structureLabels, sections, analysis, candidates, savedConfiguration, savedSectionConfiguration };
             configByMappingId[mappingId] = config;
             return config;
         }
@@ -446,7 +453,7 @@
 
             input.value = "";
             const newId = getMappingId(result.profile);
-            configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {}, savedConfiguration: {}, savedSectionConfiguration: {} };
+            configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
             await loadMappings(newId);
             setStatus("映射已创建。", "success");
         }
@@ -496,7 +503,7 @@
 
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
-            configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {}, savedConfiguration: {}, savedSectionConfiguration: {} };
+            configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
             updateCurrentState();
             renderConfig();
             setInlineStatus("模板文件已删除。");
@@ -672,19 +679,31 @@
             });
         }
 
-        function applySavedConfiguration(rows, savedConfiguration) {
+        function applySavedConfiguration(rows, savedConfiguration, mappingCandidates) {
             const saved = savedConfiguration && typeof savedConfiguration === "object" ? savedConfiguration : {};
+            const candidatesByCell = {};
+            (Array.isArray(mappingCandidates) ? mappingCandidates : []).forEach((candidate) => {
+                const key = normalizeCell(candidate?.cell);
+                if (key) candidatesByCell[key] = candidate;
+            });
             let naturalOrder = 0;
             return rows.map((row) => {
                 naturalOrder += 1;
                 const key = normalizeCell(row.cell);
                 const item = key ? saved[key] || {} : {};
+                const candidate = key ? candidatesByCell[key] || {} : {};
                 const savedOrder = Number(item.display_order);
+                const confidence = Number(item.candidate_confidence || candidate.confidence || 0);
                 return {
                     ...row,
                     configLabel: typeof item.label === "string" && item.label.trim() ? item.label : row.text,
                     showInWorkspace: typeof item.show_in_workspace === "boolean" ? item.show_in_workspace : true,
                     displayOrder: Number.isFinite(savedOrder) && savedOrder > 0 ? savedOrder : naturalOrder,
+                    candidateFieldKey: item.candidate_field_key || candidate.field_key || "",
+                    candidateFieldLabel: item.candidate_field_label || candidate.field_label || "",
+                    candidateConfidence: Number.isFinite(confidence) && confidence > 0 ? confidence : 0,
+                    candidateSource: item.candidate_source || candidate.source || "",
+                    aiExtractHint: item.ai_extract_hint || candidate.ai_extract_hint || "",
                 };
             });
         }
@@ -695,11 +714,19 @@
                 const labelInput = row.querySelector("input[data-config-field='label']");
                 const showInput = row.querySelector("input[data-config-field='show']");
                 const orderInput = row.querySelector("input[data-config-field='order']");
+                const fieldKeyInput = row.querySelector("input[data-config-field='field_key']");
+                const fieldLabelInput = row.querySelector("input[data-config-field='field_label']");
+                const hintInput = row.querySelector("input[data-config-field='ai_extract_hint']");
                 return {
                     cell,
                     label: labelInput ? labelInput.value.trim() : "",
                     show_in_workspace: showInput ? showInput.checked : true,
                     display_order: orderInput ? Number(orderInput.value || 0) : 0,
+                    candidate_field_key: fieldKeyInput ? fieldKeyInput.value.trim() : "",
+                    candidate_field_label: fieldLabelInput ? fieldLabelInput.value.trim() : "",
+                    candidate_confidence: Number(row.dataset.candidateConfidence || 0),
+                    candidate_source: row.dataset.candidateSource || "",
+                    ai_extract_hint: hintInput ? hintInput.value.trim() : "",
                 };
             }).filter((item) => item.cell);
         }
@@ -799,7 +826,8 @@
             );
             const rows = applySavedConfiguration(
                 buildConfigRows(labels, structureLabels, sections),
-                cached?.savedConfiguration
+                cached?.savedConfiguration,
+                cached?.candidates
             );
             const configSections = buildConfigSections(rows, sections, cached?.savedSectionConfiguration);
 
@@ -835,19 +863,33 @@
                                     <th>区域</th>
                                     <th>类型</th>
                                     <th>字段名称</th>
+                                    <th>V4候选字段</th>
+                                    <th>候选名称</th>
+                                    <th>Confidence</th>
+                                    <th>AI Hint</th>
                                     <th>工作页显示</th>
                                     <th>顺序</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${section.rows.map((row) => `
-                                    <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}"` : ""}>
+                                    <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}"` : ""}>
                                         <td>${escapeHtml(row.cell || "-")}</td>
                                         <td>${escapeHtml(row.text || "-")}</td>
                                         <td>${escapeHtml(row.section || "-")}</td>
                                         <td>${escapeHtml(row.type || "-")}</td>
                                         <td>
                                             <input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}>
+                                        </td>
+                                        <td>
+                                            <input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}>
+                                        </td>
+                                        <td>
+                                            <input class="candidate-input" data-config-field="field_label" type="text" value="${escapeHtml(row.candidateFieldLabel || "")}" ${row.cell ? "" : "disabled"}>
+                                        </td>
+                                        <td>${row.candidateConfidence ? escapeHtml(row.candidateConfidence.toFixed(2)) : "-"}</td>
+                                        <td>
+                                            <input class="hint-input" data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" ${row.cell ? "" : "disabled"}>
                                         </td>
                                         <td>
                                             <input class="show-checkbox" data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${row.cell ? "" : "disabled"}>

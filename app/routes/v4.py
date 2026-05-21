@@ -228,8 +228,175 @@ def _normalize_template_configuration_items(items):
             "label": str(item.get("label") or "").strip(),
             "show_in_workspace": bool(item.get("show_in_workspace", True)),
             "display_order": int(item.get("display_order") or index),
+            "candidate_field_key": str(item.get("candidate_field_key") or item.get("field_key") or "").strip(),
+            "candidate_field_label": str(item.get("candidate_field_label") or item.get("field_label") or "").strip(),
+            "candidate_confidence": float(item.get("candidate_confidence") or 0),
+            "candidate_source": str(item.get("candidate_source") or "").strip(),
+            "ai_extract_hint": str(item.get("ai_extract_hint") or "").strip(),
         }
     return configuration
+
+
+_MAPPING_CANDIDATE_RULES = [
+    {
+        "field_key": "customer_name",
+        "field_label": "客户名称",
+        "keywords": ["客户名称", "客户公司", "客户", "公司名称", "customer name", "customer company", "customer"],
+        "ai_extract_hint": "客户名称 / 客户公司",
+    },
+    {
+        "field_key": "order_date",
+        "field_label": "订单日期",
+        "keywords": ["订单日期", "下单日期", "日期", "date", "order date"],
+        "ai_extract_hint": "订单日期 / 下单日期 / 日期",
+    },
+    {
+        "field_key": "product_name",
+        "field_label": "产品名称",
+        "keywords": ["产品名称", "产品名", "产品", "品名", "product name", "product"],
+        "ai_extract_hint": "产品名称 / 品名",
+    },
+    {
+        "field_key": "quantity",
+        "field_label": "数量",
+        "keywords": ["数量", "订单数量", "qty", "quantity", "count"],
+        "ai_extract_hint": "数量 / 订单数量",
+    },
+    {
+        "field_key": "specification",
+        "field_label": "规格",
+        "keywords": ["规格", "规格型号", "型号", "spec", "specification"],
+        "ai_extract_hint": "规格 / 规格型号",
+    },
+    {
+        "field_key": "packaging",
+        "field_label": "包装",
+        "keywords": ["包装", "包装规格", "包装要求", "package", "packaging"],
+        "ai_extract_hint": "包装 / 包装规格 / 包装要求",
+    },
+    {
+        "field_key": "amount",
+        "field_label": "金额",
+        "keywords": ["金额", "总金额", "货值", "总价", "价格", "amount", "price", "total"],
+        "ai_extract_hint": "金额 / 总金额 / 价格",
+    },
+]
+
+
+def _normalize_candidate_text(value):
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[\s:：/\\|,，.。;；()（）\[\]【】_-]+", "", text)
+    return text
+
+
+def _cell_point(cell):
+    match = re.match(r"^([A-Za-z]+)(\d+)$", str(cell or "").strip())
+    if not match:
+        return None
+    col = 0
+    for char in match.group(1).upper():
+        col = col * 26 + ord(char) - 64
+    return int(match.group(2)), col
+
+
+def _section_for_cell(layout_sections, cell):
+    point = _cell_point(cell)
+    if not point:
+        return {}
+    row, col = point
+    for section in layout_sections if isinstance(layout_sections, list) else []:
+        if not isinstance(section, dict):
+            continue
+        bounds = section.get("bounds") if isinstance(section.get("bounds"), dict) else {}
+        try:
+            start_row = int(bounds.get("start_row") or 0)
+            end_row = int(bounds.get("end_row") or 0)
+            start_col = int(bounds.get("start_col") or 0)
+            end_col = int(bounds.get("end_col") or 0)
+        except (TypeError, ValueError):
+            continue
+        if start_row <= row <= end_row and start_col <= col <= end_col:
+            return section
+    return {}
+
+
+def _candidate_for_label(label_text, section):
+    normalized_text = _normalize_candidate_text(label_text)
+    section_text = _normalize_candidate_text(
+        " ".join(
+            str(value or "")
+            for value in (
+                section.get("title") if isinstance(section, dict) else "",
+                section.get("source_region_name") if isinstance(section, dict) else "",
+                section.get("semantic_type") if isinstance(section, dict) else "",
+            )
+        )
+    )
+    haystack = f"{normalized_text} {section_text}"
+
+    for rule in _MAPPING_CANDIDATE_RULES:
+        for keyword in rule["keywords"]:
+            normalized_keyword = _normalize_candidate_text(keyword)
+            if not normalized_keyword:
+                continue
+            if normalized_text == normalized_keyword:
+                confidence = 0.96
+            elif normalized_keyword in normalized_text:
+                confidence = 0.9
+            elif normalized_keyword in haystack:
+                confidence = 0.78
+            else:
+                continue
+            return {
+                "field_key": rule["field_key"],
+                "field_label": rule["field_label"],
+                "confidence": confidence,
+                "ai_extract_hint": rule["ai_extract_hint"],
+            }
+    return {
+        "field_key": "",
+        "field_label": "",
+        "confidence": 0,
+        "ai_extract_hint": "",
+    }
+
+
+def _generate_mapping_candidates(template_analysis, layout_sections):
+    analysis = template_analysis if isinstance(template_analysis, dict) else {}
+    labels = analysis.get("labels") if isinstance(analysis.get("labels"), list) else []
+    candidates = []
+    seen_cells = set()
+    for index, label in enumerate(labels, 1):
+        if not isinstance(label, dict):
+            continue
+        cell = str(label.get("cell") or "").strip().upper()
+        label_text = str(label.get("value") or label.get("name") or "").strip()
+        if not cell or not label_text or cell in seen_cells:
+            continue
+        seen_cells.add(cell)
+        section = _section_for_cell(layout_sections, cell)
+        candidate = _candidate_for_label(label_text, section)
+        section_name = (
+            section.get("title")
+            or section.get("source_region_name")
+            or section.get("section_key")
+            or ""
+        ) if isinstance(section, dict) else ""
+        candidates.append(
+            {
+                "cell": cell,
+                "field_key": candidate["field_key"],
+                "field_label": candidate["field_label"],
+                "section": section_name,
+                "section_key": section.get("section_key", "") if isinstance(section, dict) else "",
+                "confidence": candidate["confidence"],
+                "source": "template_analysis+layout_sections",
+                "ai_extract_hint": candidate["ai_extract_hint"],
+                "label_text": label_text,
+                "display_order": index,
+            }
+        )
+    return candidates
 
 
 def _normalize_section_configuration_items(items):
@@ -678,23 +845,27 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_analysis_summary": {},
             "template_configuration": _template_configuration_from_profile(profile),
             "section_configuration": _section_configuration_from_profile(profile),
+            "mapping_candidates": [],
         }
 
     try:
         bound_template_path = _resolve_bound_template_file_path(template_file_path)
         analysis = analyze_template(bound_template_path)
         layout_result = build_layout_sections_from_template_analysis(analysis)
+        layout_sections = layout_result.get("layout_sections", [])
+        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections)
         return {
             "success": True,
             "profile": profile,
             "has_template_file": True,
-            "layout_sections": layout_result.get("layout_sections", []),
+            "layout_sections": layout_sections,
             "layout_summary": layout_result.get("summary", {}),
             "template_analysis": analysis if isinstance(analysis, dict) else {},
             "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
             "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
             "template_configuration": _template_configuration_from_profile(profile),
             "section_configuration": _section_configuration_from_profile(profile),
+            "mapping_candidates": mapping_candidates,
         }
     except (BadZipFile, InvalidFileException) as exc:
         logger.warning("V4 template profile configuration invalid Excel: profile_id=%s", profile_id, exc_info=True)
