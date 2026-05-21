@@ -373,6 +373,78 @@
             margin-top: 12px;
             padding-top: 12px;
         }
+        .validation-panel {
+            background: #fff;
+            border: 1px solid #e6eaf0;
+            border-radius: 8px;
+            margin: 0 0 18px;
+            padding: 14px;
+        }
+        .validation-header {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .validation-title {
+            color: #1d2939;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .validation-counts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .validation-pill {
+            border-radius: 999px;
+            font-size: 12px;
+            padding: 4px 9px;
+        }
+        .validation-pill.error { background: #ffe9e7; color: #b42318; }
+        .validation-pill.warning { background: #fff7db; color: #8a6100; }
+        .validation-pill.passed { background: #e9f8ef; color: #16713b; }
+        .validation-group {
+            border-top: 1px solid #edf0f4;
+            padding-top: 10px;
+        }
+        .validation-group + .validation-group { margin-top: 10px; }
+        .validation-group-title {
+            color: #475467;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .validation-list {
+            display: grid;
+            gap: 6px;
+        }
+        .validation-item {
+            background: #fafbfd;
+            border: 1px solid #edf0f4;
+            border-left: 4px solid #d0d5dd;
+            border-radius: 6px;
+            cursor: pointer;
+            display: grid;
+            gap: 6px;
+            grid-template-columns: 70px 130px minmax(0, 1fr);
+            padding: 8px 10px;
+            text-align: left;
+            white-space: normal;
+            width: 100%;
+        }
+        .validation-item.error { border-left-color: #d92d20; }
+        .validation-item.warning { border-left-color: #faad14; }
+        .validation-item.passed { border-left-color: #12b76a; }
+        .validation-item-cell { color: #1d2939; font-weight: 700; }
+        .validation-item-type { color: #475467; }
+        .validation-item-message { color: #344054; }
+        .validation-empty {
+            color: #667085;
+            font-size: 13px;
+        }
         @media (max-width: 860px) {
             body { padding: 16px; }
             .page { max-width: 100%; }
@@ -383,6 +455,7 @@
             .config-section-header { flex-wrap: wrap; }
             .debug-grid { grid-template-columns: 1fr; }
             .visual-workbench-body { grid-template-columns: 1fr; }
+            .validation-item { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -449,6 +522,7 @@
                     </div>
                 </div>
             </div>
+            <div id="configurationValidation" class="validation-panel"></div>
             <div id="templateConfigArea" class="config-empty">
                 当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。
             </div>
@@ -1298,6 +1372,12 @@
             "none", "write_right_cell", "write_below_cell", "append_after_colon", "check_option",
             "select_option_text", "write_table_column", "write_row_field", "skip"
         ];
+        const TARGET_REQUIRED_WRITE_MODES = new Set([
+            "write_right_cell", "write_below_cell", "append_after_colon", "check_option",
+            "select_option_text", "write_table_column", "write_row_field"
+        ]);
+        const READONLY_INTENT_TYPES = new Set(["title", "section_header", "note_instruction", "readonly_example"]);
+        const OPTION_INTENT_TYPES = new Set(["option_checkbox", "option_text_choice"]);
 
         function renderSelectOptions(options, selectedValue, labels = {}) {
             const selected = String(selectedValue || "");
@@ -1343,6 +1423,149 @@
                     ai_extract_hint: hintInput ? hintInput.value.trim() : "",
                 };
             }).filter((item) => item.cell);
+        }
+
+        function collectValidationConfigurationItems(preferredItems = null) {
+            const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
+            const saved = cached?.savedConfiguration && typeof cached.savedConfiguration === "object" ? cached.savedConfiguration : {};
+            const byCell = {};
+            Object.entries(saved).forEach(([cell, item]) => {
+                const key = normalizeCell(cell);
+                if (key) byCell[key] = { ...(item || {}), cell: key };
+            });
+            const currentItems = Array.isArray(preferredItems) ? preferredItems : collectEditableConfiguration();
+            currentItems.forEach((item) => {
+                const key = normalizeCell(item?.cell);
+                if (key) byCell[key] = { ...(byCell[key] || {}), ...item, cell: key };
+            });
+            return Object.values(byCell).sort((left, right) => {
+                const leftOrder = Number(left.display_order || 0);
+                const rightOrder = Number(right.display_order || 0);
+                if (leftOrder || rightOrder) return leftOrder - rightOrder;
+                return String(left.cell || "").localeCompare(String(right.cell || ""), "en");
+            });
+        }
+
+        function isWritableMode(writeMode) {
+            return !["skip", "none"].includes(String(writeMode || "").trim());
+        }
+
+        function isExcelCellAddress(value) {
+            const text = normalizeCell(value);
+            if (!/^[A-Z]{1,3}[1-9][0-9]{0,6}$/.test(text)) return false;
+            const point = cellToPoint(text);
+            return Boolean(point && point.col >= 1 && point.col <= 16384 && point.row >= 1 && point.row <= 1048576);
+        }
+
+        function validateCurrentMappingConfiguration(preferredItems = null) {
+            const items = collectValidationConfigurationItems(preferredItems);
+            const errors = [];
+            const warnings = [];
+            const issueCells = new Set();
+            const fieldUsage = {};
+
+            function addIssue(bucket, cell, type, message) {
+                const issue = { cell, type, message };
+                bucket.push(issue);
+                issueCells.add(cell);
+            }
+
+            items.forEach((item) => {
+                const cell = normalizeCell(item.cell);
+                if (!cell) return;
+                const fieldKey = String(item.candidate_field_key || item.field_key || "").trim();
+                const writeMode = String(item.write_mode || "").trim();
+                const intentType = String(item.intent_type || "unknown").trim() || "unknown";
+                const targetCell = normalizeCell(item.target_cell);
+                const optionValue = String(item.option_value || "").trim();
+                const showInWorkspace = item.show_in_workspace !== false;
+
+                if (showInWorkspace && isWritableMode(writeMode) && !fieldKey) {
+                    addIssue(warnings, cell, "缺少字段标识", "缺少字段标识，AI 无法提取。");
+                }
+                if (TARGET_REQUIRED_WRITE_MODES.has(writeMode) && !targetCell) {
+                    addIssue(errors, cell, "缺少目标写入单元格", "当前写入策略需要目标写入单元格。");
+                }
+                if (targetCell && !isExcelCellAddress(targetCell)) {
+                    addIssue(errors, cell, "目标单元格格式错误", "target_cell 不像合法 Excel 单元格。");
+                }
+                if (READONLY_INTENT_TYPES.has(intentType) && isWritableMode(writeMode)) {
+                    addIssue(warnings, cell, "意图和写入策略冲突", "说明/标题类通常不应写入。");
+                }
+                if (OPTION_INTENT_TYPES.has(intentType) && !optionValue) {
+                    addIssue(warnings, cell, "选项缺少选项值", "选项类配置需要填写选项值。");
+                }
+                if (fieldKey && writeMode !== "skip") {
+                    const key = fieldKey.toLowerCase();
+                    if (!fieldUsage[key]) fieldUsage[key] = [];
+                    fieldUsage[key].push({ cell, fieldKey });
+                }
+            });
+
+            Object.values(fieldUsage).forEach((usage) => {
+                if (usage.length <= 1) return;
+                const cells = usage.map((item) => item.cell).join("、");
+                usage.forEach((item) => {
+                    addIssue(warnings, item.cell, "字段标识重复", `字段标识 ${item.fieldKey} 被多个非 skip 单元格使用：${cells}`);
+                });
+            });
+
+            const passed = items
+                .map((item) => normalizeCell(item.cell))
+                .filter((cell) => cell && !issueCells.has(cell))
+                .map((cell) => ({ cell, type: "可用", message: "当前配置未发现阻断或警告问题。" }));
+            return { errors, warnings, passed };
+        }
+
+        function renderValidationGroup(title, className, items) {
+            if (!items.length) return `
+                <div class="validation-group">
+                    <div class="validation-group-title">${escapeHtml(title)}</div>
+                    <div class="validation-empty">暂无</div>
+                </div>
+            `;
+            return `
+                <div class="validation-group">
+                    <div class="validation-group-title">${escapeHtml(title)}</div>
+                    <div class="validation-list">
+                        ${items.map((item) => `
+                            <button class="validation-item ${className}" type="button" onclick="selectValidationCell('${escapeHtml(item.cell)}')">
+                                <span class="validation-item-cell">${escapeHtml(item.cell || "-")}</span>
+                                <span class="validation-item-type">${escapeHtml(item.type || "-")}</span>
+                                <span class="validation-item-message">${escapeHtml(item.message || "")}</span>
+                            </button>
+                        `).join("")}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderConfigurationValidation(validation = null) {
+            const area = document.getElementById("configurationValidation");
+            if (!area) return;
+            const result = validation || validateCurrentMappingConfiguration();
+            area.innerHTML = `
+                <div class="validation-header">
+                    <div class="validation-title">配置检查</div>
+                    <div class="validation-counts">
+                        <span class="validation-pill passed">通过 ${result.passed.length}</span>
+                        <span class="validation-pill warning">警告 ${result.warnings.length}</span>
+                        <span class="validation-pill error">错误 ${result.errors.length}</span>
+                    </div>
+                </div>
+                ${renderValidationGroup("错误", "error", result.errors)}
+                ${renderValidationGroup("警告", "warning", result.warnings)}
+                ${renderValidationGroup("通过", "passed", result.passed)}
+            `;
+        }
+
+        function selectValidationCell(cell) {
+            const cellRef = normalizeCell(cell);
+            if (!cellRef) return;
+            selectedVisualCell = cellRef;
+            renderVisualWorkbench();
+            const target = document.querySelector(`.visual-cell[title='${CSS.escape(cellRef)}']`);
+            if (target) target.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
         }
 
         function buildConfigSections(rows, layoutSections, savedSectionConfiguration) {
@@ -1392,6 +1615,12 @@
             const items = collectEditableConfiguration();
             const sections = collectEditableSectionConfiguration();
             if (!items.length) { setStatus("当前没有可保存的模板配置。", "warning"); return; }
+            const validation = validateCurrentMappingConfiguration(items);
+            renderConfigurationValidation(validation);
+            if (validation.errors.length) {
+                setStatus("配置检查存在错误，请先处理错误后再保存。", "error");
+                return;
+            }
             setStatus("正在保存模板配置...", "info");
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/configuration`, {
                 method: "POST",
@@ -1428,6 +1657,7 @@
             if (!rows.length) {
                 area.className = "config-empty";
                 area.textContent = "当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。";
+                renderConfigurationValidation();
                 return;
             }
 
@@ -1524,6 +1754,11 @@
                     }
                 });
             });
+            area.querySelectorAll("[data-config-field]").forEach((input) => {
+                input.addEventListener("input", () => renderConfigurationValidation());
+                input.addEventListener("change", () => renderConfigurationValidation());
+            });
+            renderConfigurationValidation();
         }
 
         window.addEventListener("DOMContentLoaded", () => {
