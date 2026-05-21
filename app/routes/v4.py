@@ -399,6 +399,53 @@ def _generate_mapping_candidates(template_analysis, layout_sections):
     return candidates
 
 
+def _build_ai_extraction_contract_from_profile(profile):
+    configuration = _template_configuration_from_profile(profile)
+    contract = []
+    seen_keys = set()
+
+    def sort_key(item):
+        try:
+            return int(item.get("display_order") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    for cell, item in sorted(configuration.items(), key=lambda pair: sort_key(pair[1])):
+        if not isinstance(item, dict):
+            continue
+        if item.get("show_in_workspace") is False:
+            continue
+
+        field_key = str(item.get("candidate_field_key") or item.get("field_key") or "").strip()
+        if not field_key or field_key in seen_keys:
+            continue
+
+        field_label = (
+            str(item.get("candidate_field_label") or "").strip()
+            or str(item.get("field_label") or "").strip()
+            or str(item.get("label") or "").strip()
+            or field_key
+        )
+        ai_extract_hint = (
+            str(item.get("ai_extract_hint") or "").strip()
+            or field_label
+        )
+
+        contract.append(
+            {
+                "field_key": field_key,
+                "field_label": field_label,
+                "ai_extract_hint": ai_extract_hint,
+                "cell": str(cell or "").strip().upper(),
+                "display_order": sort_key(item),
+                "source": str(item.get("candidate_source") or "render_config").strip(),
+            }
+        )
+        seen_keys.add(field_key)
+
+    return contract
+
+
 def _normalize_section_configuration_items(items):
     if items is None:
         return {}
@@ -1572,12 +1619,19 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "pipeline_state": get_pipeline_state(),
         }
 
-    parsed = parse_message(clean_message)
+    state = get_pipeline_state()
+    current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not current_profile:
+        current_profile = get_current_template_profile() or {}
+    extraction_contract = _build_ai_extraction_contract_from_profile(current_profile)
+
+    parsed = parse_message(clean_message, extraction_contract=extraction_contract)
     if isinstance(parsed, dict) and parsed.get("error"):
         return {
             "success": False,
             "error": parsed.get("error"),
             "parsed": parsed,
+            "last_extraction_contract": extraction_contract,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -1587,6 +1641,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "success": False,
             "error": "AI parse 未返回有效字段",
             "parsed": parsed,
+            "last_extraction_contract": extraction_contract,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -1599,6 +1654,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "error": "Order Object 转换失败",
             "parsed": parsed,
             "normalized": normalized,
+            "last_extraction_contract": extraction_contract,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -1614,6 +1670,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "success": True,
         "message": "Chat 已解析为 V4 Order Object 并加载",
         "parsed": parsed,
+        "last_extraction_contract": extraction_contract,
         "warnings": normalized.get("warnings", []),
         "source_keys": normalized.get("source_keys", []),
         "order_object": order_object,
@@ -1654,6 +1711,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "warnings": parse_result.get("warnings", []),
             "source_keys": parse_result.get("source_keys", []),
             "order_object": parse_result.get("order_object", {}),
+            "last_extraction_contract": parse_result.get("last_extraction_contract", []),
             "chat_preprocess": parse_result.get("chat_preprocess", {}),
         },
         "pipeline_result": {

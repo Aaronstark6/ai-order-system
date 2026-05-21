@@ -70,8 +70,36 @@ def annotate_description_sources(template_text: str, description_text: str):
     return "\n".join(result)
 
 
-def build_prompt(message: str):
+def _normalize_extraction_contract(extraction_contract):
+    if not isinstance(extraction_contract, list):
+        return []
+
+    fields = []
+    seen_keys = set()
+    for item in extraction_contract:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("field_key") or "").strip()
+        if not key or key in seen_keys:
+            continue
+        label = str(item.get("field_label") or key).strip() or key
+        hint = str(item.get("ai_extract_hint") or label).strip()
+        fields.append(
+            {
+                "key": key,
+                "label": label,
+                "description": hint,
+                "cell": str(item.get("cell") or "").strip(),
+                "source": str(item.get("source") or "").strip(),
+            }
+        )
+        seen_keys.add(key)
+    return fields
+
+
+def build_prompt(message: str, extraction_contract=None):
     fields = load_fields()
+    contract_fields = _normalize_extraction_contract(extraction_contract)
 
     field_lines = []
     field_keys = []
@@ -87,6 +115,19 @@ def build_prompt(message: str):
         field_keys.append(key)
         field_lines.append(f"{key}（{label}）：{description}")
 
+    for field in contract_fields:
+        key = field["key"]
+        if key in field_keys:
+            continue
+        field_keys.append(key)
+        field_lines.append(f"{key}（{field['label']}）：{field['description']}")
+
+    contract_lines = []
+    for field in contract_fields:
+        location = f"，模板单元格 {field['cell']}" if field.get("cell") else ""
+        contract_lines.append(f"- {field['key']}（{field['label']}）：{field['description']}{location}")
+    contract_block = "\n".join(contract_lines) if contract_lines else "无"
+
     prompt = f"""
 你是一个外贸订单信息提取助手。
 
@@ -94,6 +135,9 @@ def build_prompt(message: str):
 
 【字段说明】
 {chr(10).join(field_lines)}
+
+【当前映射字段合同】
+{contract_block}
 
 【返回要求】
 1. 只返回 JSON，不要解释
@@ -109,14 +153,14 @@ def build_prompt(message: str):
     return prompt, field_keys
 
 
-def parse_message(message: str):
+def parse_message(message: str, extraction_contract=None):
     api_key = get_deepseek_api_key()
     if not api_key:
         return {
             "error": "没有读取到 DeepSeek API Key，请在配置中心 AI 设置或 .env 中配置"
         }
 
-    prompt, field_keys = build_prompt(message)
+    prompt, field_keys = build_prompt(message, extraction_contract=extraction_contract)
 
     response = requests.post(
         DEEPSEEK_URL,
