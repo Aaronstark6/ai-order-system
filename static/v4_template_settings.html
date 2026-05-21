@@ -148,6 +148,16 @@
             line-height: 1.6;
             padding: 18px;
         }
+        .mapping-status-inline {
+            align-items: center;
+            background: #fafbfd;
+            border: 1px solid #e6eaf0;
+            border-radius: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            padding: 14px 18px;
+        }
         table {
             border-collapse: collapse;
             width: 100%;
@@ -204,14 +214,14 @@
             </div>
 
             <h3>当前映射状态</h3>
-            <div class="summary-grid">
-                <div class="summary-item">
-                    <div class="summary-label">当前映射</div>
-                    <div id="currentMappingName" class="summary-value">未选择</div>
+            <div class="mapping-status-inline">
+                <div>
+                    <span style="color: #667085; font-size: 13px;">当前映射：</span>
+                    <span id="currentMappingName" style="color: #1d2939; font-size: 16px; font-weight: 700;">未选择</span>
                 </div>
-                <div class="summary-item">
-                    <div class="summary-label">模板文件</div>
-                    <div id="currentTemplateFile" class="summary-value">未上传</div>
+                <div>
+                    <span style="color: #667085; font-size: 13px;">模板文件：</span>
+                    <span id="currentTemplateFile" style="color: #1d2939; font-size: 16px; font-weight: 700;">未上传</span>
                 </div>
             </div>
 
