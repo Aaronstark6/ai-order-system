@@ -94,6 +94,9 @@
             white-space: nowrap;
         }
         button.danger { background: #d92d20; }
+        button.danger.fixed-danger {
+            min-width: 138px;
+        }
         button:disabled { cursor: not-allowed; opacity: 0.55; }
         button.small {
             color: #fff;
@@ -249,10 +252,9 @@
 
             <h3>模板文件操作</h3>
             <div class="file-row">
-                <input id="templateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
-                <button type="button" onclick="uploadTemplateFile()">上传模板</button>
-                <button type="button" class="danger" onclick="deleteTemplateFile()">删除当前模板文件</button>
-                <button type="button" class="danger" onclick="deleteMapping()">删除当前映射</button>
+                <input id="templateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm" onchange="uploadTemplateFile()">
+                <button type="button" class="danger fixed-danger" onclick="deleteTemplateFile()">删除当前模板文件</button>
+                <button type="button" class="danger fixed-danger" onclick="deleteMapping()">删除当前映射</button>
                 <span id="fileActionStatus" class="small"></span>
             </div>
         </section>
