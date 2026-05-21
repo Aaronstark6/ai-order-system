@@ -225,6 +225,35 @@
             font-size: 13px;
             padding: 10px 14px;
         }
+        .visual-legend {
+            align-items: center;
+            background: #fff;
+            border-bottom: 1px solid #edf0f4;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 16px;
+            padding: 10px 14px;
+        }
+        .visual-legend-item {
+            align-items: center;
+            color: #475467;
+            display: inline-flex;
+            font-size: 12px;
+            gap: 6px;
+        }
+        .visual-legend-mark {
+            background: #fff;
+            border: 1px solid #d0d5dd;
+            border-radius: 3px;
+            display: inline-block;
+            height: 16px;
+            width: 24px;
+        }
+        .visual-legend-mark.fill-field { box-shadow: inset 4px 0 0 #1677ff, inset 0 -3px 0 #1677ff; }
+        .visual-legend-mark.option-field { box-shadow: inset 4px 0 0 #52c41a, inset 0 -3px 0 #52c41a; }
+        .visual-legend-mark.title-field { box-shadow: inset 4px 0 0 #722ed1, inset 0 -3px 0 #722ed1; }
+        .visual-legend-mark.skip-field { box-shadow: inset 4px 0 0 #8c8c8c, inset 0 -3px 0 #8c8c8c; }
+        .visual-legend-mark.unknown-field { box-shadow: inset 4px 0 0 #faad14, inset 0 -3px 0 #faad14; }
         .visual-workbench-body {
             display: grid;
             gap: 24px;
@@ -276,12 +305,18 @@
             text-overflow: ellipsis;
         }
         .visual-cell.has-text { border-color: #b8c4d4; font-weight: 600; }
-        .visual-cell.has-v4 { box-shadow: inset 0 -2px 0 #1677ff; }
+        .visual-cell.has-v4 { font-weight: 600; }
+        .visual-cell.fill-field { box-shadow: inset 4px 0 0 #1677ff, inset 0 -3px 0 #1677ff; }
+        .visual-cell.option-field { box-shadow: inset 4px 0 0 #52c41a, inset 0 -3px 0 #52c41a; }
+        .visual-cell.title-field { box-shadow: inset 4px 0 0 #722ed1, inset 0 -3px 0 #722ed1; }
+        .visual-cell.skip-field { box-shadow: inset 4px 0 0 #8c8c8c, inset 0 -3px 0 #8c8c8c; }
+        .visual-cell.unknown-field { box-shadow: inset 4px 0 0 #faad14, inset 0 -3px 0 #faad14; }
         .visual-cell.selected {
             background: #e6f7ff;
             border: 2px solid #1890ff;
-            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2), 0 4px 12px rgba(24, 144, 255, 0.3);
-            outline: none;
+            box-shadow: inset 0 0 0 2px #1890ff, 0 0 0 2px rgba(24, 144, 255, 0.35), 0 4px 12px rgba(24, 144, 255, 0.3) !important;
+            outline: 2px solid #0050b3;
+            outline-offset: -2px;
         }
         .visual-cell.merged-cell { background-clip: padding-box; }
         .visual-detail {
@@ -389,6 +424,13 @@
             <h2>模板配置</h2>
             <div id="visualWorkbench" class="visual-workbench">
                 <div class="visual-workbench-title">可视化模板配置</div>
+                <div class="visual-legend" aria-label="单元格意图图例">
+                    <span class="visual-legend-item"><span class="visual-legend-mark fill-field"></span>可填写字段</span>
+                    <span class="visual-legend-item"><span class="visual-legend-mark option-field"></span>选项</span>
+                    <span class="visual-legend-item"><span class="visual-legend-mark title-field"></span>标题/分组</span>
+                    <span class="visual-legend-item"><span class="visual-legend-mark skip-field"></span>说明/跳过</span>
+                    <span class="visual-legend-item"><span class="visual-legend-mark unknown-field"></span>未知</span>
+                </div>
                 <div class="visual-workbench-hint">提示：点击左侧模板单元格，查看 V4 对模板结构的理解与推荐配置。</div>
                 <div class="visual-workbench-body">
                     <div id="visualGridArea" class="config-empty">当前映射尚未绑定模板文件。</div>
@@ -841,6 +883,26 @@
             "skip": "跳过"
         };
 
+        const INTENT_CLASS_BY_TYPE = {
+            "label_fill_right": "fill-field",
+            "label_fill_below": "fill-field",
+            "inline_fill_after_colon": "fill-field",
+            "table_column_header": "fill-field",
+            "table_row_field": "fill-field",
+            "option_checkbox": "option-field",
+            "option_text_choice": "option-field",
+            "title": "title-field",
+            "section_header": "title-field",
+            "note_instruction": "skip-field",
+            "image_area": "skip-field",
+            "attachment_hint": "skip-field",
+            "readonly_example": "skip-field",
+        };
+
+        function getIntentVisualClass(intentType) {
+            return INTENT_CLASS_BY_TYPE[String(intentType || "").trim()] || "unknown-field";
+        }
+
         function renderVisualDetail(cell) {
             const area = document.getElementById("visualCellDetail");
             if (!area) return;
@@ -865,6 +927,10 @@
                 <div class="visual-detail-field">
                     <label>识别文本</label>
                     <input class="visual-readonly" data-visual-detail-field="text" type="text" value="${escapeHtml(config.display_value || config.value || "")}" readonly>
+                </div>
+                <div class="visual-detail-field">
+                    <label>当前意图</label>
+                    <input class="visual-readonly" type="text" value="${escapeHtml(INTENT_LABELS[config.intent_type] || config.intent_type || "未知")}" readonly>
                 </div>
                 <div class="visual-detail-field">
                     <label>字段名</label>
@@ -998,6 +1064,7 @@
                         "visual-cell",
                         hasText ? "has-text" : "",
                         hasV4 ? "has-v4" : "",
+                        getIntentVisualClass(effective.intent_type),
                         cell.is_merged ? "merged-cell" : "",
                         selectedVisualCell === cellRef ? "selected" : "",
                     ].filter(Boolean).join(" ");
