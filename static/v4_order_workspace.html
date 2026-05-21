@@ -425,6 +425,44 @@
             return knownLabels[cell] || item.source || "字段";
         }
 
+        function normalizeConfigCell(value) {
+            return String(value || "").trim().toUpperCase();
+        }
+
+        function getTemplateConfiguration() {
+            const renderConfig = activeV4Profile && typeof activeV4Profile.render_config === "object"
+                ? activeV4Profile.render_config
+                : {};
+            const configuration = renderConfig.template_configuration;
+            return configuration && typeof configuration === "object" ? configuration : {};
+        }
+
+        function getItemTemplateConfiguration(item) {
+            const configuration = getTemplateConfiguration();
+            const cell = normalizeConfigCell(item.cell);
+            const displayCell = normalizeConfigCell(item.display_cell);
+            return configuration[cell] || configuration[displayCell] || null;
+        }
+
+        function applyTemplateConfiguration(item) {
+            const config = getItemTemplateConfiguration(item);
+            if (!config) {
+                return {
+                    ...item,
+                    workspaceVisible: true,
+                    workspaceOrder: null,
+                };
+            }
+
+            const order = Number(config.display_order);
+            return {
+                ...item,
+                label: typeof config.label === "string" && config.label.trim() ? config.label.trim() : item.label,
+                workspaceVisible: config.show_in_workspace !== false,
+                workspaceOrder: Number.isFinite(order) && order > 0 ? order : null,
+            };
+        }
+
         function cellValue(value) {
             return value && typeof value === "object" ? value.value : value;
         }
@@ -503,14 +541,16 @@
             const safeCells = Array.isArray(cells) ? cells.filter(item => item && !item.skipped) : [];
             safeCells.forEach(item => {
                 const label = friendlyLabel(item);
-                const normalized = {
+                const normalized = applyTemplateConfiguration({
                     cell: item.cell || "",
                     display_cell: item.display_cell || item.cell || "",
                     source: item.source || "",
                     label,
                     value: String(cellValue(item.value) ?? ""),
                     section: inferConfirmationSection({ ...item, label })
-                };
+                });
+                if (!normalized.workspaceVisible) return;
+
                 if (!grouped[normalized.section]) {
                     grouped[normalized.section] = [];
                     sectionOrder.push(normalized.section);
@@ -519,7 +559,27 @@
             });
 
             sectionOrder.forEach(key => {
-                grouped[key].sort(visualCellSort);
+                grouped[key].sort((left, right) => {
+                    const leftOrder = Number(left.workspaceOrder || 0);
+                    const rightOrder = Number(right.workspaceOrder || 0);
+                    if (leftOrder && rightOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
+                    if (leftOrder && !rightOrder) return -1;
+                    if (!leftOrder && rightOrder) return 1;
+                    return visualCellSort(left, right);
+                });
+            });
+
+            sectionOrder.sort((left, right) => {
+                const leftItems = grouped[left] || [];
+                const rightItems = grouped[right] || [];
+                const leftOrder = Math.min(...leftItems.map(item => Number(item.workspaceOrder || 0)).filter(Boolean));
+                const rightOrder = Math.min(...rightItems.map(item => Number(item.workspaceOrder || 0)).filter(Boolean));
+                const leftHasOrder = Number.isFinite(leftOrder);
+                const rightHasOrder = Number.isFinite(rightOrder);
+                if (leftHasOrder && rightHasOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
+                if (leftHasOrder && !rightHasOrder) return -1;
+                if (!leftHasOrder && rightHasOrder) return 1;
+                return getConfirmationSectionOrder().indexOf(left) - getConfirmationSectionOrder().indexOf(right);
             });
 
             return sectionOrder
