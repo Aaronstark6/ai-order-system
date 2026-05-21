@@ -15,7 +15,8 @@
         }
         .page {
             margin: 0 auto;
-            max-width: 900px;
+            max-width: min(1680px, calc(100vw - 48px));
+            width: 100%;
         }
         .header {
             align-items: center;
@@ -203,6 +204,103 @@
         }
         .debug-label { color: #667085; font-size: 11px; margin-bottom: 2px; }
         .debug-value { color: #1d2939; font-size: 12px; word-break: break-all; }
+        .visual-workbench {
+            border: 1px solid #e6eaf0;
+            border-radius: 8px;
+            margin-bottom: 18px;
+            overflow: hidden;
+        }
+        .visual-workbench-title {
+            background: #fafbfd;
+            border-bottom: 1px solid #e6eaf0;
+            color: #1d2939;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 12px 14px;
+        }
+        .visual-workbench-hint {
+            background: #fffbe6;
+            border-bottom: 1px solid #ffe58f;
+            color: #d48806;
+            font-size: 13px;
+            padding: 10px 14px;
+        }
+        .visual-workbench-body {
+            display: grid;
+            gap: 24px;
+            grid-template-columns: minmax(0, 1fr) 360px;
+            align-items: start;
+            padding: 14px;
+        }
+        .visual-grid-wrap {
+            border: 1px solid #e6eaf0;
+            border-radius: 6px;
+            min-height: 760px;
+            max-height: none;
+            overflow: auto;
+        }
+        .visual-grid {
+            border-collapse: collapse;
+            font-size: 12px;
+            min-width: 100%;
+        }
+        .visual-grid th,
+        .visual-grid td {
+            border: 1px solid #edf0f4;
+            height: 28px;
+            max-width: 160px;
+            min-width: 70px;
+            padding: 4px 6px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .visual-grid th {
+            background: #f2f4f7;
+            color: #667085;
+            font-weight: 700;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .visual-grid .corner-cell,
+        .visual-grid .row-head {
+            background: #f2f4f7;
+            color: #667085;
+            left: 0;
+            min-width: 42px;
+            position: sticky;
+            text-align: center;
+            z-index: 2;
+        }
+        .visual-cell {
+            background: #fff;
+            color: #1d2939;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .visual-cell.has-text { border-color: #b8c4d4; font-weight: 600; }
+        .visual-cell.has-v4 { box-shadow: inset 0 -2px 0 #1677ff; }
+        .visual-cell.selected {
+            background: #e6f7ff;
+            border: 2px solid #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2), 0 4px 12px rgba(24, 144, 255, 0.3);
+            outline: none;
+        }
+        .visual-cell.merge-child { color: transparent; }
+        .visual-detail {
+            background: #fafbfd;
+            border: 1px solid #e6eaf0;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        .visual-detail-row {
+            border-bottom: 1px solid #edf0f4;
+            padding: 7px 0;
+        }
+        .visual-detail-row:last-child { border-bottom: none; }
+        .visual-detail-label { color: #667085; font-size: 12px; }
+        .visual-detail-value { color: #1d2939; font-size: 13px; margin-top: 2px; word-break: break-all; }
         @media (max-width: 860px) {
             body { padding: 16px; }
             .page { max-width: 100%; }
@@ -212,6 +310,7 @@
             button { width: 100%; }
             .config-section-header { flex-wrap: wrap; }
             .debug-grid { grid-template-columns: 1fr; }
+            .visual-workbench-body { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -261,6 +360,16 @@
 
         <section class="panel">
             <h2>模板配置</h2>
+            <div id="visualWorkbench" class="visual-workbench">
+                <div class="visual-workbench-title">可视化模板配置</div>
+                <div class="visual-workbench-hint">提示：点击左侧模板单元格，查看 V4 对模板结构的理解与推荐配置。</div>
+                <div class="visual-workbench-body">
+                    <div id="visualGridArea" class="config-empty">当前映射尚未绑定模板文件。</div>
+                    <div id="visualCellDetail" class="visual-detail">
+                        <div class="small">点击左侧模板单元格查看 V4 判断。</div>
+                    </div>
+                </div>
+            </div>
             <div id="templateConfigArea" class="config-empty">
                 当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。
             </div>
@@ -272,6 +381,8 @@
         let selectedMappingId = "";
         let selectedMapping = null;
         let configByMappingId = {};
+        let visualGridByMappingId = {};
+        let selectedVisualCell = "";
 
         function profileKey() { return "profile" + "_id"; }
 
@@ -309,6 +420,8 @@
                 selectedMappingId = "";
                 selectedMapping = null;
                 updateCurrentState();
+                selectedVisualCell = "";
+                renderVisualWorkbench();
                 renderConfig();
                 return;
             }
@@ -351,6 +464,26 @@
             return config;
         }
 
+        async function loadVisualGrid(mappingId) {
+            selectedVisualCell = "";
+            if (!mappingId) {
+                visualGridByMappingId[mappingId || ""] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板文件。" };
+                renderVisualWorkbench();
+                return null;
+            }
+            try {
+                const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/visual-grid`);
+                const visualGrid = result.visual_grid || { rows: 0, cols: 0, cells: [], merges: [] };
+                visualGridByMappingId[mappingId] = { ...visualGrid, message: "" };
+                renderVisualWorkbench();
+                return visualGrid;
+            } catch (error) {
+                visualGridByMappingId[mappingId] = { rows: 0, cols: 0, cells: [], merges: [], message: error.message || "当前映射尚未绑定模板文件。" };
+                renderVisualWorkbench();
+                return null;
+            }
+        }
+
         async function loadMappings(preferredId = "") {
             setStatus("正在加载映射...", "info");
             const result = await fetchJson("/api/v4/template-profiles");
@@ -375,6 +508,8 @@
             if (!selectedMappingId) {
                 selectedMapping = null;
                 updateCurrentState();
+                selectedVisualCell = "";
+                renderVisualWorkbench();
                 renderConfig();
                 return;
             }
@@ -389,6 +524,7 @@
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             await loadMappingConfiguration(selectedMappingId);
+            await loadVisualGrid(selectedMappingId);
             updateCurrentState();
             renderConfig();
             if (showLoading) setStatus("已切换映射。", "success");
@@ -411,6 +547,7 @@
             input.value = "";
             const newId = getMappingId(result.profile);
             configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
+            visualGridByMappingId[newId] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板文件。" };
             await loadMappings(newId);
             setStatus("映射已创建。", "success");
         }
@@ -432,6 +569,7 @@
             selectedMapping = result.profile || selectedMapping;
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             await loadMappingConfiguration(selectedMappingId);
+            await loadVisualGrid(selectedMappingId);
             updateCurrentState();
             renderConfig();
             setInlineStatus("模板文件已上传。");
@@ -446,7 +584,10 @@
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
+            visualGridByMappingId[selectedMappingId] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板文件。" };
+            selectedVisualCell = "";
             updateCurrentState();
+            renderVisualWorkbench();
             renderConfig();
             setInlineStatus("模板文件已删除。");
             setStatus("模板文件已删除。", "success");
@@ -459,6 +600,7 @@
             setStatus("正在删除映射...", "info");
             await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/delete`, { method: "POST" });
             delete configByMappingId[selectedMappingId];
+            delete visualGridByMappingId[selectedMappingId];
             selectedMappingId = "";
             selectedMapping = null;
             await loadMappings();
@@ -480,6 +622,151 @@
             let col = 0;
             for (const char of letters) { col = col * 26 + char.charCodeAt(0) - 64; }
             return { row: Number(match[2]), col };
+        }
+
+        function columnName(index) {
+            let value = Number(index || 0);
+            let letters = "";
+            while (value > 0) {
+                const remainder = (value - 1) % 26;
+                letters = String.fromCharCode(65 + remainder) + letters;
+                value = Math.floor((value - 1) / 26);
+            }
+            return letters || "";
+        }
+
+        function visualCellStyle(cell) {
+            const styles = [];
+            if (cell.font_bold) styles.push("font-weight:700");
+            if (cell.align) styles.push(`text-align:${escapeHtml(cell.align)}`);
+            const color = String(cell.fill_color || "");
+            if (/^[A-Fa-f0-9]{8}$/.test(color) && color !== "00000000") {
+                styles.push(`background-color:#${color.slice(2)}`);
+            } else if (/^[A-Fa-f0-9]{6}$/.test(color)) {
+                styles.push(`background-color:#${color}`);
+            }
+            return styles.join(";");
+        }
+
+        function getCurrentVisualGrid() {
+            return selectedMappingId ? visualGridByMappingId[selectedMappingId] : null;
+        }
+
+        function findVisualCell(cellRef) {
+            const grid = getCurrentVisualGrid();
+            const cells = Array.isArray(grid?.cells) ? grid.cells : [];
+            return cells.find((cell) => cell.cell === cellRef) || null;
+        }
+
+        const INTENT_LABELS = {
+            "title": "标题",
+            "section_header": "分组标题",
+            "label_fill_right": "标签右侧填写",
+            "label_fill_below": "标签下方填写",
+            "inline_fill_after_colon": "冒号后直接填写",
+            "option_checkbox": "勾选项",
+            "option_text_choice": "文本选项",
+            "table_column_header": "表格列标题",
+            "table_row_field": "表格字段",
+            "note_instruction": "说明备注",
+            "image_area": "图片区域",
+            "attachment_hint": "附件区域",
+            "readonly_example": "示例文本",
+            "unknown": "未知"
+        };
+
+        const WRITE_MODE_LABELS = {
+            "none": "无",
+            "write_right_cell": "写入右侧单元格",
+            "write_below_cell": "写入下方单元格",
+            "append_after_colon": "冒号后追加",
+            "check_option": "勾选选项",
+            "select_option_text": "选择文本项",
+            "write_table_column": "表格列写入",
+            "write_row_field": "行字段写入",
+            "skip": "跳过"
+        };
+
+        function renderVisualDetail(cell) {
+            const area = document.getElementById("visualCellDetail");
+            if (!area) return;
+            if (!cell) {
+                area.innerHTML = '<div class="small">点击左侧模板单元格查看 V4 判断。</div>';
+                return;
+            }
+            const fields = [
+                ["单元格", cell.cell],
+                ["识别文本", cell.display_value || cell.value || "-"],
+                ["V4推荐字段", cell.candidate_field_key || "-"],
+                ["候选字段名", cell.candidate_field_label || "-"],
+                ["匹配可信度", cell.candidate_confidence ? Number(cell.candidate_confidence).toFixed(2) : "-"],
+                ["推荐原因", cell.candidate_reason || "-"],
+                ["填写意图", INTENT_LABELS[cell.intent_type] || cell.intent_type || "-"],
+                ["写入策略", WRITE_MODE_LABELS[cell.write_mode] || cell.write_mode || "-"],
+                ["目标写入单元格", cell.target_cell || "-"],
+                ["选项值", cell.option_value || "-"],
+                ["意图可信度", cell.intent_confidence ? Number(cell.intent_confidence).toFixed(2) : "-"],
+                ["意图判断原因", cell.intent_reason || "-"],
+            ];
+            area.innerHTML = fields.map(([label, value]) => `
+                <div class="visual-detail-row">
+                    <div class="visual-detail-label">${escapeHtml(label)}</div>
+                    <div class="visual-detail-value">${escapeHtml(value)}</div>
+                </div>
+            `).join("");
+        }
+
+        function selectVisualCell(cellRef) {
+            selectedVisualCell = cellRef || "";
+            renderVisualWorkbench();
+        }
+
+        function renderVisualWorkbench() {
+            const gridArea = document.getElementById("visualGridArea");
+            if (!gridArea) return;
+            const grid = getCurrentVisualGrid();
+            const message = grid?.message || "";
+            const rows = Number(grid?.rows || 0);
+            const cols = Number(grid?.cols || 0);
+            const cells = Array.isArray(grid?.cells) ? grid.cells : [];
+            if (!rows || !cols || !cells.length) {
+                gridArea.className = "config-empty";
+                gridArea.innerHTML = escapeHtml(message || "当前映射尚未绑定模板文件。");
+                renderVisualDetail(null);
+                return;
+            }
+
+            const byCell = {};
+            cells.forEach((cell) => { byCell[cell.cell] = cell; });
+            const header = Array.from({ length: cols }, (_, index) => `<th>${columnName(index + 1)}</th>`).join("");
+            const bodyRows = [];
+            for (let row = 1; row <= rows; row += 1) {
+                const tds = [];
+                for (let col = 1; col <= cols; col += 1) {
+                    const cellRef = `${columnName(col)}${row}`;
+                    const cell = byCell[cellRef] || { cell: cellRef, display_value: "" };
+                    const hasText = Boolean(cell.display_value || cell.value);
+                    const hasV4 = Boolean(cell.candidate_field_key || cell.intent_type);
+                    const classes = [
+                        "visual-cell",
+                        hasText ? "has-text" : "",
+                        hasV4 ? "has-v4" : "",
+                        cell.is_merged && !cell.merge_start ? "merge-child" : "",
+                        selectedVisualCell === cellRef ? "selected" : "",
+                    ].filter(Boolean).join(" ");
+                    tds.push(`<td class="${classes}" style="${visualCellStyle(cell)}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}">${escapeHtml(cell.display_value || "")}</td>`);
+                }
+                bodyRows.push(`<tr><th class="row-head">${row}</th>${tds.join("")}</tr>`);
+            }
+
+            gridArea.className = "visual-grid-wrap";
+            gridArea.innerHTML = `
+                <table class="visual-grid">
+                    <thead><tr><th class="corner-cell"></th>${header}</tr></thead>
+                    <tbody>${bodyRows.join("")}</tbody>
+                </table>
+            `;
+            renderVisualDetail(findVisualCell(selectedVisualCell));
         }
 
         function sectionContainsCell(section, cell) {
@@ -642,11 +929,12 @@
             "select_option_text", "write_table_column", "write_row_field", "skip"
         ];
 
-        function renderSelectOptions(options, selectedValue) {
+        function renderSelectOptions(options, selectedValue, labels = {}) {
             const selected = String(selectedValue || "");
-            return options.map((option) => `
-                <option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(option)}</option>
-            `).join("");
+            return options.map((option) => {
+                const label = labels[option] || option;
+                return `<option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+            }).join("");
         }
 
         function collectEditableConfiguration() {
@@ -745,6 +1033,7 @@
                 selectedMapping = result.profile;
                 mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             }
+            await loadVisualGrid(selectedMappingId);
             setStatus("模板配置已保存。", "success");
         }
 
@@ -786,9 +1075,9 @@
                             <table class="config-table">
                                 <thead>
                                     <tr>
-                                        <th class="cell-col">Cell</th>
+                                        <th class="cell-col">单元格</th>
                                         <th class="field-col">字段名</th>
-                                        <th class="key-col">Field Key</th>
+                                        <th class="key-col">字段标识</th>
                                         <th class="show-col">显示</th>
                                         <th class="action-col">详情</th>
                                     </tr>
@@ -807,27 +1096,27 @@
                                                 <details class="debug-details" open>
                                                     <summary>智能推荐详情</summary>
                                                     <div class="debug-grid">
-                                                        <div class="debug-item"><div class="debug-label">Confidence</div><div class="debug-value">${row.candidateConfidence ? row.candidateConfidence.toFixed(2) : "-"}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Reason</div><div class="debug-value">${escapeHtml(row.candidateReason || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Confidence Breakdown</div><div class="debug-value">${escapeHtml(formatConfidenceBreakdown(row.confidenceBreakdown))}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Section Hint</div><div class="debug-value">${escapeHtml(row.aiExtractHint || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Candidate Source</div><div class="debug-value">${escapeHtml(row.candidateSource || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Label Cell</div><div class="debug-value">${escapeHtml(row.labelCell || row.cell || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Intent Confidence</div><div class="debug-value">${row.intentConfidence ? Number(row.intentConfidence).toFixed(2) : "-"}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Intent Reason</div><div class="debug-value">${escapeHtml(row.intentReason || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Section</div><div class="debug-value">${escapeHtml(row.section || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Type</div><div class="debug-value">${escapeHtml(row.type || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Candidate Label</div><div class="debug-value">${escapeHtml(row.candidateFieldLabel || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">匹配可信度</div><div class="debug-value">${row.candidateConfidence ? row.candidateConfidence.toFixed(2) : "-"}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">推荐原因</div><div class="debug-value">${escapeHtml(row.candidateReason || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">可信度分析</div><div class="debug-value">${escapeHtml(formatConfidenceBreakdown(row.confidenceBreakdown))}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">AI提取提示</div><div class="debug-value">${escapeHtml(row.aiExtractHint || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">候选来源</div><div class="debug-value">${escapeHtml(row.candidateSource || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">标签单元格</div><div class="debug-value">${escapeHtml(row.labelCell || row.cell || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">意图可信度</div><div class="debug-value">${row.intentConfidence ? Number(row.intentConfidence).toFixed(2) : "-"}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">意图判断原因</div><div class="debug-value">${escapeHtml(row.intentReason || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">区域</div><div class="debug-value">${escapeHtml(row.section || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">类型</div><div class="debug-value">${escapeHtml(row.type || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">候选字段名</div><div class="debug-value">${escapeHtml(row.candidateFieldLabel || "-")}</div></div>
                                                     </div>
                                                     <div class="small" style="margin-top:10px;">系统自动判断仅供参考，可人工修正。</div>
                                                     <div class="debug-grid" style="margin-top:10px;">
                                                         <div class="debug-item">
-                                                            <div class="debug-label">意图类型</div>
-                                                            <select data-config-field="intent_type" ${row.cell ? "" : "disabled"}>${renderSelectOptions(INTENT_TYPE_OPTIONS, row.intentType || "unknown")}</select>
+                                                            <div class="debug-label">填写意图</div>
+                                                            <select data-config-field="intent_type" ${row.cell ? "" : "disabled"}>${renderSelectOptions(INTENT_TYPE_OPTIONS, row.intentType || "unknown", INTENT_LABELS)}</select>
                                                         </div>
                                                         <div class="debug-item">
-                                                            <div class="debug-label">写入方式</div>
-                                                            <select data-config-field="write_mode" ${row.cell ? "" : "disabled"}>${renderSelectOptions(WRITE_MODE_OPTIONS, row.writeMode || "skip")}</select>
+                                                            <div class="debug-label">写入策略</div>
+                                                            <select data-config-field="write_mode" ${row.cell ? "" : "disabled"}>${renderSelectOptions(WRITE_MODE_OPTIONS, row.writeMode || "skip", WRITE_MODE_LABELS)}</select>
                                                         </div>
                                                         <div class="debug-item">
                                                             <div class="debug-label">目标单元格</div>
@@ -838,7 +1127,7 @@
                                                             <input data-config-field="option_value" type="text" value="${escapeHtml(row.optionValue || "")}" ${row.cell ? "" : "disabled"}>
                                                         </div>
                                                     </div>
-                                                    <div style="margin-top:10px;"><label style="font-size:12px;color:#667085;margin-bottom:4px;">AI Hint</label><input data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" style="min-height:32px;font-size:13px;" ${row.cell ? "" : "disabled"}></div>
+                                                    <div style="margin-top:10px;"><label style="font-size:12px;color:#667085;margin-bottom:4px;">AI提取提示</label><input data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" style="min-height:32px;font-size:13px;" ${row.cell ? "" : "disabled"}></div>
                                                     <div style="margin-top:8px;display:none;"><input data-config-field="order" type="number" min="1" value="${escapeHtml(row.displayOrder || 1)}" ${row.cell ? "" : "disabled"}></div>
                                                 </details>
                                             </td>
