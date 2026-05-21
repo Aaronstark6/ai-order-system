@@ -597,6 +597,71 @@ def api_v4_template_profile_detail(profile_id: str):
     }
 
 
+@router.get("/api/v4/template-profiles/{profile_id}/configuration")
+def api_v4_template_profile_configuration(profile_id: str):
+    from app.v4_template_analysis import analyze_template
+
+    logger.info("V4 template profile configuration requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "映射不存在",
+            "layout_sections": [],
+            "template_analysis": {},
+        }
+
+    template_file_path = str(profile.get("template_file_path") or "").strip()
+    if not template_file_path:
+        return {
+            "success": True,
+            "profile": profile,
+            "has_template_file": False,
+            "layout_sections": [],
+            "template_analysis": {},
+            "template_labels": [],
+            "template_analysis_summary": {},
+        }
+
+    try:
+        bound_template_path = _resolve_bound_template_file_path(template_file_path)
+        analysis = analyze_template(bound_template_path)
+        layout_result = build_layout_sections_from_template_analysis(analysis)
+        return {
+            "success": True,
+            "profile": profile,
+            "has_template_file": True,
+            "layout_sections": layout_result.get("layout_sections", []),
+            "layout_summary": layout_result.get("summary", {}),
+            "template_analysis": analysis if isinstance(analysis, dict) else {},
+            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
+            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+        }
+    except (BadZipFile, InvalidFileException) as exc:
+        logger.warning("V4 template profile configuration invalid Excel: profile_id=%s", profile_id, exc_info=True)
+        return {
+            "success": False,
+            "error": f"Excel 模板格式无效：{exc}",
+            "layout_sections": [],
+            "template_analysis": {},
+        }
+    except (OSError, ValueError) as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "layout_sections": [],
+            "template_analysis": {},
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile configuration failed")
+        return {
+            "success": False,
+            "error": str(exc) or "模板配置加载失败",
+            "layout_sections": [],
+            "template_analysis": {},
+        }
+
+
 @router.post("/api/v4/template-profiles/create")
 def api_v4_template_profile_create(payload: Any = Body(None)):
     logger.info("V4 template profile create requested")

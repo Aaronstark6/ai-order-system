@@ -320,6 +320,21 @@
             return result.profile || null;
         }
 
+        async function loadMappingConfiguration(mappingId) {
+            if (!mappingId) return { labels: [], sections: [], analysis: {} };
+            const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/configuration`);
+            const analysis = result.template_analysis && typeof result.template_analysis === "object" ? result.template_analysis : {};
+            const structure = analysis.template_structure && typeof analysis.template_structure === "object" ? analysis.template_structure : {};
+            const labels = Array.isArray(result.template_labels) ? result.template_labels : (
+                Array.isArray(analysis.labels) ? analysis.labels : []
+            );
+            const structureLabels = Array.isArray(structure.labels) ? structure.labels : [];
+            const sections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
+            const config = { labels, structureLabels, sections, analysis };
+            configByMappingId[mappingId] = config;
+            return config;
+        }
+
         async function loadMappings(preferredId = "") {
             setStatus("正在加载映射...", "info");
             const result = await fetchJson("/api/v4/template-profiles");
@@ -361,6 +376,7 @@
 
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
+            await loadMappingConfiguration(selectedMappingId);
             updateCurrentState();
             renderConfig();
             if (showLoading) setStatus("已切换映射。", "success");
@@ -384,7 +400,7 @@
 
             input.value = "";
             const newId = getMappingId(result.profile);
-            configByMappingId[newId] = { labels: [], sections: [] };
+            configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {} };
             await loadMappings(newId);
             setStatus("映射已创建。", "success");
         }
@@ -413,10 +429,7 @@
             input.value = "";
             selectedMapping = result.profile || selectedMapping;
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
-            configByMappingId[selectedMappingId] = {
-                labels: Array.isArray(result.template_labels) ? result.template_labels : [],
-                sections: Array.isArray(result.layout_sections) ? result.layout_sections : [],
-            };
+            await loadMappingConfiguration(selectedMappingId);
             updateCurrentState();
             renderConfig();
             setInlineStatus("模板文件已上传。");
@@ -437,7 +450,7 @@
 
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
-            configByMappingId[selectedMappingId] = { labels: [], sections: [] };
+            configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {} };
             updateCurrentState();
             renderConfig();
             setInlineStatus("模板文件已删除。");
@@ -477,7 +490,53 @@
         }
 
         function readType(item) {
-            return item?.type || item?.field_type || item?.label_type || item?.kind || "可填写";
+            return item?.type || item?.field_type || item?.label_type || item?.kind || "";
+        }
+
+        function readSectionName(section) {
+            return section?.title || section?.section_name || section?.name || section?.source_region_name || section?.section_key || "";
+        }
+
+        function cellToPoint(cell) {
+            const match = String(cell || "").trim().match(/^([A-Z]+)(\d+)$/i);
+            if (!match) return null;
+            const letters = match[1].toUpperCase();
+            let col = 0;
+            for (const char of letters) {
+                col = col * 26 + char.charCodeAt(0) - 64;
+            }
+            return { row: Number(match[2]), col };
+        }
+
+        function sectionContainsCell(section, cell) {
+            const point = cellToPoint(cell);
+            const bounds = section?.bounds || {};
+            const startRow = Number(bounds.start_row);
+            const endRow = Number(bounds.end_row);
+            const startCol = Number(bounds.start_col);
+            const endCol = Number(bounds.end_col);
+            if (!point || !startRow || !endRow || !startCol || !endCol) return false;
+            return point.row >= startRow && point.row <= endRow && point.col >= startCol && point.col <= endCol;
+        }
+
+        function findSectionForCell(sections, cell) {
+            const match = sections.find((section) => sectionContainsCell(section, cell));
+            return match ? readSectionName(match) : "";
+        }
+
+        function mergeLabelSources(labels, structureLabels) {
+            const byCell = new Map();
+            structureLabels.forEach((item) => {
+                const cell = readCell(item);
+                if (cell) byCell.set(normalizeCell(cell), { ...item });
+            });
+            labels.forEach((item) => {
+                const cell = readCell(item);
+                if (!cell) return;
+                const key = normalizeCell(cell);
+                byCell.set(key, { ...(byCell.get(key) || {}), ...item });
+            });
+            return Array.from(byCell.values());
         }
 
         function collectSectionCells(section) {
@@ -496,7 +555,7 @@
         function buildSectionLookup(sections) {
             const lookup = {};
             sections.forEach((section) => {
-                const name = section?.section_name || section?.name || section?.title || section?.type || "";
+                const name = readSectionName(section);
                 collectSectionCells(section).forEach((cell) => {
                     if (!lookup[cell]) lookup[cell] = name;
                 });
@@ -507,13 +566,13 @@
         function rowsFromSections(sections) {
             const rows = [];
             sections.forEach((section) => {
-                const sectionName = section?.section_name || section?.name || section?.title || section?.type || "";
+                const sectionName = readSectionName(section);
                 const pools = [section?.cells, section?.items, section?.labels, section?.fields];
                 pools.forEach((pool) => {
                     if (!Array.isArray(pool)) return;
                     pool.forEach((item) => {
                         if (typeof item === "string") {
-                            rows.push({ cell: item, text: "", section: sectionName, type: "可填写" });
+                            rows.push({ cell: item, text: "", section: sectionName, type: "" });
                         } else {
                             rows.push({
                                 cell: readCell(item),
@@ -524,18 +583,27 @@
                         }
                     });
                 });
+                if (!rows.some((row) => row.section === sectionName)) {
+                    rows.push({
+                        cell: "",
+                        text: section?.source_region_name || "",
+                        section: sectionName,
+                        type: section?.section_type || section?.semantic_type || "",
+                    });
+                }
             });
             return rows;
         }
 
-        function buildConfigRows(labels, sections) {
+        function buildConfigRows(labels, structureLabels, sections) {
             const sectionLookup = buildSectionLookup(sections);
-            const labelRows = labels.map((item) => {
+            const mergedLabels = mergeLabelSources(labels, structureLabels);
+            const labelRows = mergedLabels.map((item) => {
                 const cell = readCell(item);
                 return {
                     cell,
                     text: readText(item),
-                    section: item?.section || item?.section_name || sectionLookup[normalizeCell(cell)] || "",
+                    section: item?.section || item?.section_name || sectionLookup[normalizeCell(cell)] || findSectionForCell(sections, cell),
                     type: readType(item),
                 };
             }).filter((row) => row.cell || row.text);
@@ -556,10 +624,11 @@
             const labels = Array.isArray(cached?.labels) ? cached.labels : (
                 Array.isArray(selectedMapping?.template_labels) ? selectedMapping.template_labels : []
             );
+            const structureLabels = Array.isArray(cached?.structureLabels) ? cached.structureLabels : [];
             const sections = Array.isArray(cached?.sections) ? cached.sections : (
                 Array.isArray(selectedMapping?.layout_sections) ? selectedMapping.layout_sections : []
             );
-            const rows = buildConfigRows(labels, sections);
+            const rows = buildConfigRows(labels, structureLabels, sections);
 
             if (!rows.length) {
                 area.className = "config-empty";
