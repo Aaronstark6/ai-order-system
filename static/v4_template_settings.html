@@ -632,6 +632,23 @@
             return parts.join(" / ") || "-";
         }
 
+        const INTENT_TYPE_OPTIONS = [
+            "title", "section_header", "label_fill_right", "label_fill_below", "inline_fill_after_colon",
+            "option_checkbox", "option_text_choice", "table_column_header", "table_row_field",
+            "note_instruction", "image_area", "attachment_hint", "readonly_example", "unknown"
+        ];
+        const WRITE_MODE_OPTIONS = [
+            "none", "write_right_cell", "write_below_cell", "append_after_colon", "check_option",
+            "select_option_text", "write_table_column", "write_row_field", "skip"
+        ];
+
+        function renderSelectOptions(options, selectedValue) {
+            const selected = String(selectedValue || "");
+            return options.map((option) => `
+                <option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(option)}</option>
+            `).join("");
+        }
+
         function collectEditableConfiguration() {
             return Array.from(document.querySelectorAll("#templateConfigArea tbody tr[data-cell]")).map((row) => {
                 const cell = row.dataset.cell || "";
@@ -639,7 +656,15 @@
                 const showInput = row.querySelector("input[data-config-field='show']");
                 const orderInput = row.querySelector("input[data-config-field='order']");
                 const fieldKeyInput = row.querySelector("input[data-config-field='field_key']");
-                const hintInput = row.querySelector("input[data-config-field='ai_extract_hint']");
+                const debugRow = row.nextElementSibling && row.nextElementSibling.classList.contains("debug-row")
+                    ? row.nextElementSibling
+                    : null;
+                const detailRoot = debugRow || row;
+                const hintInput = detailRoot.querySelector("input[data-config-field='ai_extract_hint']");
+                const intentTypeInput = detailRoot.querySelector("[data-config-field='intent_type']");
+                const writeModeInput = detailRoot.querySelector("[data-config-field='write_mode']");
+                const targetCellInput = detailRoot.querySelector("input[data-config-field='target_cell']");
+                const optionValueInput = detailRoot.querySelector("input[data-config-field='option_value']");
                 return {
                     cell, label: labelInput ? labelInput.value.trim() : "",
                     show_in_workspace: showInput ? showInput.checked : true,
@@ -649,11 +674,11 @@
                     candidate_source: row.dataset.candidateSource || "",
                     candidate_reason: row.dataset.candidateReason || "",
                     confidence_breakdown: parseObjectJson(row.dataset.confidenceBreakdown || "{}"),
-                    intent_type: row.dataset.intentType || "",
-                    write_mode: row.dataset.writeMode || "",
+                    intent_type: intentTypeInput ? intentTypeInput.value.trim() : (row.dataset.intentType || ""),
+                    write_mode: writeModeInput ? writeModeInput.value.trim() : (row.dataset.writeMode || ""),
                     label_cell: row.dataset.labelCell || "",
-                    target_cell: row.dataset.targetCell || "",
-                    option_value: row.dataset.optionValue || "",
+                    target_cell: targetCellInput ? targetCellInput.value.trim() : (row.dataset.targetCell || ""),
+                    option_value: optionValueInput ? optionValueInput.value.trim() : (row.dataset.optionValue || ""),
                     intent_confidence: Number(row.dataset.intentConfidence || 0),
                     intent_reason: row.dataset.intentReason || "",
                     ai_extract_hint: hintInput ? hintInput.value.trim() : "",
@@ -787,16 +812,31 @@
                                                         <div class="debug-item"><div class="debug-label">Confidence Breakdown</div><div class="debug-value">${escapeHtml(formatConfidenceBreakdown(row.confidenceBreakdown))}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Section Hint</div><div class="debug-value">${escapeHtml(row.aiExtractHint || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Candidate Source</div><div class="debug-value">${escapeHtml(row.candidateSource || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">意图</div><div class="debug-value">${escapeHtml(row.intentType || "unknown")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">写入方式</div><div class="debug-value">${escapeHtml(row.writeMode || "skip")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">目标单元格</div><div class="debug-value">${escapeHtml(row.targetCell || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Label Cell</div><div class="debug-value">${escapeHtml(row.labelCell || row.cell || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">Option Value</div><div class="debug-value">${escapeHtml(row.optionValue || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Intent Confidence</div><div class="debug-value">${row.intentConfidence ? Number(row.intentConfidence).toFixed(2) : "-"}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Intent Reason</div><div class="debug-value">${escapeHtml(row.intentReason || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Section</div><div class="debug-value">${escapeHtml(row.section || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Type</div><div class="debug-value">${escapeHtml(row.type || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Candidate Label</div><div class="debug-value">${escapeHtml(row.candidateFieldLabel || "-")}</div></div>
+                                                    </div>
+                                                    <div class="small" style="margin-top:10px;">系统自动判断仅供参考，可人工修正。</div>
+                                                    <div class="debug-grid" style="margin-top:10px;">
+                                                        <div class="debug-item">
+                                                            <div class="debug-label">意图类型</div>
+                                                            <select data-config-field="intent_type" ${row.cell ? "" : "disabled"}>${renderSelectOptions(INTENT_TYPE_OPTIONS, row.intentType || "unknown")}</select>
+                                                        </div>
+                                                        <div class="debug-item">
+                                                            <div class="debug-label">写入方式</div>
+                                                            <select data-config-field="write_mode" ${row.cell ? "" : "disabled"}>${renderSelectOptions(WRITE_MODE_OPTIONS, row.writeMode || "skip")}</select>
+                                                        </div>
+                                                        <div class="debug-item">
+                                                            <div class="debug-label">目标单元格</div>
+                                                            <input data-config-field="target_cell" type="text" value="${escapeHtml(row.targetCell || "")}" ${row.cell ? "" : "disabled"}>
+                                                        </div>
+                                                        <div class="debug-item">
+                                                            <div class="debug-label">选项值</div>
+                                                            <input data-config-field="option_value" type="text" value="${escapeHtml(row.optionValue || "")}" ${row.cell ? "" : "disabled"}>
+                                                        </div>
                                                     </div>
                                                     <div style="margin-top:10px;"><label style="font-size:12px;color:#667085;margin-bottom:4px;">AI Hint</label><input data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" style="min-height:32px;font-size:13px;" ${row.cell ? "" : "disabled"}></div>
                                                     <div style="margin-top:8px;display:none;"><input data-config-field="order" type="number" min="1" value="${escapeHtml(row.displayOrder || 1)}" ${row.cell ? "" : "disabled"}></div>
