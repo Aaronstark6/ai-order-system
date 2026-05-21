@@ -141,6 +141,15 @@
         .status.success { background: #e9f8ef; color: #16713b; }
         .status.warning { background: #fff7db; color: #8a6100; }
         .status.error { background: #ffe9e7; color: #b42318; }
+        .preview-notice {
+            background: #f2f6ff;
+            border: 1px solid #dbe7ff;
+            border-radius: 8px;
+            color: #315c9c;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 10px 12px;
+        }
         .section {
             background: #fafbfd;
             border: 1px solid #e0e4ec;
@@ -247,6 +256,14 @@
         }
         .confirmation-form-row input {
             margin: 0;
+        }
+        .preview-value {
+            color: #1d2939;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.4;
+            min-width: 0;
+            overflow-wrap: anywhere;
         }
         .field-meta {
             color: #888;
@@ -699,6 +716,117 @@
             `;
         }
 
+        function renderPreviewSection(section) {
+            return `
+                <div class="confirmation-section-card" data-section="${escapeHtml(section.key)}">
+                    <div class="confirmation-section-header">
+                        <div class="confirmation-section-name">${escapeHtml(section.title)}</div>
+                        <div class="confirmation-section-count">${section.items.length}项</div>
+                    </div>
+                    <div class="confirmation-section-body">
+                        ${section.items.map(item => `
+                            <div class="confirmation-form-row">
+                                <label>${escapeHtml(item.label)}</label>
+                                <div class="preview-value">${escapeHtml(item.label || "-")}</div>
+                                <div class="field-meta">${escapeHtml(item.display_cell || item.cell || "-")}${item.section ? ` · ${escapeHtml(item.section)}` : ""}</div>
+                            </div>
+                        `).join("")}
+                    </div>
+                </div>
+            `;
+        }
+
+        function getLayoutSectionByKey(sectionKey) {
+            return Array.isArray(v4LayoutSections)
+                ? v4LayoutSections.find(section => section && section.section_key === sectionKey)
+                : null;
+        }
+
+        function sectionKeyForConfiguredCell(cell) {
+            const item = { cell, display_cell: cell };
+            const section = findLayoutSectionForItem(item);
+            return section ? section.section_key || section.semantic_type || "other" : "other";
+        }
+
+        function buildConfigurationPreviewSections() {
+            const configuration = getTemplateConfiguration();
+            const sectionKeys = getConfirmationSectionOrder();
+            const grouped = sectionKeys.reduce((result, key) => {
+                result[key] = [];
+                return result;
+            }, {});
+
+            Object.entries(configuration).forEach(([cell, config]) => {
+                if (!config || config.show_in_workspace === false) return;
+                const normalizedCell = normalizeConfigCell(cell);
+                if (!normalizedCell) return;
+                const sectionKey = sectionKeyForConfiguredCell(normalizedCell);
+                if (!grouped[sectionKey]) {
+                    grouped[sectionKey] = [];
+                    sectionKeys.push(sectionKey);
+                }
+                const order = Number(config.display_order);
+                grouped[sectionKey].push({
+                    cell: normalizedCell,
+                    display_cell: normalizedCell,
+                    label: typeof config.label === "string" && config.label.trim() ? config.label.trim() : normalizedCell,
+                    section: sectionTitle(sectionKey),
+                    workspaceOrder: Number.isFinite(order) && order > 0 ? order : null,
+                });
+            });
+
+            sectionKeys.forEach(key => {
+                grouped[key].sort((left, right) => {
+                    const leftOrder = Number(left.workspaceOrder || 0);
+                    const rightOrder = Number(right.workspaceOrder || 0);
+                    if (leftOrder && rightOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
+                    if (leftOrder && !rightOrder) return -1;
+                    if (!leftOrder && rightOrder) return 1;
+                    return visualCellSort(left, right);
+                });
+            });
+
+            const orderedSections = getConfirmationSectionOrder();
+            const orderedSectionIndex = Object.fromEntries(orderedSections.map((key, index) => [key, index]));
+            sectionKeys.sort((left, right) => {
+                const leftOrder = getSectionDisplayOrder(left, orderedSections.indexOf(left));
+                const rightOrder = getSectionDisplayOrder(right, orderedSections.indexOf(right));
+                if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+                return (orderedSectionIndex[left] || 0) - (orderedSectionIndex[right] || 0);
+            });
+
+            return sectionKeys
+                .map(key => ({ key, title: sectionTitle(key), items: grouped[key] || [] }))
+                .filter(section => section.items.length);
+        }
+
+        function renderConfigurationPreview() {
+            if (latestV4ParseResult) return;
+
+            confirmedCells = [];
+            originalConfirmedCells = [];
+            window.confirmedCells = confirmedCells;
+            window.originalConfirmedCells = originalConfirmedCells;
+
+            const sections = buildConfigurationPreviewSections();
+            const area = document.getElementById("v4ConfirmationArea");
+            area.dataset.confirmedCellsCount = "0";
+            area.dataset.hasManualChanges = "false";
+
+            if (!sections.length) {
+                area.innerHTML = `
+                    <div class="preview-notice">当前为模板配置预览。AI解析后将在这里显示可确认和修改的订单信息。</div>
+                    <div class="status warning">当前映射尚未生成可预览的模板配置。请先在模板映射管理中上传模板并保存配置。</div>
+                `;
+                return;
+            }
+
+            area.innerHTML = `
+                <div class="preview-notice">当前为模板配置预览。AI解析后将在这里显示可确认和修改的订单信息。</div>
+                ${sections.map(renderPreviewSection).join("")}
+            `;
+        }
+
         function hasConfirmedCellChanges() {
             if (!Array.isArray(confirmedCells) || !Array.isArray(originalConfirmedCells)) {
                 return false;
@@ -830,6 +958,7 @@
                     document.getElementById("v4ProfileSelect").value = activeV4Profile.profile_id;
                 }
                 setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile)}`, "success");
+                renderConfigurationPreview();
             } catch (error) {
                 setStatus("v4ProfileStatus", error.message || "系统模板加载失败", "error");
             }
@@ -845,9 +974,11 @@
                     v4LayoutSections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
                 }
                 window.v4LayoutSections = v4LayoutSections;
+                renderConfigurationPreview();
             } catch (error) {
                 v4LayoutSections = [];
                 window.v4LayoutSections = v4LayoutSections;
+                renderConfigurationPreview();
             }
         }
 
@@ -870,6 +1001,8 @@
                 }
                 activeV4Profile = result.profile || {};
                 setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
+                await loadV4TemplateLayout();
+                renderConfigurationPreview();
             } catch (error) {
                 setStatus("v4ProfileStatus", error.message || "系统模板切换失败", "error");
             }
@@ -914,6 +1047,7 @@
             latestV4ParseResult = null;
             setStatus("v4ParseStatus", "等待输入客户聊天内容。", "info");
             setStatus("v4GenerateStatus", "确认信息后可生成 Excel。", "info");
+            renderConfigurationPreview();
         }
 
         async function generateExcelFromConfirmation() {
