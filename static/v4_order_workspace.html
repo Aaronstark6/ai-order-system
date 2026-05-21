@@ -401,6 +401,42 @@
             min-height: 44px;
             width: 100%;
         }
+        .business-field-card textarea {
+            box-sizing: border-box;
+            height: auto;
+            margin: 0;
+            max-height: none;
+            min-height: 90px;
+            resize: vertical;
+            width: 100%;
+        }
+        .readonly-business-value {
+            background: #f8fafc;
+            border: 1px solid #e4e7ec;
+            border-radius: 6px;
+            color: #475467;
+            line-height: 1.5;
+            min-height: 44px;
+            padding: 10px 12px;
+        }
+        .field-title-row {
+            align-items: center;
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+        }
+        .field-status {
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            white-space: nowrap;
+        }
+        .field-status.ai_filled { background: #e9f8ef; color: #16713b; }
+        .field-status.manual { background: #fff7db; color: #8a6100; }
+        .field-status.filled { background: #edf4ff; color: #315c9c; }
+        .field-status.empty { background: #f2f4f7; color: #667085; }
+        .field-status.missing_required { background: #ffe9e7; color: #b42318; }
         .business-field-meta {
             color: #667085;
             font-size: 12px;
@@ -430,20 +466,63 @@
             margin: 0;
         }
         .business-option-list {
-            display: grid;
+            display: flex;
+            flex-wrap: wrap;
             gap: 8px;
         }
         .business-option-item {
             align-items: center;
-            color: #1d2939;
+            background: #f8fafc;
+            border: 1px solid #d0d5dd;
+            border-radius: 999px;
+            color: #344054;
             display: flex;
             font-weight: 400;
-            gap: 8px;
             margin: 0;
+            padding: 8px 12px;
+            transition: all 0.15s ease;
         }
-        .business-option-item input {
-            min-height: auto;
-            width: auto;
+        .business-option-item:has(input:checked) {
+            background: #e6f4ff;
+            border-color: #1677ff;
+            color: #0958d9;
+            font-weight: 700;
+        }
+        .business-option-item input { display: none; }
+        .export-check {
+            background: #fff;
+            border: 1px solid #e6eaf0;
+            border-radius: 8px;
+            display: grid;
+            gap: 10px;
+            padding: 12px;
+        }
+        .export-check-header {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+        }
+        .export-check-title {
+            color: #1d2939;
+            font-weight: 700;
+        }
+        .export-check-status {
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+        }
+        .export-check-status.ready { background: #e9f8ef; color: #16713b; }
+        .export-check-status.need { background: #fff7db; color: #8a6100; }
+        .export-check-stats {
+            color: #667085;
+            font-size: 13px;
+        }
+        .export-check-missing {
+            color: #b42318;
+            font-size: 12px;
+            line-height: 1.5;
         }
         .confirmation-form-row {
             align-items: center;
@@ -586,6 +665,13 @@
 
             <div class="section operation-section">
                 <h3>操作区</h3>
+                <div id="v4ExportCheck" class="export-check">
+                    <div class="export-check-header">
+                        <div class="export-check-title">导出检查</div>
+                        <span class="export-check-status ready">可导出</span>
+                    </div>
+                    <div class="export-check-stats">已填写 0，缺失 0</div>
+                </div>
                 <div class="actions">
                     <button id="v4GenerateBtn" class="secondary" type="button" onclick="generateExcelFromConfirmation()">确认生成 Excel</button>
                     <a id="v4DownloadLink" class="download-link" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
@@ -604,6 +690,7 @@
         let v4LayoutSections = [];
         let v4WorkspaceFields = [];
         let v4VisualGrid = null;
+        let currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
         let selectedNativeCell = "";
         window.confirmedCells = confirmedCells;
         window.originalConfirmedCells = originalConfirmedCells;
@@ -1178,6 +1265,210 @@
             return { normal_fields: normalFields, option_groups: optionGroups };
         }
 
+        const WORKSPACE_SECTION_DEFS = [
+            { key: "document_info", title: "文档编号信息", order: 10 },
+            { key: "basic_info", title: "基础订单信息", order: 20 },
+            { key: "product_info", title: "产品信息", order: 30 },
+            { key: "specification", title: "产品规格", order: 40 },
+            { key: "packaging", title: "包装要求", order: 50 },
+            { key: "labeling", title: "标签要求", order: 60 },
+            { key: "other", title: "其他要求", order: 70 },
+            { key: "debug_other", title: "其他字段", order: 80 },
+        ];
+        const WORKSPACE_SECTION_BY_KEY = Object.fromEntries(WORKSPACE_SECTION_DEFS.map(section => [section.key, section]));
+
+        function inferWorkspaceFieldType(field) {
+            const intentType = String(field?.intent_type || "");
+            const writeMode = String(field?.write_mode || "");
+            const labelKey = `${field?.label || ""} ${field?.field_key || ""}`.toLowerCase();
+            if (["option_checkbox", "option_text_choice"].includes(intentType)) return "single_choice";
+            if (labelKey.includes("日期") || labelKey.includes("date")) return "date";
+            if (labelKey.includes("数量") || labelKey.includes("quantity") || labelKey.includes("qty") || labelKey.includes("number") || labelKey.includes("amount")) return "number";
+            if (labelKey.includes("备注") || labelKey.includes("要求") || labelKey.includes("描述") || labelKey.includes("说明") || labelKey.includes("other") || labelKey.includes("note") || labelKey.includes("description")) return "textarea";
+            if (["skip", "none"].includes(writeMode)) return "readonly";
+            return "text";
+        }
+
+        function sectionFromText(text) {
+            const value = String(text || "").toLowerCase();
+            if (!value) return null;
+            if (value.includes("文档") || value.includes("编号") || value.includes("日期") || value.includes("document")) return WORKSPACE_SECTION_BY_KEY.document_info;
+            if (value.includes("产品") || value.includes("品名") || value.includes("product")) return WORKSPACE_SECTION_BY_KEY.product_info;
+            if (value.includes("规格") || value.includes("数量") || value.includes("spec") || value.includes("quantity")) return WORKSPACE_SECTION_BY_KEY.specification;
+            if (value.includes("包装") || value.includes("包材") || value.includes("package")) return WORKSPACE_SECTION_BY_KEY.packaging;
+            if (value.includes("标签") || value.includes("批号") || value.includes("label")) return WORKSPACE_SECTION_BY_KEY.labeling;
+            if (value.includes("备注") || value.includes("要求") || value.includes("说明") || value.includes("note")) return WORKSPACE_SECTION_BY_KEY.other;
+            return null;
+        }
+
+        function inferBusinessSection(field) {
+            const explicit = sectionFromText(field?.section);
+            if (explicit) return explicit;
+
+            const layoutSection = findLayoutSectionForItem({
+                cell: field?.source_cell || field?.cell,
+                display_cell: field?.source_cell || field?.cell,
+                label: field?.label,
+            });
+            const layoutMatch = sectionFromText(layoutSection?.title || layoutSection?.section_name || layoutSection?.section_key || "");
+            if (layoutMatch) return layoutMatch;
+
+            const intentType = String(field?.intent_type || "");
+            const writeMode = String(field?.write_mode || "");
+            const labelKey = `${field?.label || ""} ${field?.field_key || ""}`.toLowerCase();
+            const row = rowIndexFromCell(field?.source_cell || field?.cell);
+            if (intentType === "unknown") return WORKSPACE_SECTION_BY_KEY.debug_other;
+            if (["option_checkbox", "option_text_choice"].includes(intentType) || labelKey.includes("标签") || labelKey.includes("批号")) return WORKSPACE_SECTION_BY_KEY.labeling;
+            if (labelKey.includes("包装") || labelKey.includes("要求")) return WORKSPACE_SECTION_BY_KEY.packaging;
+            if (intentType.includes("table") || writeMode.includes("table") || writeMode.includes("row_field") || labelKey.includes("规格") || labelKey.includes("数量")) return WORKSPACE_SECTION_BY_KEY.specification;
+            if (labelKey.includes("产品") || labelKey.includes("product") || labelKey.includes("品名")) return WORKSPACE_SECTION_BY_KEY.product_info;
+            if ((row && row <= 8) || labelKey.includes("客户") || labelKey.includes("日期") || labelKey.includes("编号") || labelKey.includes("customer") || labelKey.includes("date")) return WORKSPACE_SECTION_BY_KEY.basic_info;
+            return WORKSPACE_SECTION_BY_KEY.other;
+        }
+
+        function isWorkspaceFieldRequired(field) {
+            const labelKey = `${field?.label || ""} ${field?.field_key || ""}`.toLowerCase();
+            return field?.required === true
+                || labelKey.includes("客户名称")
+                || labelKey.includes("数量")
+                || labelKey.includes("日期")
+                || labelKey.includes("产品")
+                || labelKey.includes("product")
+                || labelKey.includes("customer")
+                || labelKey.includes("quantity");
+        }
+
+        function workspaceFieldStatus(value, required, hasAiValue) {
+            const filled = String(value ?? "").trim() !== "";
+            if (required && !filled) return "missing_required";
+            if (hasAiValue && filled) return "ai_filled";
+            return filled ? "filled" : "empty";
+        }
+
+        function workspaceStatusLabel(status) {
+            return {
+                filled: "已填写",
+                empty: "待填写",
+                ai_filled: "AI识别",
+                manual: "已修改",
+                missing_required: "必填缺失",
+            }[status] || "待确认";
+        }
+
+        function buildWorkspaceSchema(workspaceFields, parsedValues) {
+            const sourceFields = (Array.isArray(workspaceFields) ? workspaceFields : []).filter(Boolean);
+            const errors = [];
+            const warnings = [];
+            const fields = [];
+            const optionBuckets = {};
+
+            sourceFields.forEach((field, index) => {
+                const type = inferWorkspaceFieldType(field);
+                const rawValue = parsedValueForField(field.field_key, parsedValues);
+                const hasAiValue = String(rawValue ?? "").trim() !== "";
+                const base = {
+                    id: `${field.field_key || field.cell || "field"}_${field.cell || index}`,
+                    type,
+                    label: field.label || field.field_key || field.cell || "字段",
+                    field_key: field.field_key || "",
+                    value: rawValue == null ? "" : String(rawValue),
+                    cell: field.cell || "",
+                    source_cell: field.source_cell || "",
+                    intent_type: field.intent_type || "",
+                    write_mode: field.write_mode || "",
+                    option_value: field.option_value || "",
+                    options: [],
+                    required: isWorkspaceFieldRequired(field),
+                    confidence: field.confidence || 0,
+                    ai_extract_hint: field.ai_extract_hint || "",
+                    display_order: Number(field.workspaceOrder || field.display_order || index + 1),
+                    meta: {
+                        cell_meta: field.cell_meta || (field.source_cell && field.source_cell !== field.cell ? `${field.source_cell} → ${field.cell}` : field.cell),
+                        source: field.source || "Visual Mapping",
+                    },
+                };
+                const section = inferBusinessSection(field);
+                base.section_key = section.key;
+                base.section_title = section.title;
+                base.section_order = section.order;
+
+                if (type === "single_choice") {
+                    const groupKey = optionGroupKey(field);
+                    if (!optionBuckets[groupKey]) {
+                        optionBuckets[groupKey] = {
+                            ...base,
+                            id: groupKey,
+                            label: optionGroupTitle([field]),
+                            options: [],
+                            value: base.value,
+                        };
+                    }
+                    optionBuckets[groupKey].options.push({
+                        label: optionLabel(field),
+                        value: String(field.option_value || optionLabel(field) || "").trim(),
+                        cell: field.cell,
+                        display_cell: field.display_cell || field.cell,
+                        source_cell: field.source_cell,
+                        field_key: field.field_key || "",
+                        source: field.source || "Visual Mapping",
+                        option_value: String(field.option_value || optionLabel(field) || "").trim(),
+                        intent_type: field.intent_type,
+                        write_mode: field.write_mode,
+                    });
+                    if (!optionBuckets[groupKey].value && base.value) optionBuckets[groupKey].value = base.value;
+                    return;
+                }
+
+                base.status = workspaceFieldStatus(base.value, base.required, hasAiValue);
+                fields.push(base);
+            });
+
+            Object.values(optionBuckets).forEach(group => {
+                group.options.sort((left, right) => visualCellSort(left, right));
+                group.label = optionGroupTitle(group.options.map(option => ({ ...group, ...option })));
+                const selected = group.options.find(option => optionValueMatches(group.value, option));
+                if (selected && !group.value) group.value = selected.value;
+                group.status = workspaceFieldStatus(group.value, group.required, String(group.value || "").trim() !== "");
+                fields.push(group);
+            });
+
+            const sectionsByKey = {};
+            fields.forEach(field => {
+                if (!sectionsByKey[field.section_key]) {
+                    sectionsByKey[field.section_key] = {
+                        key: field.section_key,
+                        title: field.section_title,
+                        order: field.section_order,
+                        fields: [],
+                    };
+                }
+                sectionsByKey[field.section_key].fields.push(field);
+            });
+
+            Object.values(sectionsByKey).forEach(section => {
+                section.fields.sort((left, right) => {
+                    const leftOrder = Number(left.display_order || 0);
+                    const rightOrder = Number(right.display_order || 0);
+                    if (leftOrder && rightOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
+                    if (leftOrder && !rightOrder) return -1;
+                    if (!leftOrder && rightOrder) return 1;
+                    return String(left.label || "").localeCompare(String(right.label || ""), "zh-CN");
+                });
+            });
+
+            const sections = Object.values(sectionsByKey).sort((left, right) => {
+                if (left.order !== right.order) return left.order - right.order;
+                return String(left.title || "").localeCompare(String(right.title || ""), "zh-CN");
+            });
+
+            fields.forEach(field => {
+                if (!field.cell && field.type !== "computed") errors.push({ field, message: "缺少目标单元格" });
+                if (field.status === "missing_required") warnings.push({ field, message: "必填字段尚未填写" });
+            });
+
+            return { sections, fields, errors, warnings };
+        }
+
         function workspaceFieldByCell(workspaceFields) {
             const byCell = {};
             (Array.isArray(workspaceFields) ? workspaceFields : []).forEach(field => {
@@ -1456,34 +1747,29 @@
         }
 
         function renderBusinessFormSection(section) {
+            const fields = Array.isArray(section.fields) ? section.fields : (section.items || []);
             return `
                 <div class="confirmation-section-card business-form-card" data-section="${escapeHtml(section.key)}">
                     <div class="confirmation-section-header">
                         <div class="confirmation-section-name">${escapeHtml(section.title)}</div>
-                        <div class="confirmation-section-count">${section.items.length}项</div>
+                        <div class="confirmation-section-count">${fields.length}项</div>
                     </div>
                     <div class="confirmation-section-body">
-                        ${section.items.map(item => item.type === "option_group" ? renderBusinessOptionGroup(item) : renderBusinessFieldCard(item)).join("")}
+                        ${fields.map(item => item.type === "single_choice" || item.type === "option_group" ? renderBusinessOptionGroup(item) : renderBusinessFieldCard(item)).join("")}
                     </div>
                 </div>
             `;
         }
 
         function renderBusinessFieldCard(item) {
+            const status = item.status || workspaceFieldStatus(item.value, item.required, false);
             return `
-                <div class="business-field-card">
-                    <label>${escapeHtml(item.label)}</label>
-                    <input
-                        type="text"
-                        value="${escapeHtml(item.value)}"
-                        data-cell="${escapeHtml(item.cell)}"
-                        data-display-cell="${escapeHtml(item.display_cell || item.cell)}"
-                        data-source-cell="${escapeHtml(item.source_cell || "")}"
-                        data-field-key="${escapeHtml(item.field_key || "")}"
-                        data-source="${escapeHtml(item.source || "Visual Mapping")}"
-                        data-label="${escapeHtml(item.label)}"
-                        oninput="syncConfirmedCellsFromInputs()"
-                    >
+                <div class="business-field-card" data-field-id="${escapeHtml(item.id || "")}" data-status="${escapeHtml(status)}">
+                    <div class="field-title-row">
+                        <label>${escapeHtml(item.label)}</label>
+                        <span class="field-status ${escapeHtml(status)}">${escapeHtml(workspaceStatusLabel(status))}</span>
+                    </div>
+                    ${renderBusinessFieldControl(item)}
                     ${isSmartDebugMode() ? `
                         <div class="business-field-meta">
                             ${escapeHtml(item.source_cell && item.source_cell !== item.cell ? `${item.source_cell} → ${item.cell}` : item.cell)}
@@ -1494,20 +1780,64 @@
             `;
         }
 
+        function businessFieldDataAttributes(item) {
+            return `
+                data-cell="${escapeHtml(item.cell || "")}"
+                data-display-cell="${escapeHtml(item.display_cell || item.cell || "")}"
+                data-source-cell="${escapeHtml(item.source_cell || "")}"
+                data-field-key="${escapeHtml(item.field_key || "")}"
+                data-source="${escapeHtml(item.meta?.source || item.source || "Visual Mapping")}"
+                data-label="${escapeHtml(item.label || "")}"
+                data-required="${item.required ? "true" : "false"}"
+                data-field-type="${escapeHtml(item.type || "text")}"
+            `;
+        }
+
+        function renderBusinessFieldControl(item) {
+            const value = item.value == null ? "" : String(item.value);
+            const attrs = businessFieldDataAttributes(item);
+            if (["readonly", "computed"].includes(item.type)) {
+                return `<div class="readonly-business-value">${escapeHtml(value || item.option_value || "-")}</div>`;
+            }
+            if (item.type === "textarea") {
+                return `
+                    <textarea
+                        ${attrs}
+                        rows="3"
+                        oninput="markWorkspaceFieldManual(this); syncConfirmedCellsFromInputs()"
+                    >${escapeHtml(value)}</textarea>
+                `;
+            }
+            const inputType = item.type === "number" ? "number" : (item.type === "date" ? "date" : "text");
+            return `
+                <input
+                    type="${escapeHtml(inputType)}"
+                    value="${escapeHtml(value)}"
+                    ${attrs}
+                    oninput="markWorkspaceFieldManual(this); syncConfirmedCellsFromInputs()"
+                >
+            `;
+        }
+
         function renderBusinessOptionGroup(group) {
             const selectedValue = String(group.value || "").trim();
+            const options = Array.isArray(group.options) ? group.options : (group.items || []);
+            const status = group.status || workspaceFieldStatus(selectedValue, group.required, false);
             return `
-                <div class="business-option-group">
-                    <div class="business-option-title">${escapeHtml(group.label || "选择字段")}</div>
+                <div class="business-option-group" data-field-id="${escapeHtml(group.id || group.group_key || "")}" data-required="${group.required ? "true" : "false"}" data-status="${escapeHtml(status)}">
+                    <div class="field-title-row">
+                        <div class="business-option-title">${escapeHtml(group.label || "选择字段")}</div>
+                        <span class="field-status ${escapeHtml(status)}">${escapeHtml(workspaceStatusLabel(status))}</span>
+                    </div>
                     <div class="business-option-list">
-                        ${group.items.map(option => {
+                        ${options.map(option => {
                             const value = option.option_value || option.label || "";
                             const checked = optionValueMatches(selectedValue, option) ? "checked" : "";
                             return `
                                 <label class="business-option-item">
                                     <input
                                         type="radio"
-                                        name="${escapeHtml(group.group_key)}"
+                                        name="${escapeHtml(group.id || group.group_key || group.field_key || "workspace_option")}"
                                         value="${escapeHtml(value)}"
                                         data-cell="${escapeHtml(option.cell)}"
                                         data-display-cell="${escapeHtml(option.display_cell || option.cell)}"
@@ -1516,8 +1846,10 @@
                                         data-source="${escapeHtml(option.source || "Visual Mapping")}"
                                         data-label="${escapeHtml(group.label || "选择字段")}"
                                         data-option-value="${escapeHtml(value)}"
+                                        data-required="${group.required ? "true" : "false"}"
+                                        data-field-type="single_choice"
                                         ${checked}
-                                        onchange="syncConfirmedCellsFromInputs()"
+                                        onchange="markWorkspaceFieldManual(this); syncConfirmedCellsFromInputs()"
                                     >
                                     <span>${escapeHtml(option.label || value)}</span>
                                 </label>
@@ -1616,59 +1948,8 @@
         }
 
         function buildWorkspaceFieldSections(workspaceFields, parsedValues) {
-            const fields = Array.isArray(workspaceFields) ? workspaceFields : [];
-            if (!fields.length) return [];
-
-            const preferredOrder = ["document", "structured", "product", "packaging", "options", "other"];
-            const grouped = {};
-            const titles = {};
-            const sectionOrder = [];
-            const formItems = buildBusinessFormItems(fields, parsedValues);
-            const businessItems = [
-                ...formItems.normal_fields,
-                ...formItems.option_groups,
-            ];
-
-            businessItems.forEach(item => {
-                const referenceField = item.type === "option_group" ? (item.items[0] || item) : item;
-                const group = item.type === "option_group" ? { key: "options", title: "选择字段确认" } : businessGroupForField(referenceField);
-                const sectionKey = group.key || "other";
-                if (!grouped[sectionKey]) {
-                    grouped[sectionKey] = [];
-                    sectionOrder.push(sectionKey);
-                    titles[sectionKey] = group.title || sectionTitle(sectionKey);
-                }
-                grouped[sectionKey].push({
-                    ...item,
-                    section: sectionKey,
-                });
-            });
-
-            sectionOrder.forEach(key => {
-                grouped[key].sort((left, right) => {
-                    const leftOrder = Number(left.workspaceOrder || 0);
-                    const rightOrder = Number(right.workspaceOrder || 0);
-                    if (leftOrder && rightOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
-                    if (leftOrder && !rightOrder) return -1;
-                    if (!leftOrder && rightOrder) return 1;
-                    return visualCellSort(left, right);
-                });
-            });
-
-            const orderedSectionIndex = Object.fromEntries(preferredOrder.map((key, index) => [key, index]));
-            sectionOrder.sort((left, right) => {
-                const leftKnown = Object.prototype.hasOwnProperty.call(orderedSectionIndex, left);
-                const rightKnown = Object.prototype.hasOwnProperty.call(orderedSectionIndex, right);
-                if (leftKnown !== rightKnown) return leftKnown ? -1 : 1;
-                if (leftKnown && orderedSectionIndex[left] !== orderedSectionIndex[right]) {
-                    return orderedSectionIndex[left] - orderedSectionIndex[right];
-                }
-                return String(titles[left] || left).localeCompare(String(titles[right] || right), "zh-CN");
-            });
-
-            return sectionOrder
-                .map(key => ({ key, title: titles[key] || sectionTitle(key), items: grouped[key] || [] }))
-                .filter(section => section.items.length);
+            currentWorkspaceSchema = buildWorkspaceSchema(workspaceFields, parsedValues);
+            return currentWorkspaceSchema.sections;
         }
 
         function renderConfigurationPreview() {
@@ -1689,6 +1970,8 @@
                     <div class="preview-notice">当前为模板配置预览。AI解析后将在这里显示可确认和修改的订单信息。</div>
                     <div class="status warning">当前映射尚未生成可预览的模板配置。请先在模板映射管理中上传模板并保存配置。</div>
                 `;
+                currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
+                renderExportCheck();
                 return;
             }
 
@@ -1696,6 +1979,7 @@
                 <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
                 ${sections.map(renderBusinessFormSection).join("")}
             `;
+            initializeConfirmedCellsSnapshotFromInputs();
         }
 
         function hasConfirmedCellChanges() {
@@ -1729,8 +2013,19 @@
             }
         }
 
+        function markWorkspaceFieldManual(control) {
+            const wrapper = control.closest(".business-field-card, .business-option-group");
+            if (!wrapper) return;
+            wrapper.dataset.status = "manual";
+            const badge = wrapper.querySelector(".field-status");
+            if (badge) {
+                badge.className = "field-status manual";
+                badge.textContent = workspaceStatusLabel("manual");
+            }
+        }
+
         function collectConfirmedCellsFromInputs() {
-            const textItems = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]"))
+            const textItems = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell], #v4ConfirmationArea textarea[data-cell]"))
                 .filter(input => input.type !== "radio")
                 .map(input => ({
                 cell: input.dataset.cell || "",
@@ -1739,6 +2034,7 @@
                 field_key: input.dataset.fieldKey || "",
                 source: input.dataset.source || "",
                 label: input.dataset.label || "",
+                option_value: input.dataset.optionValue || "",
                 value: input.value
             }));
             const radioItems = Array.from(document.querySelectorAll("#v4ConfirmationArea input[type='radio'][data-cell]:checked")).map(input => ({
@@ -1754,11 +2050,78 @@
             return [...textItems, ...radioItems];
         }
 
+        function getExportCheckState() {
+            const normalControls = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell], #v4ConfirmationArea textarea[data-cell]"))
+                .filter(input => input.type !== "radio");
+            const optionGroups = Array.from(document.querySelectorAll("#v4ConfirmationArea .business-option-group"));
+            const missing = [];
+            let filled = 0;
+
+            normalControls.forEach(input => {
+                const value = String(input.value || "").trim();
+                if (value) filled += 1;
+                if (input.dataset.required === "true" && !value) {
+                    missing.push({
+                        label: input.dataset.label || "字段",
+                        cell: input.dataset.cell || "",
+                    });
+                }
+            });
+
+            optionGroups.forEach(group => {
+                const checked = group.querySelector("input[type='radio'][data-cell]:checked");
+                if (checked) filled += 1;
+                if (group.dataset.required === "true" && !checked) {
+                    const title = group.querySelector(".business-option-title")?.textContent || "选择字段";
+                    missing.push({
+                        label: title,
+                        cell: group.querySelector("input[data-cell]")?.dataset.cell || "",
+                    });
+                }
+            });
+
+            return { filled, missing, missingCount: missing.length };
+        }
+
+        function renderExportCheck() {
+            const container = document.getElementById("v4ExportCheck");
+            if (!container) return;
+            const state = getExportCheckState();
+            const ready = state.missingCount === 0;
+            container.innerHTML = `
+                <div class="export-check-header">
+                    <div class="export-check-title">导出检查</div>
+                    <span class="export-check-status ${ready ? "ready" : "need"}">${ready ? "可导出" : "需要补充"}</span>
+                </div>
+                <div class="export-check-stats">已填写 ${state.filled}，缺失 ${state.missingCount}</div>
+                ${state.missingCount ? `
+                    <div class="export-check-missing">
+                        ${state.missing.map(item => `<div>${escapeHtml(item.label)}${item.cell ? ` · ${escapeHtml(item.cell)}` : ""}</div>`).join("")}
+                    </div>
+                ` : ""}
+            `;
+        }
+
         function syncConfirmedCellsFromInputs() {
             confirmedCells = collectConfirmedCellsFromInputs();
             window.confirmedCells = confirmedCells;
-            document.getElementById("v4ConfirmationArea").dataset.confirmedCellsCount = String(confirmedCells.length);
+            const area = document.getElementById("v4ConfirmationArea");
+            if (area) area.dataset.confirmedCellsCount = String(confirmedCells.length);
+            renderExportCheck();
             updateConfirmedEditNotice();
+        }
+
+        function initializeConfirmedCellsSnapshotFromInputs() {
+            confirmedCells = collectConfirmedCellsFromInputs();
+            originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
+            window.confirmedCells = confirmedCells;
+            window.originalConfirmedCells = originalConfirmedCells;
+            const area = document.getElementById("v4ConfirmationArea");
+            if (area) {
+                area.dataset.confirmedCellsCount = String(confirmedCells.length);
+                area.dataset.hasManualChanges = "false";
+            }
+            renderExportCheck();
         }
 
         function renderCellConfirmation(cells) {
@@ -1787,23 +2150,11 @@
             const sections = buildWorkspaceFieldSections(workspaceFields, getParsedFieldValues(result));
             if (!sections.length) return false;
 
-            confirmedCells = sections.flatMap(section => section.items.map(item => ({
-                cell: item.cell,
-                display_cell: item.display_cell || item.cell,
-                source_cell: item.source_cell || "",
-                field_key: item.field_key || "",
-                source: item.source || "Visual Mapping",
-                label: item.label,
-                value: item.value
-            })));
-            originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
-            window.originalConfirmedCells = originalConfirmedCells;
-
             document.getElementById("v4ConfirmationArea").innerHTML = `
                 <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
                 ${sections.map(renderBusinessFormSection).join("")}
             `;
-            syncConfirmedCellsFromInputs();
+            initializeConfirmedCellsSnapshotFromInputs();
             return true;
         }
 
@@ -1842,6 +2193,8 @@
                     `).join("")}
                 </div>
             `;
+            currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
+            renderExportCheck();
         }
 
         function renderConfirmation(result) {
@@ -2021,6 +2374,18 @@
             }
 
             syncConfirmedCellsFromInputs();
+            const exportCheck = getExportCheckState();
+            if (exportCheck.missingCount > 0) {
+                const missingText = exportCheck.missing
+                    .slice(0, 6)
+                    .map(item => `${item.label}${item.cell ? ` (${item.cell})` : ""}`)
+                    .join("、");
+                const proceed = window.confirm(`导出检查发现 ${exportCheck.missingCount} 个必填字段需要补充：${missingText}。仍然继续生成 Excel 吗？`);
+                if (!proceed) {
+                    setStatus("v4GenerateStatus", "已取消生成，请先补充必填字段。", "warning");
+                    return;
+                }
+            }
             const hasManualChanges = hasConfirmedCellChanges();
             if (hasManualChanges) {
                 setStatus(
