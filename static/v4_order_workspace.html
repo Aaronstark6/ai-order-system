@@ -192,27 +192,43 @@
             line-height: 1.4;
         }
         .confirmation-row input { margin: 0; }
-        .confirmation-section {
+        .confirmation-section-card {
             background: #fff;
             border: 1px solid #e0e4ec;
             border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(16,24,40,0.06);
             overflow: hidden;
         }
-        .confirmation-section-title {
+        .confirmation-section-header {
+            align-items: center;
             background: #fafbfd;
             border-bottom: 1px solid #edf0f4;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            padding: 12px 14px;
+        }
+        .confirmation-section-name {
             color: #222;
             font-size: 16px;
             font-weight: 700;
-            margin: 0;
-            padding: 12px 14px;
+            line-height: 1.4;
         }
-        .confirmation-section-grid {
+        .confirmation-section-count {
+            background: #eef2f7;
+            border-radius: 999px;
+            color: #475467;
+            flex: 0 0 auto;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 3px 8px;
+        }
+        .confirmation-section-body {
             display: grid;
             gap: 0;
             grid-template-columns: 1fr;
         }
-        .confirmation-field-item {
+        .confirmation-form-row {
             align-items: center;
             border-bottom: 1px solid #f0f2f5;
             display: grid;
@@ -221,15 +237,15 @@
             min-width: 0;
             padding: 10px 14px;
         }
-        .confirmation-field-item:last-child {
+        .confirmation-form-row:last-child {
             border-bottom: none;
         }
-        .confirmation-field-item label {
+        .confirmation-form-row label {
             color: #344054;
             line-height: 1.4;
             margin: 0;
         }
-        .confirmation-field-item input {
+        .confirmation-form-row input {
             margin: 0;
         }
         .field-meta {
@@ -272,7 +288,12 @@
             .confirmation-section-wrap { min-height: 320px; }
             .profile-grid, .fallback-grid { grid-template-columns: 1fr; }
             .confirmation-row { grid-template-columns: 1fr; }
-            .confirmation-field-item {
+            .confirmation-section-header {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .confirmation-form-row {
                 align-items: stretch;
                 gap: 6px;
                 grid-template-columns: 1fr;
@@ -652,11 +673,14 @@
 
         function renderConfirmationSection(section) {
             return `
-                <div class="confirmation-section" data-section="${escapeHtml(section.key)}">
-                    <div class="confirmation-section-title">${escapeHtml(section.title)}</div>
-                    <div class="confirmation-section-grid">
+                <div class="confirmation-section-card" data-section="${escapeHtml(section.key)}">
+                    <div class="confirmation-section-header">
+                        <div class="confirmation-section-name">${escapeHtml(section.title)}</div>
+                        <div class="confirmation-section-count">${section.items.length}项</div>
+                    </div>
+                    <div class="confirmation-section-body">
                         ${section.items.map(item => `
-                            <div class="confirmation-field-item">
+                            <div class="confirmation-form-row">
                                 <label>${escapeHtml(item.label)}</label>
                                 <input
                                     type="text"
