@@ -195,25 +195,39 @@
         .confirmation-section {
             background: #fff;
             border: 1px solid #e0e4ec;
-            border-radius: 10px;
-            padding: 14px;
+            border-radius: 8px;
+            overflow: hidden;
         }
         .confirmation-section-title {
+            background: #fafbfd;
+            border-bottom: 1px solid #edf0f4;
             color: #222;
             font-size: 16px;
             font-weight: 700;
-            margin-bottom: 12px;
+            margin: 0;
+            padding: 12px 14px;
         }
         .confirmation-section-grid {
             display: grid;
-            gap: 12px;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0;
+            grid-template-columns: 1fr;
         }
         .confirmation-field-item {
+            align-items: center;
+            border-bottom: 1px solid #f0f2f5;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(130px, 220px) minmax(0, 1fr) minmax(80px, auto);
             min-width: 0;
+            padding: 10px 14px;
+        }
+        .confirmation-field-item:last-child {
+            border-bottom: none;
         }
         .confirmation-field-item label {
-            margin-top: 0;
+            color: #344054;
+            line-height: 1.4;
+            margin: 0;
         }
         .confirmation-field-item input {
             margin: 0;
@@ -222,7 +236,8 @@
             color: #888;
             font-size: 12px;
             line-height: 1.4;
-            margin-top: 4px;
+            text-align: right;
+            white-space: nowrap;
         }
         .fallback-grid {
             display: grid;
@@ -257,7 +272,15 @@
             .confirmation-section-wrap { min-height: 320px; }
             .profile-grid, .fallback-grid { grid-template-columns: 1fr; }
             .confirmation-row { grid-template-columns: 1fr; }
-            .confirmation-section-grid { grid-template-columns: 1fr; }
+            .confirmation-field-item {
+                align-items: stretch;
+                gap: 6px;
+                grid-template-columns: 1fr;
+            }
+            .field-meta {
+                text-align: left;
+                white-space: normal;
+            }
         }
     </style>
 </head>
