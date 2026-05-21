@@ -231,6 +231,87 @@
             gap: 14px;
             min-height: 360px;
         }
+        .native-template-hint {
+            background: #f2f6ff;
+            border: 1px solid #d6e4ff;
+            border-radius: 8px;
+            color: #315c9c;
+            font-size: 13px;
+            line-height: 1.5;
+            padding: 10px 12px;
+        }
+        .native-template-wrap {
+            background: #fff;
+            border: 1px solid #d8dee8;
+            border-radius: 8px;
+            min-height: 360px;
+            overflow: auto;
+        }
+        .native-template-grid {
+            border-collapse: collapse;
+            font-size: 12px;
+            min-width: 100%;
+        }
+        .native-template-grid th,
+        .native-template-grid td {
+            border: 1px solid #edf0f4;
+            padding: 4px 6px;
+            position: relative;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .native-template-grid th {
+            background: #f2f4f7;
+            color: #667085;
+            font-weight: 700;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .native-template-grid .corner-cell,
+        .native-template-grid .row-head {
+            background: #f2f4f7;
+            color: #667085;
+            left: 0;
+            position: sticky;
+            text-align: center;
+            z-index: 2;
+        }
+        .native-cell {
+            background: #fff;
+            color: #1d2939;
+            cursor: pointer;
+            max-width: 260px;
+            min-width: 48px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .native-cell.editable {
+            box-shadow: inset 0 -3px 0 #1677ff;
+        }
+        .native-cell.selected {
+            border: 2px solid #1890ff;
+            box-shadow: inset 0 0 0 2px #1890ff, 0 0 0 2px rgba(24,144,255,0.28) !important;
+            outline: 2px solid #0050b3;
+            outline-offset: -2px;
+        }
+        .native-cell-input {
+            background: rgba(255,255,255,0.86);
+            border: 1px solid #8cc8ff;
+            border-radius: 4px;
+            color: #1d2939;
+            font-size: 12px;
+            min-height: 28px;
+            padding: 4px 6px;
+            width: 100%;
+        }
+        .native-cell-meta {
+            color: #667085;
+            font-size: 10px;
+            line-height: 1.3;
+            margin-top: 2px;
+            white-space: normal;
+        }
         .confirmation-row {
             align-items: center;
             background: #fff;
@@ -419,8 +500,9 @@
             </div>
 
             <div class="section confirmation-section-wrap">
-                <h3>模板化确认区</h3>
+                <h3>模板原生确认区</h3>
                 <div id="v4ConfirmationArea" class="confirmation-area">
+                    <div class="native-template-hint">AI解析后会自动填入模板，可直接在模板中修改确认。</div>
                     <div class="status warning">请先粘贴聊天内容并点击 AI解析。</div>
                 </div>
             </div>
@@ -444,10 +526,13 @@
         let originalConfirmedCells = [];
         let v4LayoutSections = [];
         let v4WorkspaceFields = [];
+        let v4VisualGrid = null;
+        let selectedNativeCell = "";
         window.confirmedCells = confirmedCells;
         window.originalConfirmedCells = originalConfirmedCells;
         window.v4LayoutSections = v4LayoutSections;
         window.v4WorkspaceFields = v4WorkspaceFields;
+        window.v4VisualGrid = v4VisualGrid;
 
         function escapeHtml(value) {
             const div = document.createElement("div");
@@ -646,6 +731,121 @@
             return String(value || "").trim().toUpperCase();
         }
 
+        function columnName(index) {
+            let value = Number(index || 0);
+            let letters = "";
+            while (value > 0) {
+                const remainder = (value - 1) % 26;
+                letters = String.fromCharCode(65 + remainder) + letters;
+                value = Math.floor((value - 1) / 26);
+            }
+            return letters || "";
+        }
+
+        function clampNumber(value, min, max) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return min;
+            return Math.min(max, Math.max(min, number));
+        }
+
+        function visualColumnWidthPx(grid, col) {
+            const letter = columnName(col);
+            const width = Number(grid?.col_widths?.[letter] || 8.43);
+            return Math.round(clampNumber(width * 8, 48, 260));
+        }
+
+        function visualRowHeightPx(grid, row) {
+            const height = Number(grid?.row_heights?.[String(row)] || 15);
+            return Math.round(clampNumber(height * 1.35, 24, 120));
+        }
+
+        function renderNativeColGroup(grid, cols) {
+            const columns = Array.from({ length: cols }, (_, index) => {
+                return `<col style="width:${visualColumnWidthPx(grid, index + 1)}px">`;
+            }).join("");
+            return `<colgroup><col style="width:44px">${columns}</colgroup>`;
+        }
+
+        function visualCellStyle(cell) {
+            const styles = [];
+            if (cell.font_bold) styles.push("font-weight:700");
+            if (cell.align) styles.push(`text-align:${escapeHtml(cell.align)}`);
+            const color = String(cell.fill_color || "");
+            if (/^[A-Fa-f0-9]{8}$/.test(color) && color !== "00000000") {
+                styles.push(`background-color:#${color.slice(2)}`);
+            } else if (/^[A-Fa-f0-9]{6}$/.test(color)) {
+                styles.push(`background-color:#${color}`);
+            }
+            return styles.join(";");
+        }
+
+        function cellToPoint(cell) {
+            const match = String(cell || "").trim().match(/^([A-Z]+)(\d+)$/i);
+            if (!match) return null;
+            const letters = match[1].toUpperCase();
+            let col = 0;
+            for (const char of letters) col = col * 26 + char.charCodeAt(0) - 64;
+            return { row: Number(match[2]), col };
+        }
+
+        function parseCellRange(rangeText) {
+            const parts = String(rangeText || "").split(":");
+            if (parts.length !== 2) return null;
+            const start = cellToPoint(parts[0]);
+            const end = cellToPoint(parts[1]);
+            if (!start || !end) return null;
+            return {
+                startCell: normalizeConfigCell(parts[0]),
+                startRow: Math.min(start.row, end.row),
+                startCol: Math.min(start.col, end.col),
+                endRow: Math.max(start.row, end.row),
+                endCol: Math.max(start.col, end.col),
+            };
+        }
+
+        function buildNativeMergeLookup(grid) {
+            const skip = new Set();
+            const start = {};
+            const merges = Array.isArray(grid?.merges) ? grid.merges : [];
+            const cells = Array.isArray(grid?.cells) ? grid.cells : [];
+
+            function addMerge(range) {
+                if (!range) return;
+                const startCell = normalizeConfigCell(range.start_cell || range.startCell || columnName(range.start_col || range.startCol) + (range.start_row || range.startRow || ""));
+                const startRow = Number(range.start_row || range.startRow || 0);
+                const startCol = Number(range.start_col || range.startCol || 0);
+                const endRow = Number(range.end_row || range.endRow || 0);
+                const endCol = Number(range.end_col || range.endCol || 0);
+                if (!startCell || !startRow || !startCol || !endRow || !endCol) return;
+                const rowspan = Math.max(1, endRow - startRow + 1);
+                const colspan = Math.max(1, endCol - startCol + 1);
+                if (rowspan <= 1 && colspan <= 1) return;
+                start[startCell] = { rowspan, colspan };
+                for (let row = startRow; row <= endRow; row += 1) {
+                    for (let col = startCol; col <= endCol; col += 1) {
+                        const cellRef = `${columnName(col)}${row}`;
+                        if (cellRef !== startCell) skip.add(cellRef);
+                    }
+                }
+            }
+
+            merges.forEach(addMerge);
+            cells.forEach((cell) => {
+                if (!cell?.is_merged || !cell?.merged_range) return;
+                const parsed = parseCellRange(cell.merged_range);
+                if (parsed) {
+                    addMerge({
+                        start_cell: parsed.startCell,
+                        start_row: parsed.startRow,
+                        start_col: parsed.startCol,
+                        end_row: parsed.endRow,
+                        end_col: parsed.endCol,
+                    });
+                }
+            });
+            return { skip, start };
+        }
+
         function getTemplateConfiguration() {
             const renderConfig = activeV4Profile && typeof activeV4Profile.render_config === "object"
                 ? activeV4Profile.render_config
@@ -765,6 +965,105 @@
             const lowerKey = String(fieldKey).toLowerCase();
             const matchKey = Object.keys(parsedValues).find(key => String(key).toLowerCase() === lowerKey);
             return matchKey ? parsedValues[matchKey] : "";
+        }
+
+        function workspaceFieldByCell(workspaceFields) {
+            const byCell = {};
+            (Array.isArray(workspaceFields) ? workspaceFields : []).forEach(field => {
+                const cell = normalizeConfigCell(field.cell);
+                if (cell && !byCell[cell]) byCell[cell] = field;
+            });
+            return byCell;
+        }
+
+        function renderNativeCellContent(cell, field, parsedValues) {
+            const displayText = cell.display_value || cell.value || "";
+            if (!field) return escapeHtml(displayText);
+
+            const rawValue = parsedValueForField(field.field_key, parsedValues);
+            const value = rawValue == null ? "" : String(rawValue);
+            const debugMeta = isSmartDebugMode()
+                ? `<div class="native-cell-meta">${escapeHtml(field.field_key)} · ${escapeHtml(field.intent_type || "-")}</div>`
+                : "";
+            return `
+                <input
+                    class="native-cell-input"
+                    type="text"
+                    value="${escapeHtml(value)}"
+                    data-cell="${escapeHtml(field.cell)}"
+                    data-display-cell="${escapeHtml(field.cell)}"
+                    data-source-cell="${escapeHtml(field.source_cell || "")}"
+                    data-field-key="${escapeHtml(field.field_key || "")}"
+                    data-source="${escapeHtml(field.source || "Visual Mapping")}"
+                    data-label="${escapeHtml(field.label || field.field_key || "")}"
+                    oninput="syncConfirmedCellsFromInputs()"
+                    onfocus="selectedNativeCell='${escapeHtml(field.cell)}';"
+                    onclick="event.stopPropagation();"
+                >
+                ${debugMeta}
+            `;
+        }
+
+        function renderNativeTemplateConfirmation(result = null) {
+            const grid = v4VisualGrid && typeof v4VisualGrid === "object" ? v4VisualGrid : null;
+            const rows = Number(grid?.rows || 0);
+            const cols = Number(grid?.cols || 0);
+            const cells = Array.isArray(grid?.cells) ? grid.cells : [];
+            const workspaceFields = getWorkspaceFieldsFromResult(result);
+            if (!grid || !rows || !cols || !cells.length || !workspaceFields.length) return false;
+
+            const parsedValues = getParsedFieldValues(result);
+            const editableByCell = workspaceFieldByCell(workspaceFields);
+            const byCell = {};
+            cells.forEach(cell => { byCell[cell.cell] = cell; });
+            const mergeLookup = buildNativeMergeLookup(grid);
+            const header = Array.from({ length: cols }, (_, index) => {
+                const col = index + 1;
+                return `<th style="width:${visualColumnWidthPx(grid, col)}px">${columnName(col)}</th>`;
+            }).join("");
+            const bodyRows = [];
+
+            for (let row = 1; row <= rows; row += 1) {
+                const tds = [];
+                const rowHeight = visualRowHeightPx(grid, row);
+                for (let col = 1; col <= cols; col += 1) {
+                    const cellRef = `${columnName(col)}${row}`;
+                    if (mergeLookup.skip.has(cellRef)) continue;
+                    const cell = byCell[cellRef] || { cell: cellRef, display_value: "" };
+                    const field = editableByCell[cellRef] || null;
+                    const mergeSize = mergeLookup.start[cellRef] || {};
+                    const rowspan = Number(mergeSize.rowspan || 1);
+                    const colspan = Number(mergeSize.colspan || 1);
+                    const classes = [
+                        "native-cell",
+                        field ? "editable" : "",
+                        selectedNativeCell === cellRef ? "selected" : "",
+                    ].filter(Boolean).join(" ");
+                    const spanAttrs = `${rowspan > 1 ? ` rowspan="${rowspan}"` : ""}${colspan > 1 ? ` colspan="${colspan}"` : ""}`;
+                    const cellStyle = [`height:${rowHeight}px`, visualCellStyle(cell)].filter(Boolean).join(";");
+                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="selectedNativeCell='${escapeHtml(cellRef)}'; renderNativeTemplateConfirmation(latestV4ParseResult);" title="${escapeHtml(cellRef)}">${renderNativeCellContent(cell, field, parsedValues)}</td>`);
+                }
+                bodyRows.push(`<tr style="height:${rowHeight}px"><th class="row-head" style="height:${rowHeight}px">${row}</th>${tds.join("")}</tr>`);
+            }
+
+            document.getElementById("v4ConfirmationArea").innerHTML = `
+                <div class="native-template-hint">AI解析后会自动填入模板，可直接在模板中修改确认。</div>
+                <div class="native-template-wrap">
+                    <table class="native-template-grid">
+                        ${renderNativeColGroup(grid, cols)}
+                        <thead><tr><th class="corner-cell"></th>${header}</tr></thead>
+                        <tbody>${bodyRows.join("")}</tbody>
+                    </table>
+                </div>
+            `;
+            confirmedCells = collectConfirmedCellsFromInputs();
+            originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
+            window.confirmedCells = confirmedCells;
+            window.originalConfirmedCells = originalConfirmedCells;
+            const area = document.getElementById("v4ConfirmationArea");
+            area.dataset.confirmedCellsCount = String(confirmedCells.length);
+            area.dataset.hasManualChanges = "false";
+            return true;
         }
 
         function inferConfirmationSection(item) {
@@ -1088,6 +1387,7 @@
 
         function renderConfigurationPreview() {
             if (latestV4ParseResult) return;
+            if (renderNativeTemplateConfirmation(null)) return;
 
             confirmedCells = [];
             originalConfirmedCells = [];
@@ -1144,8 +1444,8 @@
             }
         }
 
-        function syncConfirmedCellsFromInputs() {
-            confirmedCells = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]")).map(input => ({
+        function collectConfirmedCellsFromInputs() {
+            return Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell]")).map(input => ({
                 cell: input.dataset.cell || "",
                 display_cell: input.dataset.displayCell || input.dataset.cell || "",
                 source_cell: input.dataset.sourceCell || "",
@@ -1154,6 +1454,10 @@
                 label: input.dataset.label || "",
                 value: input.value
             }));
+        }
+
+        function syncConfirmedCellsFromInputs() {
+            confirmedCells = collectConfirmedCellsFromInputs();
             window.confirmedCells = confirmedCells;
             document.getElementById("v4ConfirmationArea").dataset.confirmedCellsCount = String(confirmedCells.length);
             updateConfirmedEditNotice();
@@ -1238,6 +1542,7 @@
         function renderConfirmation(result) {
             const parseResult = result.parse_result || {};
             const pipelineResult = result.pipeline_result || {};
+            if (renderNativeTemplateConfirmation(result)) return;
             if (renderWorkspaceFieldConfirmation(result)) return;
             const renderPreview = pipelineResult.render_preview || {};
             const cells = renderPreview.cells || renderPreview.cell_preview || [];
@@ -1279,6 +1584,30 @@
             }
         }
 
+        async function loadV4VisualGrid(profileId) {
+            const activeProfileId = profileId || activeV4Profile?.profile_id || "";
+            if (!activeProfileId) {
+                v4VisualGrid = null;
+                window.v4VisualGrid = v4VisualGrid;
+                return null;
+            }
+            try {
+                const response = await fetch(`/api/v4/template-profiles/${encodeURIComponent(activeProfileId)}/visual-grid`);
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    v4VisualGrid = null;
+                } else {
+                    v4VisualGrid = result.visual_grid || null;
+                }
+                window.v4VisualGrid = v4VisualGrid;
+                return v4VisualGrid;
+            } catch (error) {
+                v4VisualGrid = null;
+                window.v4VisualGrid = v4VisualGrid;
+                return null;
+            }
+        }
+
         async function loadV4TemplateLayout() {
             try {
                 const response = await fetch("/api/v4/template-layout");
@@ -1292,12 +1621,15 @@
                 }
                 window.v4LayoutSections = v4LayoutSections;
                 window.v4WorkspaceFields = v4WorkspaceFields;
+                await loadV4VisualGrid(activeV4Profile?.profile_id || "");
                 renderConfigurationPreview();
             } catch (error) {
                 v4LayoutSections = [];
                 v4WorkspaceFields = [];
+                v4VisualGrid = null;
                 window.v4LayoutSections = v4LayoutSections;
                 window.v4WorkspaceFields = v4WorkspaceFields;
+                window.v4VisualGrid = v4VisualGrid;
                 renderConfigurationPreview();
             }
         }
