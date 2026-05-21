@@ -272,6 +272,12 @@
             text-align: right;
             white-space: nowrap;
         }
+        .preview-form-row {
+            grid-template-columns: minmax(130px, 1fr) minmax(80px, auto);
+        }
+        .preview-field-meta {
+            text-align: right;
+        }
         .fallback-grid {
             display: grid;
             gap: 12px;
@@ -725,10 +731,9 @@
                     </div>
                     <div class="confirmation-section-body">
                         ${section.items.map(item => `
-                            <div class="confirmation-form-row">
+                            <div class="confirmation-form-row preview-form-row">
                                 <label>${escapeHtml(item.label)}</label>
-                                <div class="preview-value">${escapeHtml(item.label || "-")}</div>
-                                <div class="field-meta">${escapeHtml(item.display_cell || item.cell || "-")}${item.section ? ` · ${escapeHtml(item.section)}` : ""}</div>
+                                <div class="field-meta preview-field-meta">${escapeHtml(item.display_cell || item.cell || "-")}${item.section ? ` · ${escapeHtml(item.section)}` : ""}</div>
                             </div>
                         `).join("")}
                     </div>
