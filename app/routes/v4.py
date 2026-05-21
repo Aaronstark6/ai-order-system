@@ -1329,10 +1329,192 @@ def _cell_key(value):
     return str(value or "").strip().upper()
 
 
-def _override_operations_with_confirmed_cells(processed_operations, confirmed_cells):
+def _confirmed_export_empty_summary():
+    return {
+        "total": 0,
+        "written": 0,
+        "skipped": 0,
+        "by_mode": {},
+    }
+
+
+def _increment_write_mode_summary(summary, write_mode, status):
+    mode = str(write_mode or "").strip() or "legacy"
+    by_mode = summary.setdefault("by_mode", {})
+    if mode not in by_mode:
+        by_mode[mode] = {"total": 0, "written": 0, "skipped": 0}
+    by_mode[mode]["total"] += 1
+    by_mode[mode][status] += 1
+
+
+def _confirmed_config_lookup_from_profile(profile):
+    configuration = _template_configuration_from_profile(profile)
+    by_source_cell = {}
+    by_target_cell = {}
+    by_field_key = {}
+
+    for source_cell, config in configuration.items():
+        if not isinstance(config, dict):
+            continue
+        normalized_source_cell = _cell_key(source_cell)
+        item = deepcopy(config)
+        item["_source_cell"] = normalized_source_cell
+        if normalized_source_cell:
+            by_source_cell[normalized_source_cell] = item
+
+        target_cell = _cell_key(item.get("target_cell"))
+        if target_cell and target_cell not in by_target_cell:
+            by_target_cell[target_cell] = item
+
+        field_key = str(item.get("candidate_field_key") or item.get("field_key") or "").strip()
+        if field_key and field_key not in by_field_key:
+            by_field_key[field_key] = item
+
+    return {
+        "by_source_cell": by_source_cell,
+        "by_target_cell": by_target_cell,
+        "by_field_key": by_field_key,
+    }
+
+
+def _lookup_confirmed_mapping_config(item, lookup):
+    if not isinstance(item, dict) or not isinstance(lookup, dict):
+        return {}
+
+    for key_name in ("source_cell", "display_cell", "cell"):
+        cell = _cell_key(item.get(key_name))
+        if cell and cell in lookup.get("by_source_cell", {}):
+            return lookup["by_source_cell"][cell]
+
+    for key_name in ("cell", "display_cell", "source_cell"):
+        cell = _cell_key(item.get(key_name))
+        if cell and cell in lookup.get("by_target_cell", {}):
+            return lookup["by_target_cell"][cell]
+
+    field_key = str(item.get("field_key") or "").strip()
+    if field_key and field_key in lookup.get("by_field_key", {}):
+        return lookup["by_field_key"][field_key]
+
+    return {}
+
+
+def _confirmed_item_with_mapping_config(item, config):
+    config = config if isinstance(config, dict) else {}
+    merged = deepcopy(item) if isinstance(item, dict) else {}
+    merged["write_mode"] = str(merged.get("write_mode") or config.get("write_mode") or "").strip()
+    merged["intent_type"] = str(merged.get("intent_type") or config.get("intent_type") or "").strip()
+    merged["option_value"] = str(merged.get("option_value") or config.get("option_value") or "").strip()
+    merged["field_key"] = str(
+        merged.get("field_key")
+        or config.get("candidate_field_key")
+        or config.get("field_key")
+        or ""
+    ).strip()
+    merged["label"] = str(
+        merged.get("label")
+        or config.get("label")
+        or config.get("candidate_field_label")
+        or merged.get("field_key")
+        or ""
+    ).strip()
+    merged["source_cell"] = _cell_key(merged.get("source_cell") or config.get("label_cell") or config.get("_source_cell"))
+    merged["cell"] = _cell_key(merged.get("cell") or config.get("target_cell") or merged.get("display_cell") or merged.get("source_cell"))
+    merged["target_cell"] = _cell_key(config.get("target_cell") or merged.get("cell"))
+    return merged
+
+
+def _load_template_worksheet_for_confirmed_export(template_path):
+    if not template_path:
+        return None
+    try:
+        from openpyxl import load_workbook
+        workbook = load_workbook(template_path, data_only=False)
+        return workbook.active
+    except Exception:
+        logger.warning("V4 confirmed export template read failed: path=%s", template_path, exc_info=True)
+        return None
+
+
+def _template_cell_text(worksheet, cell_ref):
+    cell = _cell_key(cell_ref)
+    if not worksheet or not cell or not re.match(r"^[A-Z]{1,3}[1-9][0-9]*$", cell):
+        return ""
+    try:
+        value = worksheet[cell].value
+    except Exception:
+        return ""
+    return "" if value is None else str(value).strip()
+
+
+def _format_append_after_colon_value(original_text, label, value):
+    value_text = str(value or "").strip()
+    text = str(original_text or "").strip()
+    for separator in ("：", ":"):
+        if separator in text:
+            prefix = text.split(separator, 1)[0].strip()
+            return f"{prefix}{separator}{value_text}" if prefix else value_text
+    prefix = str(label or text or "").strip()
+    return f"{prefix}：{value_text}" if prefix else value_text
+
+
+def _is_confirmed_option_selected(value):
+    text = str(value or "").strip().lower()
+    if not text:
+        return False
+    return text not in {"false", "0", "no", "n", "none", "null", "unchecked", "否", "不选", "未选"}
+
+
+def _format_check_option_value(original_text, option_value, value):
+    option_text = str(original_text or option_value or value or "").strip()
+    option_text = re.sub(r"^[☑☒☐□■\s]+", "", option_text).strip()
+    return f"☑ {option_text}" if option_text else "☑"
+
+
+def _confirmed_write_value(item, worksheet):
+    write_mode = str(item.get("write_mode") or "").strip()
+    value = item.get("value", "")
+    target_cell = item.get("target_cell") or item.get("cell")
+    original_text = _template_cell_text(worksheet, target_cell) or _template_cell_text(worksheet, item.get("source_cell"))
+
+    if write_mode == "append_after_colon":
+        return _format_append_after_colon_value(original_text, item.get("label"), value)
+    if write_mode == "check_option":
+        if not _is_confirmed_option_selected(value):
+            return ""
+        return _format_check_option_value(original_text, item.get("option_value"), value)
+    if write_mode == "select_option_text":
+        return str(value or "").strip()
+    return value
+
+
+def _confirmed_operation_from_item(item, worksheet):
+    target_cell = _cell_key(item.get("target_cell") or item.get("cell"))
+    value = _confirmed_write_value(item, worksheet)
+    return {
+        "op_type": "write_text",
+        "target_cell": target_cell,
+        "value": value,
+        "source": item.get("source") or "Confirmed Workspace",
+        "field_key": item.get("field_key") or "",
+        "field_label": item.get("label") or "",
+        "mapping_confirmed": True,
+        "confirmed_override": True,
+        "confirmed_label": item.get("label") or "",
+        "confirmed_source": item.get("source") or "Confirmed Workspace",
+        "write_mode": item.get("write_mode") or "",
+        "intent_type": item.get("intent_type") or "",
+        "source_cell": item.get("source_cell") or "",
+        "option_value": item.get("option_value") or "",
+    }
+
+
+def _override_operations_with_confirmed_cells(processed_operations, confirmed_cells, profile=None, template_path=None):
     operations = deepcopy(processed_operations) if isinstance(processed_operations, list) else []
     confirmed_items = confirmed_cells if isinstance(confirmed_cells, list) else []
     confirmed_by_cell = {}
+    config_lookup = _confirmed_config_lookup_from_profile(profile if isinstance(profile, dict) else {})
+    worksheet = _load_template_worksheet_for_confirmed_export(template_path)
+    write_mode_summary = _confirmed_export_empty_summary()
 
     for item in confirmed_items:
         if not isinstance(item, dict):
@@ -1355,15 +1537,82 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
         if not confirmed_item:
             continue
 
-        operation["value"] = confirmed_item.get("value", "")
+        config = _lookup_confirmed_mapping_config(confirmed_item, config_lookup)
+        enriched_item = _confirmed_item_with_mapping_config(confirmed_item, config)
+        write_mode = str(enriched_item.get("write_mode") or "").strip()
+        write_mode_summary["total"] += 1
+        if write_mode in {"skip", "none"}:
+            operation["value"] = ""
+            operation["confirmed_override"] = True
+            operation["confirmed_skip_reason"] = f"write_mode={write_mode}"
+            write_mode_summary["skipped"] += 1
+            _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
+            continue
+
+        confirmed_value = _confirmed_write_value(enriched_item, worksheet)
         operation["confirmed_override"] = True
-        operation["confirmed_label"] = confirmed_item.get("label", "")
-        operation["confirmed_source"] = confirmed_item.get("source", "")
+        operation["mapping_confirmed"] = True
+        operation["confirmed_label"] = enriched_item.get("label", "")
+        operation["confirmed_source"] = enriched_item.get("source", "")
+        operation["write_mode"] = write_mode
+        operation["intent_type"] = enriched_item.get("intent_type", "")
+        operation["source_cell"] = enriched_item.get("source_cell", "")
+        operation["option_value"] = enriched_item.get("option_value", "")
+        if enriched_item.get("field_key"):
+            operation["field_key"] = enriched_item.get("field_key")
+        if enriched_item.get("label"):
+            operation["field_label"] = enriched_item.get("label")
         override_count += 1
+        operation["value"] = confirmed_value
+        if str(confirmed_value or "").strip() == "":
+            write_mode_summary["skipped"] += 1
+            _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
+            continue
+        write_mode_summary["written"] += 1
+        _increment_write_mode_summary(write_mode_summary, write_mode, "written")
+
+    operation_index_by_cell = {}
+    for index, operation in enumerate(operations):
+        if not isinstance(operation, dict):
+            continue
+        cell = _cell_key(operation.get("target_cell") or operation.get("cell") or operation.get("display_cell"))
+        if cell:
+            operation_index_by_cell[cell] = index
+
+    added_count = 0
+    for item in confirmed_items:
+        if not isinstance(item, dict):
+            continue
+        config = _lookup_confirmed_mapping_config(item, config_lookup)
+        enriched_item = _confirmed_item_with_mapping_config(item, config)
+        target_cell = _cell_key(enriched_item.get("target_cell") or enriched_item.get("cell"))
+        if not target_cell or target_cell in operation_index_by_cell:
+            continue
+
+        write_mode = str(enriched_item.get("write_mode") or "").strip()
+        write_mode_summary["total"] += 1
+        if write_mode in {"skip", "none"}:
+            write_mode_summary["skipped"] += 1
+            _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
+            continue
+
+        operation = _confirmed_operation_from_item(enriched_item, worksheet)
+        if str(operation.get("value") or "").strip() == "":
+            write_mode_summary["skipped"] += 1
+            _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
+            continue
+
+        operations.append(operation)
+        operation_index_by_cell[target_cell] = len(operations) - 1
+        added_count += 1
+        write_mode_summary["written"] += 1
+        _increment_write_mode_summary(write_mode_summary, write_mode, "written")
 
     return {
         "processed_operations": operations,
         "override_count": override_count,
+        "added_count": added_count,
+        "write_mode_summary": write_mode_summary,
     }
 
 
@@ -2878,11 +3127,19 @@ def api_v4_export_confirmed_excel(
                 "pipeline_state": get_pipeline_state(),
             }
 
-        override_result = _override_operations_with_confirmed_cells(processed_operations, confirmed_cells)
+        profile = _current_template_profile_for_export()
+        template_path, _, template_source = _resolve_export_template_source()
+
+        override_result = _override_operations_with_confirmed_cells(
+            processed_operations,
+            confirmed_cells,
+            profile=profile,
+            template_path=template_path,
+        )
         overridden_operations = override_result.get("processed_operations", [])
         confirmed_override_count = override_result.get("override_count", 0)
-
-        template_path, _, template_source = _resolve_export_template_source()
+        confirmed_added_count = override_result.get("added_count", 0)
+        write_mode_summary = override_result.get("write_mode_summary", _confirmed_export_empty_summary())
 
         export_result = execute_processed_operations_to_excel(template_path, overridden_operations)
         if not export_result.get("success"):
@@ -2893,6 +3150,8 @@ def api_v4_export_confirmed_excel(
                 "warnings": export_result.get("warnings", []),
                 "pipeline_e2e_result": pipeline_e2e_result,
                 "confirmed_override_count": confirmed_override_count,
+                "confirmed_added_count": confirmed_added_count,
+                "write_mode_summary": write_mode_summary,
                 "pipeline_state": get_pipeline_state(),
             }
 
@@ -2912,12 +3171,16 @@ def api_v4_export_confirmed_excel(
         response_pipeline_result = dict(pipeline_result)
         response_pipeline_result["processed_operations"] = overridden_operations
         response_pipeline_result["confirmed_override_count"] = confirmed_override_count
+        response_pipeline_result["confirmed_added_count"] = confirmed_added_count
+        response_pipeline_result["write_mode_summary"] = write_mode_summary
         response_pipeline_result["render_preview"] = get_pipeline_state().get("render_preview", {})
 
         return {
             "success": True,
             "message": "确认值已导出 Excel",
             "confirmed_override_count": confirmed_override_count,
+            "confirmed_added_count": confirmed_added_count,
+            "write_mode_summary": write_mode_summary,
             "parse_result": pipeline_e2e_result.get("parse_result", {}),
             "pipeline_result": response_pipeline_result,
             "export_result": {
@@ -2926,6 +3189,7 @@ def api_v4_export_confirmed_excel(
                 "operations_written": export_result.get("operations_written", 0),
                 "warnings": export_result.get("warnings", []),
                 "template_source": template_source,
+                "write_mode_summary": write_mode_summary,
             },
             "render_preview": get_pipeline_state().get("render_preview", {}),
             "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),

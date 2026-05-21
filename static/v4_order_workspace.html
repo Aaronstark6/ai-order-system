@@ -1790,6 +1790,8 @@
                 data-label="${escapeHtml(item.label || "")}"
                 data-required="${item.required ? "true" : "false"}"
                 data-field-type="${escapeHtml(item.type || "text")}"
+                data-write-mode="${escapeHtml(item.write_mode || "")}"
+                data-intent-type="${escapeHtml(item.intent_type || "")}"
             `;
         }
 
@@ -1848,6 +1850,8 @@
                                         data-option-value="${escapeHtml(value)}"
                                         data-required="${group.required ? "true" : "false"}"
                                         data-field-type="single_choice"
+                                        data-write-mode="${escapeHtml(option.write_mode || group.write_mode || "")}"
+                                        data-intent-type="${escapeHtml(option.intent_type || group.intent_type || "")}"
                                         ${checked}
                                         onchange="markWorkspaceFieldManual(this); syncConfirmedCellsFromInputs()"
                                     >
@@ -2034,6 +2038,8 @@
                 field_key: input.dataset.fieldKey || "",
                 source: input.dataset.source || "",
                 label: input.dataset.label || "",
+                write_mode: input.dataset.writeMode || "",
+                intent_type: input.dataset.intentType || "",
                 option_value: input.dataset.optionValue || "",
                 value: input.value
             }));
@@ -2044,6 +2050,8 @@
                 field_key: input.dataset.fieldKey || "",
                 source: input.dataset.source || "",
                 label: input.dataset.label || "",
+                write_mode: input.dataset.writeMode || "",
+                intent_type: input.dataset.intentType || "",
                 option_value: input.dataset.optionValue || input.value,
                 value: input.value
             }));
