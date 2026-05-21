@@ -234,6 +234,13 @@ def _normalize_template_configuration_items(items):
             "candidate_source": str(item.get("candidate_source") or "").strip(),
             "candidate_reason": str(item.get("candidate_reason") or "").strip(),
             "confidence_breakdown": item.get("confidence_breakdown") if isinstance(item.get("confidence_breakdown"), dict) else {},
+            "intent_type": str(item.get("intent_type") or "").strip(),
+            "write_mode": str(item.get("write_mode") or "").strip(),
+            "label_cell": str(item.get("label_cell") or "").strip().upper(),
+            "target_cell": str(item.get("target_cell") or "").strip().upper(),
+            "option_value": str(item.get("option_value") or "").strip(),
+            "intent_confidence": float(item.get("intent_confidence") or 0),
+            "intent_reason": str(item.get("intent_reason") or "").strip(),
             "ai_extract_hint": str(item.get("ai_extract_hint") or "").strip(),
         }
     return configuration
@@ -331,6 +338,17 @@ def _cell_point(cell):
     return int(match.group(2)), col
 
 
+def _cell_ref(row, col):
+    if not row or not col or row < 1 or col < 1:
+        return ""
+    letters = ""
+    value = int(col)
+    while value:
+        value, remainder = divmod(value - 1, 26)
+        letters = chr(65 + remainder) + letters
+    return f"{letters}{int(row)}"
+
+
 def _section_for_cell(layout_sections, cell):
     point = _cell_point(cell)
     if not point:
@@ -350,6 +368,335 @@ def _section_for_cell(layout_sections, cell):
         if start_row <= row <= end_row and start_col <= col <= end_col:
             return section
     return {}
+
+
+def _safe_cell_text(value):
+    return "" if value is None else str(value).strip()
+
+
+def _load_template_intent_context(template_path):
+    if not template_path:
+        return {}
+    try:
+        from openpyxl import load_workbook
+    except Exception:
+        return {}
+
+    try:
+        workbook = load_workbook(template_path, data_only=False)
+        worksheet = workbook.active
+    except Exception:
+        return {}
+
+    merged_lookup = {}
+    try:
+        for merged_range in worksheet.merged_cells.ranges:
+            start_cell = merged_range.start_cell.coordinate
+            range_text = str(merged_range)
+            for row in range(merged_range.min_row, merged_range.max_row + 1):
+                for col in range(merged_range.min_col, merged_range.max_col + 1):
+                    merged_lookup[_cell_ref(row, col)] = {
+                        "start_cell": start_cell,
+                        "range": range_text,
+                        "min_row": merged_range.min_row,
+                        "max_row": merged_range.max_row,
+                        "min_col": merged_range.min_col,
+                        "max_col": merged_range.max_col,
+                    }
+    except Exception:
+        merged_lookup = {}
+
+    row_texts = {}
+    cells = {}
+    max_row = min(int(worksheet.max_row or 1), 200)
+    max_col = min(int(worksheet.max_column or 1), 80)
+    for row in range(1, max_row + 1):
+        row_values = []
+        for col in range(1, max_col + 1):
+            cell = worksheet.cell(row=row, column=col)
+            coord = cell.coordinate
+            text = _safe_cell_text(cell.value)
+            if text:
+                row_values.append(text)
+            merged = merged_lookup.get(coord, {})
+            cells[coord] = {
+                "row": row,
+                "col": col,
+                "value": text,
+                "font_size": float(cell.font.sz or 0) if getattr(cell, "font", None) else 0,
+                "bold": bool(cell.font.bold) if getattr(cell, "font", None) else False,
+                "align": str(cell.alignment.horizontal or "").lower() if getattr(cell, "alignment", None) else "",
+                "merged_start": merged.get("start_cell", ""),
+                "merged_range": merged.get("range", ""),
+                "is_merged": bool(merged),
+            }
+        row_texts[row] = row_values
+
+    return {
+        "cells": cells,
+        "row_texts": row_texts,
+        "max_row": max_row,
+        "max_col": max_col,
+    }
+
+
+def _intent_cell_info(context, cell):
+    cells = context.get("cells") if isinstance(context, dict) else {}
+    return cells.get(str(cell or "").strip().upper(), {}) if isinstance(cells, dict) else {}
+
+
+def _intent_cell_text(context, row, col):
+    if row < 1 or col < 1:
+        return ""
+    return str(_intent_cell_info(context, _cell_ref(row, col)).get("value") or "").strip()
+
+
+def _intent_blank_cell(context, row, col):
+    if row < 1 or col < 1:
+        return False
+    info = _intent_cell_info(context, _cell_ref(row, col))
+    if not info:
+        return True
+    return not str(info.get("value") or "").strip()
+
+
+def _intent_target_cell(context, row, col):
+    ref = _cell_ref(row, col)
+    info = _intent_cell_info(context, ref)
+    start_cell = str(info.get("merged_start") or "").strip().upper()
+    return start_cell or ref
+
+
+def _infer_right_target_cell(context, cell):
+    point = _cell_point(cell)
+    if not point:
+        return ""
+    row, col = point
+    for offset in range(1, 5):
+        target_col = col + offset
+        if target_col > int(context.get("max_col") or target_col):
+            break
+        if _intent_blank_cell(context, row, target_col):
+            return _intent_target_cell(context, row, target_col)
+    return ""
+
+
+def _infer_below_target_cell(context, cell):
+    point = _cell_point(cell)
+    if not point:
+        return ""
+    row, col = point
+    for offset in range(1, 4):
+        target_row = row + offset
+        if target_row > int(context.get("max_row") or target_row):
+            break
+        if _intent_blank_cell(context, target_row, col):
+            return _intent_target_cell(context, target_row, col)
+    return ""
+
+
+def _row_short_text_count(context, row):
+    row_texts = context.get("row_texts") if isinstance(context, dict) else {}
+    values = row_texts.get(row, []) if isinstance(row_texts, dict) else []
+    return sum(1 for value in values if 0 < len(str(value or "").strip()) <= 12)
+
+
+def _intent_for_label(label_text, cell, section, label_index, context):
+    text = str(label_text or "").strip()
+    normalized = _normalize_candidate_text(text)
+    point = _cell_point(cell)
+    row, col = point if point else (0, 0)
+    info = _intent_cell_info(context, cell)
+    section_type = str(section.get("section_type") or section.get("semantic_type") or section.get("title") or "").lower() if isinstance(section, dict) else ""
+    row_short_count = _row_short_text_count(context, row)
+    text_len = len(text)
+    has_colon = "：" in text or ":" in text
+    ends_colon = text.endswith(("：", ":"))
+    right_target = _infer_right_target_cell(context, cell)
+    below_target = _infer_below_target_cell(context, cell)
+
+    image_words = ["图片", "照片", "附图", "image", "photo"]
+    attachment_words = ["附件", "上传", "附档", "attachment", "upload"]
+    note_words = ["备注", "注意", "说明", "规则", "原则", "要求", "note", "instruction"]
+    example_words = ["示例", "例如", "默认", "样例", "example", "sample", "default"]
+    option_marks = ["□", "☐", "☑", "√", "✔", "[ ]", "（ ）", "( )"]
+
+    if any(word in text.lower() for word in attachment_words):
+        return {
+            "intent_type": "attachment_hint",
+            "write_mode": "skip",
+            "label_cell": cell,
+            "target_cell": "",
+            "option_value": "",
+            "intent_confidence": 0.82,
+            "intent_reason": "attachment_keyword",
+        }
+    if any(word in text.lower() for word in image_words):
+        return {
+            "intent_type": "image_area",
+            "write_mode": "skip",
+            "label_cell": cell,
+            "target_cell": "",
+            "option_value": "",
+            "intent_confidence": 0.82,
+            "intent_reason": "image_keyword",
+        }
+
+    if any(mark in text for mark in option_marks):
+        option_value = re.sub(r"[□☐☑√✔\[\]\(\)（）\s]+", "", text).strip("：:")
+        return {
+            "intent_type": "option_checkbox",
+            "write_mode": "check_option",
+            "label_cell": cell,
+            "target_cell": cell,
+            "option_value": option_value,
+            "intent_confidence": 0.86,
+            "intent_reason": "checkbox_mark",
+        }
+
+    if row_short_count >= 3 and text_len <= 12 and not has_colon:
+        return {
+            "intent_type": "option_text_choice",
+            "write_mode": "select_option_text",
+            "label_cell": cell,
+            "target_cell": cell,
+            "option_value": text,
+            "intent_confidence": 0.68,
+            "intent_reason": "multiple_short_options_in_row",
+        }
+
+    if row <= 3 and (
+        info.get("is_merged")
+        or info.get("align") == "center"
+        or float(info.get("font_size") or 0) >= 14
+        or info.get("bold")
+    ):
+        return {
+            "intent_type": "title",
+            "write_mode": "none",
+            "label_cell": cell,
+            "target_cell": "",
+            "option_value": "",
+            "intent_confidence": 0.86,
+            "intent_reason": "top_merged_center_or_large_text",
+        }
+
+    if (
+        "table" in section_type
+        and text_len <= 16
+        and row <= int((section.get("bounds") or {}).get("start_row") or row) + 1
+    ):
+        return {
+            "intent_type": "table_column_header",
+            "write_mode": "write_table_column",
+            "label_cell": cell,
+            "target_cell": below_target,
+            "option_value": "",
+            "intent_confidence": 0.78 if below_target else 0.62,
+            "intent_reason": "table_section_header_row",
+        }
+
+    if "table" in section_type and col <= int((section.get("bounds") or {}).get("start_col") or col):
+        return {
+            "intent_type": "table_row_field",
+            "write_mode": "write_row_field",
+            "label_cell": cell,
+            "target_cell": right_target,
+            "option_value": "",
+            "intent_confidence": 0.72 if right_target else 0.58,
+            "intent_reason": "table_left_row_label",
+        }
+
+    if any(word in text.lower() for word in example_words):
+        return {
+            "intent_type": "readonly_example",
+            "write_mode": "skip",
+            "label_cell": cell,
+            "target_cell": "",
+            "option_value": "",
+            "intent_confidence": 0.72,
+            "intent_reason": "example_or_default_keyword",
+        }
+
+    if any(word in text.lower() for word in note_words) or text_len >= 28:
+        return {
+            "intent_type": "note_instruction",
+            "write_mode": "skip",
+            "label_cell": cell,
+            "target_cell": "",
+            "option_value": "",
+            "intent_confidence": 0.76,
+            "intent_reason": "long_instruction_or_note_keyword",
+        }
+
+    if ends_colon and right_target:
+        return {
+            "intent_type": "label_fill_right",
+            "write_mode": "write_right_cell",
+            "label_cell": cell,
+            "target_cell": right_target,
+            "option_value": "",
+            "intent_confidence": 0.84,
+            "intent_reason": "colon_label_with_blank_right_cell",
+        }
+
+    if ends_colon and below_target:
+        return {
+            "intent_type": "label_fill_below",
+            "write_mode": "write_below_cell",
+            "label_cell": cell,
+            "target_cell": below_target,
+            "option_value": "",
+            "intent_confidence": 0.74,
+            "intent_reason": "colon_label_with_blank_below_cell",
+        }
+
+    if has_colon and not ends_colon:
+        return {
+            "intent_type": "inline_fill_after_colon",
+            "write_mode": "append_after_colon",
+            "label_cell": cell,
+            "target_cell": cell,
+            "option_value": "",
+            "intent_confidence": 0.7,
+            "intent_reason": "inline_colon_text",
+        }
+
+    if (
+        text_len <= 18
+        and (info.get("bold") or info.get("is_merged") or "section" in section_type or "block" in section_type)
+        and not right_target
+    ):
+        return {
+            "intent_type": "section_header",
+            "write_mode": "none",
+            "label_cell": cell,
+            "target_cell": "",
+            "option_value": "",
+            "intent_confidence": 0.64,
+            "intent_reason": "short_bold_or_merged_section_text",
+        }
+
+    if right_target:
+        return {
+            "intent_type": "label_fill_right",
+            "write_mode": "write_right_cell",
+            "label_cell": cell,
+            "target_cell": right_target,
+            "option_value": "",
+            "intent_confidence": 0.56,
+            "intent_reason": "short_label_with_blank_right_cell",
+        }
+
+    return {
+        "intent_type": "unknown",
+        "write_mode": "skip",
+        "label_cell": cell,
+        "target_cell": "",
+        "option_value": "",
+        "intent_confidence": 0.2,
+        "intent_reason": "no_reliable_intent_rule_matched",
+    }
 
 
 def _mapping_rule_by_key():
@@ -513,9 +860,10 @@ def _neighbor_label_text(labels, index, cell):
     return " ".join(texts)
 
 
-def _generate_mapping_candidates(template_analysis, layout_sections):
+def _generate_mapping_candidates(template_analysis, layout_sections, template_path=None):
     analysis = template_analysis if isinstance(template_analysis, dict) else {}
     labels = analysis.get("labels") if isinstance(analysis.get("labels"), list) else []
+    intent_context = _load_template_intent_context(template_path)
     candidates = []
     seen_cells = set()
     for index, label in enumerate(labels, 1):
@@ -529,6 +877,7 @@ def _generate_mapping_candidates(template_analysis, layout_sections):
         section = _section_for_cell(layout_sections, cell)
         neighbor_text = _neighbor_label_text(labels, index - 1, cell)
         candidate = _candidate_for_label(label_text, section, index, len(labels), cell, neighbor_text)
+        intent = _intent_for_label(label_text, cell, section, index, intent_context)
         section_name = (
             section.get("title")
             or section.get("source_region_name")
@@ -547,6 +896,13 @@ def _generate_mapping_candidates(template_analysis, layout_sections):
                 "ai_extract_hint": candidate["ai_extract_hint"],
                 "candidate_reason": candidate.get("candidate_reason", ""),
                 "confidence_breakdown": candidate.get("confidence_breakdown", {}),
+                "intent_type": intent.get("intent_type", "unknown"),
+                "write_mode": intent.get("write_mode", "skip"),
+                "label_cell": intent.get("label_cell", cell),
+                "target_cell": intent.get("target_cell", ""),
+                "option_value": intent.get("option_value", ""),
+                "intent_confidence": intent.get("intent_confidence", 0),
+                "intent_reason": intent.get("intent_reason", ""),
                 "label_text": label_text,
                 "display_order": index,
             }
@@ -1162,7 +1518,7 @@ def api_v4_template_profile_configuration(profile_id: str):
         analysis = analyze_template(bound_template_path)
         layout_result = build_layout_sections_from_template_analysis(analysis)
         layout_sections = layout_result.get("layout_sections", [])
-        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections)
+        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
         return {
             "success": True,
             "profile": profile,

@@ -606,6 +606,13 @@
                     candidateSource: item.candidate_source || candidate.source || "",
                     candidateReason: item.candidate_reason || candidate.candidate_reason || "",
                     confidenceBreakdown,
+                    intentType: item.intent_type || candidate.intent_type || "unknown",
+                    writeMode: item.write_mode || candidate.write_mode || "skip",
+                    labelCell: item.label_cell || candidate.label_cell || row.cell || "",
+                    targetCell: item.target_cell || candidate.target_cell || "",
+                    optionValue: item.option_value || candidate.option_value || "",
+                    intentConfidence: Number(item.intent_confidence || candidate.intent_confidence || 0),
+                    intentReason: item.intent_reason || candidate.intent_reason || "",
                     aiExtractHint: item.ai_extract_hint || candidate.ai_extract_hint || "",
                 };
             });
@@ -642,6 +649,13 @@
                     candidate_source: row.dataset.candidateSource || "",
                     candidate_reason: row.dataset.candidateReason || "",
                     confidence_breakdown: parseObjectJson(row.dataset.confidenceBreakdown || "{}"),
+                    intent_type: row.dataset.intentType || "",
+                    write_mode: row.dataset.writeMode || "",
+                    label_cell: row.dataset.labelCell || "",
+                    target_cell: row.dataset.targetCell || "",
+                    option_value: row.dataset.optionValue || "",
+                    intent_confidence: Number(row.dataset.intentConfidence || 0),
+                    intent_reason: row.dataset.intentReason || "",
                     ai_extract_hint: hintInput ? hintInput.value.trim() : "",
                 };
             }).filter((item) => item.cell);
@@ -756,7 +770,7 @@
                                 </thead>
                                 <tbody>
                                     ${section.rows.map((row) => `
-                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}"` : ""}>
+                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}"` : ""}>
                                             <td>${escapeHtml(row.cell || "-")}</td>
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>
@@ -773,6 +787,13 @@
                                                         <div class="debug-item"><div class="debug-label">Confidence Breakdown</div><div class="debug-value">${escapeHtml(formatConfidenceBreakdown(row.confidenceBreakdown))}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Section Hint</div><div class="debug-value">${escapeHtml(row.aiExtractHint || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Candidate Source</div><div class="debug-value">${escapeHtml(row.candidateSource || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">意图</div><div class="debug-value">${escapeHtml(row.intentType || "unknown")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">写入方式</div><div class="debug-value">${escapeHtml(row.writeMode || "skip")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">目标单元格</div><div class="debug-value">${escapeHtml(row.targetCell || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Label Cell</div><div class="debug-value">${escapeHtml(row.labelCell || row.cell || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Option Value</div><div class="debug-value">${escapeHtml(row.optionValue || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Intent Confidence</div><div class="debug-value">${row.intentConfidence ? Number(row.intentConfidence).toFixed(2) : "-"}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">Intent Reason</div><div class="debug-value">${escapeHtml(row.intentReason || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Section</div><div class="debug-value">${escapeHtml(row.section || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Type</div><div class="debug-value">${escapeHtml(row.type || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">Candidate Label</div><div class="debug-value">${escapeHtml(row.candidateFieldLabel || "-")}</div></div>
