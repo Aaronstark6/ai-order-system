@@ -446,6 +446,113 @@ def _build_ai_extraction_contract_from_profile(profile):
     return contract
 
 
+def _is_blank_extracted_value(value):
+    if value is None:
+        return True
+    if isinstance(value, str):
+        text = value.strip()
+        return not text or text.lower() in {"null", "none", "n/a", "na"}
+    if isinstance(value, (list, dict)):
+        return len(value) == 0
+    return False
+
+
+def _stringify_extracted_value(value):
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value).strip()
+
+
+def _bind_parsed_fields_to_template_cells(parsed, profile):
+    parsed_fields = parsed if isinstance(parsed, dict) else {}
+    contract = _build_ai_extraction_contract_from_profile(profile)
+    confirmed_cells = []
+    operations = []
+
+    for item in contract:
+        field_key = str(item.get("field_key") or "").strip()
+        cell = _cell_key(item.get("cell"))
+        if not field_key or not cell:
+            continue
+        if field_key not in parsed_fields:
+            continue
+
+        raw_value = parsed_fields.get(field_key)
+        if _is_blank_extracted_value(raw_value):
+            continue
+
+        value = _stringify_extracted_value(raw_value)
+        label = str(item.get("field_label") or field_key).strip() or field_key
+        source = "AI Extraction Contract"
+        confirmed_cells.append(
+            {
+                "cell": cell,
+                "display_cell": cell,
+                "source": source,
+                "label": label,
+                "value": value,
+                "field_key": field_key,
+            }
+        )
+        operations.append(
+            {
+                "op_type": "write_text",
+                "target_cell": cell,
+                "value": value,
+                "source": source,
+                "field_key": field_key,
+                "field_label": label,
+                "mapping_confirmed": True,
+                "ai_extraction_contract": True,
+            }
+        )
+
+    return {
+        "confirmed_cells": confirmed_cells,
+        "operations": operations,
+    }
+
+
+def _merge_field_bound_operations(processed_operations, field_bound_operations):
+    operations = deepcopy(processed_operations) if isinstance(processed_operations, list) else []
+    bound_operations = field_bound_operations if isinstance(field_bound_operations, list) else []
+    operation_index_by_cell = {}
+    for index, operation in enumerate(operations):
+        if not isinstance(operation, dict):
+            continue
+        cell = _cell_key(operation.get("target_cell") or operation.get("cell") or operation.get("display_cell"))
+        if cell:
+            operation_index_by_cell[cell] = index
+
+    added_count = 0
+    override_count = 0
+    for bound_operation in bound_operations:
+        if not isinstance(bound_operation, dict):
+            continue
+        cell = _cell_key(bound_operation.get("target_cell"))
+        if not cell:
+            continue
+        existing_index = operation_index_by_cell.get(cell)
+        if existing_index is None:
+            operations.append(deepcopy(bound_operation))
+            operation_index_by_cell[cell] = len(operations) - 1
+            added_count += 1
+            continue
+
+        operations[existing_index] = {
+            **operations[existing_index],
+            **deepcopy(bound_operation),
+            "ai_extraction_override": True,
+        }
+        override_count += 1
+
+    return {
+        "processed_operations": operations,
+        "added_count": added_count,
+        "override_count": override_count,
+    }
+
+
 def _normalize_section_configuration_items(items):
     if items is None:
         return {}
@@ -1646,6 +1753,8 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "pipeline_state": get_pipeline_state(),
         }
 
+    field_binding_result = _bind_parsed_fields_to_template_cells(parsed, current_profile)
+
     normalized = normalize_flat_order_to_v4_order_object(parsed)
     order_object = normalized.get("order_object") if isinstance(normalized, dict) else {}
     if not isinstance(order_object, dict) or not order_object:
@@ -1655,6 +1764,8 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "parsed": parsed,
             "normalized": normalized,
             "last_extraction_contract": extraction_contract,
+            "confirmed_cells": field_binding_result.get("confirmed_cells", []),
+            "field_bound_operations": field_binding_result.get("operations", []),
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
         }
@@ -1671,6 +1782,8 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "message": "Chat 已解析为 V4 Order Object 并加载",
         "parsed": parsed,
         "last_extraction_contract": extraction_contract,
+        "confirmed_cells": field_binding_result.get("confirmed_cells", []),
+        "field_bound_operations": field_binding_result.get("operations", []),
         "warnings": normalized.get("warnings", []),
         "source_keys": normalized.get("source_keys", []),
         "order_object": order_object,
@@ -1704,6 +1817,29 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "pipeline_state": get_pipeline_state(),
         }
 
+    field_bound_operations = parse_result.get("field_bound_operations", [])
+    field_binding_merge = _merge_field_bound_operations(
+        pipeline_result.get("processed_operations", []),
+        field_bound_operations,
+    )
+    if field_bound_operations:
+        from app.v4_render_preview import build_render_preview
+
+        processed_operations = field_binding_merge.get("processed_operations", [])
+        pipeline_result["processed_operations"] = processed_operations
+        pipeline_result["field_bound_operation_count"] = len(field_bound_operations)
+        pipeline_result["field_bound_added_count"] = field_binding_merge.get("added_count", 0)
+        pipeline_result["field_bound_override_count"] = field_binding_merge.get("override_count", 0)
+        state = get_pipeline_state()
+        set_pipeline_result(processed_operations, pipeline_result.get("stages", []))
+        render_preview = build_render_preview(
+            processed_operations,
+            state.get("mapping_safety", {}),
+            state.get("current_template_path"),
+        )
+        set_render_preview(render_preview)
+        pipeline_result["render_preview"] = render_preview
+
     return {
         "success": True,
         "message": "Chat 已解析并完成 V4 Core Pipeline",
@@ -1712,6 +1848,8 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "source_keys": parse_result.get("source_keys", []),
             "order_object": parse_result.get("order_object", {}),
             "last_extraction_contract": parse_result.get("last_extraction_contract", []),
+            "confirmed_cells": parse_result.get("confirmed_cells", []),
+            "field_bound_operations": field_bound_operations,
             "chat_preprocess": parse_result.get("chat_preprocess", {}),
         },
         "pipeline_result": {
