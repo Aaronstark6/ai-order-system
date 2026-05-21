@@ -119,6 +119,23 @@
             max-width: 420px;
             width: auto;
         }
+        .config-actions {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+        .field-input {
+            min-width: 150px;
+        }
+        .order-input {
+            max-width: 86px;
+        }
+        .show-checkbox {
+            min-height: auto;
+            width: auto;
+        }
         button {
             background: #1677ff;
             border: none;
@@ -184,6 +201,8 @@
             .row, .summary-grid { grid-template-columns: 1fr; }
             input[type="file"] { width: 100%; }
             button { width: 100%; }
+            .config-actions { align-items: stretch; flex-direction: column; }
+            .field-input, .order-input { max-width: none; width: 100%; }
         }
     </style>
 </head>
@@ -321,7 +340,7 @@
         }
 
         async function loadMappingConfiguration(mappingId) {
-            if (!mappingId) return { labels: [], sections: [], analysis: {} };
+            if (!mappingId) return { labels: [], structureLabels: [], sections: [], analysis: {}, savedConfiguration: {} };
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/configuration`);
             const analysis = result.template_analysis && typeof result.template_analysis === "object" ? result.template_analysis : {};
             const structure = analysis.template_structure && typeof analysis.template_structure === "object" ? analysis.template_structure : {};
@@ -330,7 +349,10 @@
             );
             const structureLabels = Array.isArray(structure.labels) ? structure.labels : [];
             const sections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
-            const config = { labels, structureLabels, sections, analysis };
+            const savedConfiguration = result.template_configuration && typeof result.template_configuration === "object"
+                ? result.template_configuration
+                : {};
+            const config = { labels, structureLabels, sections, analysis, savedConfiguration };
             configByMappingId[mappingId] = config;
             return config;
         }
@@ -400,7 +422,7 @@
 
             input.value = "";
             const newId = getMappingId(result.profile);
-            configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {} };
+            configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {}, savedConfiguration: {} };
             await loadMappings(newId);
             setStatus("映射已创建。", "success");
         }
@@ -450,7 +472,7 @@
 
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
-            configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {} };
+            configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {}, savedConfiguration: {} };
             updateCurrentState();
             renderConfig();
             setInlineStatus("模板文件已删除。");
@@ -618,6 +640,67 @@
             });
         }
 
+        function applySavedConfiguration(rows, savedConfiguration) {
+            const saved = savedConfiguration && typeof savedConfiguration === "object" ? savedConfiguration : {};
+            let naturalOrder = 0;
+            return rows.map((row) => {
+                naturalOrder += 1;
+                const key = normalizeCell(row.cell);
+                const item = key ? saved[key] || {} : {};
+                const savedOrder = Number(item.display_order);
+                return {
+                    ...row,
+                    configLabel: typeof item.label === "string" && item.label.trim() ? item.label : row.text,
+                    showInWorkspace: typeof item.show_in_workspace === "boolean" ? item.show_in_workspace : true,
+                    displayOrder: Number.isFinite(savedOrder) && savedOrder > 0 ? savedOrder : naturalOrder,
+                };
+            });
+        }
+
+        function collectEditableConfiguration() {
+            return Array.from(document.querySelectorAll("#templateConfigArea tbody tr[data-cell]")).map((row) => {
+                const cell = row.dataset.cell || "";
+                const labelInput = row.querySelector("input[data-config-field='label']");
+                const showInput = row.querySelector("input[data-config-field='show']");
+                const orderInput = row.querySelector("input[data-config-field='order']");
+                return {
+                    cell,
+                    label: labelInput ? labelInput.value.trim() : "",
+                    show_in_workspace: showInput ? showInput.checked : true,
+                    display_order: orderInput ? Number(orderInput.value || 0) : 0,
+                };
+            }).filter((item) => item.cell);
+        }
+
+        async function saveTemplateConfiguration() {
+            if (!selectedMappingId) {
+                setStatus("请先选择映射。", "warning");
+                return;
+            }
+            const items = collectEditableConfiguration();
+            if (!items.length) {
+                setStatus("当前没有可保存的模板配置。", "warning");
+                return;
+            }
+
+            setStatus("正在保存模板配置...", "info");
+            const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/configuration`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ items }),
+            });
+            const cached = configByMappingId[selectedMappingId] || {};
+            configByMappingId[selectedMappingId] = {
+                ...cached,
+                savedConfiguration: result.template_configuration || {},
+            };
+            if (result.profile) {
+                selectedMapping = result.profile;
+                mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
+            }
+            setStatus("模板配置已保存。", "success");
+        }
+
         function renderConfig() {
             const area = document.getElementById("templateConfigArea");
             const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
@@ -628,7 +711,10 @@
             const sections = Array.isArray(cached?.sections) ? cached.sections : (
                 Array.isArray(selectedMapping?.layout_sections) ? selectedMapping.layout_sections : []
             );
-            const rows = buildConfigRows(labels, structureLabels, sections);
+            const rows = applySavedConfiguration(
+                buildConfigRows(labels, structureLabels, sections),
+                cached?.savedConfiguration
+            );
 
             if (!rows.length) {
                 area.className = "config-empty";
@@ -638,6 +724,9 @@
 
             area.className = "";
             area.innerHTML = `
+                <div class="config-actions">
+                    <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
+                </div>
                 <table>
                     <thead>
                         <tr>
@@ -645,15 +734,27 @@
                             <th>字段名/识别文本</th>
                             <th>区域</th>
                             <th>类型</th>
+                            <th>字段名称</th>
+                            <th>工作页显示</th>
+                            <th>顺序</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${rows.map((row) => `
-                            <tr>
+                            <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}"` : ""}>
                                 <td>${escapeHtml(row.cell || "-")}</td>
                                 <td>${escapeHtml(row.text || "-")}</td>
                                 <td>${escapeHtml(row.section || "-")}</td>
                                 <td>${escapeHtml(row.type || "-")}</td>
+                                <td>
+                                    <input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}>
+                                </td>
+                                <td>
+                                    <input class="show-checkbox" data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${row.cell ? "" : "disabled"}>
+                                </td>
+                                <td>
+                                    <input class="order-input" data-config-field="order" type="number" min="1" value="${escapeHtml(row.displayOrder || 1)}" ${row.cell ? "" : "disabled"}>
+                                </td>
                             </tr>
                         `).join("")}
                     </tbody>

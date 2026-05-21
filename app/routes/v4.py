@@ -197,6 +197,33 @@ def _resolve_template_profile_json_path_for_delete(profile_id, profile):
     return target_path
 
 
+def _template_configuration_from_profile(profile):
+    render_config = profile.get("render_config") if isinstance(profile, dict) else {}
+    if not isinstance(render_config, dict):
+        return {}
+    configuration = render_config.get("template_configuration")
+    return deepcopy(configuration) if isinstance(configuration, dict) else {}
+
+
+def _normalize_template_configuration_items(items):
+    if not isinstance(items, list):
+        raise ValueError("配置项必须是 list")
+
+    configuration = {}
+    for index, item in enumerate(items, 1):
+        if not isinstance(item, dict):
+            continue
+        cell = str(item.get("cell") or "").strip().upper()
+        if not cell:
+            continue
+        configuration[cell] = {
+            "label": str(item.get("label") or "").strip(),
+            "show_in_workspace": bool(item.get("show_in_workspace", True)),
+            "display_order": int(item.get("display_order") or index),
+        }
+    return configuration
+
+
 def _current_template_profile_for_export():
     state = get_pipeline_state()
     profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
@@ -621,6 +648,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_analysis": {},
             "template_labels": [],
             "template_analysis_summary": {},
+            "template_configuration": _template_configuration_from_profile(profile),
         }
 
     try:
@@ -636,6 +664,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_analysis": analysis if isinstance(analysis, dict) else {},
             "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
             "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "template_configuration": _template_configuration_from_profile(profile),
         }
     except (BadZipFile, InvalidFileException) as exc:
         logger.warning("V4 template profile configuration invalid Excel: profile_id=%s", profile_id, exc_info=True)
@@ -659,6 +688,49 @@ def api_v4_template_profile_configuration(profile_id: str):
             "error": str(exc) or "模板配置加载失败",
             "layout_sections": [],
             "template_analysis": {},
+        }
+
+
+@router.post("/api/v4/template-profiles/{profile_id}/configuration")
+def api_v4_template_profile_configuration_save(profile_id: str, payload: Any = Body(None)):
+    logger.info("V4 template profile configuration save requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "映射不存在",
+        }
+
+    try:
+        payload = payload if isinstance(payload, dict) else {}
+        configuration = _normalize_template_configuration_items(payload.get("items"))
+        render_config = profile.get("render_config") if isinstance(profile.get("render_config"), dict) else {}
+        profile["render_config"] = {
+            **render_config,
+            "template_configuration": configuration,
+        }
+        saved_profile = save_template_profile(profile)
+        state = get_pipeline_state()
+        current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+        if current_profile.get("profile_id") == saved_profile.get("profile_id"):
+            state = set_current_profile(saved_profile)
+        return {
+            "success": True,
+            "message": "模板配置已保存",
+            "profile": saved_profile,
+            "template_configuration": _template_configuration_from_profile(saved_profile),
+            "pipeline_state": state,
+        }
+    except ValueError as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile configuration save failed")
+        return {
+            "success": False,
+            "error": str(exc) or "模板配置保存失败",
         }
 
 
