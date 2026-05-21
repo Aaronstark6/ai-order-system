@@ -174,6 +174,29 @@ def _resolve_template_file_path_for_delete(path_value):
     return resolved
 
 
+def _safe_template_profile_id(value):
+    text = str(value or "").strip().lower()
+    text = re.sub(r"\s+", "_", text)
+    text = re.sub(r"[^\w.-]+", "_", text, flags=re.UNICODE)
+    text = text.strip("._")
+    return text or "default_profile"
+
+
+def _resolve_template_profile_json_path_for_delete(profile_id, profile):
+    safe_id = _safe_template_profile_id(profile_id)
+    profile_safe_id = _safe_template_profile_id(profile.get("profile_id") if isinstance(profile, dict) else "")
+    if profile_safe_id != safe_id:
+        raise ValueError("映射文件校验失败")
+
+    profiles_dir = (get_base_dir() / "v4" / "template_profiles").resolve()
+    target_path = (profiles_dir / f"{safe_id}.json").resolve()
+    try:
+        target_path.relative_to(profiles_dir)
+    except ValueError as exc:
+        raise ValueError("映射文件不允许位于项目目录外") from exc
+    return target_path
+
+
 def _current_template_profile_for_export():
     state = get_pipeline_state()
     profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
@@ -594,6 +617,47 @@ def api_v4_template_profile_create(payload: Any = Body(None)):
         }
 
 
+@router.post("/api/v4/template-profiles/create-empty")
+def api_v4_template_profile_create_empty(payload: Any = Body(None)):
+    logger.info("V4 template profile create empty requested")
+    try:
+        payload = payload if isinstance(payload, dict) else {}
+        profile_name = str(payload.get("profile_name") or "").strip()
+        if not profile_name:
+            return {
+                "success": False,
+                "error": "映射名称不能为空",
+            }
+
+        base_id = _safe_template_profile_id(profile_name)
+        profile_id = base_id
+        if load_template_profile(profile_id):
+            profile_id = f"{base_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:6]}"
+
+        profile = create_template_profile(
+            {
+                "profile_id": profile_id,
+                "profile_name": profile_name,
+                "template_name": "",
+                "template_filename": "",
+                "template_file_path": "",
+            }
+        )
+        validation = validate_template_profile(profile)
+        return {
+            "success": True,
+            "message": "映射已创建",
+            "profile": profile,
+            "validation": validation,
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile create empty failed")
+        return {
+            "success": False,
+            "error": str(exc) or "映射创建失败",
+        }
+
+
 @router.post("/api/v4/template-profiles/save")
 def api_v4_template_profile_save(payload: Any = Body(None)):
     logger.info("V4 template profile save requested")
@@ -771,6 +835,61 @@ def api_v4_template_profile_delete_template_file(profile_id: str):
         return {
             "success": False,
             "error": str(exc) or "模板文件删除失败",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+
+@router.post("/api/v4/template-profiles/{profile_id}/delete")
+def api_v4_template_profile_delete(profile_id: str):
+    logger.info("V4 template profile delete requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "映射不存在",
+        }
+
+    try:
+        template_file_path = str(profile.get("template_file_path") or "").strip()
+        template_deleted = False
+        if template_file_path:
+            target_path = _resolve_template_file_path_for_delete(template_file_path)
+            if target_path and target_path.exists():
+                if not target_path.is_file():
+                    raise ValueError("模板文件路径不是文件")
+                target_path.unlink()
+                template_deleted = True
+
+        profile_path = _resolve_template_profile_json_path_for_delete(profile_id, profile)
+        if not profile_path.is_file():
+            return {
+                "success": False,
+                "error": "映射不存在",
+            }
+        profile_path.unlink()
+
+        state = get_pipeline_state()
+        current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+        if _safe_template_profile_id(current_profile.get("profile_id")) == _safe_template_profile_id(profile_id):
+            set_current_profile({})
+            set_current_template(None)
+
+        return {
+            "success": True,
+            "message": "映射已删除",
+            "template_file_deleted": template_deleted,
+        }
+    except ValueError as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile delete failed")
+        return {
+            "success": False,
+            "error": str(exc) or "映射删除失败",
             "pipeline_state": get_pipeline_state(),
         }
 
