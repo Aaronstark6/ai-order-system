@@ -241,6 +241,10 @@
             font-size: 12px;
             gap: 6px;
         }
+        .visual-legend-item input {
+            min-height: auto;
+            width: auto;
+        }
         .visual-legend-mark {
             background: #fff;
             border: 1px solid #d0d5dd;
@@ -311,9 +315,15 @@
         .visual-cell.title-field { box-shadow: inset 4px 0 0 #722ed1, inset 0 -3px 0 #722ed1; }
         .visual-cell.skip-field { box-shadow: inset 4px 0 0 #8c8c8c, inset 0 -3px 0 #8c8c8c; }
         .visual-cell.unknown-field { box-shadow: inset 4px 0 0 #faad14, inset 0 -3px 0 #faad14; }
+        .visual-cell.intent-filtered {
+            filter: grayscale(0.8);
+            opacity: 0.25;
+        }
         .visual-cell.selected {
             background: #e6f7ff;
             border: 2px solid #1890ff;
+            filter: none;
+            opacity: 1;
             box-shadow: inset 0 0 0 2px #1890ff, 0 0 0 2px rgba(24, 144, 255, 0.35), 0 4px 12px rgba(24, 144, 255, 0.3) !important;
             outline: 2px solid #0050b3;
             outline-offset: -2px;
@@ -425,11 +435,11 @@
             <div id="visualWorkbench" class="visual-workbench">
                 <div class="visual-workbench-title">可视化模板配置</div>
                 <div class="visual-legend" aria-label="单元格意图图例">
-                    <span class="visual-legend-item"><span class="visual-legend-mark fill-field"></span>可填写字段</span>
-                    <span class="visual-legend-item"><span class="visual-legend-mark option-field"></span>选项</span>
-                    <span class="visual-legend-item"><span class="visual-legend-mark title-field"></span>标题/分组</span>
-                    <span class="visual-legend-item"><span class="visual-legend-mark skip-field"></span>说明/跳过</span>
-                    <span class="visual-legend-item"><span class="visual-legend-mark unknown-field"></span>未知</span>
+                    <label class="visual-legend-item"><input type="checkbox" data-intent-layer="fill-field" checked onchange="toggleVisualIntentLayer(this)"><span class="visual-legend-mark fill-field"></span>可填写字段</label>
+                    <label class="visual-legend-item"><input type="checkbox" data-intent-layer="option-field" checked onchange="toggleVisualIntentLayer(this)"><span class="visual-legend-mark option-field"></span>选项</label>
+                    <label class="visual-legend-item"><input type="checkbox" data-intent-layer="title-field" checked onchange="toggleVisualIntentLayer(this)"><span class="visual-legend-mark title-field"></span>标题/分组</label>
+                    <label class="visual-legend-item"><input type="checkbox" data-intent-layer="skip-field" checked onchange="toggleVisualIntentLayer(this)"><span class="visual-legend-mark skip-field"></span>说明/跳过</label>
+                    <label class="visual-legend-item"><input type="checkbox" data-intent-layer="unknown-field" checked onchange="toggleVisualIntentLayer(this)"><span class="visual-legend-mark unknown-field"></span>未知</label>
                 </div>
                 <div class="visual-workbench-hint">提示：点击左侧模板单元格，查看 V4 对模板结构的理解与推荐配置。</div>
                 <div class="visual-workbench-body">
@@ -452,6 +462,13 @@
         let configByMappingId = {};
         let visualGridByMappingId = {};
         let selectedVisualCell = "";
+        let visualIntentLayerFilters = {
+            "fill-field": true,
+            "option-field": true,
+            "title-field": true,
+            "skip-field": true,
+            "unknown-field": true,
+        };
 
         function profileKey() { return "profile" + "_id"; }
 
@@ -903,6 +920,20 @@
             return INTENT_CLASS_BY_TYPE[String(intentType || "").trim()] || "unknown-field";
         }
 
+        function isVisualIntentLayerVisible(intentClass) {
+            return visualIntentLayerFilters[intentClass] !== false;
+        }
+
+        function toggleVisualIntentLayer(input) {
+            const intentClass = input?.dataset?.intentLayer || "";
+            if (!intentClass) return;
+            visualIntentLayerFilters = {
+                ...visualIntentLayerFilters,
+                [intentClass]: Boolean(input.checked),
+            };
+            renderVisualWorkbench();
+        }
+
         function renderVisualDetail(cell) {
             const area = document.getElementById("visualCellDetail");
             if (!area) return;
@@ -1055,6 +1086,7 @@
                     if (mergeLookup.skip.has(cellRef)) continue;
                     const cell = byCell[cellRef] || { cell: cellRef, display_value: "" };
                     const effective = getVisualCellEffectiveConfig(cell) || cell;
+                    const intentClass = getIntentVisualClass(effective.intent_type);
                     const hasText = Boolean(cell.display_value || cell.value);
                     const hasV4 = Boolean(effective.candidate_field_key || (effective.intent_type && effective.intent_type !== "unknown"));
                     const mergeSize = mergeLookup.start[cellRef] || {};
@@ -1064,7 +1096,8 @@
                         "visual-cell",
                         hasText ? "has-text" : "",
                         hasV4 ? "has-v4" : "",
-                        getIntentVisualClass(effective.intent_type),
+                        intentClass,
+                        !isVisualIntentLayerVisible(intentClass) ? "intent-filtered" : "",
                         cell.is_merged ? "merged-cell" : "",
                         selectedVisualCell === cellRef ? "selected" : "",
                     ].filter(Boolean).join(" ");
