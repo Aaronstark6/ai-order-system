@@ -1383,6 +1383,9 @@
                 section: field.section || "",
                 workspaceOrder: Number.isFinite(displayOrder) && displayOrder > 0 ? displayOrder : null,
                 source: "Visual Mapping",
+                row_offset: Number(field.row_offset || 0),
+                col_offset: Number(field.col_offset || field.table_col_offset || field.column_offset || 0),
+                table_col_offset: Number(field.table_col_offset || field.col_offset || field.column_offset || 0),
             };
         }
 
@@ -2414,6 +2417,8 @@
                 data-image-anchor-cell="${escapeHtml(item.image_anchor_cell || item.target_cell || item.cell || "")}"
                 data-write-mode="${escapeHtml(item.write_mode || "")}"
                 data-intent-type="${escapeHtml(item.intent_type || "")}"
+                data-row-offset="${Number(item.row_offset || 0)}"
+                data-col-offset="${Number(item.col_offset || item.table_col_offset || 0)}"
             `;
         }
 
@@ -2454,6 +2459,8 @@
                     data-field-type="image"
                     data-image-fit="${escapeHtml(item.image_fit || item.config?.image_fit || "contain")}"
                     data-image-anchor-cell="${escapeHtml(item.image_anchor_cell || item.target_cell || item.cell || "")}"
+                    data-row-offset="${Number(item.row_offset || 0)}"
+                    data-col-offset="${Number(item.col_offset || item.table_col_offset || 0)}"
                 >
                     <input
                         type="file"
@@ -2491,6 +2498,8 @@
                     display_cell: wrapper.dataset.displayCell || wrapper.dataset.cell || "",
                     source_cell: wrapper.dataset.sourceCell || "",
                     source: wrapper.dataset.source || "",
+                    row_offset: Number(wrapper.dataset.rowOffset || 0),
+                    col_offset: Number(wrapper.dataset.colOffset || 0),
                 };
                 window.workspaceImageValues = workspaceImageValues;
                 const preview = wrapper.querySelector("[data-image-preview]");
@@ -2874,7 +2883,9 @@
                 write_mode: input.dataset.writeMode || "",
                 intent_type: input.dataset.intentType || "",
                 option_value: input.dataset.optionValue || "",
-                value: input.value
+                value: input.value,
+                row_offset: Number(input.dataset.rowOffset || 0),
+                col_offset: Number(input.dataset.colOffset || 0),
             }));
             const radioItems = Array.from(document.querySelectorAll("#v4ConfirmationArea input[type='radio'][data-cell]:checked")).map(input => ({
                 cell: input.dataset.cell || "",
@@ -2886,7 +2897,9 @@
                 write_mode: input.dataset.writeMode || "",
                 intent_type: input.dataset.intentType || "",
                 option_value: input.dataset.optionValue || input.value,
-                value: input.value
+                value: input.value,
+                row_offset: Number(input.dataset.rowOffset || 0),
+                col_offset: Number(input.dataset.colOffset || 0),
             }));
             const imageItems = Object.values(workspaceImageValues || {})
                 .filter(image => image && image.data_url)
@@ -2903,12 +2916,16 @@
                     value: image.filename || "",
                     field_type: "image",
                     image_anchor_cell: image.image_anchor_cell || image.cell || "",
+                    row_offset: Number(image.row_offset || 0),
+                    col_offset: Number(image.col_offset || 0),
                     image: {
                         filename: image.filename || "",
                         mime_type: image.mime_type || "",
                         data_url: image.data_url || "",
                         image_fit: image.image_fit || "contain",
                         image_anchor_cell: image.image_anchor_cell || image.cell || "",
+                        row_offset: Number(image.row_offset || 0),
+                        col_offset: Number(image.col_offset || 0),
                     },
                 }));
             return [...textItems, ...radioItems, ...imageItems];
