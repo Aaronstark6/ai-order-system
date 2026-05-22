@@ -676,6 +676,7 @@
                 </div>
                 <div id="v4MappingHealthDebug" class="smart-debug-panel" style="display:none;"></div>
                 <div id="runtimeTraceDebugPanel" class="smart-debug-panel" style="display:none;"></div>
+                <div id="exportReadbackAuditPanel" class="smart-debug-panel" style="display:none;"></div>
                 <div class="actions">
                     <button id="v4GenerateBtn" class="secondary" type="button" onclick="generateExcelFromConfirmation()">确认生成 Excel</button>
                     <a id="v4DownloadLink" class="download-link" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
@@ -2613,6 +2614,64 @@
             renderConfigurationPreview();
         }
 
+        function renderExportReadbackAudit(result) {
+            const panel = document.getElementById("exportReadbackAuditPanel");
+            if (!panel) return;
+
+            const audit = result?.export_readback_audit || result?.export_result?.readback_audit || null;
+            if (!audit) {
+                panel.style.display = "none";
+                panel.innerHTML = "";
+                return;
+            }
+
+            panel.style.display = "";
+            const summary = audit.summary || {};
+            const success = audit.success !== false;
+            const total = Number(summary.total || 0);
+            const checked = Number(summary.checked || 0);
+            const matched = Number(summary.matched || 0);
+            const mismatched = Number(summary.mismatched || 0);
+            const skipped = Number(summary.skipped || 0);
+            const warnings = Array.isArray(audit.warnings) ? audit.warnings : [];
+            const items = Array.isArray(audit.items) ? audit.items : [];
+            const badItems = items.filter((item) => item.status === "mismatched" || (Array.isArray(item.problems) && item.problems.length)).slice(0, 8);
+
+            const statusText = !success
+                ? "回读失败"
+                : (mismatched > 0 ? "发现不一致" : "回读通过");
+
+            const rowsHtml = badItems.length ? `
+                <div class="smart-debug-section">
+                    ${renderSmartDebugTable(
+                        ["Cell", "字段", "期望值", "实际值", "问题"],
+                        badItems.map((item) => [
+                            item.cell || "-",
+                            item.label || item.field_key || "-",
+                            item.expected || "",
+                            item.actual || "",
+                            item.message || "不一致",
+                        ])
+                    )}
+                </div>
+            ` : '<div class="small">暂无导出回读不一致项。</div>';
+
+            panel.innerHTML = `
+                <div class="smart-debug-title">导出回读审计：${escapeHtml(statusText)}</div>
+                <div class="smart-debug-grid">
+                    <div class="smart-debug-metric"><span>总项</span><strong>${total}</strong></div>
+                    <div class="smart-debug-metric"><span>已检查</span><strong>${checked}</strong></div>
+                    <div class="smart-debug-metric"><span>一致</span><strong>${matched}</strong></div>
+                    <div class="smart-debug-metric"><span>不一致</span><strong>${mismatched}</strong></div>
+                    <div class="smart-debug-metric"><span>跳过</span><strong>${skipped}</strong></div>
+                    <div class="smart-debug-metric"><span>警告</span><strong>${warnings.length}</strong></div>
+                </div>
+                ${audit.error ? `<div class="small">错误：${escapeHtml(audit.error)}</div>` : ""}
+                ${rowsHtml}
+            `;
+        }
+
+
         async function generateExcelFromConfirmation() {
             const chatText = document.getElementById("v4ChatText").value.trim();
             if (!chatText) {
@@ -2664,6 +2723,7 @@
                 const downloadLink = document.getElementById("v4DownloadLink");
                 downloadLink.href = downloadUrl || "#";
                 downloadLink.style.display = downloadUrl ? "inline-flex" : "none";
+                renderExportReadbackAudit(result);
                 window.lastExportConfirmedCells = confirmedCells.map(item => ({ ...item }));
                 window.lastExportHadManualChanges = hasManualChanges;
                 window.lastExportOverrideCount = overrideCount;
@@ -2679,6 +2739,7 @@
                     "success"
                 );
             } catch (error) {
+                renderExportReadbackAudit(null);
                 setStatus("v4GenerateStatus", error.message || "Excel 生成失败", "error");
             }
         }
