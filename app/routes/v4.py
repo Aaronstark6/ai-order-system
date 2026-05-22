@@ -264,6 +264,9 @@ def _normalize_template_configuration_items(items):
             "intent_confidence": float(item.get("intent_confidence") or 0),
             "intent_reason": str(item.get("intent_reason") or "").strip(),
             "ai_extract_hint": str(item.get("ai_extract_hint") or "").strip(),
+            "field_type": str(item.get("field_type") or "text").strip(),
+            "image_fit": str(item.get("image_fit") or "contain").strip(),
+            "image_anchor_cell": str(item.get("image_anchor_cell") or item.get("target_cell") or item.get("cell") or "").strip().upper(),
         }
     return configuration
 
