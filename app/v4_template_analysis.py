@@ -1,3 +1,5 @@
+import re
+
 from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
 
@@ -734,12 +736,266 @@ def build_template_structure(labels, table_regions, block_regions):
     }
 
 
+def _cell_ref(row, col):
+    return f"{get_column_letter(col)}{row}"
+
+
+def _cell_point(cell_ref):
+    match = re.match(r"^([A-Z]+)([0-9]+)$", str(cell_ref or "").strip().upper())
+    if not match:
+        return None
+    return int(match.group(2)), column_index_from_string(match.group(1))
+
+
+def _build_semantic_context(template_path):
+    workbook = load_workbook(template_path, data_only=True)
+    try:
+        context = {"sheets": {}, "cells": {}, "rows": {}, "max_row": 0, "max_col": 0}
+        for sheet in workbook.worksheets:
+            sheet_cells = {}
+            sheet_rows = {}
+            merged_lookup = {}
+            for merged_range in sheet.merged_cells.ranges:
+                start_cell = merged_range.start_cell.coordinate
+                range_text = str(merged_range)
+                for row in range(merged_range.min_row, merged_range.max_row + 1):
+                    for col in range(merged_range.min_col, merged_range.max_col + 1):
+                        merged_lookup[_cell_ref(row, col)] = {
+                            "start_cell": start_cell,
+                            "range": range_text,
+                            "is_start": _cell_ref(row, col) == start_cell,
+                        }
+
+            max_row = min(int(sheet.max_row or 1), 200)
+            max_col = min(int(sheet.max_column or 1), 80)
+            context["max_row"] = max(context["max_row"], max_row)
+            context["max_col"] = max(context["max_col"], max_col)
+            for row in range(1, max_row + 1):
+                row_values = []
+                row_cells = []
+                for col in range(1, max_col + 1):
+                    cell = sheet.cell(row=row, column=col)
+                    coord = cell.coordinate
+                    value = _cell_value(cell)
+                    if value:
+                        row_values.append(value)
+                        row_cells.append(coord)
+                    fill = getattr(cell.fill, "fgColor", None)
+                    fill_text = str(getattr(fill, "rgb", "") or getattr(fill, "indexed", "") or "")
+                    if fill_text in {"00000000", "0", "None"}:
+                        fill_text = ""
+                    merge = merged_lookup.get(coord, {})
+                    info = {
+                        "sheet": sheet.title,
+                        "cell": coord,
+                        "row": row,
+                        "col": col,
+                        "value": value,
+                        "bold": bool(cell.font.bold),
+                        "font_size": float(cell.font.sz or 0),
+                        "align": str(cell.alignment.horizontal or "").lower(),
+                        "fill_color": fill_text,
+                        "merged_range": merge.get("range", ""),
+                        "merged_start": merge.get("start_cell", ""),
+                        "is_merged": bool(merge),
+                    }
+                    sheet_cells[coord] = info
+                    context["cells"][coord] = info
+                sheet_rows[row] = {"values": row_values, "cells": row_cells}
+            context["sheets"][sheet.title] = {"cells": sheet_cells, "rows": sheet_rows, "max_row": max_row, "max_col": max_col}
+            if not context["rows"]:
+                context["rows"] = sheet_rows
+        return context
+    finally:
+        workbook.close()
+
+
+def _semantic_cell_info(context, cell_ref):
+    cells = context.get("cells") if isinstance(context, dict) else {}
+    return cells.get(str(cell_ref or "").strip().upper(), {}) if isinstance(cells, dict) else {}
+
+
+def _semantic_cell_text(context, row, col):
+    return str(_semantic_cell_info(context, _cell_ref(row, col)).get("value") or "").strip()
+
+
+def _semantic_blank_cell(context, row, col):
+    if row < 1 or col < 1:
+        return False
+    max_row = int(context.get("max_row") or row)
+    max_col = int(context.get("max_col") or col)
+    if row > max_row or col > max_col:
+        return False
+    return not _semantic_cell_text(context, row, col)
+
+
+def _semantic_target_cell(context, row, col):
+    ref = _cell_ref(row, col)
+    info = _semantic_cell_info(context, ref)
+    return str(info.get("merged_start") or ref).strip().upper()
+
+
+def _semantic_right_target(context, row, col):
+    for offset in range(1, 5):
+        target_col = col + offset
+        if _semantic_blank_cell(context, row, target_col):
+            return _semantic_target_cell(context, row, target_col)
+    return ""
+
+
+def _semantic_below_target(context, row, col):
+    for offset in range(1, 4):
+        target_row = row + offset
+        if _semantic_blank_cell(context, target_row, col):
+            return _semantic_target_cell(context, target_row, col)
+    return ""
+
+
+def _semantic_row_short_texts(context, row):
+    rows = context.get("rows") if isinstance(context, dict) else {}
+    values = rows.get(row, {}).get("values", []) if isinstance(rows, dict) else []
+    return [str(value).strip() for value in values if 0 < len(str(value).strip()) <= 12]
+
+
+def _semantic_region(region_id, region_type, label, source_cell, target_cell, cells, row, col, confidence, reason, write_mode, intent_type):
+    return {
+        "region_id": region_id,
+        "type": region_type,
+        "label": label,
+        "source_cell": source_cell,
+        "target_cell": target_cell,
+        "cells": cells,
+        "row": row,
+        "col": col,
+        "confidence": round(float(confidence), 2),
+        "reason": reason,
+        "write_mode": write_mode,
+        "intent_type": intent_type,
+    }
+
+
+def _semantic_summary(regions):
+    by_type = {}
+    for region in regions:
+        region_type = str(region.get("type") or "unknown")
+        by_type[region_type] = by_type.get(region_type, 0) + 1
+    return {
+        "total_regions": len(regions),
+        "by_type": by_type,
+    }
+
+
+def build_semantic_regions(template_analysis):
+    analysis = template_analysis if isinstance(template_analysis, dict) else {}
+    labels = analysis.get("labels") if isinstance(analysis.get("labels"), list) else []
+    context = analysis.get("_semantic_context") if isinstance(analysis.get("_semantic_context"), dict) else {}
+    regions = []
+    used_region_keys = set()
+
+    def add(region_type, label, source_cell, target_cell, cells, row, col, confidence, reason, write_mode, intent_type):
+        key = (region_type, source_cell, target_cell, label)
+        if key in used_region_keys:
+            return
+        used_region_keys.add(key)
+        regions.append(
+            _semantic_region(
+                f"semantic_{len(regions) + 1:03d}",
+                region_type,
+                label,
+                source_cell,
+                target_cell,
+                cells,
+                row,
+                col,
+                confidence,
+                reason,
+                write_mode,
+                intent_type,
+            )
+        )
+
+    for table in analysis.get("table_regions", []) if isinstance(analysis.get("table_regions"), list) else []:
+        columns = table.get("columns") if isinstance(table.get("columns"), list) else []
+        header_cells = [str(column.get("header_cell") or "").strip().upper() for column in columns if column.get("header_cell")]
+        if header_cells:
+            first_cell = header_cells[0]
+            point = _cell_point(first_cell) or (int(table.get("header_row") or 0), 1)
+            add("table_region", table.get("table_name") or "表格区域", first_cell, "", header_cells, point[0], point[1], 0.86, "检测到连续表头字段", "write_table_column", "table_column_header")
+            for column in columns:
+                cell = str(column.get("header_cell") or "").strip().upper()
+                row, col = _cell_point(cell) or (int(table.get("header_row") or 0), 0)
+                add("table_header", column.get("label") or "", cell, "", [cell], row, col, 0.82, "表格首行字段", "write_table_column", "table_column_header")
+
+    row_option_cells = {}
+    for label_item in labels:
+        if not isinstance(label_item, dict):
+            continue
+        text = str(label_item.get("value") or label_item.get("name") or "").strip()
+        cell = str(label_item.get("cell") or "").strip().upper()
+        point = _cell_point(cell)
+        if not text or not point:
+            continue
+        row, col = point
+        info = _semantic_cell_info(context, cell)
+        normalized = text.rstrip(":：").strip()
+        lower_text = text.lower()
+        has_colon = "：" in text or ":" in text
+        ends_colon = text.endswith(("：", ":"))
+        right_target = _semantic_right_target(context, row, col)
+        below_target = _semantic_below_target(context, row, col)
+        short_row = _semantic_row_short_texts(context, row)
+        merged_or_styled = bool(info.get("is_merged")) or bool(info.get("bold")) or bool(info.get("fill_color"))
+
+        if any(word in lower_text for word in ["图片", "照片", "附件", "上传", "附图", "image", "photo", "attachment", "upload"]):
+            add("image_attachment_area", normalized, cell, "", [cell], row, col, 0.82, "包含图片/附件关键词", "skip", "image_area")
+            continue
+        if len(text) >= 22 or any(word in text for word in ["说明", "备注", "注意", "命名原则", "要求如下", "附图片"]):
+            add("note_instruction", normalized, cell, "", [cell], row, col, 0.76, "文本较长或包含说明/备注关键词", "skip", "note_instruction")
+            continue
+        if row <= 3 and (info.get("is_merged") or info.get("font_size", 0) >= 14 or info.get("bold") or info.get("align") == "center") and len(normalized) <= 24:
+            add("title", normalized, cell, "", [cell], row, col, 0.84, "顶部区域且具备标题样式", "skip", "title")
+            continue
+        if any(word in normalized for word in ["产品详细要求", "包装要求", "标签要求", "其他要求", "配方要求", "检测项目"]) or (merged_or_styled and 3 < row <= 80 and len(normalized) <= 18 and not has_colon):
+            add("section_header", normalized, cell, "", [cell], row, col, 0.76, "具备分组标题样式或关键词", "skip", "section_header")
+            continue
+        if any(mark in text for mark in ["□", "☐", "☑", "√", "✔", "[ ]", "( )", "（ ）"]):
+            option_value = re.sub(r"[□☐☑√✔\[\]\(\)（）\s]+", "", normalized).strip()
+            row_option_cells.setdefault(row, []).append(cell)
+            add("option_item", option_value or normalized, cell, cell, [cell], row, col, 0.84, "包含 checkbox-like 符号", "check_option", "option_checkbox")
+            continue
+        if len(short_row) >= 3 and len(normalized) <= 12 and not has_colon:
+            row_option_cells.setdefault(row, []).append(cell)
+            add("option_item", normalized, cell, cell, [cell], row, col, 0.68, "同一行存在多个短文本选项", "select_option_text", "option_text_choice")
+            continue
+        if ends_colon and right_target:
+            add("field_label", normalized, cell, right_target, [cell, right_target], row, col, 0.86, "以冒号结尾，右侧存在空白单元格", "write_right_cell", "label_fill_right")
+            continue
+        if ends_colon and below_target:
+            add("field_label", normalized, cell, below_target, [cell, below_target], row, col, 0.8, "以冒号结尾，下方存在空白单元格", "write_below_cell", "label_fill_below")
+            continue
+        if has_colon:
+            add("inline_field", normalized, cell, cell, [cell], row, col, 0.74, "文本包含冒号，适合在原单元格冒号后补值", "append_after_colon", "inline_fill_after_colon")
+            continue
+
+        add("unknown", normalized, cell, "", [cell], row, col, 0.35, "暂未匹配到明确语义规则", "skip", "unknown")
+
+    for row, cells in row_option_cells.items():
+        if len(cells) < 2:
+            continue
+        first_cell = cells[0]
+        labels_in_row = [_semantic_cell_text(context, row, (_cell_point(cell) or (row, 0))[1]) or cell for cell in cells]
+        add("option_group", " / ".join(labels_in_row[:6]), first_cell, "", cells, row, (_cell_point(first_cell) or (row, 0))[1], 0.72, "同一行多个选项项合并为选项组", "select_option_text", "option_text_choice")
+
+    return regions
+
+
 def analyze_template(template_path):
     labels = scan_excel_labels(template_path)
     structured_mapping_preview = infer_structured_mapping_from_labels(labels)
     table_regions = scan_table_regions(template_path)
     block_regions = scan_block_regions(template_path)
     template_structure = build_template_structure(labels, table_regions, block_regions)
+    semantic_context = _build_semantic_context(template_path)
     analysis = {
         "success": True,
         "labels": labels,
@@ -758,6 +1014,11 @@ def analyze_template(template_path):
             "recommended_regions_count": len(template_structure.get("recommended_regions", [])),
         },
     }
+    analysis["_semantic_context"] = semantic_context
+    semantic_regions = build_semantic_regions(analysis)
+    analysis.pop("_semantic_context", None)
+    analysis["semantic_regions"] = semantic_regions
+    analysis["semantic_summary"] = _semantic_summary(semantic_regions)
     analysis["auto_mapping_preview"] = generate_auto_mapping(analysis)
 
     return analysis

@@ -478,7 +478,7 @@ def _merge_candidate_with_saved_configuration(candidate, saved_item):
     }
 
 
-def _build_visual_grid(template_path, mapping_candidates, template_configuration):
+def _build_visual_grid(template_path, mapping_candidates, template_configuration, semantic_by_cell=None):
     from openpyxl import load_workbook
     from openpyxl.utils import get_column_letter
 
@@ -531,6 +531,7 @@ def _build_visual_grid(template_path, mapping_candidates, template_configuration
         for item in mapping_candidates if isinstance(item, dict) and item.get("cell")
     }
     saved = template_configuration if isinstance(template_configuration, dict) else {}
+    semantic_lookup = semantic_by_cell if isinstance(semantic_by_cell, dict) else {}
     cells = []
 
     for row in range(1, rows + 1):
@@ -544,6 +545,13 @@ def _build_visual_grid(template_path, mapping_candidates, template_configuration
             display_value = raw_value if (not is_merged or merge_start) else ""
             saved_item = saved.get(cell_ref, {})
             v4_fields = _merge_candidate_with_saved_configuration(candidates_by_cell.get(cell_ref, {}), saved_item)
+            semantic = _primary_semantic_for_cell(semantic_lookup, cell_ref)
+            semantic_fields = {
+                "semantic_type": semantic.get("type", ""),
+                "semantic_region_id": semantic.get("region_id", ""),
+                "semantic_confidence": semantic.get("confidence", 0),
+                "semantic_reason": semantic.get("reason", ""),
+            } if semantic else {}
             cells.append(
                 {
                     "cell": cell_ref,
@@ -559,6 +567,7 @@ def _build_visual_grid(template_path, mapping_candidates, template_configuration
                     "is_merged": is_merged,
                     "merge_start": merge_start,
                     **v4_fields,
+                    **semantic_fields,
                 }
             )
 
@@ -992,9 +1001,53 @@ def _neighbor_label_text(labels, index, cell):
     return " ".join(texts)
 
 
+def _semantic_by_cell_from_analysis(template_analysis):
+    analysis = template_analysis if isinstance(template_analysis, dict) else {}
+    regions = analysis.get("semantic_regions") if isinstance(analysis.get("semantic_regions"), list) else []
+    by_cell = {}
+    for region in regions:
+        if not isinstance(region, dict):
+            continue
+        cells = []
+        for key in ("source_cell", "target_cell"):
+            cell = str(region.get(key) or "").strip().upper()
+            if cell:
+                cells.append(cell)
+        if isinstance(region.get("cells"), list):
+            cells.extend(str(cell or "").strip().upper() for cell in region.get("cells", []) if cell)
+        for cell in cells:
+            by_cell.setdefault(cell, []).append(region)
+    return by_cell
+
+
+def _primary_semantic_for_cell(semantic_by_cell, cell):
+    regions = semantic_by_cell.get(str(cell or "").strip().upper(), []) if isinstance(semantic_by_cell, dict) else []
+    if not regions:
+        return {}
+    preferred = {
+        "field_label": 90,
+        "inline_field": 88,
+        "option_item": 84,
+        "option_group": 80,
+        "table_header": 76,
+        "table_region": 74,
+        "section_header": 65,
+        "title": 60,
+        "note_instruction": 50,
+        "image_attachment_area": 48,
+        "unknown": 0,
+    }
+    return sorted(
+        [region for region in regions if isinstance(region, dict)],
+        key=lambda region: (preferred.get(str(region.get("type") or ""), 0), float(region.get("confidence") or 0)),
+        reverse=True,
+    )[0] if regions else {}
+
+
 def _generate_mapping_candidates(template_analysis, layout_sections, template_path=None):
     analysis = template_analysis if isinstance(template_analysis, dict) else {}
     labels = analysis.get("labels") if isinstance(analysis.get("labels"), list) else []
+    semantic_by_cell = _semantic_by_cell_from_analysis(analysis)
     intent_context = _load_template_intent_context(template_path)
     candidates = []
     seen_cells = set()
@@ -1010,6 +1063,17 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
         neighbor_text = _neighbor_label_text(labels, index - 1, cell)
         candidate = _candidate_for_label(label_text, section, index, len(labels), cell, neighbor_text)
         intent = _intent_for_label(label_text, cell, section, index, intent_context)
+        semantic = _primary_semantic_for_cell(semantic_by_cell, cell)
+        if semantic:
+            intent = {
+                **intent,
+                "intent_type": semantic.get("intent_type") or intent.get("intent_type", "unknown"),
+                "write_mode": semantic.get("write_mode") or intent.get("write_mode", "skip"),
+                "label_cell": semantic.get("source_cell") or intent.get("label_cell", cell),
+                "target_cell": semantic.get("target_cell") or intent.get("target_cell", ""),
+                "intent_confidence": max(float(intent.get("intent_confidence") or 0), float(semantic.get("confidence") or 0)),
+                "intent_reason": semantic.get("reason") or intent.get("intent_reason", ""),
+            }
         section_name = (
             section.get("title")
             or section.get("source_region_name")
@@ -1035,6 +1099,10 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
                 "option_value": intent.get("option_value", ""),
                 "intent_confidence": intent.get("intent_confidence", 0),
                 "intent_reason": intent.get("intent_reason", ""),
+                "semantic_type": semantic.get("type", "") if semantic else "",
+                "semantic_region_id": semantic.get("region_id", "") if semantic else "",
+                "semantic_confidence": semantic.get("confidence", 0) if semantic else 0,
+                "semantic_reason": semantic.get("reason", "") if semantic else "",
                 "label_text": label_text,
                 "display_order": index,
             }
@@ -2184,6 +2252,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_analysis": {},
             "template_labels": [],
             "template_analysis_summary": {},
+            "semantic_summary": {},
             "template_configuration": _template_configuration_from_profile(profile),
             "section_configuration": _section_configuration_from_profile(profile),
             "mapping_candidates": [],
@@ -2204,6 +2273,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_analysis": analysis if isinstance(analysis, dict) else {},
             "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
             "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
             "template_configuration": _template_configuration_from_profile(profile),
             "section_configuration": _section_configuration_from_profile(profile),
             "mapping_candidates": mapping_candidates,
@@ -2261,12 +2331,14 @@ def api_v4_template_profile_visual_grid(profile_id: str):
         layout_sections = layout_result.get("layout_sections", [])
         mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
         template_configuration = _template_configuration_from_profile(profile)
-        visual_grid = _build_visual_grid(bound_template_path, mapping_candidates, template_configuration)
+        semantic_by_cell = _semantic_by_cell_from_analysis(analysis)
+        visual_grid = _build_visual_grid(bound_template_path, mapping_candidates, template_configuration, semantic_by_cell)
         return {
             "success": True,
             "profile_id": profile.get("profile_id", ""),
             "template_filename": profile.get("template_filename", ""),
             "visual_grid": visual_grid,
+            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
         }
     except (BadZipFile, InvalidFileException) as exc:
         return {
@@ -2517,6 +2589,7 @@ def api_v4_template_profile_replace_template_file(profile_id: str, template_file
             "profile": saved_profile,
             "validation": validation,
             "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
             "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
             "layout_summary": layout_result.get("summary", {}),
             "layout_sections": layout_result.get("layout_sections", []),
@@ -2739,6 +2812,7 @@ def api_v4_template_profile_analyze_template(
             "template_path": str(template_path),
             "template_file_path": template_file_path,
             "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
             "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
             "layout_summary": layout_result.get("summary", {}),
             "layout_sections": layout_result.get("layout_sections", []),

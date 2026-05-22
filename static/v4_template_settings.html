@@ -959,6 +959,10 @@
                 label_cell: pick("label_cell", "label_cell", "label_cell", cellRef),
                 target_cell: pick("target_cell", "target_cell", "target_cell", ""),
                 option_value: pick("option_value", "option_value", "option_value", ""),
+                semantic_type: pick("semantic_type", "semantic_type", "semantic_type", ""),
+                semantic_region_id: pick("semantic_region_id", "semantic_region_id", "semantic_region_id", ""),
+                semantic_confidence: Number(pick("semantic_confidence", "semantic_confidence", "semantic_confidence", 0) || 0),
+                semantic_reason: pick("semantic_reason", "semantic_reason", "semantic_reason", ""),
                 intent_confidence: Number(pick("intent_confidence", "intent_confidence", "intent_confidence", 0) || 0),
                 intent_reason: pick("intent_reason", "intent_reason", "intent_reason", ""),
                 ai_extract_hint: pick("ai_extract_hint", "ai_extract_hint", "ai_extract_hint", ""),
@@ -1053,6 +1057,21 @@
             "skip": "跳过"
         };
 
+        const SEMANTIC_TYPE_LABELS = {
+            "title": "标题",
+            "section_header": "分组标题",
+            "field_label": "字段标签",
+            "inline_field": "冒号内联字段",
+            "option_group": "选项组",
+            "option_item": "选项",
+            "table_region": "表格区域",
+            "table_header": "表头",
+            "table_row_field": "表格行字段",
+            "note_instruction": "说明备注",
+            "image_attachment_area": "图片/附件区",
+            "unknown": "未知"
+        };
+
         const INTENT_CLASS_BY_TYPE = {
             "label_fill_right": "fill-field",
             "label_fill_below": "fill-field",
@@ -1115,6 +1134,18 @@
                 <div class="visual-detail-field">
                     <label>当前意图</label>
                     <input class="visual-readonly" type="text" value="${escapeHtml(INTENT_LABELS[config.intent_type] || config.intent_type || "未知")}" readonly>
+                </div>
+                <div class="visual-detail-row">
+                    <div class="visual-detail-label">语义类型</div>
+                    <div class="visual-detail-value">${escapeHtml(SEMANTIC_TYPE_LABELS[config.semantic_type] || config.semantic_type || "-")}</div>
+                </div>
+                <div class="visual-detail-row">
+                    <div class="visual-detail-label">语义原因</div>
+                    <div class="visual-detail-value">${escapeHtml(config.semantic_reason || "-")}</div>
+                </div>
+                <div class="visual-detail-row">
+                    <div class="visual-detail-label">语义可信度</div>
+                    <div class="visual-detail-value">${config.semantic_confidence ? escapeHtml(Number(config.semantic_confidence).toFixed(2)) : "-"}</div>
                 </div>
                 <div class="visual-detail-field">
                     <label>字段名</label>
