@@ -622,6 +622,7 @@
         <a class="nav-link" href="/">返回首页</a>
         <a class="nav-link" href="/v4-core-pipeline">V4 Core Pipeline</a>
         <a class="nav-link" href="/v4-render-preview">V4 Render Preview</a>
+        <a class="nav-link" href="/v4-template-settings">进入配置中心</a>
     </header>
 
     <main class="layout">
@@ -653,6 +654,7 @@
                     </div>
                 </div>
                 <div id="v4ProfileStatus" class="status info">正在加载系统模板...</div>
+                <div class="small"><a href="/v4-template-settings">当前映射字段不对？进入配置中心调整</a></div>
             </div>
 
             <div class="section confirmation-section-wrap">
@@ -690,6 +692,7 @@
         let originalConfirmedCells = [];
         let v4LayoutSections = [];
         let v4WorkspaceFields = [];
+        let v4SemanticWorkspaceSchema = null;
         let v4VisualGrid = null;
         let v4MappingHealth = null;
         let currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
@@ -698,6 +701,7 @@
         window.originalConfirmedCells = originalConfirmedCells;
         window.v4LayoutSections = v4LayoutSections;
         window.v4WorkspaceFields = v4WorkspaceFields;
+        window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
         window.v4VisualGrid = v4VisualGrid;
 
         function escapeHtml(value) {
@@ -1862,6 +1866,12 @@
         function renderBusinessFieldControl(item) {
             const value = item.value == null ? "" : String(item.value);
             const attrs = businessFieldDataAttributes(item);
+            if (item.type === "readonly_note") {
+                return `<div class="readonly-business-value">${escapeHtml(value || item.ai_extract_hint || item.label || "-")}</div>`;
+            }
+            if (item.type === "image_upload") {
+                return `<div class="readonly-business-value">附件/图片上传区（后续支持）</div>`;
+            }
             if (["readonly", "computed"].includes(item.type)) {
                 return `<div class="readonly-business-value">${escapeHtml(value || item.option_value || "-")}</div>`;
             }
@@ -2020,6 +2030,111 @@
             return currentWorkspaceSchema.sections;
         }
 
+        function hasSemanticWorkspaceSchema(schema) {
+            return !!(schema
+                && Array.isArray(schema.sections)
+                && schema.sections.some(section => Array.isArray(section.fields) && section.fields.length));
+        }
+
+        function normalizeSemanticWorkspaceField(field, parsedValues, fallbackIndex = 0) {
+            const rawValue = parsedValueForField(field.field_key, parsedValues);
+            const hasAiValue = String(rawValue ?? "").trim() !== "";
+            const value = hasAiValue ? String(rawValue) : String(field.value ?? "");
+            const required = field.required === true || isWorkspaceFieldRequired(field);
+            const normalized = {
+                ...field,
+                id: field.id || `${field.field_key || field.cell || "semantic"}_${field.cell || fallbackIndex}`,
+                type: field.type || "text",
+                label: field.label || field.field_key || field.cell || "字段",
+                field_key: field.field_key || "",
+                value,
+                cell: field.cell || "",
+                display_cell: field.display_cell || field.cell || "",
+                source_cell: field.source_cell || "",
+                intent_type: field.intent_type || "",
+                write_mode: field.write_mode || "",
+                option_value: field.option_value || "",
+                options: Array.isArray(field.options) ? field.options : [],
+                required,
+                status: workspaceFieldStatus(value, required, hasAiValue),
+                ai_extract_hint: field.ai_extract_hint || "",
+                display_order: Number(field.display_order || fallbackIndex + 1),
+                meta: {
+                    ...(field.meta || {}),
+                    source: field.meta?.source || field.source || "Semantic Workspace",
+                    cell_meta: field.meta?.cell_meta || (field.source_cell && field.source_cell !== field.cell ? `${field.source_cell} → ${field.cell}` : field.cell),
+                },
+            };
+            if (normalized.type === "single_choice") {
+                const selected = normalized.options.find(option => optionValueMatches(value, option));
+                normalized.value = selected ? (selected.option_value || selected.value || selected.label || value) : value;
+                normalized.status = workspaceFieldStatus(normalized.value, required, hasAiValue);
+                normalized.options = normalized.options.map(option => ({
+                    ...option,
+                    label: option.label || option.option_value || option.value || "选项",
+                    value: option.value || option.option_value || option.label || "",
+                    option_value: option.option_value || option.value || option.label || "",
+                    cell: option.cell || normalized.cell,
+                    display_cell: option.display_cell || option.cell || normalized.cell,
+                    source_cell: option.source_cell || normalized.source_cell,
+                    field_key: option.field_key || normalized.field_key,
+                    source: option.source || normalized.meta.source,
+                    intent_type: option.intent_type || normalized.intent_type,
+                    write_mode: option.write_mode || normalized.write_mode,
+                }));
+            }
+            return normalized;
+        }
+
+        function semanticSchemaWithParsedValues(schema, parsedValues) {
+            if (!hasSemanticWorkspaceSchema(schema)) {
+                return { sections: [], fields: [], errors: [], warnings: [] };
+            }
+            const fields = [];
+            const sections = schema.sections
+                .map((section, sectionIndex) => {
+                    const normalizedFields = (Array.isArray(section.fields) ? section.fields : [])
+                        .map((field, fieldIndex) => {
+                            const normalized = normalizeSemanticWorkspaceField(
+                                field,
+                                parsedValues,
+                                sectionIndex * 1000 + fieldIndex
+                            );
+                            normalized.section_key = field.section_key || section.key || "other";
+                            normalized.section_title = field.section_title || section.title || "其他要求";
+                            normalized.section_order = Number(field.section_order || section.order || 900);
+                            fields.push(normalized);
+                            return normalized;
+                        });
+                    return {
+                        key: section.key || `semantic_section_${sectionIndex}`,
+                        title: section.title || "其他要求",
+                        order: Number(section.order || sectionIndex + 1),
+                        fields: normalizedFields,
+                    };
+                })
+                .filter(section => section.fields.length)
+                .sort((left, right) => left.order - right.order);
+            const warnings = fields
+                .filter(field => field.status === "missing_required")
+                .map(field => ({ field, message: "必填字段尚未填写" }));
+            currentWorkspaceSchema = { sections, fields, errors: [], warnings };
+            return currentWorkspaceSchema;
+        }
+
+        function getSemanticWorkspaceSchemaFromResult(result = null) {
+            return result?.semantic_workspace_schema
+                || result?.parse_result?.semantic_workspace_schema
+                || v4SemanticWorkspaceSchema
+                || null;
+        }
+
+        function getSemanticWorkspaceSections(result = null) {
+            const schema = getSemanticWorkspaceSchemaFromResult(result);
+            if (!hasSemanticWorkspaceSchema(schema)) return [];
+            return semanticSchemaWithParsedValues(schema, getParsedFieldValues(result)).sections;
+        }
+
         function renderConfigurationPreview() {
             if (latestV4ParseResult) return;
 
@@ -2028,12 +2143,13 @@
             window.confirmedCells = confirmedCells;
             window.originalConfirmedCells = originalConfirmedCells;
 
-            const sections = buildConfigurationPreviewSections();
+            const sections = getSemanticWorkspaceSections(null);
+            const previewSections = sections.length ? sections : buildConfigurationPreviewSections();
             const area = document.getElementById("v4ConfirmationArea");
             area.dataset.confirmedCellsCount = "0";
             area.dataset.hasManualChanges = "false";
 
-            if (!sections.length) {
+            if (!previewSections.length) {
                 area.innerHTML = `
                     <div class="preview-notice">当前为模板配置预览。AI解析后将在这里显示可确认和修改的订单信息。</div>
                     <div class="status warning">当前映射尚未生成可预览的模板配置。请先在模板映射管理中上传模板并保存配置。</div>
@@ -2045,7 +2161,7 @@
 
             area.innerHTML = `
                 <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
-                ${sections.map(renderBusinessFormSection).join("")}
+                ${previewSections.map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
         }
@@ -2216,6 +2332,16 @@
         }
 
         function renderBusinessFormWorkspace(result) {
+            const semanticSections = getSemanticWorkspaceSections(result);
+            if (semanticSections.length) {
+                document.getElementById("v4ConfirmationArea").innerHTML = `
+                    <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
+                    ${semanticSections.map(renderBusinessFormSection).join("")}
+                `;
+                initializeConfirmedCellsSnapshotFromInputs();
+                return true;
+            }
+
             const workspaceFields = getWorkspaceFieldsFromResult(result);
             if (!workspaceFields.length) return false;
 
@@ -2345,20 +2471,25 @@
                 if (!response.ok || !result.success) {
                     v4LayoutSections = [];
                     v4WorkspaceFields = [];
+                    v4SemanticWorkspaceSchema = null;
                 } else {
                     v4LayoutSections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
                     v4WorkspaceFields = Array.isArray(result.workspace_fields) ? result.workspace_fields : [];
+                    v4SemanticWorkspaceSchema = result.semantic_workspace_schema || null;
                 }
                 window.v4LayoutSections = v4LayoutSections;
                 window.v4WorkspaceFields = v4WorkspaceFields;
+                window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
                 await loadV4VisualGrid(activeV4Profile?.profile_id || "");
                 renderConfigurationPreview();
             } catch (error) {
                 v4LayoutSections = [];
                 v4WorkspaceFields = [];
+                v4SemanticWorkspaceSchema = null;
                 v4VisualGrid = null;
                 window.v4LayoutSections = v4LayoutSections;
                 window.v4WorkspaceFields = v4WorkspaceFields;
+                window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
                 window.v4VisualGrid = v4VisualGrid;
                 renderConfigurationPreview();
             }
@@ -2414,7 +2545,9 @@
                 }
                 latestV4ParseResult = result;
                 v4WorkspaceFields = getWorkspaceFieldsFromResult(result);
+                v4SemanticWorkspaceSchema = result.semantic_workspace_schema || result.parse_result?.semantic_workspace_schema || v4SemanticWorkspaceSchema;
                 window.v4WorkspaceFields = v4WorkspaceFields;
+                window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
                 renderConfirmation(result);
                 renderSmartMappingDebug(result);
                 await loadV4TemplateLayout();

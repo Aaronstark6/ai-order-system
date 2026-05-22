@@ -1236,6 +1236,280 @@ def _ai_extraction_contract_summary(contract):
     }
 
 
+SEMANTIC_WORKSPACE_SECTIONS = [
+    {"key": "document_info", "title": "文档编号信息", "order": 10},
+    {"key": "basic_info", "title": "基础订单信息", "order": 20},
+    {"key": "product_info", "title": "产品信息", "order": 30},
+    {"key": "specification", "title": "产品规格", "order": 40},
+    {"key": "packaging", "title": "包装要求", "order": 50},
+    {"key": "labeling", "title": "标签要求", "order": 60},
+    {"key": "attachments", "title": "附件资料", "order": 70},
+    {"key": "other", "title": "其他要求", "order": 80},
+    {"key": "debug_other", "title": "其他字段", "order": 90},
+]
+SEMANTIC_WORKSPACE_SECTION_BY_KEY = {item["key"]: item for item in SEMANTIC_WORKSPACE_SECTIONS}
+
+
+def _semantic_workspace_analysis_for_profile(profile):
+    profile = profile if isinstance(profile, dict) else {}
+    profile_id = str(profile.get("profile_id") or "").strip()
+    state = get_pipeline_state()
+    state_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    state_analysis = state.get("template_analysis") if isinstance(state.get("template_analysis"), dict) else {}
+    if state_profile.get("profile_id") == profile_id and isinstance(state_analysis.get("semantic_regions"), list):
+        return state_analysis
+
+    template_file_path = str(profile.get("template_file_path") or "").strip()
+    if not template_file_path:
+        return {}
+    try:
+        from app.v4_template_analysis import analyze_template
+
+        return analyze_template(_resolve_bound_template_file_path(template_file_path))
+    except Exception:
+        logger.info("V4 semantic workspace analysis unavailable: profile_id=%s", profile_id, exc_info=True)
+        return {}
+
+
+def _semantic_workspace_cell_index(workspace_fields):
+    by_source = {}
+    by_target = {}
+    by_field_key = {}
+    for field in workspace_fields if isinstance(workspace_fields, list) else []:
+        if not isinstance(field, dict):
+            continue
+        source_cell = _cell_key(field.get("source_cell"))
+        target_cell = _cell_key(field.get("cell"))
+        field_key = str(field.get("field_key") or "").strip()
+        if source_cell:
+            by_source.setdefault(source_cell, field)
+        if target_cell:
+            by_target.setdefault(target_cell, field)
+        if field_key:
+            by_field_key.setdefault(field_key, field)
+    return {"by_source": by_source, "by_target": by_target, "by_field_key": by_field_key}
+
+
+def _semantic_workspace_match_field(region, index):
+    source_cell = _cell_key(region.get("source_cell"))
+    target_cell = _cell_key(region.get("target_cell"))
+    for cell in (source_cell, target_cell):
+        if cell and cell in index["by_source"]:
+            return index["by_source"][cell]
+        if cell and cell in index["by_target"]:
+            return index["by_target"][cell]
+    return {}
+
+
+def _semantic_workspace_field_key(label, source_cell):
+    text = str(label or "").strip().lower()
+    if "客户" in text or "customer" in text:
+        return "customer_name"
+    if "数量" in text or "quantity" in text or "qty" in text:
+        return "quantity"
+    if "日期" in text or "date" in text:
+        return "date"
+    if "产品" in text or "品名" in text or "product" in text:
+        return "product_name"
+    suffix = re.sub(r"[^a-z0-9_]+", "_", text).strip("_")
+    return suffix or f"semantic_{_cell_key(source_cell).lower()}"
+
+
+def _semantic_workspace_type(region, field=None):
+    field = field if isinstance(field, dict) else {}
+    semantic_type = str(region.get("type") or "").strip()
+    intent_type = str(region.get("intent_type") or field.get("intent_type") or "").strip()
+    label_key = f"{region.get('label') or ''} {field.get('label') or ''} {field.get('field_key') or ''}".lower()
+    if any(keyword in label_key for keyword in ("日期", "date")):
+        return "date"
+    if any(keyword in label_key for keyword in ("数量", "quantity", "qty", "amount", "number")):
+        return "number"
+    if semantic_type in {"option_group", "option_item"} or intent_type in {"option_checkbox", "option_text_choice"}:
+        return "single_choice"
+    if semantic_type in {"note_instruction"} or intent_type == "readonly_example":
+        return "readonly_note"
+    if semantic_type == "image_attachment_area" or intent_type == "attachment_hint":
+        return "image_upload"
+    if semantic_type == "inline_field" or intent_type == "inline_fill_after_colon":
+        if any(keyword in label_key for keyword in ("要求", "描述", "备注", "说明", "other", "note", "description")):
+            return "textarea"
+        return "text"
+    if semantic_type in {"table_region", "table_header", "table_row_field"} or intent_type in {"table_row_field", "table_column_header"}:
+        return "text"
+    if semantic_type == "unknown":
+        return "text"
+    return "text"
+
+
+def _semantic_workspace_section_from_text(text):
+    value = str(text or "").lower()
+    if not value:
+        return None
+    if any(keyword in value for keyword in ("文档", "编号", "document")):
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["document_info"]
+    if any(keyword in value for keyword in ("客户", "基础", "负责人", "customer", "basic")):
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["basic_info"]
+    if any(keyword in value for keyword in ("产品", "品名", "product")):
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["product_info"]
+    if any(keyword in value for keyword in ("规格", "数量", "含量", "配方", "spec", "quantity")):
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["specification"]
+    if any(keyword in value for keyword in ("包装", "瓶", "袋", "package")):
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["packaging"]
+    if any(keyword in value for keyword in ("标签", "批号", "label")):
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["labeling"]
+    if any(keyword in value for keyword in ("附件", "图片", "照片", "attachment", "image", "photo")):
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["attachments"]
+    if any(keyword in value for keyword in ("备注", "要求", "说明", "note", "other")):
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["other"]
+    return None
+
+
+def _semantic_workspace_section(region, field, section_headers):
+    field_section = _semantic_workspace_section_from_text(field.get("section") if isinstance(field, dict) else "")
+    if field_section:
+        return field_section
+    row = int(region.get("row") or 0)
+    prior_headers = [header for header in section_headers if int(header.get("row") or 0) <= row]
+    if prior_headers:
+        header_match = _semantic_workspace_section_from_text(prior_headers[-1].get("label"))
+        if header_match:
+            return header_match
+    label_match = _semantic_workspace_section_from_text(region.get("label"))
+    if label_match:
+        return label_match
+    if str(region.get("type") or "") == "image_attachment_area":
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["attachments"]
+    if str(region.get("type") or "") == "unknown":
+        return SEMANTIC_WORKSPACE_SECTION_BY_KEY["debug_other"]
+    return SEMANTIC_WORKSPACE_SECTION_BY_KEY["other"]
+
+
+def _semantic_workspace_required(field, label):
+    if isinstance(field, dict) and field.get("required") is True:
+        return True
+    text = f"{label or ''} {field.get('field_key') if isinstance(field, dict) else ''}".lower()
+    return any(keyword in text for keyword in ("客户名称", "数量", "日期", "产品", "product", "customer", "quantity"))
+
+
+def _semantic_workspace_option_group_key(region, field, section):
+    if region.get("type") == "option_group":
+        return str(region.get("region_id") or "")
+    field_key = str(field.get("field_key") or "").strip() if isinstance(field, dict) else ""
+    if field_key:
+        return f"field:{field_key}"
+    return f"row:{section['key']}:{region.get('row') or 0}"
+
+
+def _build_semantic_workspace_schema(profile):
+    profile = profile if isinstance(profile, dict) else {}
+    analysis = _semantic_workspace_analysis_for_profile(profile)
+    semantic_regions = analysis.get("semantic_regions") if isinstance(analysis.get("semantic_regions"), list) else []
+    workspace_fields = _build_workspace_fields_from_profile(profile)
+    field_index = _semantic_workspace_cell_index(workspace_fields)
+    section_headers = [region for region in semantic_regions if isinstance(region, dict) and region.get("type") == "section_header"]
+    section_headers.sort(key=lambda item: (int(item.get("row") or 0), int(item.get("col") or 0)))
+    fields = []
+    option_groups = {}
+
+    for region in semantic_regions:
+        if not isinstance(region, dict):
+            continue
+        semantic_type = str(region.get("type") or "")
+        if semantic_type in {"title", "section_header"}:
+            continue
+        field = _semantic_workspace_match_field(region, field_index)
+        section = _semantic_workspace_section(region, field, section_headers)
+        field_type = _semantic_workspace_type(region, field)
+        source_cell = _cell_key(region.get("source_cell") or field.get("source_cell"))
+        target_cell = _cell_key(region.get("target_cell") or field.get("cell") or source_cell)
+        label = str(field.get("label") or region.get("label") or field.get("field_key") or source_cell).strip()
+        field_key = str(field.get("field_key") or _semantic_workspace_field_key(label, source_cell)).strip()
+        write_mode = str(region.get("write_mode") or field.get("write_mode") or "skip").strip()
+        intent_type = str(region.get("intent_type") or field.get("intent_type") or "unknown").strip()
+        base = {
+            "id": f"{field_key}_{target_cell or source_cell}",
+            "type": field_type,
+            "label": label,
+            "field_key": field_key,
+            "cell": target_cell,
+            "source_cell": source_cell,
+            "intent_type": intent_type,
+            "write_mode": write_mode,
+            "required": _semantic_workspace_required(field, label),
+            "options": [],
+            "section_key": section["key"],
+            "section_title": section["title"],
+            "section_order": section["order"],
+            "semantic_type": semantic_type,
+            "semantic_region_id": str(region.get("region_id") or ""),
+            "semantic_confidence": float(region.get("confidence") or 0),
+            "semantic_reason": str(region.get("reason") or ""),
+            "ai_extract_hint": str(field.get("ai_extract_hint") or label).strip(),
+            "display_order": int(region.get("row") or 0) * 100 + int(region.get("col") or 0),
+        }
+
+        if field_type == "single_choice":
+            group_key = _semantic_workspace_option_group_key(region, field, section)
+            group = option_groups.setdefault(
+                group_key,
+                {
+                    **base,
+                    "id": group_key,
+                    "label": str(field.get("ai_extract_hint") or section["title"] if semantic_type == "option_item" else label).strip() or label,
+                    "options": [],
+                },
+            )
+            option_value = str(field.get("option_value") or region.get("label") or label).strip()
+            option = {
+                "label": option_value,
+                "value": option_value,
+                "cell": target_cell or source_cell,
+                "display_cell": target_cell or source_cell,
+                "source_cell": source_cell,
+                "field_key": field_key,
+                "write_mode": write_mode,
+                "intent_type": intent_type,
+                "option_value": option_value,
+                "semantic_region_id": str(region.get("region_id") or ""),
+            }
+            if option_value and option_value not in {item.get("value") for item in group["options"]}:
+                group["options"].append(option)
+            continue
+
+        fields.append(base)
+
+    fields.extend(option_groups.values())
+    sections_by_key = {}
+    for field in fields:
+        key = field.get("section_key") or "other"
+        section = sections_by_key.setdefault(
+            key,
+            {
+                "key": key,
+                "title": field.get("section_title") or SEMANTIC_WORKSPACE_SECTION_BY_KEY.get(key, {}).get("title", "其他要求"),
+                "order": int(field.get("section_order") or 999),
+                "fields": [],
+            },
+        )
+        section["fields"].append(field)
+
+    for section in sections_by_key.values():
+        section["fields"].sort(key=lambda item: (int(item.get("display_order") or 0), str(item.get("label") or "")))
+    sections = sorted(sections_by_key.values(), key=lambda item: (int(item.get("order") or 999), str(item.get("title") or "")))
+    fallback_used = not bool(sections)
+    return {
+        "source": "semantic_regions" if not fallback_used else "workspace_fields",
+        "sections": sections,
+        "summary": {
+            "sections_count": len(sections),
+            "fields_count": sum(len(section.get("fields", [])) for section in sections),
+            "source": "semantic_regions" if not fallback_used else "workspace_fields",
+        },
+        "fallback_used": fallback_used,
+    }
+
+
+
 def _mapping_health_issue(level, cell, label, field_key, message):
     return {
         "level": level,
@@ -3072,6 +3346,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
     if not current_profile:
         current_profile = get_current_template_profile() or {}
     workspace_fields = _build_workspace_fields_from_profile(current_profile)
+    semantic_workspace_schema = _build_semantic_workspace_schema(current_profile)
     extraction_contract = _build_ai_extraction_contract_from_workspace_fields(workspace_fields)
     extraction_contract_summary = _ai_extraction_contract_summary(extraction_contract)
 
@@ -3084,6 +3359,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "last_extraction_contract": extraction_contract.get("fields", []),
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
+            "semantic_workspace_schema": semantic_workspace_schema,
             "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
@@ -3097,6 +3373,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "last_extraction_contract": extraction_contract.get("fields", []),
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
+            "semantic_workspace_schema": semantic_workspace_schema,
             "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
@@ -3115,6 +3392,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "last_extraction_contract": extraction_contract.get("fields", []),
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
+            "semantic_workspace_schema": semantic_workspace_schema,
             "confirmed_cells": field_binding_result.get("confirmed_cells", []),
             "field_bound_operations": field_binding_result.get("operations", []),
             "workspace_fields": workspace_fields,
@@ -3136,6 +3414,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "last_extraction_contract": extraction_contract.get("fields", []),
         "extraction_contract": extraction_contract,
         "ai_extraction_contract_summary": extraction_contract_summary,
+        "semantic_workspace_schema": semantic_workspace_schema,
         "confirmed_cells": field_binding_result.get("confirmed_cells", []),
         "field_bound_operations": field_binding_result.get("operations", []),
         "workspace_fields": workspace_fields,
@@ -3174,6 +3453,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
 
     field_bound_operations = parse_result.get("field_bound_operations", [])
     workspace_fields = parse_result.get("workspace_fields", [])
+    semantic_workspace_schema = parse_result.get("semantic_workspace_schema", {})
     field_binding_merge = _merge_field_bound_operations(
         pipeline_result.get("processed_operations", []),
         field_bound_operations,
@@ -3210,6 +3490,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "confirmed_cells": parse_result.get("confirmed_cells", []),
             "field_bound_operations": field_bound_operations,
             "workspace_fields": workspace_fields,
+            "semantic_workspace_schema": semantic_workspace_schema,
             "chat_preprocess": parse_result.get("chat_preprocess", {}),
         },
         "pipeline_result": {
@@ -3228,6 +3509,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "render_ready": pipeline_result.get("render_ready", False),
         },
         "workspace_fields": workspace_fields,
+        "semantic_workspace_schema": semantic_workspace_schema,
         "ai_extraction_contract_summary": parse_result.get("ai_extraction_contract_summary", {}),
         "pipeline_state": get_pipeline_state(),
     }
@@ -3826,6 +4108,7 @@ def api_v4_template_layout():
         "success": True,
         "layout_sections": layout_result.get("layout_sections", []),
         "workspace_fields": _build_workspace_fields_from_profile(_current_template_profile_for_export()),
+        "semantic_workspace_schema": _build_semantic_workspace_schema(_current_template_profile_for_export()),
         "summary": layout_result.get("summary", {}),
         "template_analysis_summary": template_analysis_summary,
         "pipeline_state": get_pipeline_state(),
