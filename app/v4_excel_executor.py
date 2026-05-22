@@ -56,13 +56,37 @@ def _cell_has_template_value(cell):
     return cell.value is not None and str(cell.value).strip() != ""
 
 
-def _empty_safety(warnings=None, skipped_operations=None, overwrite_warnings=None):
+def _cell_has_formula(cell):
+    value = cell.value
+    return isinstance(value, str) and value.strip().startswith("=")
+
+
+def _formula_protection_skip(operation, requested_cell, write_cell, formula_value):
+    reason = f"{write_cell} 目标单元格包含公式，已保护并跳过写入。"
+    skipped = dict(operation)
+    skipped["skipped"] = True
+    skipped["safety_status"] = "skipped"
+    skipped["skip_code"] = "formula_protected"
+    skipped["skip_reason"] = reason
+    skipped["requested_cell"] = requested_cell
+    skipped["target_cell"] = write_cell
+    skipped["existing_formula"] = str(formula_value or "")
+    return skipped, reason
+
+
+def _empty_safety(warnings=None, skipped_operations=None, overwrite_warnings=None, formula_protection=None):
+    formula_protection = formula_protection if isinstance(formula_protection, dict) else {}
     return {
         "has_conflicts": False,
         "conflicts": [],
         "warnings": warnings if isinstance(warnings, list) else [],
         "skipped_operations": skipped_operations if isinstance(skipped_operations, list) else [],
         "overwrite_warnings": overwrite_warnings if isinstance(overwrite_warnings, list) else [],
+        "formula_protection": {
+            "enabled": True,
+            "protected_count": int(formula_protection.get("protected_count") or 0),
+            "protected_cells": formula_protection.get("protected_cells") if isinstance(formula_protection.get("protected_cells"), list) else [],
+        },
     }
 
 
@@ -71,6 +95,8 @@ def execute_operations_to_excel(template_file, operations):
     warnings = []
     skipped_operations = []
     overwrite_warnings = []
+    formula_protected_operations = []
+    formula_protected_cells = []
 
     if not template_path.is_file():
         warnings.append("Excel 模板不存在。")
@@ -78,7 +104,7 @@ def execute_operations_to_excel(template_file, operations):
             "success": False,
             "error": "Excel 模板不存在",
             "warnings": warnings,
-            "mapping_safety": _empty_safety(warnings, skipped_operations, overwrite_warnings),
+            "mapping_safety": _empty_safety(warnings, skipped_operations, overwrite_warnings, {}),
             "operations_written": 0,
         }
 
@@ -88,7 +114,7 @@ def execute_operations_to_excel(template_file, operations):
             "success": False,
             "error": "暂无 operations",
             "warnings": warnings,
-            "mapping_safety": _empty_safety(warnings, skipped_operations, overwrite_warnings),
+            "mapping_safety": _empty_safety(warnings, skipped_operations, overwrite_warnings, {}),
             "operations_written": 0,
         }
 
@@ -125,6 +151,28 @@ def execute_operations_to_excel(template_file, operations):
         try:
             write_cell = _resolve_merged_target(worksheet, target_cell, warnings)
             cell = worksheet[write_cell]
+
+            if _cell_has_formula(cell):
+                skipped, reason = _formula_protection_skip(
+                    operation,
+                    requested_cell=target_cell,
+                    write_cell=write_cell,
+                    formula_value=cell.value,
+                )
+                warnings.append(reason)
+                skipped_operations.append(skipped)
+                formula_protected_operations.append(skipped)
+                formula_protected_cells.append(
+                    {
+                        "target_cell": write_cell,
+                        "requested_cell": target_cell,
+                        "existing_formula": str(cell.value or ""),
+                        "source": str(operation.get("source") or operation.get("type") or ""),
+                        "op_type": op_type,
+                    }
+                )
+                continue
+
             if _cell_has_template_value(cell) and not _is_mapping_confirmed(operation):
                 warning = f"{write_cell} 目标单元格已有模板内容，可能发生覆盖。"
                 warnings.append(warning)
@@ -151,6 +199,11 @@ def execute_operations_to_excel(template_file, operations):
     output_path = output_dir / filename
     workbook.save(output_path)
 
+    formula_protection = {
+        "protected_count": len(formula_protected_operations),
+        "protected_cells": formula_protected_cells,
+    }
+
     return {
         "success": True,
         "filename": filename,
@@ -158,7 +211,7 @@ def execute_operations_to_excel(template_file, operations):
         "download_url": f"/api/download/{filename}",
         "operations_written": operations_written,
         "warnings": warnings,
-        "mapping_safety": _empty_safety(warnings, skipped_operations, overwrite_warnings),
+        "mapping_safety": _empty_safety(warnings, skipped_operations, overwrite_warnings, formula_protection),
     }
 
 

@@ -212,6 +212,7 @@ DEFAULT_EXCEL_FEATURE_FLAGS = {
     "advanced_write_modes": False,
     "option_write_enhancement": False,
     "format_protection": True,
+    "formula_protection": True,
     "export_readback_check": True,
 }
 
