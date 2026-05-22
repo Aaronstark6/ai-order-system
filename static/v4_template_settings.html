@@ -445,6 +445,53 @@
             color: #667085;
             font-size: 13px;
         }
+        .mapping-health-panel {
+            background: #fff;
+            border: 1px solid #e4e7ec;
+            border-radius: 8px;
+            display: grid;
+            gap: 12px;
+            margin: 14px 0;
+            padding: 14px;
+        }
+        .mapping-health-header {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+        }
+        .mapping-health-title {
+            color: #1d2939;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .mapping-health-summary {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        }
+        .mapping-health-metric {
+            background: #f8fafc;
+            border: 1px solid #eef2f6;
+            border-radius: 7px;
+            padding: 9px;
+        }
+        .mapping-health-metric span {
+            color: #667085;
+            display: block;
+            font-size: 12px;
+        }
+        .mapping-health-metric strong {
+            color: #1d2939;
+            display: block;
+            font-size: 18px;
+            margin-top: 2px;
+        }
+        .mapping-health-problems {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        }
         @media (max-width: 860px) {
             body { padding: 16px; }
             .page { max-width: 100%; }
@@ -456,6 +503,7 @@
             .debug-grid { grid-template-columns: 1fr; }
             .visual-workbench-body { grid-template-columns: 1fr; }
             .validation-item { grid-template-columns: 1fr; }
+            .mapping-health-header { align-items: stretch; flex-direction: column; }
         }
     </style>
 </head>
@@ -523,6 +571,7 @@
                 </div>
             </div>
             <div id="configurationValidation" class="validation-panel"></div>
+            <div id="mappingHealthPanel" class="mapping-health-panel"></div>
             <div id="templateConfigArea" class="config-empty">
                 当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。
             </div>
@@ -535,6 +584,7 @@
         let selectedMapping = null;
         let configByMappingId = {};
         let visualGridByMappingId = {};
+        let mappingHealthByMappingId = {};
         let selectedVisualCell = "";
         let visualIntentLayerFilters = {
             "fill-field": true,
@@ -583,6 +633,7 @@
                 selectedVisualCell = "";
                 renderVisualWorkbench();
                 renderConfig();
+                renderMappingHealth();
                 return;
             }
             select.innerHTML = mappings.map((mapping) => {
@@ -644,6 +695,30 @@
             }
         }
 
+        async function loadMappingHealth(mappingId = selectedMappingId, showStatus = false) {
+            if (!mappingId) {
+                renderMappingHealth();
+                return null;
+            }
+            if (showStatus) setStatus("正在刷新映射健康检查...", "info");
+            try {
+                const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/mapping-health`);
+                mappingHealthByMappingId[mappingId] = result;
+                renderMappingHealth(result);
+                if (showStatus) setStatus("映射健康检查已刷新。", "success");
+                return result;
+            } catch (error) {
+                mappingHealthByMappingId[mappingId] = { success: false, error: error.message || "映射健康检查失败" };
+                renderMappingHealth(mappingHealthByMappingId[mappingId]);
+                if (showStatus) setStatus(error.message || "映射健康检查失败", "error");
+                return null;
+            }
+        }
+
+        function refreshMappingHealth() {
+            return loadMappingHealth(selectedMappingId, true);
+        }
+
         async function loadMappings(preferredId = "") {
             setStatus("正在加载映射...", "info");
             const result = await fetchJson("/api/v4/template-profiles");
@@ -671,6 +746,7 @@
                 selectedVisualCell = "";
                 renderVisualWorkbench();
                 renderConfig();
+                renderMappingHealth();
                 return;
             }
             if (showLoading) setStatus("正在切换映射...", "info");
@@ -685,6 +761,7 @@
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             await loadMappingConfiguration(selectedMappingId);
             await loadVisualGrid(selectedMappingId);
+            await loadMappingHealth(selectedMappingId, false);
             updateCurrentState();
             renderConfig();
             if (showLoading) setStatus("已切换映射。", "success");
@@ -730,6 +807,7 @@
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             await loadMappingConfiguration(selectedMappingId);
             await loadVisualGrid(selectedMappingId);
+            await loadMappingHealth(selectedMappingId, false);
             updateCurrentState();
             renderConfig();
             setInlineStatus("模板文件已上传。");
@@ -761,6 +839,7 @@
             await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/delete`, { method: "POST" });
             delete configByMappingId[selectedMappingId];
             delete visualGridByMappingId[selectedMappingId];
+            delete mappingHealthByMappingId[selectedMappingId];
             selectedMappingId = "";
             selectedMapping = null;
             await loadMappings();
@@ -1568,6 +1647,71 @@
             if (target) target.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
         }
 
+        function renderMappingHealthProblemGroup(title, className, items) {
+            const safeItems = Array.isArray(items) ? items : [];
+            return `
+                <div class="validation-group">
+                    <div class="validation-group-title">${escapeHtml(title)}</div>
+                    ${safeItems.length ? `
+                        <div class="validation-list">
+                            ${safeItems.map((item) => `
+                                <button class="validation-item ${className}" type="button" onclick="selectValidationCell('${escapeHtml(item.cell || "")}')">
+                                    <span class="validation-item-cell">${escapeHtml(item.cell || "-")}</span>
+                                    <span class="validation-item-type">${escapeHtml(item.field_key || item.label || "-")}</span>
+                                    <span class="validation-item-message">${escapeHtml(item.message || "")}</span>
+                                </button>
+                            `).join("")}
+                        </div>
+                    ` : '<div class="validation-empty">暂无</div>'}
+                </div>
+            `;
+        }
+
+        function renderMappingHealth(health = null) {
+            const area = document.getElementById("mappingHealthPanel");
+            if (!area) return;
+            const result = health || (selectedMappingId ? mappingHealthByMappingId[selectedMappingId] : null);
+            if (!selectedMappingId) {
+                area.innerHTML = `
+                    <div class="mapping-health-header">
+                        <div class="mapping-health-title">映射健康检查</div>
+                        <button type="button" class="ghost" onclick="refreshMappingHealth()">刷新健康检查</button>
+                    </div>
+                    <div class="validation-empty">请先选择映射。</div>
+                `;
+                return;
+            }
+            if (!result || result.success === false) {
+                area.innerHTML = `
+                    <div class="mapping-health-header">
+                        <div class="mapping-health-title">映射健康检查</div>
+                        <button type="button" class="ghost" onclick="refreshMappingHealth()">刷新健康检查</button>
+                    </div>
+                    <div class="validation-empty">${escapeHtml(result?.error || "点击刷新健康检查查看端到端链路状态。")}</div>
+                `;
+                return;
+            }
+            const summary = result.summary || {};
+            area.innerHTML = `
+                <div class="mapping-health-header">
+                    <div class="mapping-health-title">映射健康检查</div>
+                    <button type="button" class="ghost" onclick="refreshMappingHealth()">刷新健康检查</button>
+                </div>
+                <div class="mapping-health-summary">
+                    <div class="mapping-health-metric"><span>配置项</span><strong>${Number(summary.total_config_items || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>工作页字段</span><strong>${Number(summary.workspace_fields || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>AI提取字段</span><strong>${Number(summary.ai_contract_fields || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>可导出字段</span><strong>${Number(summary.export_ready_fields || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>错误</span><strong>${Number(summary.errors_count || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>警告</span><strong>${Number(summary.warnings_count || 0)}</strong></div>
+                </div>
+                <div class="mapping-health-problems">
+                    ${renderMappingHealthProblemGroup("错误", "error", result.errors || [])}
+                    ${renderMappingHealthProblemGroup("警告", "warning", result.warnings || [])}
+                </div>
+            `;
+        }
+
         function buildConfigSections(rows, layoutSections, savedSectionConfiguration) {
             const saved = savedSectionConfiguration && typeof savedSectionConfiguration === "object" ? savedSectionConfiguration : {};
             const layoutByKey = {};
@@ -1634,6 +1778,7 @@
                 mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             }
             await loadVisualGrid(selectedMappingId);
+            await loadMappingHealth(selectedMappingId, false);
             setStatus("模板配置已保存。", "success");
         }
 

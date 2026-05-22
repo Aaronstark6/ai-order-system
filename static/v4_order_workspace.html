@@ -672,6 +672,7 @@
                     </div>
                     <div class="export-check-stats">已填写 0，缺失 0</div>
                 </div>
+                <div id="v4MappingHealthDebug" class="smart-debug-panel" style="display:none;"></div>
                 <div class="actions">
                     <button id="v4GenerateBtn" class="secondary" type="button" onclick="generateExcelFromConfirmation()">确认生成 Excel</button>
                     <a id="v4DownloadLink" class="download-link" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
@@ -690,6 +691,7 @@
         let v4LayoutSections = [];
         let v4WorkspaceFields = [];
         let v4VisualGrid = null;
+        let v4MappingHealth = null;
         let currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
         let selectedNativeCell = "";
         window.confirmedCells = confirmedCells;
@@ -806,6 +808,60 @@
                 </div>
             `;
             panel.style.display = "block";
+        }
+
+        function renderWorkspaceMappingHealthDebug() {
+            const panel = document.getElementById("v4MappingHealthDebug");
+            if (!panel) return;
+            if (!isSmartDebugMode()) {
+                panel.style.display = "none";
+                panel.innerHTML = "";
+                return;
+            }
+            const health = v4MappingHealth && typeof v4MappingHealth === "object" ? v4MappingHealth : null;
+            if (!health || health.success === false) {
+                panel.innerHTML = `
+                    <div class="smart-debug-title">映射健康</div>
+                    <div class="small">${escapeHtml(health?.error || "暂未加载映射健康检查。")}</div>
+                `;
+                panel.style.display = "block";
+                return;
+            }
+            const summary = health.summary || {};
+            const errors = Number(summary.errors_count || 0);
+            const warnings = Number(summary.warnings_count || 0);
+            const status = errors ? "有错误" : (warnings ? "有警告" : "OK");
+            panel.innerHTML = `
+                <div class="smart-debug-title">映射健康：${escapeHtml(status)}</div>
+                <div class="smart-debug-grid">
+                    <div class="smart-debug-metric"><span>AI字段</span><strong>${Number(summary.ai_contract_fields || 0)}</strong></div>
+                    <div class="smart-debug-metric"><span>工作页字段</span><strong>${Number(summary.workspace_fields || 0)}</strong></div>
+                    <div class="smart-debug-metric"><span>导出字段</span><strong>${Number(summary.export_ready_fields || 0)}</strong></div>
+                    <div class="smart-debug-metric"><span>错误</span><strong>${errors}</strong></div>
+                    <div class="smart-debug-metric"><span>警告</span><strong>${warnings}</strong></div>
+                </div>
+            `;
+            panel.style.display = "block";
+        }
+
+        async function loadWorkspaceMappingHealth(profileId = "") {
+            const activeProfileId = profileId || activeV4Profile?.profile_id || "";
+            if (!activeProfileId) {
+                v4MappingHealth = null;
+                renderWorkspaceMappingHealthDebug();
+                return null;
+            }
+            try {
+                const response = await fetch(`/api/v4/template-profiles/${encodeURIComponent(activeProfileId)}/mapping-health`);
+                const result = await response.json();
+                v4MappingHealth = response.ok && result.success ? result : { success: false, error: result.error || "映射健康检查加载失败" };
+                renderWorkspaceMappingHealthDebug();
+                return v4MappingHealth;
+            } catch (error) {
+                v4MappingHealth = { success: false, error: error.message || "映射健康检查加载失败" };
+                renderWorkspaceMappingHealthDebug();
+                return null;
+            }
         }
 
         function columnIndexFromCell(cell) {
@@ -2251,6 +2307,7 @@
                     document.getElementById("v4ProfileSelect").value = activeV4Profile.profile_id;
                 }
                 setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile)}`, "success");
+                await loadWorkspaceMappingHealth(activeV4Profile.profile_id || "");
                 renderConfigurationPreview();
             } catch (error) {
                 setStatus("v4ProfileStatus", error.message || "系统模板加载失败", "error");
@@ -2328,6 +2385,7 @@
                 v4WorkspaceFields = Array.isArray(result.workspace_fields) ? result.workspace_fields : v4WorkspaceFields;
                 window.v4WorkspaceFields = v4WorkspaceFields;
                 setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
+                await loadWorkspaceMappingHealth(activeV4Profile.profile_id || profileId);
                 await loadV4TemplateLayout();
                 renderConfigurationPreview();
             } catch (error) {

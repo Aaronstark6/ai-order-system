@@ -1168,6 +1168,151 @@ def _ai_extraction_contract_summary(contract):
     }
 
 
+def _mapping_health_issue(level, cell, label, field_key, message):
+    return {
+        "level": level,
+        "cell": _cell_key(cell),
+        "label": str(label or "").strip(),
+        "field_key": str(field_key or "").strip(),
+        "message": message,
+    }
+
+
+def _build_mapping_health_report(profile):
+    profile = profile if isinstance(profile, dict) else {}
+    profile_id = str(profile.get("profile_id") or "").strip()
+    configuration = _template_configuration_from_profile(profile)
+    workspace_fields = _build_workspace_fields_from_profile(profile)
+    ai_contract = _build_ai_extraction_contract_from_workspace_fields(workspace_fields)
+    ai_summary = _ai_extraction_contract_summary(ai_contract)
+    required_target_write_modes = {
+        "write_right_cell",
+        "write_below_cell",
+        "append_after_colon",
+        "check_option",
+        "select_option_text",
+        "write_table_column",
+        "write_row_field",
+    }
+    executable_write_modes = required_target_write_modes
+    skipped_intents = {"title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"}
+    skipped_write_modes = {"skip", "none"}
+    excel_cell_re = re.compile(r"^[A-Z]{1,3}[1-9][0-9]*$")
+    checks = []
+    errors = []
+    warnings = []
+    field_usage = {}
+    target_usage = {}
+
+    def add_problem(problems, issue_list, level, cell, label, field_key, message):
+        problems.append(message)
+        issue_list.append(_mapping_health_issue(level, cell, label, field_key, message))
+
+    for source_cell, item in sorted(configuration.items(), key=lambda pair: _cell_key(pair[0])):
+        if not isinstance(item, dict):
+            continue
+        cell = _cell_key(source_cell)
+        field_key = str(item.get("candidate_field_key") or item.get("field_key") or "").strip()
+        label = (
+            str(item.get("label") or "").strip()
+            or str(item.get("candidate_field_label") or "").strip()
+            or str(item.get("field_label") or "").strip()
+            or field_key
+        )
+        intent_type = str(item.get("intent_type") or "").strip()
+        write_mode = str(item.get("write_mode") or "").strip()
+        target_cell = _cell_key(item.get("target_cell"))
+        show_in_workspace = item.get("show_in_workspace") is not False
+        source_label_cell = _cell_key(item.get("label_cell") or cell)
+        problems = []
+        status = "ok"
+        is_skipped = write_mode in skipped_write_modes or intent_type in skipped_intents
+
+        if is_skipped:
+            status = "skipped"
+        else:
+            if show_in_workspace and not field_key:
+                add_problem(problems, errors, "error", cell, label, field_key, "show_in_workspace=true 但 field_key 为空，AI 和工作页无法稳定使用。")
+            if write_mode in required_target_write_modes and not target_cell:
+                add_problem(problems, errors, "error", cell, label, field_key, f"write_mode={write_mode} 需要 target_cell。")
+            if target_cell and not excel_cell_re.match(target_cell):
+                add_problem(problems, errors, "error", cell, label, field_key, f"target_cell 格式非法：{target_cell}")
+            if intent_type in {"option_checkbox", "option_text_choice"} and not str(item.get("option_value") or "").strip():
+                add_problem(problems, warnings, "warning", cell, label, field_key, "选项字段缺少 option_value。")
+
+        ai_contract_ready = bool(field_key and write_mode not in skipped_write_modes and intent_type not in skipped_intents)
+        workspace_ready = bool(show_in_workspace and field_key and not is_skipped)
+        export_ready = bool(target_cell and write_mode in executable_write_modes and not is_skipped and (not target_cell or excel_cell_re.match(target_cell)))
+
+        if field_key and not is_skipped:
+            field_usage.setdefault(field_key, []).append(cell)
+        if target_cell and not is_skipped:
+            target_usage.setdefault(target_cell, []).append(cell)
+
+        if problems and status != "skipped":
+            status = "error" if any(issue["cell"] == cell and issue["level"] == "error" for issue in errors) else "warning"
+
+        checks.append(
+            {
+                "cell": cell,
+                "source_cell": source_label_cell,
+                "field_key": field_key,
+                "label": label,
+                "intent_type": intent_type,
+                "write_mode": write_mode,
+                "target_cell": target_cell,
+                "show_in_workspace": show_in_workspace,
+                "ai_contract_ready": ai_contract_ready,
+                "workspace_ready": workspace_ready,
+                "export_ready": export_ready,
+                "status": status,
+                "problems": problems,
+            }
+        )
+
+    check_by_cell = {item["cell"]: item for item in checks}
+    for field_key, cells in field_usage.items():
+        if len(cells) <= 1:
+            continue
+        message = f"field_key 重复：{field_key} 被 {len(cells)} 个配置项使用（{', '.join(cells)}）。"
+        for cell in cells:
+            check = check_by_cell.get(cell)
+            if check:
+                check["problems"].append(message)
+                if check["status"] == "ok":
+                    check["status"] = "warning"
+            warnings.append(_mapping_health_issue("warning", cell, check.get("label") if check else "", field_key, message))
+
+    for target_cell, cells in target_usage.items():
+        if len(cells) <= 1:
+            continue
+        message = f"target_cell 重复：{target_cell} 被 {len(cells)} 个配置项写入（{', '.join(cells)}）。"
+        for cell in cells:
+            check = check_by_cell.get(cell)
+            if check:
+                check["problems"].append(message)
+                if check["status"] == "ok":
+                    check["status"] = "warning"
+            warnings.append(_mapping_health_issue("warning", cell, check.get("label") if check else "", check.get("field_key") if check else "", message))
+
+    export_ready_fields = sum(1 for item in checks if item.get("export_ready"))
+    return {
+        "success": True,
+        "profile_id": profile_id,
+        "summary": {
+            "total_config_items": len(configuration),
+            "workspace_fields": len(workspace_fields),
+            "ai_contract_fields": ai_summary.get("fields_count", 0),
+            "export_ready_fields": export_ready_fields,
+            "errors_count": len(errors),
+            "warnings_count": len(warnings),
+        },
+        "checks": checks,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
 def _build_workspace_fields_from_profile(profile):
     configuration = _template_configuration_from_profile(profile)
     workspace_fields = []
@@ -2142,6 +2287,30 @@ def api_v4_template_profile_visual_grid(profile_id: str):
             "error": str(exc) or "可视化模板配置加载失败",
             "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
         }
+
+
+@router.get("/api/v4/template-profiles/{profile_id}/mapping-health")
+def api_v4_template_profile_mapping_health(profile_id: str):
+    logger.info("V4 template profile mapping health requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "profile_id": profile_id,
+            "error": "Template Profile 不存在",
+            "summary": {
+                "total_config_items": 0,
+                "workspace_fields": 0,
+                "ai_contract_fields": 0,
+                "export_ready_fields": 0,
+                "errors_count": 1,
+                "warnings_count": 0,
+            },
+            "checks": [],
+            "errors": [_mapping_health_issue("error", "", "", "", "Template Profile 不存在")],
+            "warnings": [],
+        }
+    return _build_mapping_health_report(profile)
 
 
 @router.post("/api/v4/template-profiles/{profile_id}/configuration")
