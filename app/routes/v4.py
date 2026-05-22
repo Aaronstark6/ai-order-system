@@ -267,6 +267,8 @@ def _normalize_template_configuration_items(items):
             "field_type": str(item.get("field_type") or "text").strip(),
             "image_fit": str(item.get("image_fit") or "contain").strip(),
             "image_anchor_cell": str(item.get("image_anchor_cell") or item.get("target_cell") or item.get("cell") or "").strip().upper(),
+            "col_offset": int(item.get("col_offset") or item.get("table_col_offset") or item.get("column_offset") or 0),
+            "table_col_offset": int(item.get("table_col_offset") or item.get("col_offset") or item.get("column_offset") or 0),
         }
     return configuration
 
@@ -509,6 +511,8 @@ def _merge_candidate_with_saved_configuration(candidate, saved_item):
             "image_anchor_cell",
             saved_or_candidate("target_cell", "target_cell") or saved_item.get("cell") or candidate.get("cell") or ""
         ),
+        "col_offset": saved_or_candidate("col_offset", "col_offset", 0),
+        "table_col_offset": saved_or_candidate("table_col_offset", "table_col_offset", 0),
     }
 
 
@@ -2457,6 +2461,8 @@ def _build_workspace_fields_from_profile(profile):
                 "field_type": field_type,
                 "image_fit": str(item.get("image_fit") or "contain").strip(),
                 "image_anchor_cell": str(item.get("image_anchor_cell") or item.get("target_cell") or normalized_source_cell or "").strip().upper(),
+                "col_offset": int(item.get("col_offset") or item.get("table_col_offset") or item.get("column_offset") or 0),
+                "table_col_offset": int(item.get("table_col_offset") or item.get("col_offset") or item.get("column_offset") or 0),
             }
         )
 
