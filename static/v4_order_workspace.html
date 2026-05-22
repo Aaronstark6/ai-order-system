@@ -2878,6 +2878,7 @@
             }
 
             try {
+                workspaceCandidateValues = {};
                 setStatus("v4ProfileStatus", "正在切换系统模板...", "info");
                 const response = await fetch("/api/v4/set-current-template-profile", {
                     method: "POST",
@@ -2910,6 +2911,7 @@
             }
 
             try {
+                workspaceCandidateValues = {};
                 setStatus("v4ParseStatus", "AI 正在解析订单信息...", "info");
                 document.getElementById("v4DownloadLink").style.display = "none";
                 const response = await fetch("/api/v4/parse-chat-run-pipeline", {
@@ -2947,6 +2949,7 @@
             window.confirmedCells = confirmedCells;
             window.originalConfirmedCells = originalConfirmedCells;
             latestV4ParseResult = null;
+            workspaceCandidateValues = {};
             renderSmartMappingDebug(null);
             setStatus("v4ParseStatus", "等待输入客户聊天内容。", "info");
             setStatus("v4GenerateStatus", "确认信息后可生成 Excel。", "info");
