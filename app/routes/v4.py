@@ -2480,6 +2480,28 @@ def _stringify_extracted_value(value):
     return str(value).strip()
 
 
+def _table_row_values(raw_value):
+    if not isinstance(raw_value, list):
+        return []
+    rows = []
+    for item in raw_value:
+        if isinstance(item, dict):
+            rows.append(item)
+        else:
+            rows.append({"value": item})
+    return rows
+
+
+def _table_cell_value(row, field_key):
+    if not isinstance(row, dict):
+        return ""
+    if field_key in row:
+        return row.get(field_key)
+    if "value" in row:
+        return row.get("value")
+    return ""
+
+
 def _bind_parsed_fields_to_template_cells(parsed, profile):
     if not isinstance(parsed, dict):
         parsed_fields = {}
@@ -2502,6 +2524,52 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
 
         raw_value = parsed_fields.get(field_key)
         if _is_blank_extracted_value(raw_value):
+            continue
+
+        table_rows = _table_row_values(raw_value)
+        if table_rows:
+            label = str(item.get("label") or item.get("field_label") or field_key).strip() or field_key
+            source = "AI Extraction Contract"
+            for row_index, row in enumerate(table_rows):
+                row_value = _table_cell_value(row, field_key)
+                if _is_blank_extracted_value(row_value):
+                    continue
+                value = _stringify_extracted_value(row_value)
+                confirmed_cells.append(
+                    {
+                        "cell": cell,
+                        "display_cell": cell,
+                        "source_cell": item.get("source_cell") or "",
+                        "source": source,
+                        "label": label,
+                        "value": value,
+                        "field_key": field_key,
+                        "write_mode": item.get("write_mode") or "",
+                        "intent_type": item.get("intent_type") or "",
+                        "option_value": "",
+                        "row_offset": row_index,
+                        "col_offset": 0,
+                        "sheet_name": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
+                    }
+                )
+                operations.append(
+                    {
+                        "op_type": "write_table_cell",
+                        "target_cell": cell,
+                        "row_offset": row_index,
+                        "col_offset": 0,
+                        "value": value,
+                        "source": source,
+                        "field_key": field_key,
+                        "field_label": label,
+                        "mapping_confirmed": True,
+                        "ai_extraction_contract": True,
+                        "write_mode": item.get("write_mode") or "",
+                        "intent_type": item.get("intent_type") or "",
+                        "source_cell": item.get("source_cell") or "",
+                        "target_sheet": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
+                    }
+                )
             continue
 
         value = _stringify_extracted_value(raw_value)
