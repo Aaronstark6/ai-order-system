@@ -207,7 +207,7 @@ def _template_configuration_from_profile(profile):
 
 
 DEFAULT_EXCEL_FEATURE_FLAGS = {
-    "image_fields": False,
+    "image_fields": True,
     "dynamic_tables": False,
     "advanced_write_modes": False,
     "option_write_enhancement": False,
