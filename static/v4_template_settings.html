@@ -106,6 +106,19 @@
             font-size: 13px;
         }
         .small { color: #667085; font-size: 13px; line-height: 1.5; }
+        .semantic-badge {
+            background: #eef4ff;
+            border: 1px solid #c7d7fe;
+            border-radius: 999px;
+            color: #3538cd;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            margin-left: 6px;
+            padding: 4px 8px;
+            vertical-align: middle;
+        }
         .config-empty {
             background: #fafbfd;
             border: 1px dashed #d8dee8;
@@ -1011,6 +1024,7 @@
                 semantic_region_id: pick("semantic_region_id", "semantic_region_id", "semantic_region_id", ""),
                 semantic_confidence: Number(pick("semantic_confidence", "semantic_confidence", "semantic_confidence", 0) || 0),
                 semantic_reason: pick("semantic_reason", "semantic_reason", "semantic_reason", ""),
+                semantic_promoted: Boolean(pick("semantic_promoted", "semantic_promoted", "semantic_promoted", false)),
                 intent_confidence: Number(pick("intent_confidence", "intent_confidence", "intent_confidence", 0) || 0),
                 intent_reason: pick("intent_reason", "intent_reason", "intent_reason", ""),
                 ai_extract_hint: pick("ai_extract_hint", "ai_extract_hint", "ai_extract_hint", ""),
@@ -1184,6 +1198,10 @@
                     <input class="visual-readonly" type="text" value="${escapeHtml(INTENT_LABELS[config.intent_type] || config.intent_type || "未知")}" readonly>
                 </div>
                 <div class="visual-detail-row">
+                    <div class="visual-detail-label">语义增强</div>
+                    <div class="visual-detail-value">${config.semantic_promoted ? '<span class="semantic-badge">语义推荐</span>' : "否"}</div>
+                </div>
+                <div class="visual-detail-row">
                     <div class="visual-detail-label">语义类型</div>
                     <div class="visual-detail-value">${escapeHtml(SEMANTIC_TYPE_LABELS[config.semantic_type] || config.semantic_type || "-")}</div>
                 </div>
@@ -1267,6 +1285,11 @@
                 candidate_source: previous.candidate_source || effective.candidate_source || "",
                 candidate_reason: previous.candidate_reason || effective.candidate_reason || "",
                 confidence_breakdown: previous.confidence_breakdown && typeof previous.confidence_breakdown === "object" ? previous.confidence_breakdown : (effective.confidence_breakdown || {}),
+                semantic_type: previous.semantic_type || effective.semantic_type || "",
+                semantic_region_id: previous.semantic_region_id || effective.semantic_region_id || "",
+                semantic_confidence: Number(previous.semantic_confidence ?? effective.semantic_confidence ?? 0),
+                semantic_reason: previous.semantic_reason || effective.semantic_reason || "",
+                semantic_promoted: Boolean(previous.semantic_promoted ?? effective.semantic_promoted ?? false),
                 intent_type: readValue("intent_type").trim(),
                 write_mode: readValue("write_mode").trim(),
                 label_cell: previous.label_cell || effective.label_cell || effective.cell,
@@ -1487,7 +1510,7 @@
                 return {
                     ...row,
                     configLabel: typeof item.label === "string" && item.label.trim() ? item.label : row.text,
-                    showInWorkspace: typeof item.show_in_workspace === "boolean" ? item.show_in_workspace : true,
+                    showInWorkspace: typeof item.show_in_workspace === "boolean" ? item.show_in_workspace : (typeof candidate.show_in_workspace === "boolean" ? candidate.show_in_workspace : true),
                     displayOrder: Number.isFinite(savedOrder) && savedOrder > 0 ? savedOrder : naturalOrder,
                     candidateFieldKey: item.candidate_field_key || candidate.field_key || "",
                     candidateFieldLabel: item.candidate_field_label || candidate.field_label || "",
@@ -1503,6 +1526,11 @@
                     intentConfidence: Number(item.intent_confidence || candidate.intent_confidence || 0),
                     intentReason: item.intent_reason || candidate.intent_reason || "",
                     aiExtractHint: item.ai_extract_hint || candidate.ai_extract_hint || "",
+                    semanticType: item.semantic_type || candidate.semantic_type || "",
+                    semanticRegionId: item.semantic_region_id || candidate.semantic_region_id || "",
+                    semanticConfidence: Number(item.semantic_confidence || candidate.semantic_confidence || 0),
+                    semanticReason: item.semantic_reason || candidate.semantic_reason || "",
+                    semanticPromoted: Boolean(item.semantic_promoted ?? candidate.semantic_promoted ?? false),
                 };
             });
         }
@@ -1578,6 +1606,11 @@
                     option_value: optionValueInput ? optionValueInput.value.trim() : (row.dataset.optionValue || ""),
                     intent_confidence: Number(row.dataset.intentConfidence || 0),
                     intent_reason: row.dataset.intentReason || "",
+                    semantic_type: row.dataset.semanticType || "",
+                    semantic_region_id: row.dataset.semanticRegionId || "",
+                    semantic_confidence: Number(row.dataset.semanticConfidence || 0),
+                    semantic_reason: row.dataset.semanticReason || "",
+                    semantic_promoted: row.dataset.semanticPromoted === "true",
                     ai_extract_hint: hintInput ? hintInput.value.trim() : "",
                 };
             }).filter((item) => item.cell);
@@ -1954,7 +1987,7 @@
                                 </thead>
                                 <tbody>
                                     ${section.rows.map((row) => `
-                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}"` : ""}>
+                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}"` : ""}>
                                             <td>${escapeHtml(row.cell || "-")}</td>
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>
@@ -1964,7 +1997,7 @@
                                         <tr class="debug-row" style="display:none;">
                                             <td colspan="5">
                                                 <details class="debug-details" open>
-                                                    <summary>智能推荐详情</summary>
+                                                    <summary>智能推荐详情${row.semanticPromoted ? '<span class="semantic-badge">语义推荐</span>' : ""}</summary>
                                                     <div class="debug-grid">
                                                         <div class="debug-item"><div class="debug-label">匹配可信度</div><div class="debug-value">${row.candidateConfidence ? row.candidateConfidence.toFixed(2) : "-"}</div></div>
                                                         <div class="debug-item"><div class="debug-label">推荐原因</div><div class="debug-value">${escapeHtml(row.candidateReason || "-")}</div></div>
@@ -1977,6 +2010,10 @@
                                                         <div class="debug-item"><div class="debug-label">区域</div><div class="debug-value">${escapeHtml(row.section || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">类型</div><div class="debug-value">${escapeHtml(row.type || "-")}</div></div>
                                                         <div class="debug-item"><div class="debug-label">候选字段名</div><div class="debug-value">${escapeHtml(row.candidateFieldLabel || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">语义增强</div><div class="debug-value">${row.semanticPromoted ? "是" : "否"}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">语义类型</div><div class="debug-value">${escapeHtml(SEMANTIC_TYPE_LABELS[row.semanticType] || row.semanticType || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">语义原因</div><div class="debug-value">${escapeHtml(row.semanticReason || "-")}</div></div>
+                                                        <div class="debug-item"><div class="debug-label">语义可信度</div><div class="debug-value">${row.semanticConfidence ? Number(row.semanticConfidence).toFixed(2) : "-"}</div></div>
                                                     </div>
                                                     <div class="small" style="margin-top:10px;">系统自动判断仅供参考，可人工修正。</div>
                                                     <div class="debug-grid" style="margin-top:10px;">

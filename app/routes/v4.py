@@ -472,6 +472,8 @@ def _merge_candidate_with_saved_configuration(candidate, saved_item):
         "label_cell": saved_or_candidate("label_cell", "label_cell"),
         "target_cell": saved_or_candidate("target_cell", "target_cell"),
         "option_value": saved_or_candidate("option_value", "option_value"),
+        "semantic_promoted": saved_or_candidate("semantic_promoted", "semantic_promoted", False),
+        "show_in_workspace": saved_or_candidate("show_in_workspace", "show_in_workspace", True),
         "intent_confidence": saved_or_candidate("intent_confidence", "intent_confidence", 0),
         "intent_reason": saved_or_candidate("intent_reason", "intent_reason"),
         "ai_extract_hint": saved_or_candidate("ai_extract_hint", "ai_extract_hint"),
@@ -973,6 +975,220 @@ def _candidate_for_label(label_text, section, label_index=1, total_labels=1, cel
     }
 
 
+def _slugify_semantic_field_key(label, semantic_type, cell, section_text=""):
+    text = f"{label or ''} {section_text or ''}".strip().lower()
+    semantic_type = str(semantic_type or "").strip()
+    keyword_map = [
+        (("客户名称", "客户", "customer"), "customer_name"),
+        (("数量", "quantity", "qty", "amount"), "quantity"),
+        (("日期", "date"), "date"),
+        (("产品形式", "产品类型", "剂型", "形式", "product type", "product_type"), "product_type"),
+        (("产品名称", "品名", "产品", "product name", "product"), "product_name"),
+        (("包装", "包材", "package", "packaging"), "packaging"),
+        (("标签", "label", "labeling"), "labeling"),
+        (("批号", "批次", "batch"), "batch_code"),
+        (("备注", "其他要求", "说明", "note", "other requirements"), "other_requirements"),
+    ]
+    for keywords, field_key in keyword_map:
+        if any(keyword in text for keyword in keywords):
+            return field_key
+    if semantic_type in {"option_group", "option_item"}:
+        point = _cell_point(cell)
+        if point:
+            return f"semantic_option_row_{point[0]}"
+    suffix = re.sub(r"[^a-z0-9_]+", "_", text).strip("_")
+    return suffix or f"semantic_{_cell_key(cell).lower()}"
+
+
+def _semantic_option_group_for_region(semantic, semantic_index):
+    if not isinstance(semantic, dict) or not isinstance(semantic_index, dict):
+        return {}
+    semantic_id = str(semantic.get("region_id") or "")
+    source_cell = _cell_key(semantic.get("source_cell"))
+    target_cell = _cell_key(semantic.get("target_cell"))
+    cells = {_cell_key(cell) for cell in semantic.get("cells", []) if cell} if isinstance(semantic.get("cells"), list) else set()
+    cells.update(cell for cell in (source_cell, target_cell) if cell)
+    for group in semantic_index.get("option_groups", []):
+        if not isinstance(group, dict):
+            continue
+        if semantic_id and semantic_id == str(group.get("region_id") or ""):
+            return group
+        group_cells = {_cell_key(cell) for cell in group.get("cells", []) if cell} if isinstance(group.get("cells"), list) else set()
+        group_cells.update(cell for cell in (_cell_key(group.get("source_cell")), _cell_key(group.get("target_cell"))) if cell)
+        if cells & group_cells:
+            return group
+    return {}
+
+
+def _semantic_candidate_rank(candidate):
+    intent_type = str(candidate.get("intent_type") or "")
+    write_mode = str(candidate.get("write_mode") or "")
+    semantic_type = str(candidate.get("semantic_type") or "")
+    if write_mode in {"skip", "none"} or intent_type in {"title", "section_header"}:
+        if semantic_type in {"title", "section_header"}:
+            return 20
+        if semantic_type in {"note_instruction", "image_attachment_area"}:
+            return 30
+    if intent_type in {"option_checkbox", "option_text_choice"} or semantic_type in {"option_group", "option_item"}:
+        return 80
+    if intent_type in {"table_column_header", "table_row_field"} or semantic_type in {"table_header", "table_row_field", "table_region"}:
+        return 70
+    if write_mode not in {"skip", "none"} and intent_type not in {"unknown", ""}:
+        return 90
+    if semantic_type == "unknown" or intent_type == "unknown":
+        return 10
+    return 50
+
+
+def _promote_candidate_with_semantic(candidate, intent, semantic, semantic_index, label_text, section_name, cell):
+    if not semantic:
+        return candidate, intent, {}
+    semantic_type = str(semantic.get("type") or "").strip()
+    semantic_label = str(semantic.get("label") or label_text or "").strip()
+    semantic_confidence = float(semantic.get("confidence") or 0)
+    source_cell = _cell_key(semantic.get("source_cell") or cell)
+    if semantic_type == "option_group":
+        source_cell = _cell_key(cell)
+    target_cell = _cell_key(semantic.get("target_cell"))
+    group = _semantic_option_group_for_region(semantic, semantic_index)
+    group_label = str(group.get("label") or "").strip()
+    field_key_label = group_label if semantic_type in {"option_group", "option_item"} and group_label else semantic_label
+    field_key = _slugify_semantic_field_key(field_key_label, semantic_type, source_cell or cell, section_name)
+    promoted = {
+        "semantic_type": semantic_type,
+        "semantic_region_id": str(semantic.get("region_id") or ""),
+        "semantic_confidence": semantic_confidence,
+        "semantic_reason": str(semantic.get("reason") or ""),
+        "semantic_promoted": True,
+    }
+
+    if semantic_type == "field_label":
+        candidate = {
+            **candidate,
+            "field_key": candidate.get("field_key") or field_key,
+            "field_label": semantic_label or candidate.get("field_label", ""),
+            "confidence": max(float(candidate.get("confidence") or 0), semantic_confidence, 0.78),
+            "ai_extract_hint": candidate.get("ai_extract_hint") or semantic_label,
+            "candidate_reason": str(semantic.get("reason") or candidate.get("candidate_reason") or ""),
+        }
+        intent = {
+            **intent,
+            "intent_type": semantic.get("intent_type") or "label_fill_right",
+            "write_mode": semantic.get("write_mode") or "write_right_cell",
+            "label_cell": source_cell or cell,
+            "target_cell": target_cell or intent.get("target_cell", ""),
+            "intent_confidence": max(float(intent.get("intent_confidence") or 0), semantic_confidence, 0.78),
+            "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
+        }
+    elif semantic_type == "inline_field":
+        candidate = {
+            **candidate,
+            "field_key": candidate.get("field_key") or field_key,
+            "field_label": semantic_label or candidate.get("field_label", ""),
+            "confidence": max(float(candidate.get("confidence") or 0), semantic_confidence, 0.80),
+            "ai_extract_hint": candidate.get("ai_extract_hint") or semantic_label,
+            "candidate_reason": str(semantic.get("reason") or candidate.get("candidate_reason") or ""),
+        }
+        intent = {
+            **intent,
+            "intent_type": "inline_fill_after_colon",
+            "write_mode": "append_after_colon",
+            "label_cell": source_cell or cell,
+            "target_cell": source_cell or cell,
+            "intent_confidence": max(float(intent.get("intent_confidence") or 0), semantic_confidence, 0.80),
+            "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
+        }
+    elif semantic_type in {"option_group", "option_item"}:
+        option_value = (semantic_label if semantic_type == "option_item" else str(label_text or "").strip()) or semantic_label
+        group_field_key = _slugify_semantic_field_key(field_key_label or option_value, semantic_type, source_cell or cell, section_name)
+        candidate = {
+            **candidate,
+            "field_key": group_field_key,
+            "field_label": group_label or candidate.get("field_label") or section_name or "选择字段",
+            "confidence": max(float(candidate.get("confidence") or 0), semantic_confidence, 0.76),
+            "ai_extract_hint": candidate.get("ai_extract_hint") or group_label or section_name or semantic_label,
+            "candidate_reason": str(semantic.get("reason") or candidate.get("candidate_reason") or ""),
+        }
+        intent = {
+            **intent,
+            "intent_type": semantic.get("intent_type") or "option_text_choice",
+            "write_mode": semantic.get("write_mode") or "select_option_text",
+            "label_cell": source_cell or cell,
+            "target_cell": target_cell or source_cell or cell,
+            "option_value": option_value,
+            "intent_confidence": max(float(intent.get("intent_confidence") or 0), semantic_confidence, 0.76),
+            "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
+        }
+    elif semantic_type in {"note_instruction", "image_attachment_area"}:
+        intent_type = "attachment_hint" if semantic_type == "image_attachment_area" else "note_instruction"
+        candidate = {
+            **candidate,
+            "field_label": semantic_label or candidate.get("field_label", ""),
+            "confidence": max(float(candidate.get("confidence") or 0), semantic_confidence),
+            "ai_extract_hint": candidate.get("ai_extract_hint") or semantic_label,
+            "candidate_reason": str(semantic.get("reason") or candidate.get("candidate_reason") or ""),
+            "show_in_workspace": False,
+        }
+        intent = {
+            **intent,
+            "intent_type": intent_type,
+            "write_mode": "skip",
+            "label_cell": source_cell or cell,
+            "target_cell": "",
+            "intent_confidence": max(float(intent.get("intent_confidence") or 0), semantic_confidence),
+            "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
+        }
+    elif semantic_type in {"table_header", "table_row_field", "table_region"}:
+        candidate = {
+            **candidate,
+            "field_key": candidate.get("field_key") or field_key,
+            "field_label": semantic_label or candidate.get("field_label", ""),
+            "confidence": max(float(candidate.get("confidence") or 0), semantic_confidence, 0.70),
+            "ai_extract_hint": candidate.get("ai_extract_hint") or semantic_label,
+            "candidate_reason": str(semantic.get("reason") or candidate.get("candidate_reason") or ""),
+        }
+        intent = {
+            **intent,
+            "intent_type": semantic.get("intent_type") or ("table_row_field" if semantic_type == "table_row_field" else "table_column_header"),
+            "write_mode": semantic.get("write_mode") or ("write_row_field" if semantic_type == "table_row_field" else "write_table_column"),
+            "label_cell": source_cell or cell,
+            "target_cell": target_cell or intent.get("target_cell", ""),
+            "intent_confidence": max(float(intent.get("intent_confidence") or 0), semantic_confidence, 0.70),
+            "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
+        }
+    elif semantic_type in {"title", "section_header"}:
+        candidate = {
+            **candidate,
+            "field_label": semantic_label or candidate.get("field_label", ""),
+            "confidence": max(float(candidate.get("confidence") or 0), semantic_confidence),
+            "ai_extract_hint": candidate.get("ai_extract_hint") or semantic_label,
+            "candidate_reason": str(semantic.get("reason") or candidate.get("candidate_reason") or ""),
+            "show_in_workspace": False,
+        }
+        intent = {
+            **intent,
+            "intent_type": semantic_type,
+            "write_mode": "skip",
+            "label_cell": source_cell or cell,
+            "target_cell": "",
+            "intent_confidence": max(float(intent.get("intent_confidence") or 0), semantic_confidence),
+            "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
+        }
+    else:
+        promoted["semantic_promoted"] = False
+
+    breakdown = candidate.get("confidence_breakdown") if isinstance(candidate.get("confidence_breakdown"), dict) else {}
+    if semantic_confidence:
+        breakdown = {**breakdown, "semantic": round(semantic_confidence, 2)}
+    candidate = {
+        **candidate,
+        "confidence": round(float(candidate.get("confidence") or 0), 2),
+        "confidence_breakdown": breakdown,
+        "source": "semantic_regions+template_analysis",
+    }
+    return candidate, intent, promoted
+
+
 def _neighbor_label_text(labels, index, cell):
     point = _cell_point(cell)
     texts = []
@@ -1001,22 +1217,84 @@ def _neighbor_label_text(labels, index, cell):
     return " ".join(texts)
 
 
-def _semantic_by_cell_from_analysis(template_analysis):
+SEMANTIC_REGION_PRIORITY = {
+    "field_label": 90,
+    "inline_field": 88,
+    "option_group": 84,
+    "option_item": 82,
+    "table_row_field": 78,
+    "table_header": 76,
+    "table_region": 74,
+    "note_instruction": 62,
+    "image_attachment_area": 60,
+    "title": 52,
+    "section_header": 50,
+    "unknown": 0,
+}
+
+
+def _semantic_region_priority(region):
+    if not isinstance(region, dict):
+        return (0, 0)
+    return (
+        SEMANTIC_REGION_PRIORITY.get(str(region.get("type") or ""), 0),
+        float(region.get("confidence") or 0),
+    )
+
+
+def _build_semantic_region_index(template_analysis):
     analysis = template_analysis if isinstance(template_analysis, dict) else {}
     regions = analysis.get("semantic_regions") if isinstance(analysis.get("semantic_regions"), list) else []
+    by_source_cell = {}
+    by_target_cell = {}
     by_cell = {}
+    by_region_id = {}
+    option_groups = []
+
+    def add(bucket, cell, region):
+        cell_key = str(cell or "").strip().upper()
+        if not cell_key:
+            return
+        bucket.setdefault(cell_key, []).append(region)
+
     for region in regions:
         if not isinstance(region, dict):
             continue
-        cells = []
-        for key in ("source_cell", "target_cell"):
-            cell = str(region.get(key) or "").strip().upper()
-            if cell:
-                cells.append(cell)
+        region_id = str(region.get("region_id") or "").strip()
+        if region_id:
+            by_region_id[region_id] = region
+        if str(region.get("type") or "") == "option_group":
+            option_groups.append(region)
+
+        source_cell = str(region.get("source_cell") or "").strip().upper()
+        target_cell = str(region.get("target_cell") or "").strip().upper()
+        add(by_source_cell, source_cell, region)
+        add(by_target_cell, target_cell, region)
+        for cell in (source_cell, target_cell):
+            add(by_cell, cell, region)
         if isinstance(region.get("cells"), list):
-            cells.extend(str(cell or "").strip().upper() for cell in region.get("cells", []) if cell)
-        for cell in cells:
-            by_cell.setdefault(cell, []).append(region)
+            for cell in region.get("cells", []):
+                add(by_cell, cell, region)
+
+    for bucket in (by_source_cell, by_target_cell, by_cell):
+        for cell, items in bucket.items():
+            bucket[cell] = sorted(
+                [item for item in items if isinstance(item, dict)],
+                key=_semantic_region_priority,
+                reverse=True,
+            )
+    option_groups.sort(key=_semantic_region_priority, reverse=True)
+    return {
+        "by_source_cell": by_source_cell,
+        "by_target_cell": by_target_cell,
+        "by_cell": by_cell,
+        "by_region_id": by_region_id,
+        "option_groups": option_groups,
+    }
+
+
+def _semantic_by_cell_from_analysis(template_analysis):
+    return _build_semantic_region_index(template_analysis).get("by_cell", {})
     return by_cell
 
 
@@ -1024,22 +1302,9 @@ def _primary_semantic_for_cell(semantic_by_cell, cell):
     regions = semantic_by_cell.get(str(cell or "").strip().upper(), []) if isinstance(semantic_by_cell, dict) else []
     if not regions:
         return {}
-    preferred = {
-        "field_label": 90,
-        "inline_field": 88,
-        "option_item": 84,
-        "option_group": 80,
-        "table_header": 76,
-        "table_region": 74,
-        "section_header": 65,
-        "title": 60,
-        "note_instruction": 50,
-        "image_attachment_area": 48,
-        "unknown": 0,
-    }
     return sorted(
         [region for region in regions if isinstance(region, dict)],
-        key=lambda region: (preferred.get(str(region.get("type") or ""), 0), float(region.get("confidence") or 0)),
+        key=_semantic_region_priority,
         reverse=True,
     )[0] if regions else {}
 
@@ -1047,7 +1312,8 @@ def _primary_semantic_for_cell(semantic_by_cell, cell):
 def _generate_mapping_candidates(template_analysis, layout_sections, template_path=None):
     analysis = template_analysis if isinstance(template_analysis, dict) else {}
     labels = analysis.get("labels") if isinstance(analysis.get("labels"), list) else []
-    semantic_by_cell = _semantic_by_cell_from_analysis(analysis)
+    semantic_index = _build_semantic_region_index(analysis)
+    semantic_by_cell = semantic_index.get("by_cell", {})
     intent_context = _load_template_intent_context(template_path)
     candidates = []
     seen_cells = set()
@@ -1064,22 +1330,21 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
         candidate = _candidate_for_label(label_text, section, index, len(labels), cell, neighbor_text)
         intent = _intent_for_label(label_text, cell, section, index, intent_context)
         semantic = _primary_semantic_for_cell(semantic_by_cell, cell)
-        if semantic:
-            intent = {
-                **intent,
-                "intent_type": semantic.get("intent_type") or intent.get("intent_type", "unknown"),
-                "write_mode": semantic.get("write_mode") or intent.get("write_mode", "skip"),
-                "label_cell": semantic.get("source_cell") or intent.get("label_cell", cell),
-                "target_cell": semantic.get("target_cell") or intent.get("target_cell", ""),
-                "intent_confidence": max(float(intent.get("intent_confidence") or 0), float(semantic.get("confidence") or 0)),
-                "intent_reason": semantic.get("reason") or intent.get("intent_reason", ""),
-            }
         section_name = (
             section.get("title")
             or section.get("source_region_name")
             or section.get("section_key")
             or ""
         ) if isinstance(section, dict) else ""
+        candidate, intent, semantic_fields = _promote_candidate_with_semantic(
+            candidate,
+            intent,
+            semantic,
+            semantic_index,
+            label_text,
+            section_name,
+            cell,
+        )
         candidates.append(
             {
                 "cell": cell,
@@ -1088,7 +1353,7 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
                 "section": section_name,
                 "section_key": section.get("section_key", "") if isinstance(section, dict) else "",
                 "confidence": candidate["confidence"],
-                "source": "template_analysis+layout_sections",
+                "source": candidate.get("source") or "template_analysis+layout_sections",
                 "ai_extract_hint": candidate["ai_extract_hint"],
                 "candidate_reason": candidate.get("candidate_reason", ""),
                 "confidence_breakdown": candidate.get("confidence_breakdown", {}),
@@ -1099,14 +1364,24 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
                 "option_value": intent.get("option_value", ""),
                 "intent_confidence": intent.get("intent_confidence", 0),
                 "intent_reason": intent.get("intent_reason", ""),
-                "semantic_type": semantic.get("type", "") if semantic else "",
-                "semantic_region_id": semantic.get("region_id", "") if semantic else "",
-                "semantic_confidence": semantic.get("confidence", 0) if semantic else 0,
-                "semantic_reason": semantic.get("reason", "") if semantic else "",
+                "semantic_type": semantic_fields.get("semantic_type", semantic.get("type", "") if semantic else ""),
+                "semantic_region_id": semantic_fields.get("semantic_region_id", semantic.get("region_id", "") if semantic else ""),
+                "semantic_confidence": semantic_fields.get("semantic_confidence", semantic.get("confidence", 0) if semantic else 0),
+                "semantic_reason": semantic_fields.get("semantic_reason", semantic.get("reason", "") if semantic else ""),
+                "semantic_promoted": bool(semantic_fields.get("semantic_promoted", False)),
+                "show_in_workspace": candidate.get("show_in_workspace", True),
                 "label_text": label_text,
                 "display_order": index,
             }
         )
+    candidates.sort(
+        key=lambda item: (
+            -_semantic_candidate_rank(item),
+            -int(bool(item.get("semantic_promoted"))),
+            -float(item.get("confidence") or 0),
+            int(item.get("display_order") or 0),
+        )
+    )
     return candidates
 
 
