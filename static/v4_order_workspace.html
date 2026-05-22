@@ -2663,17 +2663,20 @@ badItems.forEach((item)=>{
         return;
     }
 
-    if(
-        mode &&
-        mode!=="replace" &&
-        mode!=="overwrite"
-    ){
+    if(["append_after_colon","check_option","select_option_text","write_table_column","write_row_field"].includes(mode)){
         categorizedIssues.write_mode_issue.push(item);
         return;
     }
 
     categorizedIssues.mismatch.push(item);
 });
+
+const failedCategoryRows=[
+    ["missing_export","未写入导出文件",categorizedIssues.missing_export.length],
+    ["mismatch","值不一致",categorizedIssues.mismatch.length],
+    ["skipped","跳过检查",categorizedIssues.skipped.length],
+    ["write_mode_issue","写入模式相关",categorizedIssues.write_mode_issue.length],
+].filter((row)=>Number(row[2]||0)>0);
 
             const statusText = !success
                 ? "回读失败"
@@ -2708,24 +2711,36 @@ badItems.forEach((item)=>{
                 
 <div class="smart-debug-section">
 
-<div class="small"><strong>Top Failed Cells</strong></div>
+<div class="small"><strong>失败分类</strong></div>
+${failedCategoryRows.length ? renderSmartDebugTable(
+["类型","说明","数量"],
+failedCategoryRows
+) : '<div class="small">暂无失败分类。</div>'}
 
-${renderSmartDebugTable(
+<div class="small" style="margin-top:10px;"><strong>Top Failed Cells</strong></div>
+
+${badItems.length ? renderSmartDebugTable(
 ["类型","Cell","字段","期望","实际"],
-badItems.slice(0,10).map((item)=>[
-    !item.actual && item.expected
-        ? "missing_export"
-        : (item.status==="skipped"
-            ? "skipped"
-            : ((item.write_mode||"").trim()
+badItems.slice(0,10).map((item)=>{
+    const actual=(item.actual||"").trim();
+    const expected=(item.expected||"").trim();
+    const mode=(item.write_mode||"").trim();
+    const type = item.status==="skipped"
+        ? "skipped"
+        : (!actual&&expected
+            ? "missing_export"
+            : (["append_after_colon","check_option","select_option_text","write_table_column","write_row_field"].includes(mode)
                 ? "write_mode_issue"
-                : "mismatch")),
-    item.cell||"-",
-    item.label||item.field_key||"-",
-    item.expected||"",
-    item.actual||""
-])
-)}
+                : "mismatch"));
+    return [
+        type,
+        item.cell||"-",
+        item.label||item.field_key||"-",
+        item.expected||"",
+        item.actual||""
+    ];
+})
+) : '<div class="small">暂无失败单元格。</div>'}
 
 </div>
 
