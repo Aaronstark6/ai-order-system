@@ -502,6 +502,13 @@ def _merge_candidate_with_saved_configuration(candidate, saved_item):
         "intent_confidence": saved_or_candidate("intent_confidence", "intent_confidence", 0),
         "intent_reason": saved_or_candidate("intent_reason", "intent_reason"),
         "ai_extract_hint": saved_or_candidate("ai_extract_hint", "ai_extract_hint"),
+        "field_type": saved_or_candidate("field_type", "field_type", "text"),
+        "image_fit": saved_or_candidate("image_fit", "image_fit", "contain"),
+        "image_anchor_cell": saved_or_candidate(
+            "image_anchor_cell",
+            "image_anchor_cell",
+            saved_or_candidate("target_cell", "target_cell") or saved_item.get("cell") or candidate.get("cell") or ""
+        ),
     }
 
 
