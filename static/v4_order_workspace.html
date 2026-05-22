@@ -458,6 +458,43 @@
             text-align: center;
             white-space: nowrap;
         }
+        .workspace-candidates {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .workspace-candidates-label {
+            color: #667085;
+            font-size: 12px;
+            font-weight: 700;
+            margin-right: 2px;
+        }
+        .workspace-candidate-chip {
+            background: #f8fafc;
+            border: 1px solid #d0d5dd;
+            border-radius: 999px;
+            color: #344054;
+            cursor: pointer;
+            font-size: 12px;
+            line-height: 1.2;
+            max-width: 220px;
+            overflow: hidden;
+            padding: 6px 10px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .workspace-candidate-chip:hover {
+            background: #eef4ff;
+            border-color: #b2ccff;
+        }
+        .workspace-candidate-chip.active {
+            background: #e6f4ff;
+            border-color: #1677ff;
+            color: #0958d9;
+            font-weight: 700;
+        }
         .business-field-card {
             background: #fff;
             border: 1px solid #e6eaf0;
@@ -778,6 +815,7 @@
         let v4VisualGrid = null;
         let v4MappingHealth = null;
         let workspaceSectionCollapsed = {};
+        let workspaceCandidateValues = {};
         let currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
         let selectedNativeCell = "";
         window.confirmedCells = confirmedCells;
@@ -792,6 +830,10 @@
             const div = document.createElement("div");
             div.textContent = value ?? "";
             return div.innerHTML;
+        }
+
+        function jsString(value) {
+            return JSON.stringify(String(value ?? "")).replace(/</g, "\\u003c");
         }
 
         function setStatus(elementId, text, type = "info") {
@@ -2058,6 +2100,77 @@
             return source ? source : "—";
         }
 
+        function workspaceCandidateKey(field) {
+            return `${field?.field_key || ""}::${field?.cell || field?.display_cell || ""}`;
+        }
+
+        function workspaceCurrentValue(field) {
+            const key = workspaceCandidateKey(field);
+            if (Object.prototype.hasOwnProperty.call(workspaceCandidateValues, key)) {
+                return workspaceCandidateValues[key];
+            }
+            return field?.value == null ? "" : String(field.value);
+        }
+
+        function normalizeCandidateListValue(value) {
+            if (Array.isArray(value)) return value;
+            if (value && typeof value === "object") {
+                return Object.values(value);
+            }
+            return [value];
+        }
+
+        function extractWorkspaceCandidates(field) {
+            const values = [
+                ...normalizeCandidateListValue(field?.ai_candidates),
+                ...normalizeCandidateListValue(field?.semantic_candidates),
+                field?.option_value,
+                field?.ai_extract_hint,
+                workspaceCurrentValue(field),
+            ];
+            const seen = new Set();
+            const candidates = [];
+            values.forEach(value => {
+                const text = String(
+                    value && typeof value === "object"
+                        ? (value.value ?? value.label ?? value.text ?? "")
+                        : (value ?? "")
+                ).trim();
+                if (!text) return;
+                const key = text.toLowerCase();
+                if (seen.has(key)) return;
+                seen.add(key);
+                candidates.push(text);
+            });
+            return candidates.slice(0, 5);
+        }
+
+        function renderWorkspaceCandidates(field) {
+            const candidates = extractWorkspaceCandidates(field);
+            if (!candidates.length) return "";
+            const currentValue = workspaceCurrentValue(field);
+            return `
+                <div class="workspace-candidates">
+                    <span class="workspace-candidates-label">AI建议：</span>
+                    ${candidates.map(candidate => `
+                        <button
+                            type="button"
+                            class="workspace-candidate-chip ${String(candidate) === String(currentValue) ? "active" : ""}"
+                            title="${escapeHtml(candidate)}"
+                            onclick="applyWorkspaceCandidate(${jsString(field.field_key || "")}, ${jsString(field.cell || field.display_cell || "")}, ${jsString(candidate)})"
+                        >${escapeHtml(candidate)}</button>
+                    `).join("")}
+                </div>
+            `;
+        }
+
+        function applyWorkspaceCandidate(fieldKey, cell, value) {
+            const key = `${fieldKey || ""}::${cell || ""}`;
+            workspaceCandidateValues[key] = String(value ?? "");
+            renderWorkspace();
+            syncConfirmedCellsFromInputs();
+        }
+
         function renderWorkspaceRow(item, editorHtml) {
             return `
                 <div class="workspace-row" data-status="${escapeHtml(item.status || "")}">
@@ -2108,7 +2221,7 @@
         }
 
         function renderBusinessFieldControl(item) {
-            const value = item.value == null ? "" : String(item.value);
+            const value = workspaceCurrentValue(item);
             const attrs = businessFieldDataAttributes(item);
             if (item.type === "readonly_note") {
                 return `<div class="readonly-business-value">${escapeHtml(value || item.ai_extract_hint || item.label || "-")}</div>`;
@@ -2119,6 +2232,7 @@
             if (["readonly", "computed"].includes(item.type)) {
                 return `<div class="readonly-business-value">${escapeHtml(value || item.option_value || "-")}</div>`;
             }
+            const candidatesHtml = renderWorkspaceCandidates(item);
             if (item.type === "textarea") {
                 return `
                     <textarea
@@ -2126,6 +2240,7 @@
                         rows="3"
                         oninput="markWorkspaceFieldManual(this); syncConfirmedCellsFromInputs()"
                     >${escapeHtml(value)}</textarea>
+                    ${candidatesHtml}
                 `;
             }
             const inputType = item.type === "number" ? "number" : (item.type === "date" ? "date" : "text");
@@ -2136,6 +2251,7 @@
                     ${attrs}
                     oninput="markWorkspaceFieldManual(this); syncConfirmedCellsFromInputs()"
                 >
+                ${candidatesHtml}
             `;
         }
 
@@ -2448,6 +2564,9 @@
         function markWorkspaceFieldManual(control) {
             const wrapper = control.closest(".workspace-row") || control.closest(".business-field-card, .business-option-group");
             if (!wrapper) return;
+            if (control && control.dataset && control.dataset.fieldKey && control.dataset.cell && control.type !== "radio") {
+                workspaceCandidateValues[`${control.dataset.fieldKey || ""}::${control.dataset.cell || ""}`] = control.value || "";
+            }
             wrapper.dataset.status = "manual";
             const badge = wrapper.querySelector(".field-status");
             if (badge) {
