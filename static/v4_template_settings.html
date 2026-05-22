@@ -1844,6 +1844,7 @@
                     fieldType: item.field_type || candidate.field_type || "text",
                     imageFit: item.image_fit || candidate.image_fit || "contain",
                     imageAnchorCell: item.image_anchor_cell || candidate.image_anchor_cell || item.target_cell || candidate.target_cell || row.cell || "",
+                    tableColOffset: Number(item.table_col_offset ?? item.col_offset ?? candidate.table_col_offset ?? candidate.col_offset ?? 0),
                     semanticType: item.semantic_type || candidate.semantic_type || "",
                     semanticRegionId: item.semantic_region_id || candidate.semantic_region_id || "",
                     semanticConfidence: Number(item.semantic_confidence || candidate.semantic_confidence || 0),
@@ -2186,6 +2187,7 @@
                 const writeModeInput = detailRoot.querySelector("[data-config-field='write_mode']");
                 const targetCellInput = detailRoot.querySelector("input[data-config-field='target_cell']");
                 const optionValueInput = detailRoot.querySelector("input[data-config-field='option_value']");
+                const tableColOffsetInput = detailRoot.querySelector("input[data-config-field='table_col_offset']");
                 const fieldTypeInput = detailRoot.querySelector("[data-config-field='field_type']");
                 const imageFitInput = detailRoot.querySelector("[data-config-field='image_fit']");
                 const imageAnchorCellInput = detailRoot.querySelector("input[data-config-field='image_anchor_cell']");
@@ -2204,6 +2206,8 @@
                     label_cell: row.dataset.labelCell || "",
                     target_cell: targetCellInput ? targetCellInput.value.trim() : (row.dataset.targetCell || ""),
                     option_value: optionValueInput ? optionValueInput.value.trim() : (row.dataset.optionValue || ""),
+                    table_col_offset: Number(tableColOffsetInput ? tableColOffsetInput.value || 0 : row.dataset.tableColOffset || 0),
+                    col_offset: Number(tableColOffsetInput ? tableColOffsetInput.value || 0 : row.dataset.tableColOffset || 0),
                     intent_confidence: Number(row.dataset.intentConfidence || 0),
                     intent_reason: row.dataset.intentReason || "",
                     semantic_type: row.dataset.semanticType || "",
@@ -2772,7 +2776,7 @@
 
         function renderConfigRowDataAttributes(row) {
             if (!row.cell) return "";
-            return `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-field-type="${escapeHtml(row.fieldType || "text")}" data-image-fit="${escapeHtml(row.imageFit || "contain")}" data-image-anchor-cell="${escapeHtml(row.imageAnchorCell || row.targetCell || row.cell || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"`;
+            return `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-table-col-offset="${Number(row.tableColOffset || 0)}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-field-type="${escapeHtml(row.fieldType || "text")}" data-image-fit="${escapeHtml(row.imageFit || "contain")}" data-image-anchor-cell="${escapeHtml(row.imageAnchorCell || row.targetCell || row.cell || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"`;
         }
 
         function renderBusinessConfigEditor(row) {
@@ -2920,6 +2924,10 @@
                                                         <div class="debug-item">
                                                             <div class="debug-label">选项值</div>
                                                             <input data-config-field="option_value" type="text" value="${escapeHtml(row.optionValue || "")}" ${row.cell ? "" : "disabled"}>
+                                                        </div>
+                                                        <div class="debug-item">
+                                                            <div class="debug-label">表格列偏移 table_col_offset</div>
+                                                            <input type="number" data-config-field="table_col_offset" value="${Number(row.tableColOffset || 0)}" ${row.cell ? "" : "disabled"}>
                                                         </div>
                                                     </div>
                                                     <div style="margin-top:10px;"><label style="font-size:12px;color:#667085;margin-bottom:4px;">AI提取提示</label><input data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" style="min-height:32px;font-size:13px;" ${row.cell ? "" : "disabled"}></div>
