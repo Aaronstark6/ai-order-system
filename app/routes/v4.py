@@ -2423,12 +2423,15 @@ def _build_workspace_fields_from_profile(profile):
         if not field_key:
             continue
 
+        field_type = str(item.get("field_type") or "text").strip()
+        is_image_field = field_type == "image"
+
         intent_type = str(item.get("intent_type") or "").strip()
-        if intent_type in hidden_intents:
+        if not is_image_field and intent_type in hidden_intents:
             continue
 
         write_mode = str(item.get("write_mode") or "").strip()
-        if write_mode in hidden_write_modes:
+        if not is_image_field and write_mode in hidden_write_modes:
             continue
 
         normalized_source_cell = str(source_cell or "").strip().upper()
@@ -2451,6 +2454,9 @@ def _build_workspace_fields_from_profile(profile):
                 "ai_extract_hint": str(item.get("ai_extract_hint") or "").strip(),
                 "section": str(item.get("section") or item.get("section_key") or "").strip(),
                 "display_order": sort_key(item),
+                "field_type": field_type,
+                "image_fit": str(item.get("image_fit") or "contain").strip(),
+                "image_anchor_cell": str(item.get("image_anchor_cell") or item.get("target_cell") or normalized_source_cell or "").strip().upper(),
             }
         )
 
