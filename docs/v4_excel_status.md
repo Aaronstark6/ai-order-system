@@ -64,3 +64,89 @@ V4 Excel 主功能已完成一轮基础闭环验证。
 2. 梳理模板配置页字段命名和使用说明。
 3. 清理历史误提交影响，仅在必要时处理。
 4. 再决定是否进入 Word / PDF / PPT 能力。
+
+---
+
+## Excel 配置字段速查表
+
+### 基础字段
+
+| 字段 | 作用 | 示例 | 场景 |
+|------|------|------|------|
+| target_cell | 起始单元格 | B10 | 普通写入 / 表格写入 |
+| sheet_name | 指定 sheet | Sheet2 | 多 sheet |
+
+### 动态表格字段
+
+| 字段 | 作用 | 示例 | 场景 |
+|------|------|------|------|
+| row_offset | 行偏移 | 1 | 多产品、多行 |
+| col_offset | 列偏移 | 2 | 横向表格 |
+| table_col_offset | 配置页列偏移字段 | quantity=1 | 表格配置 |
+
+示例：
+
+起始：
+
+target_cell=B10
+
+配置：
+
+product_name → col_offset=0
+quantity → col_offset=1
+spec → col_offset=2
+
+结果：
+
+B10 产品名
+C10 数量
+D10 规格
+
+下一行：
+
+B11
+C11
+D11
+
+### 图片字段
+
+| 字段 | 作用 | 示例 |
+|------|------|------|
+| type=image | 图片字段 | logo |
+| target_cell | 图片锚点 | B10 |
+
+支持：
+
+- Workspace 上传
+- confirmed_cells
+- Excel 插图
+
+### 分组字段
+
+| 字段 | 作用 | 示例 |
+|------|------|------|
+| single_choice | 单选配置 | package_type |
+| option_value | 单选值 | capsule |
+
+### 数据来源
+
+动态表格支持：
+
+products
+items
+order_items
+details
+table_rows
+
+示例：
+
+```json
+{
+  "products":[
+    {
+      "product_name":"软胶囊",
+      "quantity":"5000"
+    }
+  ]
+}
+```
