@@ -693,6 +693,7 @@
         let v4LayoutSections = [];
         let v4WorkspaceFields = [];
         let v4SemanticWorkspaceSchema = null;
+        let v4RuntimeMappingSource = null;
         let v4VisualGrid = null;
         let v4MappingHealth = null;
         let currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
@@ -702,6 +703,7 @@
         window.v4LayoutSections = v4LayoutSections;
         window.v4WorkspaceFields = v4WorkspaceFields;
         window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
+        window.v4RuntimeMappingSource = v4RuntimeMappingSource;
         window.v4VisualGrid = v4VisualGrid;
 
         function escapeHtml(value) {
@@ -725,6 +727,15 @@
         function shortDebugValue(value) {
             const text = String(value ?? "");
             return text.length > 80 ? `${text.slice(0, 77)}...` : text;
+        }
+
+        function runtimeMappingSourceLabel(source) {
+            const value = String(source?.source || source || "");
+            return {
+                saved_configuration: "已保存配置",
+                semantic_fallback: "语义回退",
+                empty: "空",
+            }[value] || "空";
         }
 
         function renderSmartDebugTable(headers, rows) {
@@ -767,6 +778,7 @@
                 ? parseResult.last_extraction_contract
                 : [];
             const contractSummary = parseResult.ai_extraction_contract_summary || result.ai_extraction_contract_summary || {};
+            const runtimeSource = parseResult.runtime_mapping_source || result.runtime_mapping_source || v4RuntimeMappingSource || {};
             const fieldBoundOperations = Array.isArray(parseResult.field_bound_operations)
                 ? parseResult.field_bound_operations
                 : [];
@@ -780,6 +792,7 @@
                 ["Added", Number(pipelineResult.field_bound_added_count || 0)],
                 ["Override", Number(pipelineResult.field_bound_override_count || 0)],
                 ["Processed", processedOperations.length],
+                ["运行时来源", runtimeMappingSourceLabel(runtimeSource)],
             ];
 
             panel.innerHTML = `
@@ -832,15 +845,19 @@
                 return;
             }
             const summary = health.summary || {};
+            const runtimeSource = summary.runtime_mapping_source || health.runtime_mapping_source || v4RuntimeMappingSource || {};
             const errors = Number(summary.errors_count || 0);
             const warnings = Number(summary.warnings_count || 0);
             const status = errors ? "有错误" : (warnings ? "有警告" : "OK");
             panel.innerHTML = `
                 <div class="smart-debug-title">映射健康：${escapeHtml(status)}</div>
                 <div class="smart-debug-grid">
+                    <div class="smart-debug-metric"><span>运行时来源</span><strong>${escapeHtml(runtimeMappingSourceLabel(runtimeSource))}</strong></div>
                     <div class="smart-debug-metric"><span>AI字段</span><strong>${Number(summary.ai_contract_fields || 0)}</strong></div>
                     <div class="smart-debug-metric"><span>工作页字段</span><strong>${Number(summary.workspace_fields || 0)}</strong></div>
                     <div class="smart-debug-metric"><span>导出字段</span><strong>${Number(summary.export_ready_fields || 0)}</strong></div>
+                    <div class="smart-debug-metric"><span>已保存配置</span><strong>${Number(runtimeSource.saved_fields_count || 0)}</strong></div>
+                    <div class="smart-debug-metric"><span>语义回退</span><strong>${Number(runtimeSource.semantic_fields_count || 0)}</strong></div>
                     <div class="smart-debug-metric"><span>错误</span><strong>${errors}</strong></div>
                     <div class="smart-debug-metric"><span>警告</span><strong>${warnings}</strong></div>
                 </div>
@@ -859,6 +876,8 @@
                 const response = await fetch(`/api/v4/template-profiles/${encodeURIComponent(activeProfileId)}/mapping-health`);
                 const result = await response.json();
                 v4MappingHealth = response.ok && result.success ? result : { success: false, error: result.error || "映射健康检查加载失败" };
+                v4RuntimeMappingSource = v4MappingHealth.runtime_mapping_source || v4MappingHealth.summary?.runtime_mapping_source || v4RuntimeMappingSource;
+                window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 renderWorkspaceMappingHealthDebug();
                 return v4MappingHealth;
             } catch (error) {
@@ -2143,8 +2162,14 @@
             window.confirmedCells = confirmedCells;
             window.originalConfirmedCells = originalConfirmedCells;
 
-            const sections = getSemanticWorkspaceSections(null);
-            const previewSections = sections.length ? sections : buildConfigurationPreviewSections();
+            const workspaceFields = Array.isArray(v4WorkspaceFields) ? v4WorkspaceFields : [];
+            let previewSections = [];
+            if (workspaceFields.length) {
+                previewSections = buildWorkspaceFieldSections(workspaceFields, {});
+            } else {
+                const sections = getSemanticWorkspaceSections(null);
+                previewSections = sections.length ? sections : buildConfigurationPreviewSections();
+            }
             const area = document.getElementById("v4ConfirmationArea");
             area.dataset.confirmedCellsCount = "0";
             area.dataset.hasManualChanges = "false";
@@ -2332,25 +2357,25 @@
         }
 
         function renderBusinessFormWorkspace(result) {
-            const semanticSections = getSemanticWorkspaceSections(result);
-            if (semanticSections.length) {
+            const workspaceFields = getWorkspaceFieldsFromResult(result);
+            if (workspaceFields.length) {
+                const sections = buildWorkspaceFieldSections(workspaceFields, getParsedFieldValues(result));
+                if (!sections.length) return false;
+
                 document.getElementById("v4ConfirmationArea").innerHTML = `
                     <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
-                    ${semanticSections.map(renderBusinessFormSection).join("")}
+                    ${sections.map(renderBusinessFormSection).join("")}
                 `;
                 initializeConfirmedCellsSnapshotFromInputs();
                 return true;
             }
 
-            const workspaceFields = getWorkspaceFieldsFromResult(result);
-            if (!workspaceFields.length) return false;
-
-            const sections = buildWorkspaceFieldSections(workspaceFields, getParsedFieldValues(result));
-            if (!sections.length) return false;
+            const semanticSections = getSemanticWorkspaceSections(result);
+            if (!semanticSections.length) return false;
 
             document.getElementById("v4ConfirmationArea").innerHTML = `
                 <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
-                ${sections.map(renderBusinessFormSection).join("")}
+                ${semanticSections.map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
             return true;
@@ -2428,7 +2453,9 @@
 
                 activeV4Profile = currentResult.profile || {};
                 v4WorkspaceFields = Array.isArray(currentResult.workspace_fields) ? currentResult.workspace_fields : [];
+                v4RuntimeMappingSource = currentResult.runtime_mapping_source || v4RuntimeMappingSource;
                 window.v4WorkspaceFields = v4WorkspaceFields;
+                window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 if (activeV4Profile.profile_id) {
                     document.getElementById("v4ProfileSelect").value = activeV4Profile.profile_id;
                 }
@@ -2472,24 +2499,29 @@
                     v4LayoutSections = [];
                     v4WorkspaceFields = [];
                     v4SemanticWorkspaceSchema = null;
+                    v4RuntimeMappingSource = null;
                 } else {
                     v4LayoutSections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
                     v4WorkspaceFields = Array.isArray(result.workspace_fields) ? result.workspace_fields : [];
                     v4SemanticWorkspaceSchema = result.semantic_workspace_schema || null;
+                    v4RuntimeMappingSource = result.runtime_mapping_source || null;
                 }
                 window.v4LayoutSections = v4LayoutSections;
                 window.v4WorkspaceFields = v4WorkspaceFields;
                 window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
+                window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 await loadV4VisualGrid(activeV4Profile?.profile_id || "");
                 renderConfigurationPreview();
             } catch (error) {
                 v4LayoutSections = [];
                 v4WorkspaceFields = [];
                 v4SemanticWorkspaceSchema = null;
+                v4RuntimeMappingSource = null;
                 v4VisualGrid = null;
                 window.v4LayoutSections = v4LayoutSections;
                 window.v4WorkspaceFields = v4WorkspaceFields;
                 window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
+                window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 window.v4VisualGrid = v4VisualGrid;
                 renderConfigurationPreview();
             }
@@ -2514,7 +2546,9 @@
                 }
                 activeV4Profile = result.profile || {};
                 v4WorkspaceFields = Array.isArray(result.workspace_fields) ? result.workspace_fields : v4WorkspaceFields;
+                v4RuntimeMappingSource = result.runtime_mapping_source || v4RuntimeMappingSource;
                 window.v4WorkspaceFields = v4WorkspaceFields;
+                window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
                 await loadWorkspaceMappingHealth(activeV4Profile.profile_id || profileId);
                 await loadV4TemplateLayout();
@@ -2546,8 +2580,10 @@
                 latestV4ParseResult = result;
                 v4WorkspaceFields = getWorkspaceFieldsFromResult(result);
                 v4SemanticWorkspaceSchema = result.semantic_workspace_schema || result.parse_result?.semantic_workspace_schema || v4SemanticWorkspaceSchema;
+                v4RuntimeMappingSource = result.runtime_mapping_source || result.parse_result?.runtime_mapping_source || v4RuntimeMappingSource;
                 window.v4WorkspaceFields = v4WorkspaceFields;
                 window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
+                window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 renderConfirmation(result);
                 renderSmartMappingDebug(result);
                 await loadV4TemplateLayout();

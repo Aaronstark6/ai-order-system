@@ -1784,6 +1784,47 @@ def _build_semantic_workspace_schema(profile):
     }
 
 
+def _count_runtime_saved_configuration_fields(profile):
+    configuration = _template_configuration_from_profile(profile)
+    count = 0
+    for item in configuration.values():
+        if not isinstance(item, dict):
+            continue
+        show_in_workspace = item.get("show_in_workspace") is not False
+        write_mode = str(item.get("write_mode") or "").strip()
+        if show_in_workspace and write_mode not in {"skip", "none"}:
+            count += 1
+    return count
+
+
+def _count_semantic_workspace_schema_fields(schema):
+    schema = schema if isinstance(schema, dict) else {}
+    summary = schema.get("summary") if isinstance(schema.get("summary"), dict) else {}
+    fields_count = summary.get("fields_count")
+    if isinstance(fields_count, int):
+        return fields_count
+    sections = schema.get("sections") if isinstance(schema.get("sections"), list) else []
+    return sum(len(section.get("fields", [])) for section in sections if isinstance(section, dict) and isinstance(section.get("fields"), list))
+
+
+def _get_runtime_mapping_source(profile):
+    saved_fields_count = _count_runtime_saved_configuration_fields(profile)
+    semantic_workspace_schema = _build_semantic_workspace_schema(profile)
+    semantic_fields_count = _count_semantic_workspace_schema_fields(semantic_workspace_schema)
+    if saved_fields_count > 0:
+        source = "saved_configuration"
+    elif semantic_fields_count > 0:
+        source = "semantic_fallback"
+    else:
+        source = "empty"
+    return {
+        "source": source,
+        "saved_fields_count": saved_fields_count,
+        "semantic_fields_count": semantic_fields_count,
+        "using_saved_configuration": source == "saved_configuration",
+    }
+
+
 
 def _mapping_health_issue(level, cell, label, field_key, message):
     return {
@@ -1802,6 +1843,7 @@ def _build_mapping_health_report(profile):
     workspace_fields = _build_workspace_fields_from_profile(profile)
     ai_contract = _build_ai_extraction_contract_from_workspace_fields(workspace_fields)
     ai_summary = _ai_extraction_contract_summary(ai_contract)
+    runtime_mapping_source = _get_runtime_mapping_source(profile)
     required_target_write_modes = {
         "write_right_cell",
         "write_below_cell",
@@ -1923,7 +1965,9 @@ def _build_mapping_health_report(profile):
             "export_ready_fields": export_ready_fields,
             "errors_count": len(errors),
             "warnings_count": len(warnings),
+            "runtime_mapping_source": runtime_mapping_source,
         },
+        "runtime_mapping_source": runtime_mapping_source,
         "checks": checks,
         "errors": errors,
         "warnings": warnings,
@@ -2255,24 +2299,24 @@ def _lookup_confirmed_mapping_config(item, lookup):
 def _confirmed_item_with_mapping_config(item, config):
     config = config if isinstance(config, dict) else {}
     merged = deepcopy(item) if isinstance(item, dict) else {}
-    merged["write_mode"] = str(merged.get("write_mode") or config.get("write_mode") or "").strip()
-    merged["intent_type"] = str(merged.get("intent_type") or config.get("intent_type") or "").strip()
-    merged["option_value"] = str(merged.get("option_value") or config.get("option_value") or "").strip()
+    merged["write_mode"] = str(config.get("write_mode") or merged.get("write_mode") or "").strip()
+    merged["intent_type"] = str(config.get("intent_type") or merged.get("intent_type") or "").strip()
+    merged["option_value"] = str(config.get("option_value") or merged.get("option_value") or "").strip()
     merged["field_key"] = str(
-        merged.get("field_key")
-        or config.get("candidate_field_key")
+        config.get("candidate_field_key")
         or config.get("field_key")
+        or merged.get("field_key")
         or ""
     ).strip()
     merged["label"] = str(
-        merged.get("label")
-        or config.get("label")
+        config.get("label")
         or config.get("candidate_field_label")
+        or merged.get("label")
         or merged.get("field_key")
         or ""
     ).strip()
     merged["source_cell"] = _cell_key(merged.get("source_cell") or config.get("label_cell") or config.get("_source_cell"))
-    merged["cell"] = _cell_key(merged.get("cell") or config.get("target_cell") or merged.get("display_cell") or merged.get("source_cell"))
+    merged["cell"] = _cell_key(config.get("target_cell") or merged.get("cell") or merged.get("display_cell") or merged.get("source_cell"))
     merged["target_cell"] = _cell_key(config.get("target_cell") or merged.get("cell"))
     return merged
 
@@ -2675,10 +2719,12 @@ def api_v4_current_template_profile():
     if not profile:
         profile = get_current_template_profile()
     validation = validate_template_profile(profile)
+    runtime_mapping_source = _get_runtime_mapping_source(profile)
     return {
         "success": True,
         "profile": profile,
         "workspace_fields": _build_workspace_fields_from_profile(profile),
+        "runtime_mapping_source": runtime_mapping_source,
         "validation": validation,
     }
 
@@ -2748,6 +2794,7 @@ def api_v4_set_current_template_profile(payload: Any = Body(None)):
         "message": "Current Template Profile 已设置",
         "profile": profile,
         "workspace_fields": _build_workspace_fields_from_profile(profile),
+        "runtime_mapping_source": _get_runtime_mapping_source(profile),
         "pipeline_state": state,
     }
 
@@ -2804,6 +2851,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "semantic_summary": {},
             "template_configuration": _template_configuration_from_profile(profile),
             "section_configuration": _section_configuration_from_profile(profile),
+            "runtime_mapping_source": _get_runtime_mapping_source(profile),
             "mapping_candidates": [],
         }
 
@@ -2825,6 +2873,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
             "template_configuration": _template_configuration_from_profile(profile),
             "section_configuration": _section_configuration_from_profile(profile),
+            "runtime_mapping_source": _get_runtime_mapping_source(profile),
             "mapping_candidates": mapping_candidates,
         }
     except (BadZipFile, InvalidFileException) as exc:
@@ -2926,6 +2975,18 @@ def api_v4_template_profile_mapping_health(profile_id: str):
                 "export_ready_fields": 0,
                 "errors_count": 1,
                 "warnings_count": 0,
+                "runtime_mapping_source": {
+                    "source": "empty",
+                    "saved_fields_count": 0,
+                    "semantic_fields_count": 0,
+                    "using_saved_configuration": False,
+                },
+            },
+            "runtime_mapping_source": {
+                "source": "empty",
+                "saved_fields_count": 0,
+                "semantic_fields_count": 0,
+                "using_saved_configuration": False,
             },
             "checks": [],
             "errors": [_mapping_health_issue("error", "", "", "", "Template Profile 不存在")],
@@ -2965,6 +3026,7 @@ def api_v4_template_profile_configuration_save(profile_id: str, payload: Any = B
             "profile": saved_profile,
             "template_configuration": _template_configuration_from_profile(saved_profile),
             "section_configuration": _section_configuration_from_profile(saved_profile),
+            "runtime_mapping_source": _get_runtime_mapping_source(saved_profile),
             "pipeline_state": state,
         }
     except ValueError as exc:
@@ -3622,6 +3684,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         current_profile = get_current_template_profile() or {}
     workspace_fields = _build_workspace_fields_from_profile(current_profile)
     semantic_workspace_schema = _build_semantic_workspace_schema(current_profile)
+    runtime_mapping_source = _get_runtime_mapping_source(current_profile)
     extraction_contract = _build_ai_extraction_contract_from_workspace_fields(workspace_fields)
     extraction_contract_summary = _ai_extraction_contract_summary(extraction_contract)
 
@@ -3634,6 +3697,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "last_extraction_contract": extraction_contract.get("fields", []),
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
+            "runtime_mapping_source": runtime_mapping_source,
             "semantic_workspace_schema": semantic_workspace_schema,
             "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
@@ -3648,6 +3712,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "last_extraction_contract": extraction_contract.get("fields", []),
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
+            "runtime_mapping_source": runtime_mapping_source,
             "semantic_workspace_schema": semantic_workspace_schema,
             "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
@@ -3667,6 +3732,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "last_extraction_contract": extraction_contract.get("fields", []),
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
+            "runtime_mapping_source": runtime_mapping_source,
             "semantic_workspace_schema": semantic_workspace_schema,
             "confirmed_cells": field_binding_result.get("confirmed_cells", []),
             "field_bound_operations": field_binding_result.get("operations", []),
@@ -3689,6 +3755,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "last_extraction_contract": extraction_contract.get("fields", []),
         "extraction_contract": extraction_contract,
         "ai_extraction_contract_summary": extraction_contract_summary,
+        "runtime_mapping_source": runtime_mapping_source,
         "semantic_workspace_schema": semantic_workspace_schema,
         "confirmed_cells": field_binding_result.get("confirmed_cells", []),
         "field_bound_operations": field_binding_result.get("operations", []),
@@ -3729,6 +3796,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
     field_bound_operations = parse_result.get("field_bound_operations", [])
     workspace_fields = parse_result.get("workspace_fields", [])
     semantic_workspace_schema = parse_result.get("semantic_workspace_schema", {})
+    runtime_mapping_source = parse_result.get("runtime_mapping_source", {})
     field_binding_merge = _merge_field_bound_operations(
         pipeline_result.get("processed_operations", []),
         field_bound_operations,
@@ -3762,6 +3830,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "last_extraction_contract": parse_result.get("last_extraction_contract", []),
             "extraction_contract": parse_result.get("extraction_contract", {}),
             "ai_extraction_contract_summary": parse_result.get("ai_extraction_contract_summary", {}),
+            "runtime_mapping_source": runtime_mapping_source,
             "confirmed_cells": parse_result.get("confirmed_cells", []),
             "field_bound_operations": field_bound_operations,
             "workspace_fields": workspace_fields,
@@ -3785,6 +3854,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
         },
         "workspace_fields": workspace_fields,
         "semantic_workspace_schema": semantic_workspace_schema,
+        "runtime_mapping_source": runtime_mapping_source,
         "ai_extraction_contract_summary": parse_result.get("ai_extraction_contract_summary", {}),
         "pipeline_state": get_pipeline_state(),
     }
@@ -4033,6 +4103,7 @@ def api_v4_export_confirmed_excel(
             }
 
         profile = _current_template_profile_for_export()
+        runtime_mapping_source = _get_runtime_mapping_source(profile)
         template_path, _, template_source = _resolve_export_template_source()
 
         override_result = _override_operations_with_confirmed_cells(
@@ -4086,6 +4157,7 @@ def api_v4_export_confirmed_excel(
             "confirmed_override_count": confirmed_override_count,
             "confirmed_added_count": confirmed_added_count,
             "write_mode_summary": write_mode_summary,
+            "runtime_mapping_source": runtime_mapping_source,
             "parse_result": pipeline_e2e_result.get("parse_result", {}),
             "pipeline_result": response_pipeline_result,
             "export_result": {
@@ -4378,12 +4450,17 @@ def api_v4_template_layout():
     template_analysis_summary = template_analysis.get("summary", {})
     if not isinstance(template_analysis_summary, dict):
         template_analysis_summary = {}
+    profile = _current_template_profile_for_export()
+    workspace_fields = _build_workspace_fields_from_profile(profile)
+    semantic_workspace_schema = _build_semantic_workspace_schema(profile)
+    runtime_mapping_source = _get_runtime_mapping_source(profile)
 
     return {
         "success": True,
         "layout_sections": layout_result.get("layout_sections", []),
-        "workspace_fields": _build_workspace_fields_from_profile(_current_template_profile_for_export()),
-        "semantic_workspace_schema": _build_semantic_workspace_schema(_current_template_profile_for_export()),
+        "workspace_fields": workspace_fields,
+        "semantic_workspace_schema": semantic_workspace_schema,
+        "runtime_mapping_source": runtime_mapping_source,
         "summary": layout_result.get("summary", {}),
         "template_analysis_summary": template_analysis_summary,
         "pipeline_state": get_pipeline_state(),

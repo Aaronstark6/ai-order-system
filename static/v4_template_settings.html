@@ -94,6 +94,12 @@
             padding: 9px 16px;
             white-space: nowrap;
         }
+        button.secondary { background: #0f766e; }
+        button.ghost {
+            background: #fff;
+            border: 1px solid #cfd6e0;
+            color: #344054;
+        }
         button.danger { background: #d92d20; }
         button.danger.fixed-danger {
             min-width: 138px;
@@ -237,6 +243,32 @@
             font-size: 15px;
             font-weight: 700;
             padding: 12px 14px;
+        }
+        .semantic-control-bar {
+            align-items: center;
+            background: #f8fbff;
+            border-bottom: 1px solid #d9e7ff;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+            padding: 10px 14px;
+        }
+        .semantic-control-status {
+            color: #344054;
+            display: grid;
+            flex: 1 1 260px;
+            gap: 2px;
+            font-size: 13px;
+        }
+        .semantic-control-status strong {
+            color: #1d2939;
+            font-size: 14px;
+        }
+        .semantic-control-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         .visual-workbench-hint {
             background: #fffbe6;
@@ -393,6 +425,18 @@
             margin-top: 12px;
             padding-top: 12px;
         }
+        .visual-detail-section {
+            border-top: 1px solid #edf0f4;
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+        }
+        .visual-detail-section-title {
+            color: #1d2939;
+            font-size: 14px;
+            font-weight: 700;
+        }
         .validation-panel {
             background: #fff;
             border: 1px solid #e6eaf0;
@@ -446,6 +490,11 @@
             background: #fef3f2;
             border: 1px solid #fecdca;
             color: #b42318;
+        }
+        .validation-banner.warning {
+            background: #fffaeb;
+            border: 1px solid #fedf89;
+            color: #b54708;
         }
         .validation-group {
             border-top: 1px solid #edf0f4;
@@ -617,6 +666,18 @@
             <h2>模板配置</h2>
             <div id="visualWorkbench" class="visual-workbench">
                 <div class="visual-workbench-title">可视化模板配置</div>
+                <div id="semanticControlBar" class="semantic-control-bar">
+                    <div class="semantic-control-status">
+                        <strong>语义推荐状态</strong>
+                        <span>可应用语义推荐：0项</span>
+                    </div>
+                    <div class="semantic-control-actions">
+                        <button type="button" class="secondary" disabled>应用语义推荐</button>
+                        <button type="button" class="ghost" disabled>重新分析</button>
+                        <button type="button" class="ghost" disabled>高级诊断</button>
+                        <button type="button" disabled>保存配置</button>
+                    </div>
+                </div>
                 <div class="visual-legend" aria-label="单元格意图图例">
                     <label class="visual-legend-item"><input type="checkbox" data-intent-layer="fill-field" checked onchange="toggleVisualIntentLayer(this)"><span class="visual-legend-mark fill-field"></span>可填写字段</label>
                     <label class="visual-legend-item"><input type="checkbox" data-intent-layer="option-field" checked onchange="toggleVisualIntentLayer(this)"><span class="visual-legend-mark option-field"></span>选项</label>
@@ -732,8 +793,9 @@
             const sections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
             const savedConfiguration = result.template_configuration && typeof result.template_configuration === "object" ? result.template_configuration : {};
             const savedSectionConfiguration = result.section_configuration && typeof result.section_configuration === "object" ? result.section_configuration : {};
+            const runtimeMappingSource = result.runtime_mapping_source && typeof result.runtime_mapping_source === "object" ? result.runtime_mapping_source : null;
             const candidates = Array.isArray(result.mapping_candidates) ? result.mapping_candidates : [];
-            const config = { labels, structureLabels, sections, analysis, candidates, savedConfiguration, savedSectionConfiguration };
+            const config = { labels, structureLabels, sections, analysis, candidates, savedConfiguration, savedSectionConfiguration, runtimeMappingSource };
             configByMappingId[mappingId] = config;
             return config;
         }
@@ -743,6 +805,7 @@
             if (!mappingId) {
                 visualGridByMappingId[mappingId || ""] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板文件。" };
                 renderVisualWorkbench();
+                renderSemanticControlBar();
                 return null;
             }
             try {
@@ -750,10 +813,12 @@
                 const visualGrid = result.visual_grid || { rows: 0, cols: 0, cells: [], merges: [] };
                 visualGridByMappingId[mappingId] = { ...visualGrid, message: "" };
                 renderVisualWorkbench();
+                renderSemanticControlBar();
                 return visualGrid;
             } catch (error) {
                 visualGridByMappingId[mappingId] = { rows: 0, cols: 0, cells: [], merges: [], message: error.message || "当前映射尚未绑定模板文件。" };
                 renderVisualWorkbench();
+                renderSemanticControlBar();
                 return null;
             }
         }
@@ -767,6 +832,11 @@
             try {
                 const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/mapping-health`);
                 mappingHealthByMappingId[mappingId] = result;
+                const cached = configByMappingId[mappingId] || {};
+                configByMappingId[mappingId] = {
+                    ...cached,
+                    runtimeMappingSource: result.runtime_mapping_source || result.summary?.runtime_mapping_source || cached.runtimeMappingSource || null,
+                };
                 renderMappingHealth(result);
                 if (showStatus) setStatus("映射健康检查已刷新。", "success");
                 return result;
@@ -1195,6 +1265,10 @@
             area.innerHTML = `
                 <div class="visual-detail-title">单元格配置</div>
                 <div class="visual-detail-field">
+                    <label><input data-visual-detail-field="manual_override" type="checkbox" ${config.manual_override ? "checked" : ""}> 锁定人工配置</label>
+                    <div class="small">锁定后，全局“应用语义推荐”不会覆盖此单元格。</div>
+                </div>
+                <div class="visual-detail-field">
                     <label>单元格</label>
                     <input class="visual-readonly" data-visual-detail-field="cell" type="text" value="${escapeHtml(config.cell || "")}" readonly>
                 </div>
@@ -1206,21 +1280,37 @@
                     <label>当前意图</label>
                     <input class="visual-readonly" type="text" value="${escapeHtml(INTENT_LABELS[config.intent_type] || config.intent_type || "未知")}" readonly>
                 </div>
-                <div class="visual-detail-row">
-                    <div class="visual-detail-label">语义增强</div>
-                    <div class="visual-detail-value">${config.semantic_promoted ? '<span class="semantic-badge">语义推荐</span>' : "否"}</div>
-                </div>
-                <div class="visual-detail-row">
-                    <div class="visual-detail-label">语义类型</div>
-                    <div class="visual-detail-value">${escapeHtml(SEMANTIC_TYPE_LABELS[config.semantic_type] || config.semantic_type || "-")}</div>
-                </div>
-                <div class="visual-detail-row">
-                    <div class="visual-detail-label">语义原因</div>
-                    <div class="visual-detail-value">${escapeHtml(config.semantic_reason || "-")}</div>
-                </div>
-                <div class="visual-detail-row">
-                    <div class="visual-detail-label">语义可信度</div>
-                    <div class="visual-detail-value">${config.semantic_confidence ? escapeHtml(Number(config.semantic_confidence).toFixed(2)) : "-"}</div>
+                <div class="visual-detail-section">
+                    <div class="visual-detail-section-title">语义推荐</div>
+                    <div class="visual-detail-row">
+                        <div class="visual-detail-label">语义增强</div>
+                        <div class="visual-detail-value">${config.semantic_promoted ? '<span class="semantic-badge">语义推荐</span>' : "否"}</div>
+                    </div>
+                    <div class="visual-detail-row">
+                        <div class="visual-detail-label">semantic_type</div>
+                        <div class="visual-detail-value">${escapeHtml(SEMANTIC_TYPE_LABELS[config.semantic_type] || config.semantic_type || "-")}</div>
+                    </div>
+                    <div class="visual-detail-row">
+                        <div class="visual-detail-label">semantic_region</div>
+                        <div class="visual-detail-value">${escapeHtml(config.semantic_region_id || "-")}</div>
+                    </div>
+                    <div class="visual-detail-row">
+                        <div class="visual-detail-label">semantic_confidence</div>
+                        <div class="visual-detail-value">${config.semantic_confidence ? escapeHtml(Number(config.semantic_confidence).toFixed(2)) : "-"}</div>
+                    </div>
+                    <div class="visual-detail-row">
+                        <div class="visual-detail-label">semantic_reason</div>
+                        <div class="visual-detail-value">${escapeHtml(config.semantic_reason || "-")}</div>
+                    </div>
+                    <div class="visual-detail-row">
+                        <div class="visual-detail-label">candidate_field_key</div>
+                        <div class="visual-detail-value">${escapeHtml(config.candidate_field_key || "-")}</div>
+                    </div>
+                    <div class="visual-detail-row">
+                        <div class="visual-detail-label">candidate_confidence</div>
+                        <div class="visual-detail-value">${config.candidate_confidence ? escapeHtml(Number(config.candidate_confidence).toFixed(2)) : "-"}</div>
+                    </div>
+                    <button type="button" class="secondary" onclick="applyCurrentCellSemanticDraftConfiguration()" ${config.semantic_promoted ? "" : "disabled"}>应用到当前单元格</button>
                 </div>
                 <div class="visual-detail-field">
                     <label>字段名</label>
@@ -1258,7 +1348,7 @@
                     <div class="visual-detail-value">${escapeHtml(confidenceText)}</div>
                 </div>
                 <div class="visual-detail-actions">
-                    <button type="button" onclick="applyVisualCellDetailToConfig()">应用到当前单元格</button>
+                    <button type="button" onclick="applyVisualCellDetailToConfig()">应用编辑到配置</button>
                     <div class="small" style="margin-top:8px;">应用后请点击页面下方“保存配置”完成保存。</div>
                 </div>
             `;
@@ -1299,7 +1389,7 @@
                 semantic_confidence: Number(previous.semantic_confidence ?? effective.semantic_confidence ?? 0),
                 semantic_reason: previous.semantic_reason || effective.semantic_reason || "",
                 semantic_promoted: Boolean(previous.semantic_promoted ?? effective.semantic_promoted ?? false),
-                manual_override: true,
+                manual_override: readChecked("manual_override"),
                 user_edited: true,
                 intent_type: readValue("intent_type").trim(),
                 write_mode: readValue("write_mode").trim(),
@@ -1558,6 +1648,71 @@
             return candidates.some((candidate) => candidate && candidate.semantic_promoted === true);
         }
 
+        function getSemanticRecommendationStats(profileId = selectedMappingId) {
+            const cached = profileId ? configByMappingId[profileId] : null;
+            const candidates = Array.isArray(cached?.candidates) ? cached.candidates : [];
+            const visualGrid = profileId ? visualGridByMappingId[profileId] : null;
+            const total = candidates.filter((candidate) => candidate && candidate.semantic_promoted === true).length;
+            const applicable = candidates.filter((candidate) => {
+                return candidate
+                    && candidate.semantic_promoted === true
+                    && Number(candidate.confidence || candidate.semantic_confidence || 0) >= 0.70;
+            }).length;
+            return {
+                total,
+                applicable,
+                hasVisualGrid: Boolean(visualGrid && Array.isArray(visualGrid.cells) && visualGrid.cells.length),
+                hasCandidates: candidates.length > 0,
+            };
+        }
+
+        function renderSemanticControlBar() {
+            const area = document.getElementById("semanticControlBar");
+            if (!area) return;
+            const stats = getSemanticRecommendationStats();
+            const enabled = Boolean(selectedMappingId && stats.hasVisualGrid && stats.applicable);
+            const statusText = selectedMappingId
+                ? `可应用语义推荐：${stats.applicable}项`
+                : "请先选择映射";
+            const detailText = stats.hasCandidates
+                ? `语义候选共 ${stats.total} 项，应用后仍需点击“保存配置”。`
+                : "当前没有可应用的语义推荐。";
+            area.innerHTML = `
+                <div class="semantic-control-status">
+                    <strong>语义推荐状态</strong>
+                    <span>${escapeHtml(statusText)}</span>
+                    <span>${escapeHtml(detailText)}</span>
+                </div>
+                <div class="semantic-control-actions">
+                    <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>应用语义推荐</button>
+                    <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>重新分析</button>
+                    <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
+                    <button type="button" onclick="saveTemplateConfiguration()" ${selectedMappingId ? "" : "disabled"}>保存配置</button>
+                </div>
+            `;
+        }
+
+        async function reanalyzeCurrentMapping() {
+            if (!selectedMappingId) {
+                setStatus("请先选择映射。", "warning");
+                return;
+            }
+            setStatus("正在重新分析当前模板...", "info");
+            await loadMappingConfiguration(selectedMappingId);
+            await loadVisualGrid(selectedMappingId);
+            await loadMappingHealth(selectedMappingId, false);
+            renderConfig();
+            renderSemanticControlBar();
+            setStatus("模板已重新分析，语义推荐已刷新。", "success");
+        }
+
+        function openAdvancedDiagnostics() {
+            mappingHealthExpanded = true;
+            renderMappingHealth();
+            const panel = document.getElementById("mappingHealthPanel");
+            if (panel) panel.scrollIntoView({ block: "start", behavior: "smooth" });
+        }
+
         function semanticDraftShowInWorkspace(candidate) {
             const writeMode = String(candidate.write_mode || "").trim();
             const intentType = String(candidate.intent_type || "").trim();
@@ -1616,13 +1771,16 @@
             const grid = profileId ? visualGridByMappingId[profileId] : null;
             const saved = cached?.savedConfiguration && typeof cached.savedConfiguration === "object" ? cached.savedConfiguration : {};
             const current = {};
-            collectEditableConfiguration().forEach((item) => {
-                const key = normalizeCell(item.cell);
-                if (key) current[key] = { ...(saved[key] || {}), ...item };
-            });
             Object.entries(saved).forEach(([cell, item]) => {
                 const key = normalizeCell(cell);
                 if (key && !current[key]) current[key] = { ...(item || {}), cell: key };
+            });
+            collectEditableConfiguration().forEach((item) => {
+                const key = normalizeCell(item.cell);
+                if (!key) return;
+                if (item.manual_override === true || item.user_edited === true || saved[key]) {
+                    current[key] = { ...(saved[key] || {}), ...item };
+                }
             });
 
             const visualByCell = {};
@@ -1719,6 +1877,45 @@
             renderConfigurationValidation();
             await loadMappingHealth(selectedMappingId, false);
             setStatus(`已应用语义推荐：${stats.applied_count} 项；保留人工配置：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后点击保存配置。`, "warning");
+        }
+
+        async function applyCurrentCellSemanticDraftConfiguration() {
+            if (!selectedMappingId || !selectedVisualCell) {
+                setStatus("请先选择一个单元格。", "warning");
+                return;
+            }
+            const cellRef = normalizeCell(selectedVisualCell);
+            const candidate = getCachedCandidateForCell(cellRef);
+            if (!candidate || candidate.semantic_promoted !== true) {
+                setStatus("当前单元格没有可应用的语义推荐。", "warning");
+                return;
+            }
+            const confidence = Number(candidate.confidence || candidate.semantic_confidence || 0);
+            if (confidence < 0.70) {
+                setStatus("当前单元格语义推荐可信度较低，未自动应用。", "warning");
+                return;
+            }
+            const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
+            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object" ? { ...cached.savedConfiguration } : {};
+            collectEditableConfiguration().forEach((item) => {
+                const key = normalizeCell(item.cell);
+                if (key) savedConfiguration[key] = { ...(savedConfiguration[key] || {}), ...item };
+            });
+            const area = document.getElementById("visualCellDetail");
+            const locked = Boolean(area?.querySelector("[data-visual-detail-field='manual_override']")?.checked);
+            const visualCell = findVisualCell(cellRef) || {};
+            const existing = savedConfiguration[cellRef] && typeof savedConfiguration[cellRef] === "object" ? savedConfiguration[cellRef] : {};
+            savedConfiguration[cellRef] = {
+                ...buildSemanticDraftItem(candidate, visualCell, existing, Object.keys(savedConfiguration).length + 1),
+                manual_override: locked,
+                user_edited: true,
+            };
+            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
+            renderConfig();
+            renderVisualWorkbench();
+            renderConfigurationValidation();
+            await loadMappingHealth(selectedMappingId, false);
+            setStatus("已将语义推荐应用到当前单元格。请检查后点击保存配置。", "warning");
         }
 
         function formatConfidenceBreakdown(breakdown) {
@@ -1980,8 +2177,41 @@
             return { className: "ok", label: "OK" };
         }
 
+        function runtimeMappingSourceLabel(source) {
+            const value = String(source?.source || source || "");
+            return {
+                saved_configuration: "已保存配置",
+                semantic_fallback: "语义回退",
+                empty: "空",
+            }[value] || "空";
+        }
+
+        function runtimeMappingSourceFromSummary(summary = {}) {
+            const source = summary.runtime_mapping_source;
+            if (source && typeof source === "object") return source;
+            const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
+            return cached?.runtimeMappingSource && typeof cached.runtimeMappingSource === "object"
+                ? cached.runtimeMappingSource
+                : { source: "empty", saved_fields_count: 0, semantic_fields_count: 0, using_saved_configuration: false };
+        }
+
+        function renderRuntimeMappingSource(source = {}) {
+            const className = source.source === "semantic_fallback" ? "warning" : "success";
+            const hint = source.source === "semantic_fallback"
+                ? '<div style="margin-top:6px;">当前尚未保存有效配置，工作页可能使用语义回退结果。建议点击“应用语义推荐”后保存配置。</div>'
+                : "";
+            return `
+                <div class="validation-banner ${className}">
+                    <strong>运行时来源：${escapeHtml(runtimeMappingSourceLabel(source))}</strong>
+                    <div>已保存配置：${Number(source.saved_fields_count || 0)} 个字段；语义回退：${Number(source.semantic_fields_count || 0)} 个字段</div>
+                    ${hint}
+                </div>
+            `;
+        }
+
         function renderMappingHealthHeader(summary = {}, emptyText = "") {
             const status = emptyText ? { className: emptyText.includes("错误") ? "error" : "warning", label: emptyText } : mappingHealthStatus(summary);
+            const runtimeSource = runtimeMappingSourceFromSummary(summary);
             return `
                 <div class="mapping-health-header" onclick="toggleMappingHealthPanel()">
                     <div class="mapping-health-heading">
@@ -1999,6 +2229,7 @@
                     <div class="mapping-health-metric"><span>工作页字段</span><strong>${Number(summary.workspace_fields || 0)}</strong></div>
                     <div class="mapping-health-metric"><span>可导出字段</span><strong>${Number(summary.export_ready_fields || 0)}</strong></div>
                 </div>
+                ${renderRuntimeMappingSource(runtimeSource)}
             `;
         }
 
@@ -2125,7 +2356,12 @@
                 body: JSON.stringify({ items, sections }),
             });
             const cached = configByMappingId[selectedMappingId] || {};
-            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration: result.template_configuration || {}, savedSectionConfiguration: result.section_configuration || {} };
+            configByMappingId[selectedMappingId] = {
+                ...cached,
+                savedConfiguration: result.template_configuration || {},
+                savedSectionConfiguration: result.section_configuration || {},
+                runtimeMappingSource: result.runtime_mapping_source || cached.runtimeMappingSource || null,
+            };
             if (result.profile) {
                 selectedMapping = result.profile;
                 mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
@@ -2151,9 +2387,7 @@
             const baseRows = appendSavedConfigurationRows(buildConfigRows(labels, structureLabels, sections), cached?.savedConfiguration);
             const rows = applySavedConfiguration(baseRows, cached?.savedConfiguration, cached?.candidates);
             const configSections = buildConfigSections(rows, sections, cached?.savedSectionConfiguration);
-            const semanticRecommendationCount = (Array.isArray(cached?.candidates) ? cached.candidates : [])
-                .filter((candidate) => candidate && candidate.semantic_promoted === true && Number(candidate.confidence || candidate.semantic_confidence || 0) >= 0.70)
-                .length;
+            renderSemanticControlBar();
 
             if (!rows.length) {
                 area.className = "config-empty";
@@ -2164,12 +2398,6 @@
 
             area.className = "";
             area.innerHTML = `
-                <div class="config-actions">
-                    <div class="config-action-hint">
-                        可应用语义推荐 ${semanticRecommendationCount} 项。根据语义推荐自动生成一版草稿配置，应用后仍需点击“保存配置”。
-                    </div>
-                    <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${semanticRecommendationCount ? "" : "disabled"}>应用语义推荐</button>
-                </div>
                 ${configSections.map((section) => `
                     <div class="config-section" data-section-key="${escapeHtml(section.key)}">
                         <div class="config-section-header collapsed" onclick="toggleSection(this)">
