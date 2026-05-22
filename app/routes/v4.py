@@ -1984,6 +1984,42 @@ def _values_match_for_audit(expected, actual, write_mode=""):
     return False
 
 
+def _export_audit_root_cause(item, expected="", actual="", write_mode="", has_mapping_config=True):
+    status = str(item.get("status") or "").strip()
+    field_key = str(item.get("field_key") or "").strip()
+    cell = _cell_key(item.get("cell"))
+    expected_text = _normalize_audit_value(expected)
+    actual_text = _normalize_audit_value(actual)
+    mode = str(write_mode or "").strip()
+
+    if status == "matched":
+        return "ok", "已正确导出"
+
+    if status == "skipped":
+        return "skipped", "已跳过检查"
+
+    if not has_mapping_config:
+        return "mapping_missing", "缺少已保存映射配置"
+
+    if not field_key:
+        return "mapping_missing", "缺少 field_key，无法形成稳定链路"
+
+    if not cell:
+        return "mapping_missing", "缺少目标单元格"
+
+    if expected_text and not actual_text:
+        return "missing_export", "期望值存在，但导出单元格为空"
+
+    if mode in {"append_after_colon", "check_option", "select_option_text", "write_table_column", "write_row_field"}:
+        return "write_mode_issue", "可能与特殊写入模式有关"
+
+    if expected_text != actual_text:
+        return "value_mismatch", "导出值与期望值不一致"
+
+    return "unknown", "未知原因"
+
+
+
 def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=None):
     from openpyxl import load_workbook
 
@@ -2038,6 +2074,13 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
                 "label": label,
                 "message": "confirmed cell 缺少目标 cell，跳过回读。",
             })
+            root_cause, root_cause_label = _export_audit_root_cause(
+                {"status": "skipped", "field_key": field_key, "cell": ""},
+                expected=value,
+                actual="",
+                write_mode=write_mode,
+                has_mapping_config=bool(config),
+            )
             items.append({
                 "cell": "",
                 "field_key": field_key,
@@ -2048,11 +2091,20 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
                 "matched": False,
                 "status": "skipped",
                 "message": "缺少目标 cell",
+                "root_cause": root_cause,
+                "root_cause_label": root_cause_label,
             })
             continue
 
         if write_mode in {"skip", "none"}:
             summary["skipped"] += 1
+            root_cause, root_cause_label = _export_audit_root_cause(
+                {"status": "skipped", "field_key": field_key, "cell": cell},
+                expected=value,
+                actual="",
+                write_mode=write_mode,
+                has_mapping_config=bool(config),
+            )
             items.append({
                 "cell": cell,
                 "field_key": field_key,
@@ -2063,6 +2115,8 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
                 "matched": False,
                 "status": "skipped",
                 "message": "write_mode 为 skip/none",
+                "root_cause": root_cause,
+                "root_cause_label": root_cause_label,
             })
             continue
 
@@ -2076,6 +2130,13 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
                 "label": label,
                 "message": f"读取单元格失败：{exc}",
             })
+            root_cause, root_cause_label = _export_audit_root_cause(
+                {"status": "skipped", "field_key": field_key, "cell": cell},
+                expected=value,
+                actual="",
+                write_mode=write_mode,
+                has_mapping_config=bool(config),
+            )
             items.append({
                 "cell": cell,
                 "field_key": field_key,
@@ -2086,6 +2147,8 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
                 "matched": False,
                 "status": "skipped",
                 "message": f"读取单元格失败：{exc}",
+                "root_cause": root_cause,
+                "root_cause_label": root_cause_label,
             })
             continue
 
@@ -2111,6 +2174,13 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
                 "actual": actual_text,
             })
 
+        root_cause, root_cause_label = _export_audit_root_cause(
+            {"status": status, "field_key": field_key, "cell": cell},
+            expected=expected_text,
+            actual=actual_text,
+            write_mode=write_mode,
+            has_mapping_config=bool(config),
+        )
         items.append({
             "cell": cell,
             "field_key": field_key,
@@ -2121,14 +2191,25 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
             "matched": matched,
             "status": status,
             "message": message,
+            "root_cause": root_cause,
+            "root_cause_label": root_cause_label,
         })
+
+    root_cause_summary = {}
+    for item in items:
+        cause = str(item.get("root_cause") or "unknown")
+        root_cause_summary[cause] = root_cause_summary.get(cause, 0) + 1
 
     return {
         "success": True,
-        "summary": summary,
+        "summary": {
+            **summary,
+            "root_cause_summary": root_cause_summary,
+        },
         "items": items,
         "warnings": warnings,
         "errors": errors,
+        "root_cause_summary": root_cause_summary,
     }
 
 
