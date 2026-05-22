@@ -2539,10 +2539,13 @@ def _table_col_offset_for_field(item):
     if not isinstance(item, dict):
         return 0
     for key in ("col_offset", "table_col_offset", "column_offset"):
+        raw_value = item.get(key)
+        if raw_value in (None, ""):
+            continue
         try:
-            return int(item.get(key) or 0)
+            return int(raw_value)
         except (TypeError, ValueError):
-            return 0
+            continue
     return 0
 
 
