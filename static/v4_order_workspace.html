@@ -2635,7 +2635,45 @@
             const skipped = Number(summary.skipped || 0);
             const warnings = Array.isArray(audit.warnings) ? audit.warnings : [];
             const items = Array.isArray(audit.items) ? audit.items : [];
-            const badItems = items.filter((item) => item.status === "mismatched" || (Array.isArray(item.problems) && item.problems.length)).slice(0, 8);
+            const badItems = items.filter((item) =>
+    item.status==="mismatched"
+    || item.status==="skipped"
+    || (Array.isArray(item.problems)&&item.problems.length)
+);
+
+const categorizedIssues={
+    missing_export:[],
+    mismatch:[],
+    skipped:[],
+    write_mode_issue:[]
+};
+
+badItems.forEach((item)=>{
+    const actual=(item.actual||"").trim();
+    const expected=(item.expected||"").trim();
+    const mode=(item.write_mode||"").trim();
+
+    if(item.status==="skipped"){
+        categorizedIssues.skipped.push(item);
+        return;
+    }
+
+    if(!actual&&expected){
+        categorizedIssues.missing_export.push(item);
+        return;
+    }
+
+    if(
+        mode &&
+        mode!=="replace" &&
+        mode!=="overwrite"
+    ){
+        categorizedIssues.write_mode_issue.push(item);
+        return;
+    }
+
+    categorizedIssues.mismatch.push(item);
+});
 
             const statusText = !success
                 ? "回读失败"
@@ -2667,7 +2705,32 @@
                     <div class="smart-debug-metric"><span>警告</span><strong>${warnings.length}</strong></div>
                 </div>
                 ${audit.error ? `<div class="small">错误：${escapeHtml(audit.error)}</div>` : ""}
-                ${rowsHtml}
+                
+<div class="smart-debug-section">
+
+<div class="small"><strong>Top Failed Cells</strong></div>
+
+${renderSmartDebugTable(
+["类型","Cell","字段","期望","实际"],
+badItems.slice(0,10).map((item)=>[
+    !item.actual && item.expected
+        ? "missing_export"
+        : (item.status==="skipped"
+            ? "skipped"
+            : ((item.write_mode||"").trim()
+                ? "write_mode_issue"
+                : "mismatch")),
+    item.cell||"-",
+    item.label||item.field_key||"-",
+    item.expected||"",
+    item.actual||""
+])
+)}
+
+</div>
+
+${rowsHtml}
+
             `;
         }
 
