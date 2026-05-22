@@ -1506,6 +1506,8 @@ def _build_ai_extraction_contract_from_workspace_fields(workspace_fields):
                 "target_cell": _cell_key(field.get("cell")),
                 "source_cell": _cell_key(field.get("source_cell")),
                 "sheet_name": _sheet_key(field.get("sheet_name") or field.get("target_sheet") or field.get("worksheet") or field.get("sheet")),
+                "col_offset": int(field.get("col_offset") or field.get("table_col_offset") or field.get("column_offset") or 0),
+                "table_col_offset": int(field.get("table_col_offset") or field.get("col_offset") or field.get("column_offset") or 0),
                 "options": [],
             }
         )
@@ -1527,6 +1529,8 @@ def _build_ai_extraction_contract_from_workspace_fields(workspace_fields):
                 "target_cell": _cell_key(source_field.get("cell")),
                 "source_cell": _cell_key(source_field.get("source_cell")),
                 "sheet_name": _sheet_key(source_field.get("sheet_name") or source_field.get("target_sheet") or source_field.get("worksheet") or source_field.get("sheet")),
+                "col_offset": int(source_field.get("col_offset") or source_field.get("table_col_offset") or source_field.get("column_offset") or 0),
+                "table_col_offset": int(source_field.get("table_col_offset") or source_field.get("col_offset") or source_field.get("column_offset") or 0),
                 "options": group["options"],
             }
         )
