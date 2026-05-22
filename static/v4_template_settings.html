@@ -290,9 +290,18 @@
             padding:14px 18px;
             background:#f8fafc;
             border-bottom:1px solid #e5e7eb;
+            cursor:pointer;
             font-weight:700;
             display:flex;
             justify-content:space-between;
+        }
+        .mapping-section-toggle {
+            color: #667085;
+            margin-right: 8px;
+        }
+        .mapping-section-body.collapsed,
+        .business-config-body.collapsed {
+            display: none;
         }
         .mapping-section-count{
             color:#64748b;
@@ -807,6 +816,7 @@
         let mappingHealthByMappingId = {};
         let mappingHealthExpanded = false;
         let configViewMode = "table";
+        let businessSectionCollapsed = {};
         let selectedVisualCell = "";
         let visualIntentLayerFilters = {
             "fill-field": true,
@@ -2478,25 +2488,86 @@
         }
 
         const SECTION_RULES = [
-            { key:"customer", label:"客户信息区", keywords:["customer","client","company","contact","address","email","phone"] },
-            { key:"product", label:"产品信息区", keywords:["product","dosage","formula","flavor","ingredient","spec","size"] },
-            { key:"package", label:"包装区", keywords:["package","packing","label","bottle","carton","box"] },
-            { key:"other", label:"其他配置", keywords:[] }
+            {
+                key: "document",
+                label: "文档信息区",
+                keywords: [
+                    "document", "doc", "code", "no", "number", "date", "version",
+                    "文档", "编号", "单号", "订单号", "日期", "版本", "制表", "审核"
+                ]
+            },
+            {
+                key: "customer",
+                label: "客户信息区",
+                keywords: [
+                    "customer", "client", "company", "contact", "address", "email", "phone",
+                    "客户", "公司", "联系人", "联系方式", "电话", "邮箱", "地址", "收货", "国家", "地区"
+                ]
+            },
+            {
+                key: "product",
+                label: "产品信息区",
+                keywords: [
+                    "product", "dosage", "type", "form", "flavor", "name", "item",
+                    "产品", "品名", "名称", "剂型", "类型", "规格", "口味", "风味", "形态",
+                    "软胶囊", "片剂", "固体饮料", "软糖", "爆珠", "滴剂", "液体饮料", "泡腾片", "凝胶", "果冻"
+                ]
+            },
+            {
+                key: "formula",
+                label: "规格/配方区",
+                keywords: [
+                    "formula", "ingredient", "active", "content", "spec", "size", "weight", "dose",
+                    "配方", "成分", "原料", "含量", "规格", "重量", "净含量", "剂量", "粒重",
+                    "胶囊壳", "大小", "颜色", "功效", "营养", "添加量"
+                ]
+            },
+            {
+                key: "package",
+                label: "包装标签区",
+                keywords: [
+                    "package", "packing", "label", "bottle", "carton", "box", "cap", "bag",
+                    "包装", "标签", "瓶", "瓶型", "瓶盖", "盒", "纸盒", "箱", "外箱", "袋", "铝箔袋", "贴标", "彩盒"
+                ]
+            },
+            {
+                key: "production",
+                label: "生产要求区",
+                keywords: [
+                    "production", "requirement", "remark", "note", "process", "sample", "delivery",
+                    "生产", "要求", "备注", "说明", "工艺", "打样", "交期", "交货", "检验", "检测", "注意事项"
+                ]
+            },
+            {
+                key: "other",
+                label: "其他配置",
+                keywords: []
+            }
         ];
 
         function detectMappingSection(mapping) {
-            const text = (
-                mapping.candidateFieldKey
-                || mapping.intentType
-                || mapping.configLabel
-                || ""
-            ).toLowerCase();
+            const text = [
+                mapping.candidateFieldKey,
+                mapping.intentType,
+                mapping.configLabel,
+                mapping.candidateFieldLabel,
+                mapping.aiExtractHint,
+                mapping.optionValue,
+                mapping.semanticType,
+                mapping.semanticReason,
+                mapping.cell,
+            ].map(value => String(value || "").toLowerCase()).join(" ");
             for (const rule of SECTION_RULES) {
                 if (rule.keywords.some(keyword => text.includes(keyword))) {
                     return rule.key;
                 }
             }
             return "other";
+        }
+
+        function toggleBusinessSection(sectionKey) {
+            businessSectionCollapsed[sectionKey] = !businessSectionCollapsed[sectionKey];
+            renderConfig();
         }
 
         function switchConfigViewMode(mode) {
@@ -2577,22 +2648,25 @@
                 .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
                 .map(section => {
                     const rows = groupedMappings[section.key];
+                    const collapsed = businessSectionCollapsed[section.key] === true;
                     return `
                         <div class="business-config-section">
-                            <div class="mapping-section-title">
-                                ${section.label}
+                            <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(section.key)}')">
+                                <span><span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>${section.label}</span>
                                 <span class="mapping-section-count">${rows.length}</span>
                             </div>
-                            ${rows.map(row => `
-                                <div class="business-config-row" data-config-row ${renderConfigRowDataAttributes(row)}>
-                                    <div class="business-config-label">
-                                        ${escapeHtml(row.configLabel || row.candidateFieldLabel || row.candidateFieldKey || row.cell || "-")}
-                                        <small>${escapeHtml(row.candidateFieldKey || row.intentType || "-")}</small>
+                            <div class="business-config-body ${collapsed ? "collapsed" : ""}">
+                                ${rows.map(row => `
+                                    <div class="business-config-row" data-config-row ${renderConfigRowDataAttributes(row)}>
+                                        <div class="business-config-label">
+                                            ${escapeHtml(row.configLabel || row.candidateFieldLabel || row.candidateFieldKey || row.cell || "-")}
+                                            <small>${escapeHtml(row.candidateFieldKey || row.intentType || "-")}</small>
+                                        </div>
+                                        <div class="business-config-editor">${renderBusinessConfigEditor(row)}${renderBusinessConfigHiddenFields(row)}</div>
+                                        <div class="business-config-cell">${escapeHtml(row.cell || "-")}</div>
                                     </div>
-                                    <div class="business-config-editor">${renderBusinessConfigEditor(row)}${renderBusinessConfigHiddenFields(row)}</div>
-                                    <div class="business-config-cell">${escapeHtml(row.cell || "-")}</div>
-                                </div>
-                            `).join("")}
+                                `).join("")}
+                            </div>
                         </div>
                     `;
                 }).join("");
@@ -2613,24 +2687,26 @@
                 .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
                 .map(section => {
                     const rows = groupedMappings[section.key];
+                    const collapsed = businessSectionCollapsed[section.key] === true;
                     return `
                     <div class="mapping-section-card">
-                        <div class="mapping-section-title">
-                            ${section.label}
+                        <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(section.key)}')">
+                            <span><span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>${section.label}</span>
                             <span class="mapping-section-count">${rows.length}</span>
                         </div>
-                        <table class="config-table">
-                            <thead>
-                                <tr>
-                                    <th class="cell-col">单元格</th>
-                                    <th class="field-col">字段名</th>
-                                    <th class="key-col">字段标识</th>
-                                    <th class="show-col">显示</th>
-                                    <th class="action-col">详情</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rows.map((row) => `
+                        <div class="mapping-section-body ${collapsed ? "collapsed" : ""}">
+                            <table class="config-table">
+                                <thead>
+                                    <tr>
+                                        <th class="cell-col">单元格</th>
+                                        <th class="field-col">字段名</th>
+                                        <th class="key-col">字段标识</th>
+                                        <th class="show-col">显示</th>
+                                        <th class="action-col">详情</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows.map((row) => `
                                         <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"` : ""}>
                                             <td>${escapeHtml(row.cell || "-")}</td>
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
@@ -2684,8 +2760,9 @@
                                             </td>
                                         </tr>
                                     `).join("")}
-                                </tbody>
-                            </table>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     `;
                 }).join("");
