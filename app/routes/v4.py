@@ -2502,6 +2502,39 @@ def _table_cell_value(row, field_key):
     return ""
 
 
+def _table_rows_for_field(parsed_fields, field_key, raw_value):
+    direct_rows = _table_row_values(raw_value)
+    if direct_rows:
+        return direct_rows
+
+    if not isinstance(parsed_fields, dict):
+        return []
+
+    preferred_keys = [
+        "products",
+        "items",
+        "rows",
+        "table",
+        "table_rows",
+        "product_items",
+        "order_items",
+        "details",
+    ]
+
+    for key in preferred_keys:
+        value = parsed_fields.get(key)
+        rows = _table_row_values(value)
+        if any(isinstance(row, dict) and field_key in row for row in rows):
+            return rows
+
+    for value in parsed_fields.values():
+        rows = _table_row_values(value)
+        if any(isinstance(row, dict) and field_key in row for row in rows):
+            return rows
+
+    return []
+
+
 def _bind_parsed_fields_to_template_cells(parsed, profile):
     if not isinstance(parsed, dict):
         parsed_fields = {}
@@ -2526,7 +2559,7 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
         if _is_blank_extracted_value(raw_value):
             continue
 
-        table_rows = _table_row_values(raw_value)
+        table_rows = _table_rows_for_field(parsed_fields, field_key, raw_value)
         if table_rows:
             label = str(item.get("label") or item.get("field_label") or field_key).strip() or field_key
             source = "AI Extraction Contract"
