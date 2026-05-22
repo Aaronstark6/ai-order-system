@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 
 from openpyxl import load_workbook
+from openpyxl.utils import column_index_from_string, get_column_letter
 
 from app.runtime_paths import get_base_dir
 
@@ -59,6 +60,41 @@ def _cell_has_template_value(cell):
 def _cell_has_formula(cell):
     value = cell.value
     return isinstance(value, str) and value.strip().startswith("=")
+
+
+def _offset_cell_ref(cell_ref, row_offset=0, col_offset=0):
+    match = re.match(r"^([A-Za-z]+)([1-9][0-9]*)$", str(cell_ref or "").strip())
+    if not match:
+        return str(cell_ref or "").strip().upper()
+
+    col_letters = match.group(1).upper()
+    row = int(match.group(2))
+    col = column_index_from_string(col_letters)
+
+    try:
+        row_delta = int(row_offset or 0)
+    except (TypeError, ValueError):
+        row_delta = 0
+
+    try:
+        col_delta = int(col_offset or 0)
+    except (TypeError, ValueError):
+        col_delta = 0
+
+    target_row = max(1, row + row_delta)
+    target_col = max(1, col + col_delta)
+    return f"{get_column_letter(target_col)}{target_row}"
+
+
+def _operation_target_cell(operation):
+    base_cell = str(operation.get("target_cell") or "").strip().upper()
+    if not base_cell:
+        return ""
+    return _offset_cell_ref(
+        base_cell,
+        row_offset=operation.get("row_offset"),
+        col_offset=operation.get("col_offset"),
+    )
 
 
 def _operation_sheet_name(operation):
@@ -150,7 +186,7 @@ def execute_operations_to_excel(template_file, operations):
             warnings.append(f"第 {index} 条 operation 无效，已跳过。")
             continue
 
-        target_cell = str(operation.get("target_cell") or "").strip().upper()
+        target_cell = _operation_target_cell(operation)
         if not target_cell:
             warnings.append(f"第 {index} 条 operation 缺少 target_cell，已跳过。")
             continue
