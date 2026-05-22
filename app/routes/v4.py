@@ -1418,6 +1418,9 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
 
 
 def _contract_field_type_from_workspace_field(field):
+    explicit_field_type = str(field.get("field_type") or field.get("type") or "").strip()
+    if explicit_field_type == "image":
+        return "image"
     intent_type = str(field.get("intent_type") or "").strip()
     write_mode = str(field.get("write_mode") or "").strip()
     label_key = f"{field.get('label') or ''} {field.get('field_key') or ''}".lower()
