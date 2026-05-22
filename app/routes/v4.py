@@ -1958,6 +1958,181 @@ def _build_runtime_mapping_trace_report(profile):
 
 
 
+def _normalize_audit_value(value):
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _values_match_for_audit(expected, actual, write_mode=""):
+    expected_text = _normalize_audit_value(expected)
+    actual_text = _normalize_audit_value(actual)
+    mode = str(write_mode or "").strip()
+
+    if not expected_text:
+        return not actual_text
+
+    if expected_text == actual_text:
+        return True
+
+    if mode == "append_after_colon":
+        return actual_text.endswith(expected_text) or expected_text in actual_text
+
+    if mode in {"check_option", "select_option_text"}:
+        return expected_text in actual_text or actual_text in expected_text
+
+    return False
+
+
+def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=None):
+    from openpyxl import load_workbook
+
+    profile = profile if isinstance(profile, dict) else {}
+    confirmed_cells = confirmed_cells if isinstance(confirmed_cells, list) else []
+
+    summary = {
+        "total": 0,
+        "checked": 0,
+        "matched": 0,
+        "mismatched": 0,
+        "skipped": 0,
+    }
+    items = []
+    warnings = []
+    errors = []
+
+    try:
+        workbook = load_workbook(exported_file_path, data_only=False)
+        sheet = workbook.active
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": f"导出文件回读失败：{exc}",
+            "summary": summary,
+            "items": [],
+            "warnings": [],
+            "errors": [{"message": f"导出文件回读失败：{exc}"}],
+        }
+
+    lookup = _build_template_configuration_lookup(profile)
+
+    for raw_item in confirmed_cells:
+        if not isinstance(raw_item, dict):
+            continue
+
+        summary["total"] += 1
+        config = _lookup_confirmed_mapping_config(raw_item, lookup)
+        merged = _confirmed_item_with_mapping_config(raw_item, config)
+
+        cell = _cell_key(merged.get("cell") or merged.get("target_cell") or merged.get("display_cell"))
+        value = merged.get("value")
+        write_mode = str(merged.get("write_mode") or "").strip()
+        field_key = str(merged.get("field_key") or "").strip()
+        label = str(merged.get("label") or field_key or cell or "").strip()
+
+        if not cell:
+            summary["skipped"] += 1
+            warnings.append({
+                "cell": "",
+                "field_key": field_key,
+                "label": label,
+                "message": "confirmed cell 缺少目标 cell，跳过回读。",
+            })
+            items.append({
+                "cell": "",
+                "field_key": field_key,
+                "label": label,
+                "expected": _normalize_audit_value(value),
+                "actual": "",
+                "write_mode": write_mode,
+                "matched": False,
+                "status": "skipped",
+                "message": "缺少目标 cell",
+            })
+            continue
+
+        if write_mode in {"skip", "none"}:
+            summary["skipped"] += 1
+            items.append({
+                "cell": cell,
+                "field_key": field_key,
+                "label": label,
+                "expected": _normalize_audit_value(value),
+                "actual": "",
+                "write_mode": write_mode,
+                "matched": False,
+                "status": "skipped",
+                "message": "write_mode 为 skip/none",
+            })
+            continue
+
+        try:
+            actual = sheet[cell].value
+        except Exception as exc:
+            summary["skipped"] += 1
+            warnings.append({
+                "cell": cell,
+                "field_key": field_key,
+                "label": label,
+                "message": f"读取单元格失败：{exc}",
+            })
+            items.append({
+                "cell": cell,
+                "field_key": field_key,
+                "label": label,
+                "expected": _normalize_audit_value(value),
+                "actual": "",
+                "write_mode": write_mode,
+                "matched": False,
+                "status": "skipped",
+                "message": f"读取单元格失败：{exc}",
+            })
+            continue
+
+        expected_text = _normalize_audit_value(value)
+        actual_text = _normalize_audit_value(actual)
+        matched = _values_match_for_audit(expected_text, actual_text, write_mode)
+
+        summary["checked"] += 1
+        if matched:
+            summary["matched"] += 1
+            status = "matched"
+            message = ""
+        else:
+            summary["mismatched"] += 1
+            status = "mismatched"
+            message = "导出回读值与期望值不一致"
+            warnings.append({
+                "cell": cell,
+                "field_key": field_key,
+                "label": label,
+                "message": message,
+                "expected": expected_text,
+                "actual": actual_text,
+            })
+
+        items.append({
+            "cell": cell,
+            "field_key": field_key,
+            "label": label,
+            "expected": expected_text,
+            "actual": actual_text,
+            "write_mode": write_mode,
+            "matched": matched,
+            "status": status,
+            "message": message,
+        })
+
+    return {
+        "success": True,
+        "summary": summary,
+        "items": items,
+        "warnings": warnings,
+        "errors": errors,
+    }
+
+
+
 def _mapping_health_issue(level, cell, label, field_key, message):
     return {
         "level": level,
@@ -4305,6 +4480,16 @@ def api_v4_export_confirmed_excel(
                 "pipeline_state": get_pipeline_state(),
             }
 
+        exported_filename = str(export_result.get("filename") or "").strip()
+        exported_file_path = Path(exported_filename)
+        if not exported_file_path.is_absolute():
+            exported_file_path = Path("output") / exported_filename
+        export_readback_audit = _build_export_readback_audit(
+            exported_file_path,
+            confirmed_cells,
+            profile=profile,
+        )
+
         set_pipeline_result(overridden_operations, pipeline_result.get("stages", []))
         state = merge_mapping_safety(export_result.get("mapping_safety", {}))
         merged_safety = state.get("mapping_safety", {})
@@ -4332,6 +4517,7 @@ def api_v4_export_confirmed_excel(
             "confirmed_added_count": confirmed_added_count,
             "write_mode_summary": write_mode_summary,
             "runtime_mapping_source": runtime_mapping_source,
+            "export_readback_audit": export_readback_audit,
             "parse_result": pipeline_e2e_result.get("parse_result", {}),
             "pipeline_result": response_pipeline_result,
             "export_result": {
@@ -4341,6 +4527,7 @@ def api_v4_export_confirmed_excel(
                 "warnings": export_result.get("warnings", []),
                 "template_source": template_source,
                 "write_mode_summary": write_mode_summary,
+                "readback_audit": export_readback_audit,
             },
             "render_preview": get_pipeline_state().get("render_preview", {}),
             "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
