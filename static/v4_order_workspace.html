@@ -380,6 +380,84 @@
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             padding: 18px;
         }
+        .workspace-section {
+            background: #fff;
+            border: 1px solid #e4e7ec;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+        .workspace-section-title {
+            align-items: center;
+            background: #f8fafc;
+            border-bottom: 1px solid #e4e7ec;
+            color: #1d2939;
+            cursor: pointer;
+            display: flex;
+            font-size: 14px;
+            font-weight: 700;
+            justify-content: space-between;
+            padding: 12px 14px;
+        }
+        .workspace-section-title span:first-child { min-width: 0; }
+        .workspace-section-body {
+            display: grid;
+            gap: 0;
+        }
+        .workspace-section.collapsed .workspace-section-body,
+        .workspace-section-body.collapsed {
+            display: none;
+        }
+        .workspace-row {
+            align-items: center;
+            border-top: 1px solid #edf0f4;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.4fr) 82px;
+            padding: 12px 14px;
+        }
+        .workspace-row:first-child { border-top: 0; }
+        .workspace-label {
+            color: #344054;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.4;
+            min-width: 0;
+        }
+        .workspace-label small {
+            color: #667085;
+            display: block;
+            font-size: 12px;
+            font-weight: 400;
+            margin-top: 3px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .workspace-editor { min-width: 0; }
+        .workspace-editor input,
+        .workspace-editor textarea {
+            box-sizing: border-box;
+            margin: 0;
+            width: 100%;
+        }
+        .workspace-editor input { min-height: 40px; }
+        .workspace-editor textarea {
+            min-height: 76px;
+            resize: vertical;
+        }
+        .workspace-source {
+            background: #f8fafc;
+            border: 1px solid #e4e7ec;
+            border-radius: 999px;
+            color: #475467;
+            font-size: 12px;
+            font-weight: 700;
+            justify-self: end;
+            padding: 5px 9px;
+            text-align: center;
+            white-space: nowrap;
+        }
         .business-field-card {
             background: #fff;
             border: 1px solid #e6eaf0;
@@ -608,6 +686,8 @@
                 gap: 6px;
                 grid-template-columns: 1fr;
             }
+            .workspace-row { grid-template-columns: 1fr; }
+            .workspace-source { justify-self: start; }
             .smart-debug-grid { grid-template-columns: 1fr 1fr; }
             .field-meta {
                 text-align: left;
@@ -697,6 +777,7 @@
         let v4RuntimeMappingSource = null;
         let v4VisualGrid = null;
         let v4MappingHealth = null;
+        let workspaceSectionCollapsed = {};
         let currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
         let selectedNativeCell = "";
         window.confirmedCells = confirmedCells;
@@ -1364,6 +1445,118 @@
             { key: "debug_other", title: "其他字段", order: 80 },
         ];
         const WORKSPACE_SECTION_BY_KEY = Object.fromEntries(WORKSPACE_SECTION_DEFS.map(section => [section.key, section]));
+        const WORKSPACE_SECTION_RULES = [
+            {
+                key: "document",
+                label: "文档信息",
+                keywords: [
+                    "文档", "编号", "单号", "日期", "版本",
+                    "document", "code", "number", "date"
+                ]
+            },
+            {
+                key: "customer",
+                label: "客户信息",
+                keywords: [
+                    "客户", "公司", "联系人", "地址", "电话", "邮箱",
+                    "customer", "client", "company", "contact"
+                ]
+            },
+            {
+                key: "product",
+                label: "产品信息",
+                keywords: [
+                    "产品", "剂型", "类型", "规格", "口味", "风味",
+                    "软胶囊", "片剂", "软糖", "固体饮料", "爆珠",
+                    "product", "dosage", "type", "flavor"
+                ]
+            },
+            {
+                key: "formula",
+                label: "规格/配方",
+                keywords: [
+                    "配方", "成分", "原料", "含量", "规格", "重量",
+                    "formula", "ingredient", "content", "spec"
+                ]
+            },
+            {
+                key: "package",
+                label: "包装标签",
+                keywords: [
+                    "包装", "标签", "瓶", "盒", "袋", "箱",
+                    "package", "packing", "label", "box"
+                ]
+            },
+            {
+                key: "production",
+                label: "生产要求",
+                keywords: [
+                    "生产", "备注", "工艺", "交期", "检验", "要求",
+                    "production", "remark", "process"
+                ]
+            },
+            {
+                key: "other",
+                label: "其他信息",
+                keywords: []
+            }
+        ];
+        const WORKSPACE_SECTION_RULE_BY_KEY = Object.fromEntries(WORKSPACE_SECTION_RULES.map(section => [section.key, section]));
+
+        function detectWorkspaceSection(field) {
+            const text = [
+                field?.label,
+                field?.field_key,
+                field?.semantic_type,
+                field?.semantic_reason,
+                field?.write_mode,
+            ].map(value => String(value || "").toLowerCase()).join(" ");
+            for (const rule of WORKSPACE_SECTION_RULES) {
+                if (rule.keywords.some(keyword => text.includes(keyword))) {
+                    return rule.key;
+                }
+            }
+            return "other";
+        }
+
+        function renderWorkspace() {
+            if (latestV4ParseResult) {
+                renderConfirmation(latestV4ParseResult);
+                return;
+            }
+            renderConfigurationPreview();
+        }
+
+        function restoreConfirmedInputsFromSnapshot(snapshot) {
+            const items = Array.isArray(snapshot) ? snapshot : [];
+            if (!items.length) return;
+            const keyFor = item => `${item.cell || ""}::${item.field_key || ""}::${item.option_value || ""}`;
+            const byKey = {};
+            items.forEach(item => {
+                byKey[keyFor(item)] = item;
+                if (item.cell) byKey[`${item.cell || ""}::${item.field_key || ""}::`] = item;
+            });
+            document.querySelectorAll("#v4ConfirmationArea input[data-cell], #v4ConfirmationArea textarea[data-cell]").forEach(control => {
+                const key = `${control.dataset.cell || ""}::${control.dataset.fieldKey || ""}::${control.dataset.optionValue || ""}`;
+                const fallbackKey = `${control.dataset.cell || ""}::${control.dataset.fieldKey || ""}::`;
+                const item = byKey[key] || byKey[fallbackKey];
+                if (!item) return;
+                if (control.type === "radio") {
+                    control.checked = String(control.value || "") === String(item.value || "");
+                    return;
+                }
+                control.value = item.value ?? "";
+            });
+            syncConfirmedCellsFromInputs();
+        }
+
+        function toggleWorkspaceSection(sectionKey) {
+            syncConfirmedCellsFromInputs();
+            const snapshot = Array.isArray(confirmedCells) ? confirmedCells.map(item => ({ ...item })) : [];
+            workspaceSectionCollapsed[sectionKey] = !workspaceSectionCollapsed[sectionKey];
+            renderWorkspace();
+            restoreConfirmedInputsFromSnapshot(snapshot);
+        }
 
         function inferWorkspaceFieldType(field) {
             const intentType = String(field?.intent_type || "");
@@ -1834,15 +2027,61 @@
             `;
         }
 
+        function groupWorkspaceBusinessSections(sections) {
+            const groupedFields = {};
+            (Array.isArray(sections) ? sections : []).forEach(section => {
+                const fields = Array.isArray(section.fields) ? section.fields : (section.items || []);
+                fields.forEach(field => {
+                    const sectionKey = detectWorkspaceSection(field);
+                    if (!groupedFields[sectionKey]) {
+                        groupedFields[sectionKey] = [];
+                    }
+                    groupedFields[sectionKey].push(field);
+                });
+            });
+            return WORKSPACE_SECTION_RULES
+                .map(section => ({
+                    key: section.key,
+                    title: section.label,
+                    fields: groupedFields[section.key] || [],
+                }))
+                .filter(section => section.fields.length);
+        }
+
+        function workspaceSourceBadge(item) {
+            const source = String(item?.meta?.source || item?.source || "").trim();
+            const status = String(item?.status || "").trim();
+            const text = `${source} ${status}`.toLowerCase();
+            if (status === "manual" || text.includes("manual")) return "Manual";
+            if (status === "ai_filled" || text.includes("ai")) return "AI";
+            if (text.includes("template") || text.includes("visual") || text.includes("mapping")) return "Template";
+            return source ? source : "—";
+        }
+
+        function renderWorkspaceRow(item, editorHtml) {
+            return `
+                <div class="workspace-row" data-status="${escapeHtml(item.status || "")}">
+                    <div class="workspace-label">
+                        ${escapeHtml(item.label || item.field_key || item.cell || "字段")}
+                        <small>${escapeHtml(item.field_key || item.intent_type || item.cell || "")}</small>
+                    </div>
+                    <div class="workspace-editor">${editorHtml}</div>
+                    <div class="workspace-source">${escapeHtml(workspaceSourceBadge(item))}</div>
+                </div>
+            `;
+        }
+
         function renderBusinessFormSection(section) {
             const fields = Array.isArray(section.fields) ? section.fields : (section.items || []);
+            const collapsed = workspaceSectionCollapsed[section.key] === true;
+            const arrow = collapsed ? "▶" : "▼";
             return `
-                <div class="confirmation-section-card business-form-card" data-section="${escapeHtml(section.key)}">
-                    <div class="confirmation-section-header">
-                        <div class="confirmation-section-name">${escapeHtml(section.title)}</div>
-                        <div class="confirmation-section-count">${fields.length}项</div>
+                <div class="workspace-section ${collapsed ? "collapsed" : ""}" data-section="${escapeHtml(section.key)}">
+                    <div class="workspace-section-title" onclick="toggleWorkspaceSection('${escapeHtml(section.key)}')">
+                        <span>${arrow} ${escapeHtml(section.title || WORKSPACE_SECTION_RULE_BY_KEY[section.key]?.label || "其他信息")}</span>
+                        <span class="confirmation-section-count">${fields.length}项</span>
                     </div>
-                    <div class="confirmation-section-body">
+                    <div class="workspace-section-body ${collapsed ? "collapsed" : ""}">
                         ${fields.map(item => item.type === "single_choice" || item.type === "option_group" ? renderBusinessOptionGroup(item) : renderBusinessFieldCard(item)).join("")}
                     </div>
                 </div>
@@ -1850,22 +2089,7 @@
         }
 
         function renderBusinessFieldCard(item) {
-            const status = item.status || workspaceFieldStatus(item.value, item.required, false);
-            return `
-                <div class="business-field-card" data-field-id="${escapeHtml(item.id || "")}" data-status="${escapeHtml(status)}">
-                    <div class="field-title-row">
-                        <label>${escapeHtml(item.label)}</label>
-                        <span class="field-status ${escapeHtml(status)}">${escapeHtml(workspaceStatusLabel(status))}</span>
-                    </div>
-                    ${renderBusinessFieldControl(item)}
-                    ${isSmartDebugMode() ? `
-                        <div class="business-field-meta">
-                            ${escapeHtml(item.source_cell && item.source_cell !== item.cell ? `${item.source_cell} → ${item.cell}` : item.cell)}
-                            <span class="business-field-debug">${escapeHtml(item.field_key || "-")} · ${escapeHtml(item.intent_type || "-")} · ${escapeHtml(item.write_mode || "-")}</span>
-                        </div>
-                    ` : ""}
-                </div>
-            `;
+            return renderWorkspaceRow(item, renderBusinessFieldControl(item));
         }
 
         function businessFieldDataAttributes(item) {
@@ -1919,12 +2143,9 @@
             const selectedValue = String(group.value || "").trim();
             const options = Array.isArray(group.options) ? group.options : (group.items || []);
             const status = group.status || workspaceFieldStatus(selectedValue, group.required, false);
-            return `
+            const source = group.meta?.source || group.source || options.find(option => option && option.source)?.source || "";
+            const editorHtml = `
                 <div class="business-option-group" data-field-id="${escapeHtml(group.id || group.group_key || "")}" data-required="${group.required ? "true" : "false"}" data-status="${escapeHtml(status)}">
-                    <div class="field-title-row">
-                        <div class="business-option-title">${escapeHtml(group.label || "选择字段")}</div>
-                        <span class="field-status ${escapeHtml(status)}">${escapeHtml(workspaceStatusLabel(status))}</span>
-                    </div>
                     <div class="business-option-list">
                         ${options.map(option => {
                             const value = option.option_value || option.label || "";
@@ -1957,6 +2178,7 @@
                     </div>
                 </div>
             `;
+            return renderWorkspaceRow({ ...group, status, source }, editorHtml);
         }
 
         function renderPreviewSection(section) {
@@ -2187,7 +2409,7 @@
 
             area.innerHTML = `
                 <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
-                ${previewSections.map(renderBusinessFormSection).join("")}
+                ${groupWorkspaceBusinessSections(previewSections).map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
         }
@@ -2224,7 +2446,7 @@
         }
 
         function markWorkspaceFieldManual(control) {
-            const wrapper = control.closest(".business-field-card, .business-option-group");
+            const wrapper = control.closest(".workspace-row") || control.closest(".business-field-card, .business-option-group");
             if (!wrapper) return;
             wrapper.dataset.status = "manual";
             const badge = wrapper.querySelector(".field-status");
@@ -2232,6 +2454,8 @@
                 badge.className = "field-status manual";
                 badge.textContent = workspaceStatusLabel("manual");
             }
+            const source = wrapper.querySelector(".workspace-source");
+            if (source) source.textContent = "Manual";
         }
 
         function collectConfirmedCellsFromInputs() {
@@ -2363,20 +2587,20 @@
                 const sections = buildWorkspaceFieldSections(workspaceFields, getParsedFieldValues(result));
                 if (!sections.length) return false;
 
-                document.getElementById("v4ConfirmationArea").innerHTML = `
-                    <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
-                    ${sections.map(renderBusinessFormSection).join("")}
-                `;
-                initializeConfirmedCellsSnapshotFromInputs();
-                return true;
-            }
+            document.getElementById("v4ConfirmationArea").innerHTML = `
+                <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
+                ${groupWorkspaceBusinessSections(sections).map(renderBusinessFormSection).join("")}
+            `;
+            initializeConfirmedCellsSnapshotFromInputs();
+            return true;
+        }
 
             const semanticSections = getSemanticWorkspaceSections(result);
             if (!semanticSections.length) return false;
 
             document.getElementById("v4ConfirmationArea").innerHTML = `
                 <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
-                ${semanticSections.map(renderBusinessFormSection).join("")}
+                ${groupWorkspaceBusinessSections(semanticSections).map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
             return true;
