@@ -2933,13 +2933,15 @@ def _confirmed_operation_from_item(item, worksheet):
         "source_cell": item.get("source_cell") or "",
         "option_value": item.get("option_value") or "",
         "target_sheet": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
+        "row_offset": item.get("row_offset") or 0,
+        "col_offset": item.get("col_offset") or 0,
     }
 
 
 def _override_operations_with_confirmed_cells(processed_operations, confirmed_cells, profile=None, template_path=None):
     operations = deepcopy(processed_operations) if isinstance(processed_operations, list) else []
     confirmed_items = confirmed_cells if isinstance(confirmed_cells, list) else []
-    confirmed_by_cell = {}
+    confirmed_by_key = {}
     config_lookup = _confirmed_config_lookup_from_profile(profile if isinstance(profile, dict) else {})
     worksheet = _load_template_worksheet_for_confirmed_export(template_path)
     write_mode_summary = _confirmed_export_empty_summary()
@@ -2947,21 +2949,16 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
     for item in confirmed_items:
         if not isinstance(item, dict):
             continue
-        for key_name in ("cell", "display_cell"):
-            key = _cell_key(item.get(key_name))
-            if key:
-                confirmed_by_cell[key] = item
+        key = _operation_merge_key(item)
+        if key:
+            confirmed_by_key[key] = item
 
     override_count = 0
     for operation in operations:
         if not isinstance(operation, dict):
             continue
-        operation_cell = ""
-        for key_name in ("target_cell", "cell", "display_cell"):
-            operation_cell = _cell_key(operation.get(key_name))
-            if operation_cell:
-                break
-        confirmed_item = confirmed_by_cell.get(operation_cell)
+        operation_key = _operation_merge_key(operation)
+        confirmed_item = confirmed_by_key.get(operation_key)
         if not confirmed_item:
             continue
 
@@ -2999,13 +2996,13 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
         write_mode_summary["written"] += 1
         _increment_write_mode_summary(write_mode_summary, write_mode, "written")
 
-    operation_index_by_cell = {}
+    operation_index_by_key = {}
     for index, operation in enumerate(operations):
         if not isinstance(operation, dict):
             continue
-        cell = _cell_key(operation.get("target_cell") or operation.get("cell") or operation.get("display_cell"))
-        if cell:
-            operation_index_by_cell[cell] = index
+        merge_key = _operation_merge_key(operation)
+        if merge_key:
+            operation_index_by_key[merge_key] = index
 
     added_count = 0
     for item in confirmed_items:
@@ -3014,7 +3011,8 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
         config = _lookup_confirmed_mapping_config(item, config_lookup)
         enriched_item = _confirmed_item_with_mapping_config(item, config)
         target_cell = _cell_key(enriched_item.get("target_cell") or enriched_item.get("cell"))
-        if not target_cell or target_cell in operation_index_by_cell:
+        merge_key = _operation_merge_key(enriched_item)
+        if not target_cell or not merge_key or merge_key in operation_index_by_key:
             continue
 
         write_mode = str(enriched_item.get("write_mode") or "").strip()
@@ -3031,7 +3029,7 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
             continue
 
         operations.append(operation)
-        operation_index_by_cell[target_cell] = len(operations) - 1
+        operation_index_by_key[merge_key] = len(operations) - 1
         added_count += 1
         write_mode_summary["written"] += 1
         _increment_write_mode_summary(write_mode_summary, write_mode, "written")
