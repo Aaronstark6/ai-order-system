@@ -4483,7 +4483,10 @@ def api_v4_export_confirmed_excel(
         exported_filename = str(export_result.get("filename") or "").strip()
         exported_file_path = Path(exported_filename)
         if not exported_file_path.is_absolute():
-            exported_file_path = Path("output") / exported_filename
+            if exported_file_path.parts and exported_file_path.parts[0] == "output":
+                exported_file_path = exported_file_path
+            else:
+                exported_file_path = Path("output") / exported_file_path
         export_readback_audit = _build_export_readback_audit(
             exported_file_path,
             confirmed_cells,
