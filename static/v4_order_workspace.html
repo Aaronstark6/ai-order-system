@@ -408,6 +408,16 @@
         .workspace-section-body.collapsed {
             display: none;
         }
+        .workspace-missing-banner {
+            margin: 10px 14px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            color: #9a3412;
+            font-size: 13px;
+            font-weight: 600;
+        }
         .workspace-row {
             align-items: center;
             border-top: 1px solid #edf0f4;
@@ -2112,6 +2122,56 @@
             return field?.value == null ? "" : String(field.value);
         }
 
+        function isWorkspaceEmptyValue(value) {
+            if (value === null || value === undefined) return true;
+            if (Array.isArray(value)) return value.length === 0;
+            if (typeof value === "string") return value.trim() === "";
+            return false;
+        }
+
+        function isWorkspaceFieldMissing(field) {
+            if (!field || typeof field !== "object") return false;
+            const type = String(field.type || "").trim();
+            if (["readonly", "computed", "readonly_note"].includes(type)) return false;
+            if (field.show_in_workspace === false) return false;
+            const writeMode = String(field.write_mode || "").trim().toLowerCase();
+            if (["skip", "none"].includes(writeMode)) return false;
+
+            const value = workspaceCurrentValue(field);
+            const isEmpty = isWorkspaceEmptyValue(value);
+            if (field.required === true && isEmpty) return true;
+
+            const label = String(field.label || field.field_label || "").trim();
+            const intentType = String(field.intent_type || field.intentType || "").trim();
+            if (label && isEmpty && ["fill-field", "structured_field", "option_group"].includes(intentType)) {
+                return true;
+            }
+            return false;
+        }
+
+        function getWorkspaceMissingFieldName(field) {
+            return String(field?.label || field?.field_label || field?.field_key || field?.cell || "").trim();
+        }
+
+        function getWorkspaceSectionMissingFields(sectionFields) {
+            return (Array.isArray(sectionFields) ? sectionFields : [])
+                .filter(isWorkspaceFieldMissing)
+                .map(getWorkspaceMissingFieldName)
+                .filter(Boolean);
+        }
+
+        function renderWorkspaceMissingBanner(sectionFields) {
+            const missingFields = getWorkspaceSectionMissingFields(sectionFields);
+            if (!missingFields.length) return "";
+            const visibleFields = missingFields.slice(0, 6);
+            const moreText = missingFields.length > 6 ? ` 等 ${missingFields.length} 项` : "";
+            return `
+                <div class="workspace-missing-banner">
+                    缺少：${visibleFields.map(escapeHtml).join("、")}${moreText}
+                </div>
+            `;
+        }
+
         function normalizeCandidateListValue(value) {
             if (Array.isArray(value)) return value;
             if (value && typeof value === "object") {
@@ -2195,6 +2255,7 @@
                         <span class="confirmation-section-count">${fields.length}项</span>
                     </div>
                     <div class="workspace-section-body ${collapsed ? "collapsed" : ""}">
+                        ${renderWorkspaceMissingBanner(fields)}
                         ${fields.map(item => item.type === "single_choice" || item.type === "option_group" ? renderBusinessOptionGroup(item) : renderBusinessFieldCard(item)).join("")}
                     </div>
                 </div>
