@@ -205,6 +205,80 @@
         .config-table .action-col { min-width: 60px; text-align: center; }
         .field-input, .candidate-input { min-width: 120px; }
         .show-checkbox { min-height: auto; width: auto; }
+        .business-config-toolbar {
+            align-items: center;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin: 0 0 14px;
+        }
+        .business-config-toolbar button {
+            min-height: 34px;
+            padding: 7px 12px;
+        }
+        .business-config-toolbar button.active {
+            background: #1d2939;
+            border-color: #1d2939;
+            color: #fff;
+        }
+        .business-config-grid {
+            display: grid;
+            gap: 14px;
+        }
+        .business-config-section {
+            background: #fff;
+            border: 1px solid #e4e7ec;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .business-config-row {
+            align-items: center;
+            border-top: 1px solid #edf0f4;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1.2fr) 76px;
+            padding: 12px 14px;
+        }
+        .business-config-row:first-child { border-top: 0; }
+        .business-config-label {
+            color: #1d2939;
+            font-size: 13px;
+            font-weight: 700;
+            min-width: 0;
+        }
+        .business-config-label small {
+            color: #667085;
+            display: block;
+            font-size: 12px;
+            font-weight: 400;
+            margin-top: 3px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .business-config-editor {
+            min-width: 0;
+        }
+        .business-config-editor input,
+        .business-config-editor select {
+            min-height: 36px;
+            width: 100%;
+        }
+        .business-config-cell {
+            background: #f8fafc;
+            border: 1px solid #e4e7ec;
+            border-radius: 999px;
+            color: #475467;
+            font-size: 12px;
+            font-weight: 700;
+            justify-self: end;
+            padding: 5px 9px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .business-config-hidden-fields {
+            display: none;
+        }
 
         .mapping-section-card{
             margin-bottom:20px;
@@ -634,6 +708,10 @@
             .visual-workbench-body { grid-template-columns: 1fr; }
             .validation-item { grid-template-columns: 1fr; }
             .mapping-health-header { align-items: stretch; flex-direction: column; }
+            .business-config-toolbar { justify-content: stretch; }
+            .business-config-toolbar button { flex: 1; }
+            .business-config-row { grid-template-columns: 1fr; }
+            .business-config-cell { justify-self: start; }
         }
     </style>
 </head>
@@ -728,6 +806,7 @@
         let visualGridByMappingId = {};
         let mappingHealthByMappingId = {};
         let mappingHealthExpanded = false;
+        let configViewMode = "table";
         let selectedVisualCell = "";
         let visualIntentLayerFilters = {
             "fill-field": true,
@@ -1973,9 +2052,10 @@
         }
 
         function collectEditableConfiguration() {
-            return Array.from(document.querySelectorAll("#templateConfigArea tbody tr[data-cell]")).map((row) => {
+            return Array.from(document.querySelectorAll("#templateConfigArea tbody tr[data-cell], #templateConfigArea [data-config-row][data-cell]")).map((row) => {
                 const cell = row.dataset.cell || "";
                 const labelInput = row.querySelector("input[data-config-field='label']");
+                const labelSelect = row.querySelector("select[data-config-field='label']");
                 const showInput = row.querySelector("input[data-config-field='show']");
                 const orderInput = row.querySelector("input[data-config-field='order']");
                 const fieldKeyInput = row.querySelector("input[data-config-field='field_key']");
@@ -1989,7 +2069,7 @@
                 const targetCellInput = detailRoot.querySelector("input[data-config-field='target_cell']");
                 const optionValueInput = detailRoot.querySelector("input[data-config-field='option_value']");
                 return {
-                    cell, label: labelInput ? labelInput.value.trim() : "",
+                    cell, label: labelInput ? labelInput.value.trim() : (labelSelect ? labelSelect.value.trim() : ""),
                     show_in_workspace: showInput ? showInput.checked : true,
                     display_order: orderInput ? Number(orderInput.value || 0) : 0,
                     candidate_field_key: fieldKeyInput ? fieldKeyInput.value.trim() : "",
@@ -2348,10 +2428,10 @@
         }
 
         function markConfigurationRowEdited(input) {
-            const row = input.closest("tr[data-cell]");
+            const row = input.closest("tr[data-cell], [data-config-row][data-cell]");
             const debugRow = input.closest("tr.debug-row");
             const targetRow = row || (debugRow ? debugRow.previousElementSibling : null);
-            if (targetRow && targetRow.matches("tr[data-cell]")) {
+            if (targetRow && targetRow.matches("tr[data-cell], [data-config-row][data-cell]")) {
                 targetRow.dataset.userEdited = "true";
                 targetRow.dataset.manualOverride = "true";
             }
@@ -2419,8 +2499,21 @@
             return "other";
         }
 
-        function renderConfig() {
-            const area = document.getElementById("templateConfigArea");
+        function switchConfigViewMode(mode) {
+            configViewMode = mode === "business" ? "business" : "table";
+            renderConfig();
+        }
+
+        function renderConfigViewToolbar() {
+            return `
+                <div class="business-config-toolbar">
+                    <button type="button" class="${configViewMode === "table" ? "active" : "ghost"}" onclick="switchConfigViewMode('table')">表格模式</button>
+                    <button type="button" class="${configViewMode === "business" ? "active" : "ghost"}" onclick="switchConfigViewMode('business')">业务表单模式</button>
+                </div>
+            `;
+        }
+
+        function currentConfigRenderModel() {
             const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
             const labels = Array.isArray(cached?.labels) ? cached.labels : (Array.isArray(selectedMapping?.template_labels) ? selectedMapping.template_labels : []);
             const structureLabels = Array.isArray(cached?.structureLabels) ? cached.structureLabels : [];
@@ -2428,17 +2521,11 @@
             const baseRows = appendSavedConfigurationRows(buildConfigRows(labels, structureLabels, sections), cached?.savedConfiguration);
             const rows = applySavedConfiguration(baseRows, cached?.savedConfiguration, cached?.candidates);
             const configSections = buildConfigSections(rows, sections, cached?.savedSectionConfiguration);
-            renderSemanticControlBar();
+            return { rows, configSections };
+        }
 
-            if (!rows.length) {
-                area.className = "config-empty";
-                area.textContent = "当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。";
-                renderConfigurationValidation();
-                return;
-            }
-
-            area.className = "";
-            const allRows = configSections.flatMap(s => s.rows);
+        function groupRowsByBusinessSection(configSections) {
+            const allRows = configSections.flatMap(section => section.rows);
             const groupedMappings = {};
             allRows.forEach(mapping => {
                 const section = detectMappingSection(mapping);
@@ -2447,6 +2534,80 @@
                 }
                 groupedMappings[section].push(mapping);
             });
+            return groupedMappings;
+        }
+
+        function renderConfigRowDataAttributes(row) {
+            if (!row.cell) return "";
+            return `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"`;
+        }
+
+        function renderBusinessConfigEditor(row) {
+            const disabled = row.cell ? "" : "disabled";
+            const currentValue = row.configLabel || "";
+            if (row.writeMode === "option") {
+                const optionValue = String(row.optionValue || "").trim();
+                if (optionValue) {
+                    const options = Array.from(new Set([currentValue, optionValue].filter(Boolean)));
+                    return `<select data-config-field="label" ${disabled}>${options.map(option => `<option value="${escapeHtml(option)}" ${option === currentValue ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`;
+                }
+            }
+            return `<input data-config-field="label" type="text" value="${escapeHtml(currentValue)}" ${disabled}>`;
+        }
+
+        function renderBusinessConfigHiddenFields(row) {
+            const disabled = row.cell ? "" : "disabled";
+            return `
+                <div class="business-config-hidden-fields">
+                    <input data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${disabled}>
+                    <input data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${disabled}>
+                    <input data-config-field="intent_type" type="hidden" value="${escapeHtml(row.intentType || "unknown")}" ${disabled}>
+                    <input data-config-field="write_mode" type="hidden" value="${escapeHtml(row.writeMode || "skip")}" ${disabled}>
+                    <input data-config-field="target_cell" type="hidden" value="${escapeHtml(row.targetCell || "")}" ${disabled}>
+                    <input data-config-field="option_value" type="hidden" value="${escapeHtml(row.optionValue || "")}" ${disabled}>
+                    <input data-config-field="ai_extract_hint" type="hidden" value="${escapeHtml(row.aiExtractHint || "")}" ${disabled}>
+                    <input data-config-field="order" type="hidden" value="${escapeHtml(row.displayOrder || 1)}" ${disabled}>
+                </div>
+            `;
+        }
+
+        function renderBusinessConfigView(configSections) {
+            const groupedMappings = groupRowsByBusinessSection(configSections);
+            const sectionsHtml = SECTION_RULES
+                .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
+                .map(section => {
+                    const rows = groupedMappings[section.key];
+                    return `
+                        <div class="business-config-section">
+                            <div class="mapping-section-title">
+                                ${section.label}
+                                <span class="mapping-section-count">${rows.length}</span>
+                            </div>
+                            ${rows.map(row => `
+                                <div class="business-config-row" data-config-row ${renderConfigRowDataAttributes(row)}>
+                                    <div class="business-config-label">
+                                        ${escapeHtml(row.configLabel || row.candidateFieldLabel || row.candidateFieldKey || row.cell || "-")}
+                                        <small>${escapeHtml(row.candidateFieldKey || row.intentType || "-")}</small>
+                                    </div>
+                                    <div class="business-config-editor">${renderBusinessConfigEditor(row)}${renderBusinessConfigHiddenFields(row)}</div>
+                                    <div class="business-config-cell">${escapeHtml(row.cell || "-")}</div>
+                                </div>
+                            `).join("")}
+                        </div>
+                    `;
+                }).join("");
+            return `
+                ${renderConfigViewToolbar()}
+                <div class="business-config-grid">${sectionsHtml}</div>
+                <div class="config-actions">
+                    <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
+                </div>
+            `;
+        }
+
+        function renderTableConfigView(configSections) {
+            const area = document.getElementById("templateConfigArea");
+            const groupedMappings = groupRowsByBusinessSection(configSections);
 
             const rowsHtml = SECTION_RULES
                 .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
@@ -2530,6 +2691,7 @@
                 }).join("");
 
             area.innerHTML = `
+                ${renderConfigViewToolbar()}
                 ${rowsHtml}
                 <div class="config-actions">
                     <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
@@ -2553,6 +2715,32 @@
                 input.addEventListener("change", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
             });
             renderConfigurationValidation();
+        }
+
+        function renderConfig() {
+            const area = document.getElementById("templateConfigArea");
+            const { rows, configSections } = currentConfigRenderModel();
+            renderSemanticControlBar();
+
+            if (!rows.length) {
+                area.className = "config-empty";
+                area.textContent = "当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。";
+                renderConfigurationValidation();
+                return;
+            }
+
+            area.className = "";
+            if (configViewMode === "business") {
+                area.innerHTML = renderBusinessConfigView(configSections);
+                area.querySelectorAll("[data-config-field]").forEach((input) => {
+                    input.addEventListener("input", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
+                    input.addEventListener("change", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
+                });
+                renderConfigurationValidation();
+                return;
+            }
+
+            renderTableConfigView(configSections);
         }
 
         window.addEventListener("DOMContentLoaded", () => {
