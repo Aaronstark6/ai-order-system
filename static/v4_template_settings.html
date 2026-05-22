@@ -708,7 +708,6 @@
         let configByMappingId = {};
         let visualGridByMappingId = {};
         let mappingHealthByMappingId = {};
-        let runtimeTraceByMappingId = {};
         let mappingHealthExpanded = false;
         let selectedVisualCell = "";
         let visualIntentLayerFilters = {
@@ -853,31 +852,6 @@
             return loadMappingHealth(selectedMappingId, true);
         }
 
-        async function loadRuntimeTrace(mappingId = selectedMappingId, showStatus = false) {
-            if (!mappingId) {
-                runtimeTraceByMappingId[mappingId || ""] = null;
-                renderMappingHealth();
-                return null;
-            }
-            if (showStatus) setStatus("正在刷新运行时链路追踪...", "info");
-            try {
-                const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/runtime-trace`);
-                runtimeTraceByMappingId[mappingId] = result;
-                renderMappingHealth();
-                if (showStatus) setStatus("运行时链路追踪已刷新。", "success");
-                return result;
-            } catch (error) {
-                runtimeTraceByMappingId[mappingId] = { success: false, error: error.message || "运行时链路追踪失败" };
-                renderMappingHealth();
-                if (showStatus) setStatus(error.message || "运行时链路追踪失败", "error");
-                return null;
-            }
-        }
-
-        function refreshRuntimeTrace() {
-            return loadRuntimeTrace(selectedMappingId, true);
-        }
-
 
         function toggleMappingHealthPanel() {
             mappingHealthExpanded = !mappingHealthExpanded;
@@ -927,7 +901,6 @@
             await loadMappingConfiguration(selectedMappingId);
             await loadVisualGrid(selectedMappingId);
             await loadMappingHealth(selectedMappingId, false);
-            await loadRuntimeTrace(selectedMappingId, false);
             updateCurrentState();
             renderConfig();
             if (showLoading) setStatus("已切换映射。", "success");
@@ -1729,7 +1702,6 @@
             await loadMappingConfiguration(selectedMappingId);
             await loadVisualGrid(selectedMappingId);
             await loadMappingHealth(selectedMappingId, false);
-            await loadRuntimeTrace(selectedMappingId, false);
             renderConfig();
             renderSemanticControlBar();
             setStatus("模板已重新分析，语义推荐已刷新。", "success");
@@ -1905,7 +1877,6 @@
             renderVisualWorkbench();
             renderConfigurationValidation();
             await loadMappingHealth(selectedMappingId, false);
-            await loadRuntimeTrace(selectedMappingId, false);
             setStatus(`已应用语义推荐：${stats.applied_count} 项；保留人工配置：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后点击保存配置。`, "warning");
         }
 
@@ -2282,97 +2253,6 @@
                 </div>
             `;
         }
-
-        function renderRuntimeTracePanel(trace = runtimeTraceByMappingId[selectedMappingId]) {
-            if (!trace) {
-                return `
-                    <div class="validation-banner warning">
-                        尚未加载运行时链路追踪。点击"刷新链路追踪"查看 saved config → 工作页 → AI → 导出的链路状态。
-                    </div>
-                    <button type="button" class="ghost" onclick="refreshRuntimeTrace()">刷新链路追踪</button>
-                `;
-            }
-            if (trace.success === false) {
-                return `
-                    <div class="validation-banner error">
-                        运行时链路追踪失败：${escapeHtml(trace.error || "未知错误")}
-                    </div>
-                    <button type="button" class="ghost" onclick="refreshRuntimeTrace()">重新刷新链路追踪</button>
-                `;
-            }
-
-            const summary = trace.summary || {};
-            const items = Array.isArray(trace.trace_items) ? trace.trace_items : [];
-            const warningItems = Array.isArray(trace.warnings) ? trace.warnings : [];
-            const visibleItems = items.slice(0, 80);
-            const runtimeSource = trace.runtime_mapping_source || {};
-            const sourceText = runtimeSource.source === "saved_configuration"
-                ? "已保存配置"
-                : (runtimeSource.source === "semantic_fallback" ? "语义回退" : "空");
-
-            const rowsHtml = visibleItems.length ? visibleItems.map((item) => {
-                const status = item.export_ready && item.in_workspace && item.in_ai_contract
-                    ? "OK"
-                    : (item.problems && item.problems.length ? "需检查" : "部分就绪");
-                const problems = Array.isArray(item.problems) && item.problems.length
-                    ? item.problems.join("；")
-                    : "-";
-                return `
-                    <tr>
-                        <td>${escapeHtml(item.cell || "-")}</td>
-                        <td>${escapeHtml(item.target_cell || "-")}</td>
-                        <td>${escapeHtml(item.label || "-")}</td>
-                        <td>${escapeHtml(item.field_key || "-")}</td>
-                        <td>${item.in_workspace ? "是" : "否"}</td>
-                        <td>${item.in_ai_contract ? "是" : "否"}</td>
-                        <td>${item.export_ready ? "是" : "否"}</td>
-                        <td>${escapeHtml(status)}</td>
-                        <td>${escapeHtml(problems)}</td>
-                    </tr>
-                `;
-            }).join("") : `
-                <tr>
-                    <td colspan="9">暂无运行时配置项。</td>
-                </tr>
-            `;
-
-            return `
-                <div class="validation-panel">
-                    <div class="validation-title-row">
-                        <h4>运行时链路追踪</h4>
-                        <button type="button" class="ghost" onclick="refreshRuntimeTrace()">刷新链路追踪</button>
-                    </div>
-                    <div class="validation-summary">
-                        <span>运行时来源：${escapeHtml(sourceText)}</span>
-                        <span>已保存配置：${Number(summary.saved_configuration_count || 0)}</span>
-                        <span>工作页字段：${Number(summary.workspace_fields_count || 0)}</span>
-                        <span>AI字段：${Number(summary.ai_contract_fields_count || 0)}</span>
-                        <span>可导出字段：${Number(summary.export_ready_count || 0)}</span>
-                        <span>警告：${Number(summary.warnings_count || warningItems.length || 0)}</span>
-                    </div>
-                    <div class="validation-table-wrap">
-                        <table class="config-table">
-                            <thead>
-                                <tr>
-                                    <th>来源Cell</th>
-                                    <th>目标Cell</th>
-                                    <th>字段名</th>
-                                    <th>Field Key</th>
-                                    <th>工作页</th>
-                                    <th>AI</th>
-                                    <th>导出</th>
-                                    <th>状态</th>
-                                    <th>问题</th>
-                                </tr>
-                            </thead>
-                            <tbody>${rowsHtml}</tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-        }
-
-
         function renderMappingHealth(health = null) {
             const area = document.getElementById("mappingHealthPanel");
             if (!area) return;
@@ -2401,7 +2281,6 @@
                             ${renderMappingHealthProblemGroup("警告列表", "warning", result.warnings || [])}
                         </div>
                         ${renderMappingHealthCheckDetails(result.checks || [])}
-                        ${renderRuntimeTracePanel()}
                     </div>
                 ` : ""}
             `;

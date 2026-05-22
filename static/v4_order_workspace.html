@@ -675,7 +675,6 @@
                     <div class="export-check-stats">已填写 0，缺失 0</div>
                 </div>
                 <div id="v4MappingHealthDebug" class="smart-debug-panel" style="display:none;"></div>
-                <div id="runtimeTraceDebugPanel" class="smart-debug-panel" style="display:none;"></div>
                 <div id="exportReadbackAuditPanel" class="smart-debug-panel" style="display:none;"></div>
                 <div class="actions">
                     <button id="v4GenerateBtn" class="secondary" type="button" onclick="generateExcelFromConfirmation()">确认生成 Excel</button>
@@ -2513,7 +2512,6 @@
                 window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
                 window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 await loadV4VisualGrid(activeV4Profile?.profile_id || "");
-                await loadWorkspaceRuntimeTrace(activeV4Profile?.profile_id || "");
                 renderConfigurationPreview();
             } catch (error) {
                 v4LayoutSections = [];
@@ -2554,7 +2552,6 @@
                 window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
                 await loadWorkspaceMappingHealth(activeV4Profile.profile_id || profileId);
-                await loadWorkspaceRuntimeTrace(activeV4Profile.profile_id || profileId);
                 await loadV4TemplateLayout();
                 renderConfigurationPreview();
             } catch (error) {
@@ -2590,7 +2587,6 @@
                 window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 renderConfirmation(result);
                 renderSmartMappingDebug(result);
-                await loadWorkspaceRuntimeTrace(activeV4Profile?.profile_id || "");
                 await loadV4TemplateLayout();
                 setStatus("v4ParseStatus", "AI解析完成，请在右侧确认订单信息。", "success");
             } catch (error) {
@@ -2614,22 +2610,6 @@
             renderConfigurationPreview();
         }
 
-
-        function rootCauseLabel(cause) {
-            const labels = {
-                ok: "已正确导出",
-                skipped: "已跳过检查",
-                mapping_missing: "映射配置缺失",
-                workspace_missing: "工作页断链",
-                ai_missing: "AI提取缺失",
-                missing_export: "导出为空",
-                write_mode_issue: "写入模式问题",
-                value_mismatch: "值不一致",
-                unknown: "未知原因",
-            };
-            return labels[cause] || cause || "未知原因";
-        }
-
         function renderExportReadbackAudit(result) {
             const panel = document.getElementById("exportReadbackAuditPanel");
             if (!panel) return;
@@ -2649,125 +2629,43 @@
             const matched = Number(summary.matched || 0);
             const mismatched = Number(summary.mismatched || 0);
             const skipped = Number(summary.skipped || 0);
-            const warnings = Array.isArray(audit.warnings) ? audit.warnings : [];
             const items = Array.isArray(audit.items) ? audit.items : [];
-            const rootCauseSummary = audit.root_cause_summary || summary.root_cause_summary || {};
-            const rootCauseRows = Object.entries(rootCauseSummary)
-                .filter(([_, count]) => Number(count || 0) > 0)
-                .map(([cause, count]) => [cause, rootCauseLabel(cause), Number(count || 0)]);
-
-            const badItems = items.filter((item) =>
-    item.status==="mismatched"
-    || item.status==="skipped"
-    || item.root_cause && item.root_cause !== "ok"
-    || (Array.isArray(item.problems)&&item.problems.length)
-);
-
-const categorizedIssues={
-    missing_export:[],
-    mismatch:[],
-    skipped:[],
-    write_mode_issue:[]
-};
-
-badItems.forEach((item)=>{
-    const actual=(item.actual||"").trim();
-    const expected=(item.expected||"").trim();
-    const mode=(item.write_mode||"").trim();
-
-    if(item.status==="skipped"){
-        categorizedIssues.skipped.push(item);
-        return;
-    }
-
-    if(!actual&&expected){
-        categorizedIssues.missing_export.push(item);
-        return;
-    }
-
-    if(["append_after_colon","check_option","select_option_text","write_table_column","write_row_field"].includes(mode)){
-        categorizedIssues.write_mode_issue.push(item);
-        return;
-    }
-
-    categorizedIssues.mismatch.push(item);
-});
-
-const failedCategoryRows=[
-    ["missing_export","未写入导出文件",categorizedIssues.missing_export.length],
-    ["mismatch","值不一致",categorizedIssues.mismatch.length],
-    ["skipped","跳过检查",categorizedIssues.skipped.length],
-    ["write_mode_issue","写入模式相关",categorizedIssues.write_mode_issue.length],
-].filter((row)=>Number(row[2]||0)>0);
+            const badItems = items
+                .filter((item) => item.status === "mismatched" || item.status === "skipped" || item.matched === false)
+                .slice(0, 8);
 
             const statusText = !success
-                ? "回读失败"
-                : (mismatched > 0 ? "发现不一致" : "回读通过");
+                ? "检查失败"
+                : (mismatched > 0 ? "发现不一致" : "检查通过");
 
-            const rowsHtml = badItems.length ? `
+            const badRowsHtml = badItems.length ? `
                 <div class="smart-debug-section">
+                    <div class="small"><strong>需要人工查看的单元格</strong></div>
                     ${renderSmartDebugTable(
-                        ["Cell", "字段", "期望值", "实际值", "问题"],
+                        ["Cell", "字段", "期望", "实际"],
                         badItems.map((item) => [
                             item.cell || "-",
                             item.label || item.field_key || "-",
                             item.expected || "",
                             item.actual || "",
-                            item.message || "不一致",
                         ])
                     )}
                 </div>
-            ` : '<div class="small">暂无导出回读不一致项。</div>';
+            ` : '<div class="small">Excel结果检查未发现明显不一致。</div>';
 
             panel.innerHTML = `
-                <div class="smart-debug-title">导出回读审计：${escapeHtml(statusText)}</div>
+                <div class="smart-debug-title">Excel结果检查：${escapeHtml(statusText)}</div>
                 <div class="smart-debug-grid">
                     <div class="smart-debug-metric"><span>总项</span><strong>${total}</strong></div>
                     <div class="smart-debug-metric"><span>已检查</span><strong>${checked}</strong></div>
                     <div class="smart-debug-metric"><span>一致</span><strong>${matched}</strong></div>
                     <div class="smart-debug-metric"><span>不一致</span><strong>${mismatched}</strong></div>
                     <div class="smart-debug-metric"><span>跳过</span><strong>${skipped}</strong></div>
-                    <div class="smart-debug-metric"><span>警告</span><strong>${warnings.length}</strong></div>
                 </div>
-                ${audit.error ? `<div class="small">错误：${escapeHtml(audit.error)}</div>` : ""}
-                
-<div class="smart-debug-section">
-
-<div class="small"><strong>失败分类</strong></div>
-${failedCategoryRows.length ? renderSmartDebugTable(
-["类型","说明","数量"],
-failedCategoryRows
-) : '<div class="small">暂无失败分类。</div>'}
-
-<div class="small" style="margin-top:10px;"><strong>根因统计</strong></div>
-${rootCauseRows.length ? renderSmartDebugTable(
-["Root Cause","说明","数量"],
-rootCauseRows
-) : '<div class="small">暂无根因统计。</div>'}
-
-<div class="small" style="margin-top:10px;"><strong>Top Failed Cells</strong></div>
-
-${badItems.length ? renderSmartDebugTable(
-["根因","Cell","字段","期望","实际"],
-badItems.slice(0,10).map((item)=>{
-    const cause = item.root_cause || "unknown";
-    return [
-        item.root_cause_label || rootCauseLabel(cause),
-        item.cell||"-",
-        item.label||item.field_key||"-",
-        item.expected||"",
-        item.actual||""
-    ];
-})
-) : '<div class="small">暂无失败单元格。</div>'}
-
-</div>
-
-${rowsHtml}
-
+                ${audit.error ? `<div class="small">检查失败：${escapeHtml(audit.error)}</div>` : ""}
+                ${badRowsHtml}
             `;
         }
-
 
         async function generateExcelFromConfirmation() {
             const chatText = document.getElementById("v4ChatText").value.trim();
