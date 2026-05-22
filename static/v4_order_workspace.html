@@ -2450,6 +2450,7 @@
                     data-required="${item.required ? "true" : "false"}"
                     data-field-type="image"
                     data-image-fit="${escapeHtml(item.image_fit || item.config?.image_fit || "contain")}"
+                    data-image-anchor-cell="${escapeHtml(item.image_anchor_cell || item.target_cell || item.cell || "")}"
                 >
                     <input
                         type="file"
@@ -2480,6 +2481,7 @@
                     mime_type: file.type,
                     data_url: String(reader.result || ""),
                     image_fit: wrapper.dataset.imageFit || "contain",
+                    image_anchor_cell: wrapper.dataset.imageAnchorCell || wrapper.dataset.cell || "",
                     field_key: wrapper.dataset.fieldKey || "",
                     label: wrapper.dataset.label || "",
                     cell: wrapper.dataset.cell || "",
@@ -2897,11 +2899,13 @@
                     option_value: "",
                     value: image.filename || "",
                     field_type: "image",
+                    image_anchor_cell: image.image_anchor_cell || image.cell || "",
                     image: {
                         filename: image.filename || "",
                         mime_type: image.mime_type || "",
                         data_url: image.data_url || "",
                         image_fit: image.image_fit || "contain",
+                        image_anchor_cell: image.image_anchor_cell || image.cell || "",
                     },
                 }));
             return [...textItems, ...radioItems, ...imageItems];
