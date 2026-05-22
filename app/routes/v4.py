@@ -1826,6 +1826,138 @@ def _get_runtime_mapping_source(profile):
 
 
 
+def _build_runtime_mapping_trace_report(profile):
+    profile = profile if isinstance(profile, dict) else {}
+    profile_id = str(profile.get("profile_id") or "").strip()
+    configuration = _template_configuration_from_profile(profile)
+    workspace_fields = _build_workspace_fields_from_profile(profile)
+    ai_contract = _build_ai_extraction_contract_from_workspace_fields(workspace_fields)
+    ai_fields = ai_contract.get("fields") if isinstance(ai_contract.get("fields"), list) else []
+    runtime_mapping_source = _get_runtime_mapping_source(profile)
+
+    workspace_keys = {
+        str(item.get("field_key") or "").strip()
+        for item in workspace_fields
+        if isinstance(item, dict) and str(item.get("field_key") or "").strip()
+    }
+    workspace_cells = {
+        _cell_key(item.get("cell") or item.get("target_cell"))
+        for item in workspace_fields
+        if isinstance(item, dict) and _cell_key(item.get("cell") or item.get("target_cell"))
+    }
+    ai_keys = {
+        str(item.get("field_key") or "").strip()
+        for item in ai_fields
+        if isinstance(item, dict) and str(item.get("field_key") or "").strip()
+    }
+
+    export_write_modes = {
+        "write_right_cell",
+        "write_below_cell",
+        "append_after_colon",
+        "check_option",
+        "select_option_text",
+        "write_table_column",
+        "write_row_field",
+    }
+    skipped_write_modes = {"skip", "none"}
+    skipped_intents = {"title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"}
+
+    trace_items = []
+    warnings = []
+    errors = []
+
+    for source_cell, item in sorted(configuration.items(), key=lambda pair: _cell_key(pair[0])):
+        if not isinstance(item, dict):
+            continue
+
+        cell = _cell_key(source_cell)
+        target_cell = _cell_key(item.get("target_cell"))
+        field_key = str(item.get("candidate_field_key") or item.get("field_key") or "").strip()
+        label = (
+            str(item.get("label") or "").strip()
+            or str(item.get("candidate_field_label") or "").strip()
+            or str(item.get("field_label") or "").strip()
+            or field_key
+        )
+        write_mode = str(item.get("write_mode") or "").strip()
+        intent_type = str(item.get("intent_type") or "").strip()
+        show_in_workspace = item.get("show_in_workspace") is not False
+        is_skipped = write_mode in skipped_write_modes or intent_type in skipped_intents
+
+        in_workspace = bool(
+            not is_skipped
+            and show_in_workspace
+            and (
+                (field_key and field_key in workspace_keys)
+                or (target_cell and target_cell in workspace_cells)
+                or (cell and cell in workspace_cells)
+            )
+        )
+        in_ai_contract = bool(not is_skipped and field_key and field_key in ai_keys)
+        export_ready = bool(not is_skipped and write_mode in export_write_modes and target_cell)
+
+        problems = []
+        if show_in_workspace and not field_key and not is_skipped:
+            problems.append("显示到工作页但 field_key 为空。")
+        if write_mode in export_write_modes and not target_cell:
+            problems.append(f"write_mode={write_mode} 需要 target_cell。")
+        if field_key and not in_workspace and show_in_workspace and not is_skipped:
+            problems.append("已保存配置未进入 workspace_fields。")
+        if field_key and not in_ai_contract and not is_skipped:
+            problems.append("已保存配置未进入 AI extraction contract。")
+        if not export_ready and write_mode in export_write_modes:
+            problems.append("当前配置尚不可导出。")
+
+        if problems:
+            warnings.append({
+                "cell": cell,
+                "target_cell": target_cell,
+                "field_key": field_key,
+                "label": label,
+                "problems": problems,
+            })
+
+        trace_items.append({
+            "cell": cell,
+            "target_cell": target_cell,
+            "field_key": field_key,
+            "label": label,
+            "show_in_workspace": show_in_workspace,
+            "write_mode": write_mode,
+            "intent_type": intent_type,
+            "in_workspace": in_workspace,
+            "in_ai_contract": in_ai_contract,
+            "export_ready": export_ready,
+            "source": "saved_configuration",
+            "problems": problems,
+        })
+
+    summary = {
+        "saved_configuration_count": len(configuration),
+        "workspace_fields_count": len(workspace_fields),
+        "ai_contract_fields_count": len(ai_fields),
+        "export_ready_count": sum(1 for item in trace_items if item.get("export_ready")),
+        "warnings_count": len(warnings),
+        "errors_count": len(errors),
+    }
+
+    return {
+        "success": True,
+        "profile_id": profile_id,
+        "runtime_mapping_source": runtime_mapping_source,
+        "summary": summary,
+        "saved_configuration_count": summary["saved_configuration_count"],
+        "workspace_fields_count": summary["workspace_fields_count"],
+        "ai_contract_fields_count": summary["ai_contract_fields_count"],
+        "export_ready_count": summary["export_ready_count"],
+        "trace_items": trace_items,
+        "warnings": warnings,
+        "errors": errors,
+    }
+
+
+
 def _mapping_health_issue(level, cell, label, field_key, message):
     return {
         "level": level,
@@ -2993,6 +3125,48 @@ def api_v4_template_profile_mapping_health(profile_id: str):
             "warnings": [],
         }
     return _build_mapping_health_report(profile)
+
+
+@router.get("/api/v4/template-profiles/{profile_id}/runtime-trace")
+def api_v4_template_profile_runtime_trace(profile_id: str):
+    logger.info("V4 template profile runtime trace requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        empty_runtime_source = {
+            "source": "empty",
+            "saved_fields_count": 0,
+            "semantic_fields_count": 0,
+            "using_saved_configuration": False,
+        }
+        return {
+            "success": False,
+            "profile_id": profile_id,
+            "error": "Template Profile 不存在",
+            "runtime_mapping_source": empty_runtime_source,
+            "summary": {
+                "saved_configuration_count": 0,
+                "workspace_fields_count": 0,
+                "ai_contract_fields_count": 0,
+                "export_ready_count": 0,
+                "warnings_count": 0,
+                "errors_count": 1,
+            },
+            "saved_configuration_count": 0,
+            "workspace_fields_count": 0,
+            "ai_contract_fields_count": 0,
+            "export_ready_count": 0,
+            "trace_items": [],
+            "warnings": [],
+            "errors": [{
+                "cell": "",
+                "target_cell": "",
+                "field_key": "",
+                "label": "",
+                "problems": ["Template Profile 不存在"],
+            }],
+        }
+    return _build_runtime_mapping_trace_report(profile)
+
 
 
 @router.post("/api/v4/template-profiles/{profile_id}/configuration")
