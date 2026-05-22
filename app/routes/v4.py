@@ -2613,29 +2613,41 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
     }
 
 
+def _operation_merge_key(operation):
+    if not isinstance(operation, dict):
+        return ""
+    cell = _cell_key(operation.get("target_cell") or operation.get("cell") or operation.get("display_cell"))
+    if not cell:
+        return ""
+    row_offset = str(operation.get("row_offset") or 0).strip()
+    col_offset = str(operation.get("col_offset") or 0).strip()
+    sheet = _sheet_key(operation.get("target_sheet") or operation.get("sheet_name") or operation.get("worksheet") or operation.get("sheet"))
+    return f"{sheet}|{cell}|{row_offset}|{col_offset}"
+
+
 def _merge_field_bound_operations(processed_operations, field_bound_operations):
     operations = deepcopy(processed_operations) if isinstance(processed_operations, list) else []
     bound_operations = field_bound_operations if isinstance(field_bound_operations, list) else []
-    operation_index_by_cell = {}
+    operation_index_by_key = {}
     for index, operation in enumerate(operations):
         if not isinstance(operation, dict):
             continue
-        cell = _cell_key(operation.get("target_cell") or operation.get("cell") or operation.get("display_cell"))
-        if cell:
-            operation_index_by_cell[cell] = index
+        merge_key = _operation_merge_key(operation)
+        if merge_key:
+            operation_index_by_key[merge_key] = index
 
     added_count = 0
     override_count = 0
     for bound_operation in bound_operations:
         if not isinstance(bound_operation, dict):
             continue
-        cell = _cell_key(bound_operation.get("target_cell"))
-        if not cell:
+        merge_key = _operation_merge_key(bound_operation)
+        if not merge_key:
             continue
-        existing_index = operation_index_by_cell.get(cell)
+        existing_index = operation_index_by_key.get(merge_key)
         if existing_index is None:
             operations.append(deepcopy(bound_operation))
-            operation_index_by_cell[cell] = len(operations) - 1
+            operation_index_by_key[merge_key] = len(operations) - 1
             added_count += 1
             continue
 
