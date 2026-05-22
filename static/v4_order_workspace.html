@@ -418,6 +418,20 @@
             font-size: 13px;
             font-weight: 600;
         }
+        .workspace-missing-link {
+            border: 0;
+            background: transparent;
+            color: #c2410c;
+            cursor: pointer;
+            font-weight: 800;
+            padding: 0 2px;
+            text-decoration: underline;
+        }
+        .workspace-focus-highlight {
+            outline: 2px solid #fb923c;
+            box-shadow: 0 0 0 4px #ffedd5;
+            transition: box-shadow 0.2s ease, outline 0.2s ease;
+        }
         .workspace-row {
             align-items: center;
             border-top: 1px solid #edf0f4;
@@ -2156,20 +2170,69 @@
         function getWorkspaceSectionMissingFields(sectionFields) {
             return (Array.isArray(sectionFields) ? sectionFields : [])
                 .filter(isWorkspaceFieldMissing)
-                .map(getWorkspaceMissingFieldName)
-                .filter(Boolean);
+                .map(field => ({
+                    name: getWorkspaceMissingFieldName(field),
+                    field_key: field?.field_key || "",
+                    cell: field?.cell || field?.display_cell || "",
+                }))
+                .filter(item => item.name);
         }
 
-        function renderWorkspaceMissingBanner(sectionFields) {
+        function renderWorkspaceMissingBanner(sectionFields, sectionKey) {
             const missingFields = getWorkspaceSectionMissingFields(sectionFields);
             if (!missingFields.length) return "";
             const visibleFields = missingFields.slice(0, 6);
             const moreText = missingFields.length > 6 ? ` 等 ${missingFields.length} 项` : "";
             return `
                 <div class="workspace-missing-banner">
-                    缺少：${visibleFields.map(escapeHtml).join("、")}${moreText}
+                    缺少：
+                    ${visibleFields.map(field => `
+                        <button
+                            type="button"
+                            class="workspace-missing-link"
+                            onclick="focusMissingWorkspaceField(${jsString(sectionKey)}, ${jsString(field.field_key)}, ${jsString(field.cell)})"
+                        >${escapeHtml(field.name)}</button>
+                    `).join("、")}
+                    ${moreText}
                 </div>
             `;
+        }
+
+        function findMissingWorkspaceTarget(fieldKey, cell) {
+            const controls = Array.from(document.querySelectorAll("#v4ConfirmationArea [data-field-key], #v4ConfirmationArea [data-cell]"));
+            const normalizedFieldKey = String(fieldKey || "");
+            const normalizedCell = String(cell || "");
+            if (normalizedFieldKey && normalizedCell) {
+                const target = controls.find(control => control.dataset.fieldKey === normalizedFieldKey && control.dataset.cell === normalizedCell);
+                if (target) return target;
+            }
+            if (normalizedFieldKey) {
+                const target = controls.find(control => control.dataset.fieldKey === normalizedFieldKey);
+                if (target) return target;
+            }
+            if (normalizedCell) {
+                const target = controls.find(control => control.dataset.cell === normalizedCell);
+                if (target) return target;
+            }
+            return null;
+        }
+
+        function focusMissingWorkspaceField(sectionKey, fieldKey, cell) {
+            if (sectionKey && workspaceSectionCollapsed[sectionKey] === true) {
+                workspaceSectionCollapsed[sectionKey] = false;
+                renderWorkspace();
+            }
+            setTimeout(() => {
+                const target = findMissingWorkspaceTarget(fieldKey, cell);
+                if (!target) return;
+                const row = target.closest(".workspace-row, .business-field-card, .business-option-group");
+                if (!row) return;
+                row.scrollIntoView({ behavior: "smooth", block: "center" });
+                row.classList.add("workspace-focus-highlight");
+                setTimeout(() => row.classList.remove("workspace-focus-highlight"), 1600);
+                const input = row.querySelector("input, select, textarea");
+                if (input) input.focus();
+            }, 50);
         }
 
         function normalizeCandidateListValue(value) {
@@ -2255,7 +2318,7 @@
                         <span class="confirmation-section-count">${fields.length}项</span>
                     </div>
                     <div class="workspace-section-body ${collapsed ? "collapsed" : ""}">
-                        ${renderWorkspaceMissingBanner(fields)}
+                        ${renderWorkspaceMissingBanner(fields, section.key)}
                         ${fields.map(item => item.type === "single_choice" || item.type === "option_group" ? renderBusinessOptionGroup(item) : renderBusinessFieldCard(item)).join("")}
                     </div>
                 </div>
