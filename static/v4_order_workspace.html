@@ -675,6 +675,7 @@
                     <div class="export-check-stats">已填写 0，缺失 0</div>
                 </div>
                 <div id="v4MappingHealthDebug" class="smart-debug-panel" style="display:none;"></div>
+                <div id="runtimeTraceDebugPanel" class="smart-debug-panel" style="display:none;"></div>
                 <div class="actions">
                     <button id="v4GenerateBtn" class="secondary" type="button" onclick="generateExcelFromConfirmation()">确认生成 Excel</button>
                     <a id="v4DownloadLink" class="download-link" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
@@ -2511,6 +2512,7 @@
                 window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
                 window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 await loadV4VisualGrid(activeV4Profile?.profile_id || "");
+                await loadWorkspaceRuntimeTrace(activeV4Profile?.profile_id || "");
                 renderConfigurationPreview();
             } catch (error) {
                 v4LayoutSections = [];
@@ -2551,6 +2553,7 @@
                 window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
                 await loadWorkspaceMappingHealth(activeV4Profile.profile_id || profileId);
+                await loadWorkspaceRuntimeTrace(activeV4Profile.profile_id || profileId);
                 await loadV4TemplateLayout();
                 renderConfigurationPreview();
             } catch (error) {
@@ -2586,6 +2589,7 @@
                 window.v4RuntimeMappingSource = v4RuntimeMappingSource;
                 renderConfirmation(result);
                 renderSmartMappingDebug(result);
+                await loadWorkspaceRuntimeTrace(activeV4Profile?.profile_id || "");
                 await loadV4TemplateLayout();
                 setStatus("v4ParseStatus", "AI解析完成，请在右侧确认订单信息。", "success");
             } catch (error) {
