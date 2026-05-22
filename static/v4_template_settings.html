@@ -205,6 +205,25 @@
         .config-table .action-col { min-width: 60px; text-align: center; }
         .field-input, .candidate-input { min-width: 120px; }
         .show-checkbox { min-height: auto; width: auto; }
+
+        .mapping-section-card{
+            margin-bottom:20px;
+            border:1px solid #e5e7eb;
+            border-radius:14px;
+            background:#ffffff;
+        }
+        .mapping-section-title{
+            padding:14px 18px;
+            background:#f8fafc;
+            border-bottom:1px solid #e5e7eb;
+            font-weight:700;
+            display:flex;
+            justify-content:space-between;
+        }
+        .mapping-section-count{
+            color:#64748b;
+        }
+
         .debug-details {
             background: #fafbfd;
             border-top: 1px solid #edf0f4;
@@ -2378,6 +2397,28 @@
             body.classList.toggle("collapsed");
         }
 
+        const SECTION_RULES = [
+            { key:"customer", label:"客户信息区", keywords:["customer","client","company","contact","address","email","phone"] },
+            { key:"product", label:"产品信息区", keywords:["product","dosage","formula","flavor","ingredient","spec","size"] },
+            { key:"package", label:"包装区", keywords:["package","packing","label","bottle","carton","box"] },
+            { key:"other", label:"其他配置", keywords:[] }
+        ];
+
+        function detectMappingSection(mapping) {
+            const text = (
+                mapping.candidateFieldKey
+                || mapping.intentType
+                || mapping.configLabel
+                || ""
+            ).toLowerCase();
+            for (const rule of SECTION_RULES) {
+                if (rule.keywords.some(keyword => text.includes(keyword))) {
+                    return rule.key;
+                }
+            }
+            return "other";
+        }
+
         function renderConfig() {
             const area = document.getElementById("templateConfigArea");
             const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
@@ -2397,27 +2438,38 @@
             }
 
             area.className = "";
-            area.innerHTML = `
-                ${configSections.map((section) => `
-                    <div class="config-section" data-section-key="${escapeHtml(section.key)}">
-                        <div class="config-section-header collapsed" onclick="toggleSection(this)">
-                            <span class="toggle-icon">▼</span>
-                            <span class="config-section-title">${escapeHtml(section.title || section.key)}</span>
-                            <span class="config-section-count">${section.rows.length}项</span>
+            const allRows = configSections.flatMap(s => s.rows);
+            const groupedMappings = {};
+            allRows.forEach(mapping => {
+                const section = detectMappingSection(mapping);
+                if (!groupedMappings[section]) {
+                    groupedMappings[section] = [];
+                }
+                groupedMappings[section].push(mapping);
+            });
+
+            const rowsHtml = SECTION_RULES
+                .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
+                .map(section => {
+                    const rows = groupedMappings[section.key];
+                    return `
+                    <div class="mapping-section-card">
+                        <div class="mapping-section-title">
+                            ${section.label}
+                            <span class="mapping-section-count">${rows.length}</span>
                         </div>
-                        <div class="config-section-body collapsed">
-                            <table class="config-table">
-                                <thead>
-                                    <tr>
-                                        <th class="cell-col">单元格</th>
-                                        <th class="field-col">字段名</th>
-                                        <th class="key-col">字段标识</th>
-                                        <th class="show-col">显示</th>
-                                        <th class="action-col">详情</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${section.rows.map((row) => `
+                        <table class="config-table">
+                            <thead>
+                                <tr>
+                                    <th class="cell-col">单元格</th>
+                                    <th class="field-col">字段名</th>
+                                    <th class="key-col">字段标识</th>
+                                    <th class="show-col">显示</th>
+                                    <th class="action-col">详情</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.map((row) => `
                                         <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"` : ""}>
                                             <td>${escapeHtml(row.cell || "-")}</td>
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
@@ -2474,8 +2526,11 @@
                                 </tbody>
                             </table>
                         </div>
-                    </div>
-                `).join("")}
+                    `;
+                }).join("");
+
+            area.innerHTML = `
+                ${rowsHtml}
                 <div class="config-actions">
                     <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
                 </div>
