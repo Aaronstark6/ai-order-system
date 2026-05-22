@@ -873,6 +873,9 @@
             ["format_protection", "格式保护 format_protection"],
             ["export_readback_check", "导出结果检查 export_readback_check"],
         ];
+        const FIELD_TYPE_OPTIONS = ["text", "image"];
+        const FIELD_TYPE_LABELS = { text: "text", image: "image" };
+        const IMAGE_FIT_OPTIONS = ["contain", "cover", "stretch"];
         let visualIntentLayerFilters = {
             "fill-field": true,
             "option-field": true,
@@ -1280,6 +1283,9 @@
                 intent_confidence: Number(pick("intent_confidence", "intent_confidence", "intent_confidence", 0) || 0),
                 intent_reason: pick("intent_reason", "intent_reason", "intent_reason", ""),
                 ai_extract_hint: pick("ai_extract_hint", "ai_extract_hint", "ai_extract_hint", ""),
+                field_type: pick("field_type", "field_type", "field_type", "text") || "text",
+                image_fit: pick("image_fit", "image_fit", "image_fit", "contain") || "contain",
+                image_anchor_cell: pick("image_anchor_cell", "image_anchor_cell", "image_anchor_cell", pick("target_cell", "target_cell", "target_cell", "") || cellRef),
                 manual_override: Boolean(saved.manual_override || saved.user_edited),
                 user_edited: Boolean(saved.user_edited),
             };
@@ -1422,6 +1428,27 @@
             renderVisualWorkbench();
         }
 
+        function renderImageFieldConfigControls(config, attrName = "data-config-field") {
+            if (!isImageFieldsEnabled()) return "";
+            const fieldType = config.field_type === "image" ? "image" : "text";
+            const imageFit = IMAGE_FIT_OPTIONS.includes(config.image_fit) ? config.image_fit : "contain";
+            const anchorCell = normalizeCell(config.image_anchor_cell || config.target_cell || config.cell || "");
+            return `
+                <div class="visual-detail-field">
+                    <label>字段类型 / field_type</label>
+                    <select ${attrName}="field_type">${renderSelectOptions(FIELD_TYPE_OPTIONS, fieldType, FIELD_TYPE_LABELS)}</select>
+                </div>
+                <div class="visual-detail-field">
+                    <label>图片适配 / image_fit</label>
+                    <select ${attrName}="image_fit">${renderSelectOptions(IMAGE_FIT_OPTIONS, imageFit)}</select>
+                </div>
+                <div class="visual-detail-field">
+                    <label>图片锚点 / image_anchor_cell</label>
+                    <input ${attrName}="image_anchor_cell" type="text" value="${escapeHtml(anchorCell)}">
+                </div>
+            `;
+        }
+
         function renderVisualDetail(cell) {
             const area = document.getElementById("visualCellDetail");
             if (!area) return;
@@ -1518,6 +1545,7 @@
                     <label>AI提取提示</label>
                     <input data-visual-detail-field="ai_extract_hint" type="text" value="${escapeHtml(config.ai_extract_hint || "")}">
                 </div>
+                ${renderImageFieldConfigControls(config, "data-visual-detail-field")}
                 <div class="visual-detail-row">
                     <div class="visual-detail-label">可信度/原因</div>
                     <div class="visual-detail-value">${escapeHtml(confidenceText)}</div>
@@ -1575,6 +1603,17 @@
                 intent_reason: previous.intent_reason || effective.intent_reason || "",
                 ai_extract_hint: readValue("ai_extract_hint").trim(),
             };
+            if (isImageFieldsEnabled()) {
+                const fieldType = readValue("field_type") === "image" ? "image" : "text";
+                savedConfiguration[effective.cell].field_type = fieldType;
+                if (fieldType === "image") {
+                    savedConfiguration[effective.cell].image_fit = IMAGE_FIT_OPTIONS.includes(readValue("image_fit")) ? readValue("image_fit") : "contain";
+                    savedConfiguration[effective.cell].image_anchor_cell = normalizeCell(readValue("image_anchor_cell")) || savedConfiguration[effective.cell].target_cell || effective.cell;
+                } else {
+                    savedConfiguration[effective.cell].image_fit = "contain";
+                    savedConfiguration[effective.cell].image_anchor_cell = savedConfiguration[effective.cell].target_cell || effective.cell;
+                }
+            }
             configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
             renderConfig();
             renderVisualWorkbench();
@@ -1802,6 +1841,9 @@
                     intentConfidence: Number(item.intent_confidence || candidate.intent_confidence || 0),
                     intentReason: item.intent_reason || candidate.intent_reason || "",
                     aiExtractHint: item.ai_extract_hint || candidate.ai_extract_hint || "",
+                    fieldType: item.field_type || candidate.field_type || "text",
+                    imageFit: item.image_fit || candidate.image_fit || "contain",
+                    imageAnchorCell: item.image_anchor_cell || candidate.image_anchor_cell || item.target_cell || candidate.target_cell || row.cell || "",
                     semanticType: item.semantic_type || candidate.semantic_type || "",
                     semanticRegionId: item.semantic_region_id || candidate.semantic_region_id || "",
                     semanticConfidence: Number(item.semantic_confidence || candidate.semantic_confidence || 0),
@@ -2144,7 +2186,10 @@
                 const writeModeInput = detailRoot.querySelector("[data-config-field='write_mode']");
                 const targetCellInput = detailRoot.querySelector("input[data-config-field='target_cell']");
                 const optionValueInput = detailRoot.querySelector("input[data-config-field='option_value']");
-                return {
+                const fieldTypeInput = detailRoot.querySelector("[data-config-field='field_type']");
+                const imageFitInput = detailRoot.querySelector("[data-config-field='image_fit']");
+                const imageAnchorCellInput = detailRoot.querySelector("input[data-config-field='image_anchor_cell']");
+                const item = {
                     cell, label: labelInput ? labelInput.value.trim() : (labelSelect ? labelSelect.value.trim() : ""),
                     show_in_workspace: showInput ? showInput.checked : true,
                     display_order: orderInput ? Number(orderInput.value || 0) : 0,
@@ -2170,6 +2215,17 @@
                     user_edited: row.dataset.userEdited === "true",
                     ai_extract_hint: hintInput ? hintInput.value.trim() : "",
                 };
+                if (isImageFieldsEnabled()) {
+                    item.field_type = fieldTypeInput ? fieldTypeInput.value.trim() : (row.dataset.fieldType || "text");
+                    if (item.field_type === "image") {
+                        item.image_fit = imageFitInput ? imageFitInput.value.trim() : (row.dataset.imageFit || "contain");
+                        item.image_anchor_cell = imageAnchorCellInput ? imageAnchorCellInput.value.trim() : (row.dataset.imageAnchorCell || item.target_cell || cell);
+                    } else {
+                        item.image_fit = "contain";
+                        item.image_anchor_cell = item.target_cell || cell;
+                    }
+                }
+                return item;
             }).filter((item) => item.cell);
         }
 
@@ -2518,6 +2574,10 @@
             return normalizeExcelFeatureFlags(cached?.excelFeatureFlags || selectedMapping?.excel_feature_flags);
         }
 
+        function isImageFieldsEnabled() {
+            return getCurrentExcelFeatureFlags().image_fields === true;
+        }
+
         function renderExcelFeatureFlagsPanel() {
             const panel = document.getElementById("excelFeatureFlagsPanel");
             if (!panel) return;
@@ -2712,7 +2772,7 @@
 
         function renderConfigRowDataAttributes(row) {
             if (!row.cell) return "";
-            return `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"`;
+            return `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-field-type="${escapeHtml(row.fieldType || "text")}" data-image-fit="${escapeHtml(row.imageFit || "contain")}" data-image-anchor-cell="${escapeHtml(row.imageAnchorCell || row.targetCell || row.cell || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"`;
         }
 
         function renderBusinessConfigEditor(row) {
@@ -2730,6 +2790,11 @@
 
         function renderBusinessConfigHiddenFields(row) {
             const disabled = row.cell ? "" : "disabled";
+            const imageFieldsHtml = isImageFieldsEnabled() ? `
+                    <input data-config-field="field_type" type="hidden" value="${escapeHtml(row.fieldType || "text")}" ${disabled}>
+                    <input data-config-field="image_fit" type="hidden" value="${escapeHtml(row.imageFit || "contain")}" ${disabled}>
+                    <input data-config-field="image_anchor_cell" type="hidden" value="${escapeHtml(row.imageAnchorCell || row.targetCell || row.cell || "")}" ${disabled}>
+            ` : "";
             return `
                 <div class="business-config-hidden-fields">
                     <input data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${disabled}>
@@ -2740,6 +2805,7 @@
                     <input data-config-field="option_value" type="hidden" value="${escapeHtml(row.optionValue || "")}" ${disabled}>
                     <input data-config-field="ai_extract_hint" type="hidden" value="${escapeHtml(row.aiExtractHint || "")}" ${disabled}>
                     <input data-config-field="order" type="hidden" value="${escapeHtml(row.displayOrder || 1)}" ${disabled}>
+                    ${imageFieldsHtml}
                 </div>
             `;
         }
@@ -2809,7 +2875,7 @@
                                 </thead>
                                 <tbody>
                                     ${rows.map((row) => `
-                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"` : ""}>
+                                        <tr ${row.cell ? renderConfigRowDataAttributes(row) : ""}>
                                             <td>${escapeHtml(row.cell || "-")}</td>
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>
@@ -2857,6 +2923,13 @@
                                                         </div>
                                                     </div>
                                                     <div style="margin-top:10px;"><label style="font-size:12px;color:#667085;margin-bottom:4px;">AI提取提示</label><input data-config-field="ai_extract_hint" type="text" value="${escapeHtml(row.aiExtractHint || "")}" style="min-height:32px;font-size:13px;" ${row.cell ? "" : "disabled"}></div>
+                                                    ${renderImageFieldConfigControls({
+                                                        field_type: row.fieldType || "text",
+                                                        image_fit: row.imageFit || "contain",
+                                                        image_anchor_cell: row.imageAnchorCell || row.targetCell || row.cell || "",
+                                                        target_cell: row.targetCell || "",
+                                                        cell: row.cell || "",
+                                                    }, "data-config-field")}
                                                     <div style="margin-top:8px;display:none;"><input data-config-field="order" type="number" min="1" value="${escapeHtml(row.displayOrder || 1)}" ${row.cell ? "" : "disabled"}></div>
                                                 </details>
                                             </td>

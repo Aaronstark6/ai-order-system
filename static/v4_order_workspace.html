@@ -519,6 +519,40 @@
             color: #0958d9;
             font-weight: 700;
         }
+        .workspace-image-upload {
+            display: grid;
+            gap: 8px;
+        }
+        .workspace-image-upload input[type="file"] {
+            width: 100%;
+        }
+        .workspace-image-preview {
+            align-items: center;
+            background: #f8fafc;
+            border: 1px dashed #d0d5dd;
+            border-radius: 8px;
+            color: #667085;
+            display: flex;
+            font-size: 13px;
+            justify-content: center;
+            min-height: 120px;
+            overflow: hidden;
+            padding: 10px;
+        }
+        .workspace-image-preview img {
+            display: block;
+            max-height: 180px;
+            max-width: 100%;
+            object-fit: contain;
+        }
+        .workspace-image-name {
+            color: #344054;
+            font-size: 12px;
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
         .business-field-card {
             background: #fff;
             border: 1px solid #e6eaf0;
@@ -840,6 +874,7 @@
         let v4MappingHealth = null;
         let workspaceSectionCollapsed = {};
         let workspaceCandidateValues = {};
+        let workspaceImageValues = {};
         const DEFAULT_EXCEL_FEATURE_FLAGS = {
             image_fields: false,
             dynamic_tables: false,
@@ -859,6 +894,7 @@
         window.v4RuntimeMappingSource = v4RuntimeMappingSource;
         window.v4VisualGrid = v4VisualGrid;
         window.excelFeatureFlags = excelFeatureFlags;
+        window.workspaceImageValues = workspaceImageValues;
 
         function escapeHtml(value) {
             const div = document.createElement("div");
@@ -1308,6 +1344,9 @@
                 label: typeof config.label === "string" && config.label.trim() ? config.label.trim() : item.label,
                 workspaceVisible: config.show_in_workspace !== false,
                 workspaceOrder: Number.isFinite(order) && order > 0 ? order : null,
+                field_type: config.field_type || item.field_type,
+                image_fit: config.image_fit || item.image_fit,
+                image_anchor_cell: config.image_anchor_cell || item.image_anchor_cell || config.target_cell || item.cell,
             };
         }
 
@@ -1333,6 +1372,9 @@
                 label,
                 intent_type: intentType,
                 write_mode: writeMode,
+                field_type: field.field_type || field.type || "text",
+                image_fit: field.image_fit || "contain",
+                image_anchor_cell: field.image_anchor_cell || field.target_cell || cell,
                 option_value: field.option_value || "",
                 ai_extract_hint: field.ai_extract_hint || "",
                 section: field.section || "",
@@ -2364,10 +2406,94 @@
                 data-source="${escapeHtml(item.meta?.source || item.source || "Visual Mapping")}"
                 data-label="${escapeHtml(item.label || "")}"
                 data-required="${item.required ? "true" : "false"}"
-                data-field-type="${escapeHtml(item.type || "text")}"
+                data-field-type="${escapeHtml(item.field_type || item.type || "text")}"
+                data-image-fit="${escapeHtml(item.image_fit || "contain")}"
+                data-image-anchor-cell="${escapeHtml(item.image_anchor_cell || item.target_cell || item.cell || "")}"
                 data-write-mode="${escapeHtml(item.write_mode || "")}"
                 data-intent-type="${escapeHtml(item.intent_type || "")}"
             `;
+        }
+
+        function workspaceImageKey(item) {
+            return `${item?.field_key || ""}::${item?.cell || item?.display_cell || ""}`;
+        }
+
+        function isWorkspaceImageField(item) {
+            if (excelFeatureFlags.image_fields !== true) return false;
+            const fieldType = String(item?.field_type || item?.config?.field_type || "").trim();
+            const type = String(item?.type || "").trim();
+            return fieldType === "image" || type === "image";
+        }
+
+        function renderWorkspaceImagePreview(image) {
+            if (!image || !image.data_url) return '<div class="workspace-image-preview">尚未选择图片</div>';
+            return `
+                <div class="workspace-image-preview">
+                    <img src="${escapeHtml(image.data_url)}" alt="${escapeHtml(image.filename || "image")}">
+                </div>
+                <div class="workspace-image-name">${escapeHtml(image.filename || "")}</div>
+            `;
+        }
+
+        function renderWorkspaceImageUpload(item) {
+            const key = workspaceImageKey(item);
+            const image = workspaceImageValues[key] || null;
+            return `
+                <div
+                    class="workspace-image-upload"
+                    data-cell="${escapeHtml(item.cell || "")}"
+                    data-display-cell="${escapeHtml(item.display_cell || item.cell || "")}"
+                    data-source-cell="${escapeHtml(item.source_cell || "")}"
+                    data-field-key="${escapeHtml(item.field_key || "")}"
+                    data-source="${escapeHtml(item.meta?.source || item.source || "Visual Mapping")}"
+                    data-label="${escapeHtml(item.label || "")}"
+                    data-required="${item.required ? "true" : "false"}"
+                    data-field-type="image"
+                    data-image-fit="${escapeHtml(item.image_fit || item.config?.image_fit || "contain")}"
+                >
+                    <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        data-image-key="${escapeHtml(key)}"
+                        onchange="handleWorkspaceImageSelected(this)"
+                    >
+                    <div data-image-preview="${escapeHtml(key)}">${renderWorkspaceImagePreview(image)}</div>
+                </div>
+            `;
+        }
+
+        function handleWorkspaceImageSelected(input) {
+            const file = input.files && input.files.length ? input.files[0] : null;
+            const wrapper = input.closest(".workspace-image-upload");
+            if (!file || !wrapper) return;
+            const allowedTypes = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
+            if (!allowedTypes.has(file.type)) {
+                input.value = "";
+                window.alert("仅支持 png、jpg、jpeg、webp 图片。");
+                return;
+            }
+            const key = input.dataset.imageKey || `${wrapper.dataset.fieldKey || ""}::${wrapper.dataset.cell || ""}`;
+            const reader = new FileReader();
+            reader.onload = () => {
+                workspaceImageValues[key] = {
+                    filename: file.name,
+                    mime_type: file.type,
+                    data_url: String(reader.result || ""),
+                    image_fit: wrapper.dataset.imageFit || "contain",
+                    field_key: wrapper.dataset.fieldKey || "",
+                    label: wrapper.dataset.label || "",
+                    cell: wrapper.dataset.cell || "",
+                    display_cell: wrapper.dataset.displayCell || wrapper.dataset.cell || "",
+                    source_cell: wrapper.dataset.sourceCell || "",
+                    source: wrapper.dataset.source || "",
+                };
+                window.workspaceImageValues = workspaceImageValues;
+                const preview = wrapper.querySelector("[data-image-preview]");
+                if (preview) preview.innerHTML = renderWorkspaceImagePreview(workspaceImageValues[key]);
+                markWorkspaceFieldManual(input);
+                syncConfirmedCellsFromInputs();
+            };
+            reader.readAsDataURL(file);
         }
 
         function renderBusinessFieldControl(item) {
@@ -2375,6 +2501,9 @@
             const attrs = businessFieldDataAttributes(item);
             if (item.type === "readonly_note") {
                 return `<div class="readonly-business-value">${escapeHtml(value || item.ai_extract_hint || item.label || "-")}</div>`;
+            }
+            if (isWorkspaceImageField(item)) {
+                return renderWorkspaceImageUpload(item);
             }
             if (item.type === "image_upload") {
                 return `<div class="readonly-business-value">附件/图片上传区（后续支持）</div>`;
@@ -2754,7 +2883,28 @@
                 option_value: input.dataset.optionValue || input.value,
                 value: input.value
             }));
-            return [...textItems, ...radioItems];
+            const imageItems = Object.values(workspaceImageValues || {})
+                .filter(image => image && image.data_url)
+                .map(image => ({
+                    cell: image.cell || "",
+                    display_cell: image.display_cell || image.cell || "",
+                    source_cell: image.source_cell || "",
+                    field_key: image.field_key || "",
+                    source: image.source || "",
+                    label: image.label || "",
+                    write_mode: "",
+                    intent_type: "",
+                    option_value: "",
+                    value: image.filename || "",
+                    field_type: "image",
+                    image: {
+                        filename: image.filename || "",
+                        mime_type: image.mime_type || "",
+                        data_url: image.data_url || "",
+                        image_fit: image.image_fit || "contain",
+                    },
+                }));
+            return [...textItems, ...radioItems, ...imageItems];
         }
 
         function getExportCheckState() {
@@ -3032,6 +3182,8 @@
 
             try {
                 workspaceCandidateValues = {};
+                workspaceImageValues = {};
+                window.workspaceImageValues = workspaceImageValues;
                 setStatus("v4ProfileStatus", "正在切换系统模板...", "info");
                 const response = await fetch("/api/v4/set-current-template-profile", {
                     method: "POST",
@@ -3065,6 +3217,8 @@
 
             try {
                 workspaceCandidateValues = {};
+                workspaceImageValues = {};
+                window.workspaceImageValues = workspaceImageValues;
                 setStatus("v4ParseStatus", "AI 正在解析订单信息...", "info");
                 document.getElementById("v4DownloadLink").style.display = "none";
                 const response = await fetch("/api/v4/parse-chat-run-pipeline", {
@@ -3104,6 +3258,8 @@
             window.originalConfirmedCells = originalConfirmedCells;
             latestV4ParseResult = null;
             workspaceCandidateValues = {};
+            workspaceImageValues = {};
+            window.workspaceImageValues = workspaceImageValues;
             renderSmartMappingDebug(null);
             setStatus("v4ParseStatus", "等待输入客户聊天内容。", "info");
             setStatus("v4GenerateStatus", "确认信息后可生成 Excel。", "info");
