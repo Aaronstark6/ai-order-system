@@ -2906,6 +2906,16 @@ def _confirmed_item_with_mapping_config(item, config):
         or merged.get("worksheet")
         or merged.get("sheet")
     )
+    merged["row_offset"] = int(merged.get("row_offset") or config.get("row_offset") or 0)
+    merged["col_offset"] = int(
+        merged.get("col_offset")
+        or merged.get("table_col_offset")
+        or config.get("col_offset")
+        or config.get("table_col_offset")
+        or config.get("column_offset")
+        or 0
+    )
+    merged["table_col_offset"] = merged["col_offset"]
     return merged
 
 
