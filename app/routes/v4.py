@@ -2576,13 +2576,8 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
         cell = _cell_key(item.get("target_cell") or item.get("cell"))
         if not field_key or not cell:
             continue
-        if field_key not in parsed_fields:
-            continue
 
-        raw_value = parsed_fields.get(field_key)
-        if _is_blank_extracted_value(raw_value):
-            continue
-
+        raw_value = parsed_fields.get(field_key) if isinstance(parsed_fields, dict) else None
         table_rows = _table_rows_for_field(parsed_fields, field_key, raw_value)
         if table_rows:
             col_offset = _table_col_offset_for_field(item)
@@ -2628,6 +2623,12 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
                         "target_sheet": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
                     }
                 )
+            continue
+
+        if field_key not in parsed_fields:
+            continue
+
+        if _is_blank_extracted_value(raw_value):
             continue
 
         value = _stringify_extracted_value(raw_value)
