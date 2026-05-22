@@ -1357,8 +1357,11 @@
             if (!fieldKey || !cell) return null;
             const intentType = String(field.intent_type || "").trim();
             const writeMode = String(field.write_mode || "").trim();
-            if (["title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"].includes(intentType)) return null;
-            if (["skip", "none"].includes(writeMode)) return null;
+            const explicitFieldType = String(field.field_type || field.type || "").trim();
+            const isImageField = explicitFieldType === "image";
+
+            if (!isImageField && ["title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"].includes(intentType)) return null;
+            if (!isImageField && ["skip", "none"].includes(writeMode)) return null;
             const sourceCell = normalizeConfigCell(field.source_cell || field.label_cell || field.cell || "");
             const label = String(field.label || field.candidate_field_label || field.field_label || fieldKey).trim() || fieldKey;
             const displayOrder = Number(field.display_order || 0);

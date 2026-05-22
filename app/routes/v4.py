@@ -1463,7 +1463,9 @@ def _build_ai_extraction_contract_from_workspace_fields(workspace_fields):
 
         intent_type = str(field.get("intent_type") or "").strip()
         write_mode = str(field.get("write_mode") or "").strip()
-        if intent_type in hidden_intents or write_mode in hidden_write_modes:
+        explicit_field_type = str(field.get("field_type") or field.get("type") or "").strip()
+        is_image_field = explicit_field_type == "image"
+        if not is_image_field and (intent_type in hidden_intents or write_mode in hidden_write_modes):
             continue
 
         label = str(field.get("label") or field_key).strip() or field_key
