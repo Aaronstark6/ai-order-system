@@ -259,6 +259,7 @@ def _normalize_template_configuration_items(items):
             "write_mode": str(item.get("write_mode") or "").strip(),
             "label_cell": str(item.get("label_cell") or "").strip().upper(),
             "target_cell": str(item.get("target_cell") or "").strip().upper(),
+            "sheet_name": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
             "option_value": str(item.get("option_value") or "").strip(),
             "intent_confidence": float(item.get("intent_confidence") or 0),
             "intent_reason": str(item.get("intent_reason") or "").strip(),
@@ -1485,6 +1486,7 @@ def _build_ai_extraction_contract_from_workspace_fields(workspace_fields):
                 "write_mode": write_mode,
                 "target_cell": _cell_key(field.get("cell")),
                 "source_cell": _cell_key(field.get("source_cell")),
+                "sheet_name": _sheet_key(field.get("sheet_name") or field.get("target_sheet") or field.get("worksheet") or field.get("sheet")),
                 "options": [],
             }
         )
@@ -1505,6 +1507,7 @@ def _build_ai_extraction_contract_from_workspace_fields(workspace_fields):
                 "write_mode": str(source_field.get("write_mode") or "").strip(),
                 "target_cell": _cell_key(source_field.get("cell")),
                 "source_cell": _cell_key(source_field.get("source_cell")),
+                "sheet_name": _sheet_key(source_field.get("sheet_name") or source_field.get("target_sheet") or source_field.get("worksheet") or source_field.get("sheet")),
                 "options": group["options"],
             }
         )
@@ -2495,6 +2498,7 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
                 "write_mode": item.get("write_mode") or "",
                 "intent_type": item.get("intent_type") or "",
                 "option_value": "",
+                "sheet_name": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
             }
         )
         operations.append(
@@ -2510,6 +2514,7 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
                 "write_mode": item.get("write_mode") or "",
                 "intent_type": item.get("intent_type") or "",
                 "source_cell": item.get("source_cell") or "",
+                "target_sheet": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
             }
         )
 
@@ -2636,6 +2641,10 @@ def _cell_key(value):
     return str(value or "").strip().upper()
 
 
+def _sheet_key(value):
+    return str(value or "").strip()
+
+
 def _confirmed_export_empty_summary():
     return {
         "total": 0,
@@ -2727,6 +2736,16 @@ def _confirmed_item_with_mapping_config(item, config):
     merged["source_cell"] = _cell_key(merged.get("source_cell") or config.get("label_cell") or config.get("_source_cell"))
     merged["cell"] = _cell_key(config.get("target_cell") or merged.get("cell") or merged.get("display_cell") or merged.get("source_cell"))
     merged["target_cell"] = _cell_key(config.get("target_cell") or merged.get("cell"))
+    merged["sheet_name"] = _sheet_key(
+        config.get("sheet_name")
+        or config.get("target_sheet")
+        or config.get("worksheet")
+        or config.get("sheet")
+        or merged.get("sheet_name")
+        or merged.get("target_sheet")
+        or merged.get("worksheet")
+        or merged.get("sheet")
+    )
     return merged
 
 
@@ -2812,6 +2831,7 @@ def _confirmed_operation_from_item(item, worksheet):
         "intent_type": item.get("intent_type") or "",
         "source_cell": item.get("source_cell") or "",
         "option_value": item.get("option_value") or "",
+        "target_sheet": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
     }
 
 
@@ -4599,6 +4619,21 @@ def _target_cell_for_image_item(item):
     )
 
 
+def _target_sheet_for_image_item(item):
+    image = item.get("image") if isinstance(item, dict) else {}
+    image = image if isinstance(image, dict) else {}
+    return _sheet_key(
+        item.get("target_sheet")
+        or item.get("sheet_name")
+        or item.get("worksheet")
+        or item.get("sheet")
+        or image.get("target_sheet")
+        or image.get("sheet_name")
+        or image.get("worksheet")
+        or image.get("sheet")
+    )
+
+
 def _insert_confirmed_images_into_excel(exported_file_path, confirmed_cells, excel_feature_flags=None):
     summary = {
         "total": 0,
@@ -4662,9 +4697,15 @@ def _insert_confirmed_images_into_excel(exported_file_path, confirmed_cells, exc
             continue
 
         try:
+            target_sheet = _target_sheet_for_image_item(item)
+            if target_sheet and target_sheet in workbook.sheetnames:
+                image_sheet = workbook[target_sheet]
+            else:
+                image_sheet = sheet
+
             excel_image = OpenpyxlImage(str(image_path))
             _fit_openpyxl_image_contain(excel_image, max_width=220, max_height=160)
-            sheet.add_image(excel_image, target_cell)
+            image_sheet.add_image(excel_image, target_cell)
             summary["inserted"] += 1
             changed = True
         except Exception as exc:

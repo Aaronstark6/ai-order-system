@@ -61,6 +61,30 @@ def _cell_has_formula(cell):
     return isinstance(value, str) and value.strip().startswith("=")
 
 
+def _operation_sheet_name(operation):
+    if not isinstance(operation, dict):
+        return ""
+    return str(
+        operation.get("target_sheet")
+        or operation.get("sheet_name")
+        or operation.get("worksheet")
+        or operation.get("sheet")
+        or ""
+    ).strip()
+
+
+def _resolve_operation_worksheet(workbook, operation, warnings):
+    sheet_name = _operation_sheet_name(operation)
+    if not sheet_name:
+        return workbook.active
+
+    if sheet_name in workbook.sheetnames:
+        return workbook[sheet_name]
+
+    warnings.append(f"指定 sheet 不存在：{sheet_name}，已使用默认 active sheet。")
+    return workbook.active
+
+
 def _formula_protection_skip(operation, requested_cell, write_cell, formula_value):
     reason = f"{write_cell} 目标单元格包含公式，已保护并跳过写入。"
     skipped = dict(operation)
@@ -119,7 +143,6 @@ def execute_operations_to_excel(template_file, operations):
         }
 
     workbook = load_workbook(template_path)
-    worksheet = workbook.active
     operations_written = 0
 
     for index, operation in enumerate(operations, start=1):
@@ -149,6 +172,7 @@ def execute_operations_to_excel(template_file, operations):
             continue
 
         try:
+            worksheet = _resolve_operation_worksheet(workbook, operation, warnings)
             write_cell = _resolve_merged_target(worksheet, target_cell, warnings)
             cell = worksheet[write_cell]
 
@@ -164,6 +188,7 @@ def execute_operations_to_excel(template_file, operations):
                 formula_protected_operations.append(skipped)
                 formula_protected_cells.append(
                     {
+                        "sheet_name": worksheet.title,
                         "target_cell": write_cell,
                         "requested_cell": target_cell,
                         "existing_formula": str(cell.value or ""),
@@ -178,6 +203,7 @@ def execute_operations_to_excel(template_file, operations):
                 warnings.append(warning)
                 overwrite_warnings.append(
                     {
+                        "sheet_name": worksheet.title,
                         "target_cell": write_cell,
                         "requested_cell": target_cell,
                         "source": str(operation.get("source") or operation.get("type") or ""),
