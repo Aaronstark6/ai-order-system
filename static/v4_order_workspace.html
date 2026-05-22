@@ -2614,6 +2614,22 @@
             renderConfigurationPreview();
         }
 
+
+        function rootCauseLabel(cause) {
+            const labels = {
+                ok: "已正确导出",
+                skipped: "已跳过检查",
+                mapping_missing: "映射配置缺失",
+                workspace_missing: "工作页断链",
+                ai_missing: "AI提取缺失",
+                missing_export: "导出为空",
+                write_mode_issue: "写入模式问题",
+                value_mismatch: "值不一致",
+                unknown: "未知原因",
+            };
+            return labels[cause] || cause || "未知原因";
+        }
+
         function renderExportReadbackAudit(result) {
             const panel = document.getElementById("exportReadbackAuditPanel");
             if (!panel) return;
@@ -2635,9 +2651,15 @@
             const skipped = Number(summary.skipped || 0);
             const warnings = Array.isArray(audit.warnings) ? audit.warnings : [];
             const items = Array.isArray(audit.items) ? audit.items : [];
+            const rootCauseSummary = audit.root_cause_summary || summary.root_cause_summary || {};
+            const rootCauseRows = Object.entries(rootCauseSummary)
+                .filter(([_, count]) => Number(count || 0) > 0)
+                .map(([cause, count]) => [cause, rootCauseLabel(cause), Number(count || 0)]);
+
             const badItems = items.filter((item) =>
     item.status==="mismatched"
     || item.status==="skipped"
+    || item.root_cause && item.root_cause !== "ok"
     || (Array.isArray(item.problems)&&item.problems.length)
 );
 
@@ -2717,23 +2739,20 @@ ${failedCategoryRows.length ? renderSmartDebugTable(
 failedCategoryRows
 ) : '<div class="small">暂无失败分类。</div>'}
 
+<div class="small" style="margin-top:10px;"><strong>根因统计</strong></div>
+${rootCauseRows.length ? renderSmartDebugTable(
+["Root Cause","说明","数量"],
+rootCauseRows
+) : '<div class="small">暂无根因统计。</div>'}
+
 <div class="small" style="margin-top:10px;"><strong>Top Failed Cells</strong></div>
 
 ${badItems.length ? renderSmartDebugTable(
-["类型","Cell","字段","期望","实际"],
+["根因","Cell","字段","期望","实际"],
 badItems.slice(0,10).map((item)=>{
-    const actual=(item.actual||"").trim();
-    const expected=(item.expected||"").trim();
-    const mode=(item.write_mode||"").trim();
-    const type = item.status==="skipped"
-        ? "skipped"
-        : (!actual&&expected
-            ? "missing_export"
-            : (["append_after_colon","check_option","select_option_text","write_table_column","write_row_field"].includes(mode)
-                ? "write_mode_issue"
-                : "mismatch"));
+    const cause = item.root_cause || "unknown";
     return [
-        type,
+        item.root_cause_label || rootCauseLabel(cause),
         item.cell||"-",
         item.label||item.field_key||"-",
         item.expected||"",
