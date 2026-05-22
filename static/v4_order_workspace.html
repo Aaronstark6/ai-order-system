@@ -840,6 +840,15 @@
         let v4MappingHealth = null;
         let workspaceSectionCollapsed = {};
         let workspaceCandidateValues = {};
+        const DEFAULT_EXCEL_FEATURE_FLAGS = {
+            image_fields: false,
+            dynamic_tables: false,
+            advanced_write_modes: false,
+            option_write_enhancement: false,
+            format_protection: true,
+            export_readback_check: true,
+        };
+        let excelFeatureFlags = { ...DEFAULT_EXCEL_FEATURE_FLAGS };
         let currentWorkspaceSchema = { sections: [], fields: [], errors: [], warnings: [] };
         let selectedNativeCell = "";
         window.confirmedCells = confirmedCells;
@@ -849,6 +858,7 @@
         window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
         window.v4RuntimeMappingSource = v4RuntimeMappingSource;
         window.v4VisualGrid = v4VisualGrid;
+        window.excelFeatureFlags = excelFeatureFlags;
 
         function escapeHtml(value) {
             const div = document.createElement("div");
@@ -858,6 +868,22 @@
 
         function jsString(value) {
             return JSON.stringify(String(value ?? "")).replace(/</g, "\\u003c");
+        }
+
+        function normalizeExcelFeatureFlags(flags) {
+            const source = flags && typeof flags === "object" ? flags : {};
+            return Object.fromEntries(
+                Object.entries(DEFAULT_EXCEL_FEATURE_FLAGS).map(([key, defaultValue]) => [
+                    key,
+                    Object.prototype.hasOwnProperty.call(source, key) ? Boolean(source[key]) : defaultValue,
+                ])
+            );
+        }
+
+        function applyExcelFeatureFlags(flags) {
+            excelFeatureFlags = normalizeExcelFeatureFlags(flags);
+            window.excelFeatureFlags = excelFeatureFlags;
+            return excelFeatureFlags;
         }
 
         function setStatus(elementId, text, type = "info") {
@@ -2968,11 +2994,13 @@
                     v4WorkspaceFields = [];
                     v4SemanticWorkspaceSchema = null;
                     v4RuntimeMappingSource = null;
+                    applyExcelFeatureFlags({});
                 } else {
                     v4LayoutSections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
                     v4WorkspaceFields = Array.isArray(result.workspace_fields) ? result.workspace_fields : [];
                     v4SemanticWorkspaceSchema = result.semantic_workspace_schema || null;
                     v4RuntimeMappingSource = result.runtime_mapping_source || null;
+                    applyExcelFeatureFlags(result.excel_feature_flags);
                 }
                 window.v4LayoutSections = v4LayoutSections;
                 window.v4WorkspaceFields = v4WorkspaceFields;
@@ -2986,6 +3014,7 @@
                 v4SemanticWorkspaceSchema = null;
                 v4RuntimeMappingSource = null;
                 v4VisualGrid = null;
+                applyExcelFeatureFlags({});
                 window.v4LayoutSections = v4LayoutSections;
                 window.v4WorkspaceFields = v4WorkspaceFields;
                 window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
@@ -3051,6 +3080,7 @@
                 v4WorkspaceFields = getWorkspaceFieldsFromResult(result);
                 v4SemanticWorkspaceSchema = result.semantic_workspace_schema || result.parse_result?.semantic_workspace_schema || v4SemanticWorkspaceSchema;
                 v4RuntimeMappingSource = result.runtime_mapping_source || result.parse_result?.runtime_mapping_source || v4RuntimeMappingSource;
+                applyExcelFeatureFlags(result.excel_feature_flags || result.parse_result?.excel_feature_flags);
                 window.v4WorkspaceFields = v4WorkspaceFields;
                 window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
                 window.v4RuntimeMappingSource = v4RuntimeMappingSource;
@@ -3085,7 +3115,7 @@
             if (!panel) return;
 
             const audit = result?.export_readback_audit || result?.export_result?.readback_audit || null;
-            if (!audit) {
+            if (excelFeatureFlags.export_readback_check === false || audit?.disabled === true || !audit) {
                 panel.style.display = "none";
                 panel.innerHTML = "";
                 return;
@@ -3188,6 +3218,7 @@
                 const downloadLink = document.getElementById("v4DownloadLink");
                 downloadLink.href = downloadUrl || "#";
                 downloadLink.style.display = downloadUrl ? "inline-flex" : "none";
+                applyExcelFeatureFlags(result.excel_feature_flags || result.export_result?.excel_feature_flags || result.parse_result?.excel_feature_flags || excelFeatureFlags);
                 renderExportReadbackAudit(result);
                 window.lastExportConfirmedCells = confirmedCells.map(item => ({ ...item }));
                 window.lastExportHadManualChanges = hasManualChanges;

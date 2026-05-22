@@ -147,6 +147,44 @@
             font-size: 13px;
             line-height: 1.5;
         }
+        .excel-feature-panel {
+            background: #fafbfd;
+            border: 1px solid #e6eaf0;
+            border-radius: 8px;
+            margin: 14px 0;
+            padding: 14px 16px;
+        }
+        .excel-feature-header {
+            align-items: baseline;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .excel-feature-title {
+            color: #1d2939;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .excel-feature-grid {
+            display: grid;
+            gap: 8px 14px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .excel-feature-item {
+            align-items: center;
+            color: #344054;
+            display: flex;
+            font-size: 13px;
+            font-weight: 700;
+            gap: 8px;
+            line-height: 1.4;
+        }
+        .excel-feature-item input {
+            min-height: auto;
+            width: auto;
+        }
         .config-section {
             border: 1px solid #e6eaf0;
             border-radius: 8px;
@@ -799,6 +837,7 @@
                     </div>
                 </div>
             </div>
+            <div id="excelFeatureFlagsPanel" class="excel-feature-panel"></div>
             <div id="templateConfigArea" class="config-empty">
                 当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。
             </div>
@@ -818,6 +857,22 @@
         let configViewMode = "table";
         let businessSectionCollapsed = {};
         let selectedVisualCell = "";
+        const DEFAULT_EXCEL_FEATURE_FLAGS = {
+            image_fields: false,
+            dynamic_tables: false,
+            advanced_write_modes: false,
+            option_write_enhancement: false,
+            format_protection: true,
+            export_readback_check: true,
+        };
+        const EXCEL_FEATURE_FLAG_LABELS = [
+            ["image_fields", "图片字段 image_fields"],
+            ["dynamic_tables", "动态表格 dynamic_tables"],
+            ["advanced_write_modes", "复杂写入 advanced_write_modes"],
+            ["option_write_enhancement", "选项写入增强 option_write_enhancement"],
+            ["format_protection", "格式保护 format_protection"],
+            ["export_readback_check", "导出结果检查 export_readback_check"],
+        ];
         let visualIntentLayerFilters = {
             "fill-field": true,
             "option-field": true,
@@ -891,8 +946,18 @@
             return result.profile || null;
         }
 
+        function normalizeExcelFeatureFlags(flags) {
+            const source = flags && typeof flags === "object" ? flags : {};
+            return Object.fromEntries(
+                Object.entries(DEFAULT_EXCEL_FEATURE_FLAGS).map(([key, defaultValue]) => [
+                    key,
+                    Object.prototype.hasOwnProperty.call(source, key) ? Boolean(source[key]) : defaultValue,
+                ])
+            );
+        }
+
         async function loadMappingConfiguration(mappingId) {
-            if (!mappingId) return { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
+            if (!mappingId) return { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {}, excelFeatureFlags: normalizeExcelFeatureFlags({}) };
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(mappingId)}/configuration`);
             const analysis = result.template_analysis && typeof result.template_analysis === "object" ? result.template_analysis : {};
             const structure = analysis.template_structure && typeof analysis.template_structure === "object" ? analysis.template_structure : {};
@@ -903,7 +968,8 @@
             const savedSectionConfiguration = result.section_configuration && typeof result.section_configuration === "object" ? result.section_configuration : {};
             const runtimeMappingSource = result.runtime_mapping_source && typeof result.runtime_mapping_source === "object" ? result.runtime_mapping_source : null;
             const candidates = Array.isArray(result.mapping_candidates) ? result.mapping_candidates : [];
-            const config = { labels, structureLabels, sections, analysis, candidates, savedConfiguration, savedSectionConfiguration, runtimeMappingSource };
+            const excelFeatureFlags = normalizeExcelFeatureFlags(result.excel_feature_flags || result.profile?.excel_feature_flags);
+            const config = { labels, structureLabels, sections, analysis, candidates, savedConfiguration, savedSectionConfiguration, runtimeMappingSource, excelFeatureFlags };
             configByMappingId[mappingId] = config;
             return config;
         }
@@ -2447,10 +2513,45 @@
             }
         }
 
+        function getCurrentExcelFeatureFlags() {
+            const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
+            return normalizeExcelFeatureFlags(cached?.excelFeatureFlags || selectedMapping?.excel_feature_flags);
+        }
+
+        function renderExcelFeatureFlagsPanel() {
+            const panel = document.getElementById("excelFeatureFlagsPanel");
+            if (!panel) return;
+            const flags = getCurrentExcelFeatureFlags();
+            const disabled = selectedMappingId ? "" : "disabled";
+            panel.innerHTML = `
+                <div class="excel-feature-header">
+                    <div class="excel-feature-title">Excel功能开关</div>
+                    <div class="small">这些功能可按需开启，便于测试。关闭后不影响基础 Excel 导出。</div>
+                </div>
+                <div class="excel-feature-grid">
+                    ${EXCEL_FEATURE_FLAG_LABELS.map(([key, label]) => `
+                        <label class="excel-feature-item">
+                            <input type="checkbox" data-excel-feature-flag="${escapeHtml(key)}" ${flags[key] ? "checked" : ""} ${disabled}>
+                            <span>${escapeHtml(label)}</span>
+                        </label>
+                    `).join("")}
+                </div>
+            `;
+        }
+
+        function collectExcelFeatureFlags() {
+            const flags = normalizeExcelFeatureFlags({});
+            document.querySelectorAll("#excelFeatureFlagsPanel input[data-excel-feature-flag]").forEach((input) => {
+                flags[input.dataset.excelFeatureFlag] = input.checked;
+            });
+            return flags;
+        }
+
         async function saveTemplateConfiguration() {
             if (!selectedMappingId) { setStatus("请先选择映射。", "warning"); return; }
             const items = collectEditableConfiguration();
             const sections = collectEditableSectionConfiguration();
+            const excel_feature_flags = collectExcelFeatureFlags();
             if (!items.length) { setStatus("当前没有可保存的模板配置。", "warning"); return; }
             const validation = validateCurrentMappingConfiguration(items);
             renderConfigurationValidation(validation);
@@ -2462,7 +2563,7 @@
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/configuration`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ items, sections }),
+                body: JSON.stringify({ items, sections, excel_feature_flags }),
             });
             const cached = configByMappingId[selectedMappingId] || {};
             configByMappingId[selectedMappingId] = {
@@ -2470,6 +2571,7 @@
                 savedConfiguration: result.template_configuration || {},
                 savedSectionConfiguration: result.section_configuration || {},
                 runtimeMappingSource: result.runtime_mapping_source || cached.runtimeMappingSource || null,
+                excelFeatureFlags: normalizeExcelFeatureFlags(result.excel_feature_flags || excel_feature_flags),
             };
             if (result.profile) {
                 selectedMapping = result.profile;
@@ -2798,6 +2900,7 @@
             const area = document.getElementById("templateConfigArea");
             const { rows, configSections } = currentConfigRenderModel();
             renderSemanticControlBar();
+            renderExcelFeatureFlagsPanel();
 
             if (!rows.length) {
                 area.className = "config-empty";

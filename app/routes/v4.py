@@ -205,6 +205,25 @@ def _template_configuration_from_profile(profile):
     return deepcopy(configuration) if isinstance(configuration, dict) else {}
 
 
+DEFAULT_EXCEL_FEATURE_FLAGS = {
+    "image_fields": False,
+    "dynamic_tables": False,
+    "advanced_write_modes": False,
+    "option_write_enhancement": False,
+    "format_protection": True,
+    "export_readback_check": True,
+}
+
+
+def _get_excel_feature_flags(profile):
+    configured = profile.get("excel_feature_flags") if isinstance(profile, dict) else {}
+    configured = configured if isinstance(configured, dict) else {}
+    return {
+        key: bool(configured[key]) if key in configured else default
+        for key, default in DEFAULT_EXCEL_FEATURE_FLAGS.items()
+    }
+
+
 def _section_configuration_from_profile(profile):
     render_config = profile.get("render_config") if isinstance(profile, dict) else {}
     if not isinstance(render_config, dict):
@@ -3240,6 +3259,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_configuration": _template_configuration_from_profile(profile),
             "section_configuration": _section_configuration_from_profile(profile),
             "runtime_mapping_source": _get_runtime_mapping_source(profile),
+            "excel_feature_flags": _get_excel_feature_flags(profile),
             "mapping_candidates": [],
         }
 
@@ -3262,6 +3282,7 @@ def api_v4_template_profile_configuration(profile_id: str):
             "template_configuration": _template_configuration_from_profile(profile),
             "section_configuration": _section_configuration_from_profile(profile),
             "runtime_mapping_source": _get_runtime_mapping_source(profile),
+            "excel_feature_flags": _get_excel_feature_flags(profile),
             "mapping_candidates": mapping_candidates,
         }
     except (BadZipFile, InvalidFileException) as exc:
@@ -3439,12 +3460,16 @@ def api_v4_template_profile_configuration_save(profile_id: str, payload: Any = B
         payload = payload if isinstance(payload, dict) else {}
         configuration = _normalize_template_configuration_items(payload.get("items"))
         section_configuration = _normalize_section_configuration_items(payload.get("sections"))
+        excel_feature_flags = _get_excel_feature_flags({
+            "excel_feature_flags": payload.get("excel_feature_flags", profile.get("excel_feature_flags", {}))
+        })
         render_config = profile.get("render_config") if isinstance(profile.get("render_config"), dict) else {}
         profile["render_config"] = {
             **render_config,
             "template_configuration": configuration,
             "section_configuration": section_configuration,
         }
+        profile["excel_feature_flags"] = excel_feature_flags
         saved_profile = save_template_profile(profile)
         state = get_pipeline_state()
         current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
@@ -3457,6 +3482,7 @@ def api_v4_template_profile_configuration_save(profile_id: str, payload: Any = B
             "template_configuration": _template_configuration_from_profile(saved_profile),
             "section_configuration": _section_configuration_from_profile(saved_profile),
             "runtime_mapping_source": _get_runtime_mapping_source(saved_profile),
+            "excel_feature_flags": _get_excel_feature_flags(saved_profile),
             "pipeline_state": state,
         }
     except ValueError as exc:
@@ -4115,6 +4141,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
     workspace_fields = _build_workspace_fields_from_profile(current_profile)
     semantic_workspace_schema = _build_semantic_workspace_schema(current_profile)
     runtime_mapping_source = _get_runtime_mapping_source(current_profile)
+    excel_feature_flags = _get_excel_feature_flags(current_profile)
     extraction_contract = _build_ai_extraction_contract_from_workspace_fields(workspace_fields)
     extraction_contract_summary = _ai_extraction_contract_summary(extraction_contract)
 
@@ -4128,6 +4155,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
             "runtime_mapping_source": runtime_mapping_source,
+            "excel_feature_flags": excel_feature_flags,
             "semantic_workspace_schema": semantic_workspace_schema,
             "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
@@ -4143,6 +4171,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
             "runtime_mapping_source": runtime_mapping_source,
+            "excel_feature_flags": excel_feature_flags,
             "semantic_workspace_schema": semantic_workspace_schema,
             "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
@@ -4163,6 +4192,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "extraction_contract": extraction_contract,
             "ai_extraction_contract_summary": extraction_contract_summary,
             "runtime_mapping_source": runtime_mapping_source,
+            "excel_feature_flags": excel_feature_flags,
             "semantic_workspace_schema": semantic_workspace_schema,
             "confirmed_cells": field_binding_result.get("confirmed_cells", []),
             "field_bound_operations": field_binding_result.get("operations", []),
@@ -4186,6 +4216,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "extraction_contract": extraction_contract,
         "ai_extraction_contract_summary": extraction_contract_summary,
         "runtime_mapping_source": runtime_mapping_source,
+        "excel_feature_flags": excel_feature_flags,
         "semantic_workspace_schema": semantic_workspace_schema,
         "confirmed_cells": field_binding_result.get("confirmed_cells", []),
         "field_bound_operations": field_binding_result.get("operations", []),
@@ -4227,6 +4258,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
     workspace_fields = parse_result.get("workspace_fields", [])
     semantic_workspace_schema = parse_result.get("semantic_workspace_schema", {})
     runtime_mapping_source = parse_result.get("runtime_mapping_source", {})
+    excel_feature_flags = parse_result.get("excel_feature_flags", _get_excel_feature_flags({}))
     field_binding_merge = _merge_field_bound_operations(
         pipeline_result.get("processed_operations", []),
         field_bound_operations,
@@ -4261,6 +4293,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "extraction_contract": parse_result.get("extraction_contract", {}),
             "ai_extraction_contract_summary": parse_result.get("ai_extraction_contract_summary", {}),
             "runtime_mapping_source": runtime_mapping_source,
+            "excel_feature_flags": excel_feature_flags,
             "confirmed_cells": parse_result.get("confirmed_cells", []),
             "field_bound_operations": field_bound_operations,
             "workspace_fields": workspace_fields,
@@ -4285,6 +4318,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
         "workspace_fields": workspace_fields,
         "semantic_workspace_schema": semantic_workspace_schema,
         "runtime_mapping_source": runtime_mapping_source,
+        "excel_feature_flags": excel_feature_flags,
         "ai_extraction_contract_summary": parse_result.get("ai_extraction_contract_summary", {}),
         "pipeline_state": get_pipeline_state(),
     }
@@ -4534,6 +4568,7 @@ def api_v4_export_confirmed_excel(
 
         profile = _current_template_profile_for_export()
         runtime_mapping_source = _get_runtime_mapping_source(profile)
+        excel_feature_flags = _get_excel_feature_flags(profile)
         template_path, _, template_source = _resolve_export_template_source()
 
         override_result = _override_operations_with_confirmed_cells(
@@ -4568,11 +4603,21 @@ def api_v4_export_confirmed_excel(
                 exported_file_path = exported_file_path
             else:
                 exported_file_path = Path("output") / exported_file_path
-        export_readback_audit = _build_export_readback_audit(
-            exported_file_path,
-            confirmed_cells,
-            profile=profile,
-        )
+        if excel_feature_flags.get("export_readback_check", True):
+            export_readback_audit = _build_export_readback_audit(
+                exported_file_path,
+                confirmed_cells,
+                profile=profile,
+            )
+        else:
+            export_readback_audit = {
+                "success": True,
+                "disabled": True,
+                "summary": {},
+                "items": [],
+                "warnings": [],
+                "errors": [],
+            }
 
         set_pipeline_result(overridden_operations, pipeline_result.get("stages", []))
         state = merge_mapping_safety(export_result.get("mapping_safety", {}))
@@ -4601,6 +4646,7 @@ def api_v4_export_confirmed_excel(
             "confirmed_added_count": confirmed_added_count,
             "write_mode_summary": write_mode_summary,
             "runtime_mapping_source": runtime_mapping_source,
+            "excel_feature_flags": excel_feature_flags,
             "export_readback_audit": export_readback_audit,
             "parse_result": pipeline_e2e_result.get("parse_result", {}),
             "pipeline_result": response_pipeline_result,
@@ -4611,6 +4657,7 @@ def api_v4_export_confirmed_excel(
                 "warnings": export_result.get("warnings", []),
                 "template_source": template_source,
                 "write_mode_summary": write_mode_summary,
+                "excel_feature_flags": excel_feature_flags,
                 "readback_audit": export_readback_audit,
             },
             "render_preview": get_pipeline_state().get("render_preview", {}),
@@ -4899,6 +4946,7 @@ def api_v4_template_layout():
     workspace_fields = _build_workspace_fields_from_profile(profile)
     semantic_workspace_schema = _build_semantic_workspace_schema(profile)
     runtime_mapping_source = _get_runtime_mapping_source(profile)
+    excel_feature_flags = _get_excel_feature_flags(profile)
 
     return {
         "success": True,
@@ -4906,6 +4954,7 @@ def api_v4_template_layout():
         "workspace_fields": workspace_fields,
         "semantic_workspace_schema": semantic_workspace_schema,
         "runtime_mapping_source": runtime_mapping_source,
+        "excel_feature_flags": excel_feature_flags,
         "summary": layout_result.get("summary", {}),
         "template_analysis_summary": template_analysis_summary,
         "pipeline_state": get_pipeline_state(),
