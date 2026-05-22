@@ -2535,6 +2535,17 @@ def _table_rows_for_field(parsed_fields, field_key, raw_value):
     return []
 
 
+def _table_col_offset_for_field(item):
+    if not isinstance(item, dict):
+        return 0
+    for key in ("col_offset", "table_col_offset", "column_offset"):
+        try:
+            return int(item.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
 def _bind_parsed_fields_to_template_cells(parsed, profile):
     if not isinstance(parsed, dict):
         parsed_fields = {}
@@ -2561,6 +2572,7 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
 
         table_rows = _table_rows_for_field(parsed_fields, field_key, raw_value)
         if table_rows:
+            col_offset = _table_col_offset_for_field(item)
             label = str(item.get("label") or item.get("field_label") or field_key).strip() or field_key
             source = "AI Extraction Contract"
             for row_index, row in enumerate(table_rows):
@@ -2581,7 +2593,7 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
                         "intent_type": item.get("intent_type") or "",
                         "option_value": "",
                         "row_offset": row_index,
-                        "col_offset": 0,
+                        "col_offset": col_offset,
                         "sheet_name": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
                     }
                 )
@@ -2590,7 +2602,7 @@ def _bind_parsed_fields_to_template_cells(parsed, profile):
                         "op_type": "write_table_cell",
                         "target_cell": cell,
                         "row_offset": row_index,
-                        "col_offset": 0,
+                        "col_offset": col_offset,
                         "value": value,
                         "source": source,
                         "field_key": field_key,
