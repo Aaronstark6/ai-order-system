@@ -393,6 +393,11 @@
             font-size: 15px;
             font-weight: 700;
         }
+        .validation-description {
+            color: #667085;
+            font-size: 13px;
+            margin-top: 3px;
+        }
         .validation-counts {
             display: flex;
             flex-wrap: wrap;
@@ -406,6 +411,22 @@
         .validation-pill.error { background: #ffe9e7; color: #b42318; }
         .validation-pill.warning { background: #fff7db; color: #8a6100; }
         .validation-pill.passed { background: #e9f8ef; color: #16713b; }
+        .validation-banner {
+            border-radius: 7px;
+            font-size: 13px;
+            margin: 8px 0 12px;
+            padding: 9px 10px;
+        }
+        .validation-banner.success {
+            background: #ecfdf3;
+            border: 1px solid #abefc6;
+            color: #067647;
+        }
+        .validation-banner.error {
+            background: #fef3f2;
+            border: 1px solid #fecdca;
+            color: #b42318;
+        }
         .validation-group {
             border-top: 1px solid #edf0f4;
             padding-top: 10px;
@@ -456,14 +477,31 @@
         }
         .mapping-health-header {
             align-items: center;
+            cursor: pointer;
             display: flex;
             gap: 10px;
             justify-content: space-between;
+        }
+        .mapping-health-heading {
+            display: grid;
+            gap: 4px;
         }
         .mapping-health-title {
             color: #1d2939;
             font-size: 16px;
             font-weight: 700;
+        }
+        .mapping-health-status {
+            color: #667085;
+            font-size: 13px;
+        }
+        .mapping-health-status.ok { color: #067647; }
+        .mapping-health-status.warning { color: #8a6100; }
+        .mapping-health-status.error { color: #b42318; }
+        .mapping-health-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         .mapping-health-summary {
             display: grid;
@@ -491,6 +529,10 @@
             display: grid;
             gap: 10px;
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        }
+        .mapping-health-details {
+            display: grid;
+            gap: 12px;
         }
         @media (max-width: 860px) {
             body { padding: 16px; }
@@ -570,11 +612,11 @@
                     </div>
                 </div>
             </div>
-            <div id="configurationValidation" class="validation-panel"></div>
-            <div id="mappingHealthPanel" class="mapping-health-panel"></div>
             <div id="templateConfigArea" class="config-empty">
                 当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。
             </div>
+            <div id="configurationValidation" class="validation-panel"></div>
+            <div id="mappingHealthPanel" class="mapping-health-panel"></div>
         </section>
     </main>
 
@@ -585,6 +627,7 @@
         let configByMappingId = {};
         let visualGridByMappingId = {};
         let mappingHealthByMappingId = {};
+        let mappingHealthExpanded = false;
         let selectedVisualCell = "";
         let visualIntentLayerFilters = {
             "fill-field": true,
@@ -717,6 +760,11 @@
 
         function refreshMappingHealth() {
             return loadMappingHealth(selectedMappingId, true);
+        }
+
+        function toggleMappingHealthPanel() {
+            mappingHealthExpanded = !mappingHealthExpanded;
+            renderMappingHealth();
         }
 
         async function loadMappings(preferredId = "") {
@@ -1654,18 +1702,23 @@
             const area = document.getElementById("configurationValidation");
             if (!area) return;
             const result = validation || validateCurrentMappingConfiguration();
+            const hasErrors = result.errors.length > 0;
             area.innerHTML = `
                 <div class="validation-header">
-                    <div class="validation-title">配置检查</div>
-                    <div class="validation-counts">
-                        <span class="validation-pill passed">通过 ${result.passed.length}</span>
-                        <span class="validation-pill warning">警告 ${result.warnings.length}</span>
-                        <span class="validation-pill error">错误 ${result.errors.length}</span>
+                    <div>
+                        <div class="validation-title">配置检查</div>
+                        <div class="validation-description">检查当前页面配置是否可以安全保存。</div>
                     </div>
+                    <div class="validation-counts">
+                        <span class="validation-pill error">错误 ${result.errors.length}</span>
+                        <span class="validation-pill warning">警告 ${result.warnings.length}</span>
+                    </div>
+                </div>
+                <div class="validation-banner ${hasErrors ? "error" : "success"}">
+                    ${hasErrors ? "存在错误，请先修正后再保存。" : "当前配置可以保存。"}
                 </div>
                 ${renderValidationGroup("错误", "error", result.errors)}
                 ${renderValidationGroup("警告", "warning", result.warnings)}
-                ${renderValidationGroup("通过", "passed", result.passed)}
             `;
         }
 
@@ -1678,6 +1731,10 @@
             if (target) target.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
         }
 
+        function selectHealthCell(cell) {
+            selectValidationCell(cell);
+        }
+
         function renderMappingHealthProblemGroup(title, className, items) {
             const safeItems = Array.isArray(items) ? items : [];
             return `
@@ -1686,10 +1743,60 @@
                     ${safeItems.length ? `
                         <div class="validation-list">
                             ${safeItems.map((item) => `
-                                <button class="validation-item ${className}" type="button" onclick="selectValidationCell('${escapeHtml(item.cell || "")}')">
+                                <button class="validation-item ${className}" type="button" onclick="selectHealthCell('${escapeHtml(item.cell || "")}')">
                                     <span class="validation-item-cell">${escapeHtml(item.cell || "-")}</span>
                                     <span class="validation-item-type">${escapeHtml(item.field_key || item.label || "-")}</span>
                                     <span class="validation-item-message">${escapeHtml(item.message || "")}</span>
+                                </button>
+                            `).join("")}
+                        </div>
+                    ` : '<div class="validation-empty">暂无</div>'}
+                </div>
+            `;
+        }
+
+        function mappingHealthStatus(summary = {}) {
+            const errors = Number(summary.errors_count || 0);
+            const warnings = Number(summary.warnings_count || 0);
+            if (errors > 0) return { className: "error", label: "有错误" };
+            if (warnings > 0) return { className: "warning", label: "有警告" };
+            return { className: "ok", label: "OK" };
+        }
+
+        function renderMappingHealthHeader(summary = {}, emptyText = "") {
+            const status = emptyText ? { className: emptyText.includes("错误") ? "error" : "warning", label: emptyText } : mappingHealthStatus(summary);
+            return `
+                <div class="mapping-health-header" onclick="toggleMappingHealthPanel()">
+                    <div class="mapping-health-heading">
+                        <div class="mapping-health-title">高级诊断：映射健康检查</div>
+                        <div class="mapping-health-status ${escapeHtml(status.className)}">映射健康：${escapeHtml(status.label)}</div>
+                    </div>
+                    <div class="mapping-health-actions">
+                        <button type="button" class="ghost" onclick="event.stopPropagation(); refreshMappingHealth()">刷新诊断</button>
+                        <button type="button" class="ghost" onclick="event.stopPropagation(); toggleMappingHealthPanel()">${mappingHealthExpanded ? "收起" : "展开"}</button>
+                    </div>
+                </div>
+                <div class="mapping-health-summary">
+                    <div class="mapping-health-metric"><span>配置项</span><strong>${Number(summary.total_config_items || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>AI字段</span><strong>${Number(summary.ai_contract_fields || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>工作页字段</span><strong>${Number(summary.workspace_fields || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>可导出字段</span><strong>${Number(summary.export_ready_fields || 0)}</strong></div>
+                </div>
+            `;
+        }
+
+        function renderMappingHealthCheckDetails(checks) {
+            const safeChecks = Array.isArray(checks) ? checks : [];
+            return `
+                <div class="validation-group">
+                    <div class="validation-group-title">详细检查项</div>
+                    ${safeChecks.length ? `
+                        <div class="validation-list">
+                            ${safeChecks.map((item) => `
+                                <button class="validation-item ${escapeHtml(item.status === "ok" || item.status === "skipped" ? "passed" : "warning")}" type="button" onclick="selectHealthCell('${escapeHtml(item.cell || item.source_cell || "")}')">
+                                    <span class="validation-item-cell">${escapeHtml(item.cell || item.source_cell || "-")}</span>
+                                    <span class="validation-item-type">${escapeHtml(item.label || item.field_key || item.status || "-")}</span>
+                                    <span class="validation-item-message">${escapeHtml((Array.isArray(item.problems) && item.problems.length) ? item.problems.join("；") : (item.status === "skipped" ? "已跳过" : "链路正常"))}</span>
                                 </button>
                             `).join("")}
                         </div>
@@ -1704,42 +1811,30 @@
             const result = health || (selectedMappingId ? mappingHealthByMappingId[selectedMappingId] : null);
             if (!selectedMappingId) {
                 area.innerHTML = `
-                    <div class="mapping-health-header">
-                        <div class="mapping-health-title">映射健康检查</div>
-                        <button type="button" class="ghost" onclick="refreshMappingHealth()">刷新健康检查</button>
-                    </div>
-                    <div class="validation-empty">请先选择映射。</div>
+                    ${renderMappingHealthHeader({}, "请选择映射")}
+                    ${mappingHealthExpanded ? '<div class="validation-empty">请先选择映射。</div>' : ""}
                 `;
                 return;
             }
             if (!result || result.success === false) {
                 area.innerHTML = `
-                    <div class="mapping-health-header">
-                        <div class="mapping-health-title">映射健康检查</div>
-                        <button type="button" class="ghost" onclick="refreshMappingHealth()">刷新健康检查</button>
-                    </div>
-                    <div class="validation-empty">${escapeHtml(result?.error || "点击刷新健康检查查看端到端链路状态。")}</div>
+                    ${renderMappingHealthHeader({}, result?.error ? "有错误" : "等待诊断")}
+                    ${mappingHealthExpanded ? `<div class="validation-empty">${escapeHtml(result?.error || "点击刷新诊断查看端到端链路状态。")}</div>` : ""}
                 `;
                 return;
             }
             const summary = result.summary || {};
             area.innerHTML = `
-                <div class="mapping-health-header">
-                    <div class="mapping-health-title">映射健康检查</div>
-                    <button type="button" class="ghost" onclick="refreshMappingHealth()">刷新健康检查</button>
-                </div>
-                <div class="mapping-health-summary">
-                    <div class="mapping-health-metric"><span>配置项</span><strong>${Number(summary.total_config_items || 0)}</strong></div>
-                    <div class="mapping-health-metric"><span>工作页字段</span><strong>${Number(summary.workspace_fields || 0)}</strong></div>
-                    <div class="mapping-health-metric"><span>AI提取字段</span><strong>${Number(summary.ai_contract_fields || 0)}</strong></div>
-                    <div class="mapping-health-metric"><span>可导出字段</span><strong>${Number(summary.export_ready_fields || 0)}</strong></div>
-                    <div class="mapping-health-metric"><span>错误</span><strong>${Number(summary.errors_count || 0)}</strong></div>
-                    <div class="mapping-health-metric"><span>警告</span><strong>${Number(summary.warnings_count || 0)}</strong></div>
-                </div>
-                <div class="mapping-health-problems">
-                    ${renderMappingHealthProblemGroup("错误", "error", result.errors || [])}
-                    ${renderMappingHealthProblemGroup("警告", "warning", result.warnings || [])}
-                </div>
+                ${renderMappingHealthHeader(summary)}
+                ${mappingHealthExpanded ? `
+                    <div class="mapping-health-details">
+                        <div class="mapping-health-problems">
+                            ${renderMappingHealthProblemGroup("错误列表", "error", result.errors || [])}
+                            ${renderMappingHealthProblemGroup("警告列表", "warning", result.warnings || [])}
+                        </div>
+                        ${renderMappingHealthCheckDetails(result.checks || [])}
+                    </div>
+                ` : ""}
             `;
         }
 
@@ -1839,9 +1934,6 @@
 
             area.className = "";
             area.innerHTML = `
-                <div class="config-actions">
-                    <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
-                </div>
                 ${configSections.map((section) => `
                     <div class="config-section" data-section-key="${escapeHtml(section.key)}">
                         <div class="config-section-header collapsed" onclick="toggleSection(this)">
@@ -1916,6 +2008,9 @@
                         </div>
                     </div>
                 `).join("")}
+                <div class="config-actions">
+                    <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
+                </div>
             `;
 
             area.querySelectorAll("button.small").forEach((btn) => {
