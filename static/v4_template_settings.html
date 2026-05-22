@@ -130,9 +130,16 @@
         .config-actions {
             align-items: center;
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             justify-content: flex-end;
             margin-bottom: 16px;
+        }
+        .config-action-hint {
+            color: #667085;
+            flex: 1 1 260px;
+            font-size: 13px;
+            line-height: 1.5;
         }
         .config-section {
             border: 1px solid #e6eaf0;
@@ -1006,7 +1013,7 @@
                 ...cell,
                 cell: cellRef,
                 label: pick("label", "label", "field_label", ""),
-                show_in_workspace: typeof saved.show_in_workspace === "boolean" ? saved.show_in_workspace : true,
+                show_in_workspace: typeof saved.show_in_workspace === "boolean" ? saved.show_in_workspace : (typeof candidate.show_in_workspace === "boolean" ? candidate.show_in_workspace : true),
                 candidate_field_key: pick("candidate_field_key", "candidate_field_key", "field_key", ""),
                 candidate_field_label: pick("candidate_field_label", "candidate_field_label", "field_label", ""),
                 candidate_confidence: Number(pick("candidate_confidence", "candidate_confidence", "confidence", 0) || 0),
@@ -1028,6 +1035,8 @@
                 intent_confidence: Number(pick("intent_confidence", "intent_confidence", "intent_confidence", 0) || 0),
                 intent_reason: pick("intent_reason", "intent_reason", "intent_reason", ""),
                 ai_extract_hint: pick("ai_extract_hint", "ai_extract_hint", "ai_extract_hint", ""),
+                manual_override: Boolean(saved.manual_override || saved.user_edited),
+                user_edited: Boolean(saved.user_edited),
             };
         }
 
@@ -1290,6 +1299,8 @@
                 semantic_confidence: Number(previous.semantic_confidence ?? effective.semantic_confidence ?? 0),
                 semantic_reason: previous.semantic_reason || effective.semantic_reason || "",
                 semantic_promoted: Boolean(previous.semantic_promoted ?? effective.semantic_promoted ?? false),
+                manual_override: true,
+                user_edited: true,
                 intent_type: readValue("intent_type").trim(),
                 write_mode: readValue("write_mode").trim(),
                 label_cell: previous.label_cell || effective.label_cell || effective.cell,
@@ -1531,6 +1542,8 @@
                     semanticConfidence: Number(item.semantic_confidence || candidate.semantic_confidence || 0),
                     semanticReason: item.semantic_reason || candidate.semantic_reason || "",
                     semanticPromoted: Boolean(item.semantic_promoted ?? candidate.semantic_promoted ?? false),
+                    manualOverride: Boolean(item.manual_override || item.user_edited),
+                    userEdited: Boolean(item.user_edited),
                 };
             });
         }
@@ -1539,9 +1552,178 @@
             try { return JSON.parse(value || "{}"); } catch (_) { return {}; }
         }
 
+        function hasSemanticCandidates(profileId = selectedMappingId) {
+            const cached = profileId ? configByMappingId[profileId] : null;
+            const candidates = Array.isArray(cached?.candidates) ? cached.candidates : [];
+            return candidates.some((candidate) => candidate && candidate.semantic_promoted === true);
+        }
+
+        function semanticDraftShowInWorkspace(candidate) {
+            const writeMode = String(candidate.write_mode || "").trim();
+            const intentType = String(candidate.intent_type || "").trim();
+            return !["skip", "none"].includes(writeMode)
+                && !["title", "section_header", "note_instruction", "attachment_hint", "image_area", "readonly_example"].includes(intentType);
+        }
+
+        function semanticDraftCandidateLabel(candidate, visualCell = {}) {
+            return String(candidate.field_label || candidate.label || visualCell.display_value || visualCell.value || candidate.label_text || candidate.cell || "").trim();
+        }
+
+        function isManualConfiguration(existing, candidate) {
+            if (!existing || typeof existing !== "object") return false;
+            if (existing.manual_override === true || existing.user_edited === true) return true;
+            const existingKey = String(existing.candidate_field_key || "").trim();
+            const candidateKey = String(candidate.field_key || "").trim();
+            if (existingKey && candidateKey && existingKey !== candidateKey) return true;
+            const existingLabel = String(existing.label || "").trim();
+            const candidateLabel = semanticDraftCandidateLabel(candidate);
+            if (existingLabel && candidateLabel && existingLabel !== candidateLabel) return true;
+            return false;
+        }
+
+        function buildSemanticDraftItem(candidate, visualCell = {}, existing = {}, displayOrder = 1) {
+            const label = semanticDraftCandidateLabel(candidate, visualCell);
+            return {
+                ...existing,
+                cell: normalizeCell(candidate.cell || visualCell.cell),
+                label,
+                show_in_workspace: semanticDraftShowInWorkspace(candidate),
+                display_order: Number(existing.display_order || candidate.display_order || displayOrder),
+                candidate_field_key: String(candidate.field_key || "").trim(),
+                candidate_field_label: String(candidate.field_label || label || "").trim(),
+                candidate_confidence: Number(candidate.confidence || 0),
+                candidate_source: String(candidate.source || ""),
+                candidate_reason: String(candidate.candidate_reason || ""),
+                confidence_breakdown: candidate.confidence_breakdown && typeof candidate.confidence_breakdown === "object" ? candidate.confidence_breakdown : {},
+                intent_type: String(candidate.intent_type || "unknown"),
+                write_mode: String(candidate.write_mode || "skip"),
+                label_cell: normalizeCell(candidate.label_cell || candidate.cell || visualCell.cell),
+                target_cell: normalizeCell(candidate.target_cell || ""),
+                option_value: String(candidate.option_value || ""),
+                intent_confidence: Number(candidate.intent_confidence || candidate.semantic_confidence || 0),
+                intent_reason: String(candidate.intent_reason || candidate.semantic_reason || ""),
+                ai_extract_hint: String(candidate.ai_extract_hint || label || ""),
+                semantic_type: String(candidate.semantic_type || ""),
+                semantic_region_id: String(candidate.semantic_region_id || ""),
+                semantic_confidence: Number(candidate.semantic_confidence || 0),
+                semantic_reason: String(candidate.semantic_reason || ""),
+                semantic_promoted: Boolean(candidate.semantic_promoted),
+            };
+        }
+
+        function buildSemanticDraftConfiguration(profileId = selectedMappingId) {
+            const cached = profileId ? configByMappingId[profileId] : null;
+            const grid = profileId ? visualGridByMappingId[profileId] : null;
+            const saved = cached?.savedConfiguration && typeof cached.savedConfiguration === "object" ? cached.savedConfiguration : {};
+            const current = {};
+            collectEditableConfiguration().forEach((item) => {
+                const key = normalizeCell(item.cell);
+                if (key) current[key] = { ...(saved[key] || {}), ...item };
+            });
+            Object.entries(saved).forEach(([cell, item]) => {
+                const key = normalizeCell(cell);
+                if (key && !current[key]) current[key] = { ...(item || {}), cell: key };
+            });
+
+            const visualByCell = {};
+            (Array.isArray(grid?.cells) ? grid.cells : []).forEach((cell) => {
+                const key = normalizeCell(cell?.cell);
+                if (key) visualByCell[key] = cell;
+            });
+            const candidates = Array.isArray(cached?.candidates) ? cached.candidates : [];
+            const draft = {};
+            const skippedCells = new Set();
+            const stats = {
+                applied_count: 0,
+                skipped_manual_count: 0,
+                skipped_low_confidence_count: 0,
+                skipped_no_candidate_count: 0,
+            };
+
+            candidates.forEach((candidate, index) => {
+                const cell = normalizeCell(candidate?.cell);
+                if (!cell || skippedCells.has(cell)) return;
+                if (candidate?.semantic_promoted !== true) {
+                    stats.skipped_no_candidate_count += 1;
+                    return;
+                }
+                const confidence = Number(candidate.confidence || candidate.semantic_confidence || 0);
+                const semanticType = String(candidate.semantic_type || "");
+                const existing = current[cell] && typeof current[cell] === "object" ? current[cell] : {};
+                if (["title", "section_header", "note_instruction", "image_attachment_area"].includes(semanticType)) {
+                    if (!Object.keys(existing).length) {
+                        draft[cell] = buildSemanticDraftItem(candidate, visualByCell[cell] || {}, existing, index + 1);
+                        draft[cell].show_in_workspace = false;
+                        draft[cell].write_mode = "skip";
+                        stats.applied_count += 1;
+                    } else {
+                        draft[cell] = {
+                            ...existing,
+                            semantic_type: existing.semantic_type || candidate.semantic_type || "",
+                            semantic_region_id: existing.semantic_region_id || candidate.semantic_region_id || "",
+                            semantic_confidence: Number(existing.semantic_confidence || candidate.semantic_confidence || 0),
+                            semantic_reason: existing.semantic_reason || candidate.semantic_reason || "",
+                            semantic_promoted: Boolean(existing.semantic_promoted ?? candidate.semantic_promoted ?? false),
+                        };
+                        stats.skipped_manual_count += 1;
+                    }
+                    skippedCells.add(cell);
+                    return;
+                }
+                if (confidence < 0.70) {
+                    stats.skipped_low_confidence_count += 1;
+                    skippedCells.add(cell);
+                    return;
+                }
+                if (isManualConfiguration(existing, candidate)) {
+                    draft[cell] = {
+                        ...existing,
+                        semantic_type: existing.semantic_type || candidate.semantic_type || "",
+                        semantic_region_id: existing.semantic_region_id || candidate.semantic_region_id || "",
+                        semantic_confidence: Number(existing.semantic_confidence || candidate.semantic_confidence || 0),
+                        semantic_reason: existing.semantic_reason || candidate.semantic_reason || "",
+                        semantic_promoted: Boolean(existing.semantic_promoted ?? candidate.semantic_promoted ?? false),
+                    };
+                    stats.skipped_manual_count += 1;
+                    skippedCells.add(cell);
+                    return;
+                }
+                draft[cell] = buildSemanticDraftItem(candidate, visualByCell[cell] || {}, existing, index + 1);
+                stats.applied_count += 1;
+                skippedCells.add(cell);
+            });
+
+            return { draft, stats };
+        }
+
+        async function applySemanticDraftConfiguration() {
+            if (!selectedMappingId) {
+                setStatus("请先选择映射。", "warning");
+                return;
+            }
+            if (!hasSemanticCandidates(selectedMappingId)) {
+                setStatus("当前没有可应用的语义推荐。", "warning");
+                return;
+            }
+            if (!confirm("确定要把语义推荐应用为草稿配置吗？已有人工配置会尽量保留。")) return;
+            const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
+            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object" ? { ...cached.savedConfiguration } : {};
+            const { draft, stats } = buildSemanticDraftConfiguration(selectedMappingId);
+            Object.entries(draft).forEach(([cell, item]) => {
+                const key = normalizeCell(cell);
+                if (key) savedConfiguration[key] = { ...(savedConfiguration[key] || {}), ...item };
+            });
+            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
+            renderConfig();
+            renderVisualWorkbench();
+            renderConfigurationValidation();
+            await loadMappingHealth(selectedMappingId, false);
+            setStatus(`已应用语义推荐：${stats.applied_count} 项；保留人工配置：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后点击保存配置。`, "warning");
+        }
+
         function formatConfidenceBreakdown(breakdown) {
             const data = breakdown && typeof breakdown === "object" ? breakdown : {};
-            const labels = { keyword: "keyword", section: "section", neighbor: "neighbor", reading_order: "reading" };
+            const labels = { keyword: "keyword", section: "section", neighbor: "neighbor", reading_order: "reading", semantic: "semantic" };
             const parts = Object.entries(labels).map(([key, label]) => {
                 const value = Number(data[key] || 0);
                 return value > 0 ? `${label}:${value.toFixed(2)}` : "";
@@ -1611,6 +1793,8 @@
                     semantic_confidence: Number(row.dataset.semanticConfidence || 0),
                     semantic_reason: row.dataset.semanticReason || "",
                     semantic_promoted: row.dataset.semanticPromoted === "true",
+                    manual_override: row.dataset.userEdited === "true" || row.dataset.manualOverride === "true",
+                    user_edited: row.dataset.userEdited === "true",
                     ai_extract_hint: hintInput ? hintInput.value.trim() : "",
                 };
             }).filter((item) => item.cell);
@@ -1913,6 +2097,16 @@
             }).filter((item) => item.section_key);
         }
 
+        function markConfigurationRowEdited(input) {
+            const row = input.closest("tr[data-cell]");
+            const debugRow = input.closest("tr.debug-row");
+            const targetRow = row || (debugRow ? debugRow.previousElementSibling : null);
+            if (targetRow && targetRow.matches("tr[data-cell]")) {
+                targetRow.dataset.userEdited = "true";
+                targetRow.dataset.manualOverride = "true";
+            }
+        }
+
         async function saveTemplateConfiguration() {
             if (!selectedMappingId) { setStatus("请先选择映射。", "warning"); return; }
             const items = collectEditableConfiguration();
@@ -1957,6 +2151,9 @@
             const baseRows = appendSavedConfigurationRows(buildConfigRows(labels, structureLabels, sections), cached?.savedConfiguration);
             const rows = applySavedConfiguration(baseRows, cached?.savedConfiguration, cached?.candidates);
             const configSections = buildConfigSections(rows, sections, cached?.savedSectionConfiguration);
+            const semanticRecommendationCount = (Array.isArray(cached?.candidates) ? cached.candidates : [])
+                .filter((candidate) => candidate && candidate.semantic_promoted === true && Number(candidate.confidence || candidate.semantic_confidence || 0) >= 0.70)
+                .length;
 
             if (!rows.length) {
                 area.className = "config-empty";
@@ -1967,6 +2164,12 @@
 
             area.className = "";
             area.innerHTML = `
+                <div class="config-actions">
+                    <div class="config-action-hint">
+                        可应用语义推荐 ${semanticRecommendationCount} 项。根据语义推荐自动生成一版草稿配置，应用后仍需点击“保存配置”。
+                    </div>
+                    <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${semanticRecommendationCount ? "" : "disabled"}>应用语义推荐</button>
+                </div>
                 ${configSections.map((section) => `
                     <div class="config-section" data-section-key="${escapeHtml(section.key)}">
                         <div class="config-section-header collapsed" onclick="toggleSection(this)">
@@ -1987,7 +2190,7 @@
                                 </thead>
                                 <tbody>
                                     ${section.rows.map((row) => `
-                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}"` : ""}>
+                                        <tr ${row.cell ? `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"` : ""}>
                                             <td>${escapeHtml(row.cell || "-")}</td>
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>
@@ -2063,8 +2266,8 @@
                 });
             });
             area.querySelectorAll("[data-config-field]").forEach((input) => {
-                input.addEventListener("input", () => renderConfigurationValidation());
-                input.addEventListener("change", () => renderConfigurationValidation());
+                input.addEventListener("input", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
+                input.addEventListener("change", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
             });
             renderConfigurationValidation();
         }
