@@ -132,3 +132,56 @@ Template Analysis / Auto Mapping 对该模板可用。
 2. 不要用通用字段集合评估所有模板。
 3. 后续可增加模板类型自动识别。
 4. 继续测试其他类型模板，例如爆珠、固体饮料、片剂等。
+
+---
+
+## 测试环境与 Feature Flags 说明
+
+本轮真实模板回归主要验证以下能力：
+
+- scan_excel_labels
+- analyze_template
+- generate_auto_mapping
+- Template Analysis
+- Auto Mapping
+
+这些能力通常不依赖 Excel Export Feature Flags。
+
+当前系统存在以下 Excel 功能开关：
+
+- image_fields
+- dynamic_tables
+- advanced_write_modes
+- option_write_enhancement
+- format_protection
+- export_readback_check
+
+注意：
+
+本轮真实模板回归未验证完整 Excel Export 链路。
+
+后续如果测试以下能力，必须先记录 Feature Flag 状态：
+
+- 图片导出
+- 动态表格导出
+- 高级写入模式
+- option 写入增强
+- 格式/公式保护
+- 导出结果回读检查
+
+否则可能出现：
+
+功能被关闭，但误判为代码异常。
+
+后续 Export / Workspace / Executor 测试报告中，应增加：
+
+```text
+TEST ENVIRONMENT
+
+image_fields:
+dynamic_tables:
+advanced_write_modes:
+option_write_enhancement:
+format_protection:
+export_readback_check:
+```
