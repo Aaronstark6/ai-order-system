@@ -5,11 +5,12 @@ import re
 
 from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
+from openpyxl.drawing.image import Image as XLImage
 
 from app.runtime_paths import get_base_dir
 
 
-SUPPORTED_OP_TYPES = {"write_text", "write_number", "write_multiline", "write_table_cell", "write_block"}
+SUPPORTED_OP_TYPES = {"write_text", "write_number", "write_multiline", "write_table_cell", "write_block", "write_image"}
 
 
 def _safe_filename_part(value):
@@ -186,22 +187,6 @@ def execute_operations_to_excel(template_file, operations):
             warnings.append(f"第 {index} 条 operation 无效，已跳过。")
             continue
 
-        target_cell = _operation_target_cell(operation)
-        if not target_cell:
-            warnings.append(f"第 {index} 条 operation 缺少 target_cell，已跳过。")
-            continue
-
-        if _is_empty_operation(operation):
-            reason = f"{target_cell} value 为空，Excel 写入前已跳过。"
-            warnings.append(reason)
-            skipped = dict(operation)
-            skipped["skipped"] = True
-            skipped["safety_status"] = "skipped"
-            skipped["skip_code"] = "empty_value"
-            skipped["skip_reason"] = reason
-            skipped_operations.append(skipped)
-            continue
-
         op_type = str(operation.get("op_type") or operation.get("operation") or "").strip()
         if op_type and op_type not in SUPPORTED_OP_TYPES:
             warnings.append(f"第 {index} 条 operation 类型 {op_type} 暂不支持，已跳过。")
@@ -209,50 +194,88 @@ def execute_operations_to_excel(template_file, operations):
 
         try:
             worksheet = _resolve_operation_worksheet(workbook, operation, warnings)
-            write_cell = _resolve_merged_target(worksheet, target_cell, warnings)
-            cell = worksheet[write_cell]
+            
+            if op_type == "write_image":
+                image_path = operation.get("image_path")
+                if not image_path:
+                    warnings.append(f"第 {index} 条 operation 缺少 image_path，已跳过。")
+                    continue
+                
+                image_file = Path(image_path)
+                if not image_file.is_file():
+                    raise ValueError(f"图片文件不存在：{image_path}")
+                
+                xl_image = XLImage(str(image_file))
+                
+                anchor_cell = operation.get("image_anchor_cell") or operation.get("target_cell")
+                if not anchor_cell:
+                    warnings.append(f"第 {index} 条 operation 缺少 image_anchor_cell 或 target_cell，已跳过。")
+                    continue
+                
+                worksheet.add_image(xl_image, anchor_cell)
+                
+                operations_written += 1
+            else:
+                target_cell = _operation_target_cell(operation)
+                if not target_cell:
+                    warnings.append(f"第 {index} 条 operation 缺少 target_cell，已跳过。")
+                    continue
 
-            if _cell_has_formula(cell):
-                skipped, reason = _formula_protection_skip(
-                    operation,
-                    requested_cell=target_cell,
-                    write_cell=write_cell,
-                    formula_value=cell.value,
-                )
-                warnings.append(reason)
-                skipped_operations.append(skipped)
-                formula_protected_operations.append(skipped)
-                formula_protected_cells.append(
-                    {
-                        "sheet_name": worksheet.title,
-                        "target_cell": write_cell,
-                        "requested_cell": target_cell,
-                        "existing_formula": str(cell.value or ""),
-                        "source": str(operation.get("source") or operation.get("type") or ""),
-                        "op_type": op_type,
-                    }
-                )
-                continue
+                if _is_empty_operation(operation):
+                    reason = f"{target_cell} value 为空，Excel 写入前已跳过。"
+                    warnings.append(reason)
+                    skipped = dict(operation)
+                    skipped["skipped"] = True
+                    skipped["safety_status"] = "skipped"
+                    skipped["skip_code"] = "empty_value"
+                    skipped["skip_reason"] = reason
+                    skipped_operations.append(skipped)
+                    continue
 
-            if _cell_has_template_value(cell) and not _is_mapping_confirmed(operation):
-                warning = f"{write_cell} 目标单元格已有模板内容，可能发生覆盖。"
-                warnings.append(warning)
-                overwrite_warnings.append(
-                    {
-                        "sheet_name": worksheet.title,
-                        "target_cell": write_cell,
-                        "requested_cell": target_cell,
-                        "source": str(operation.get("source") or operation.get("type") or ""),
-                        "op_type": op_type,
-                        "warning": warning,
-                    }
-                )
-            cell.value = _operation_value(operation)
-            if "\n" in str(cell.value or "") or op_type in {"write_multiline", "write_block"}:
-                _set_wrap_text(cell)
-            operations_written += 1
+                write_cell = _resolve_merged_target(worksheet, target_cell, warnings)
+                cell = worksheet[write_cell]
+
+                if _cell_has_formula(cell):
+                    skipped, reason = _formula_protection_skip(
+                        operation,
+                        requested_cell=target_cell,
+                        write_cell=write_cell,
+                        formula_value=cell.value,
+                    )
+                    warnings.append(reason)
+                    skipped_operations.append(skipped)
+                    formula_protected_operations.append(skipped)
+                    formula_protected_cells.append(
+                        {
+                            "sheet_name": worksheet.title,
+                            "target_cell": write_cell,
+                            "requested_cell": target_cell,
+                            "existing_formula": str(cell.value or ""),
+                            "source": str(operation.get("source") or operation.get("type") or ""),
+                            "op_type": op_type,
+                        }
+                    )
+                    continue
+
+                if _cell_has_template_value(cell) and not _is_mapping_confirmed(operation):
+                    warning = f"{write_cell} 目标单元格已有模板内容，可能发生覆盖。"
+                    warnings.append(warning)
+                    overwrite_warnings.append(
+                        {
+                            "sheet_name": worksheet.title,
+                            "target_cell": write_cell,
+                            "requested_cell": target_cell,
+                            "source": str(operation.get("source") or operation.get("type") or ""),
+                            "op_type": op_type,
+                            "warning": warning,
+                        }
+                    )
+                cell.value = _operation_value(operation)
+                if "\n" in str(cell.value or "") or op_type in {"write_multiline", "write_block"}:
+                    _set_wrap_text(cell)
+                operations_written += 1
         except Exception as exc:
-            warnings.append(f"{target_cell} 写入失败：{exc}")
+            warnings.append(f"operation 执行失败：{exc}")
 
     output_dir = get_base_dir() / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
