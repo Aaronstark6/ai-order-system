@@ -16,3 +16,9 @@ data/v4_template_uploads/
 v4/rules/profiles/
 v4/template_profiles/*.json
 !v4/template_profiles/default_profile.json
+
+# Local real template test files
+real_template.xlsx
+
+# V4 uploaded/system template assets
+v4/system_templates/
