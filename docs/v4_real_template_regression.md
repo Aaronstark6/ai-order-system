@@ -444,3 +444,95 @@ B12=None | C12=None | D12=None | E12=None | F12=None
 ✓ 多行列数据正确写入
 ✓ confirmed=True 标志正常工作
 ✓ 输出文件回读校验通过
+
+---
+
+# FIX106A 图片字段 Export 审计
+
+## 测试目标
+
+验证真实模板中图片字段导出能力，重点验证图片插入到 Excel 的链路。
+
+## 测试环境
+
+Feature Flags 当前状态：
+
+```text
+image_fields: missing
+dynamic_tables: missing
+advanced_write_modes: missing
+option_write_enhancement: missing
+format_protection: missing
+export_readback_check: missing
+```
+
+## 图片测试
+
+- 图片创建成功：True
+- 测试图片路径：tmp_fix106a_logo.png
+- 选中的图片锚点单元格：H5
+
+## 模板信息
+
+使用模板：软胶囊爆珠模板 (c71a0eaf-51a9-45a4-bbec-834e1b3a2211.xlsx)
+
+## 测试结果
+
+- 导出成功：True
+- 输出文件：output/v4_core_fix106a_test_20260523_214423.xlsx
+
+## 图片验证结果
+
+- 图片数量：1
+- 图片锚点信息：Anchor info not directly accessible
+
+## 结论
+
+结果：
+
+PARTIAL
+
+## 已验证
+
+底层 Excel 图片插入能力通过：
+
+- 可以创建临时 PNG
+- 可以使用 openpyxl.drawing.image.Image 插入图片
+- 输出 workbook 中 images_count = 1
+- 图片锚点可被检测
+
+## 未通过 / 未实现
+
+V4 Executor 图片字段链路尚未实现：
+
+当前 app/v4_excel_executor.py 的 SUPPORTED_OP_TYPES 为：
+
+write_text
+write_number
+write_multiline
+write_table_cell
+write_block
+
+不包含：
+
+write_image
+insert_image
+image_field
+
+因此以下链路尚未打通：
+
+Template image field
+→ confirmed_cells image data
+→ V4 operation
+→ v4_excel_executor
+→ Excel image insertion
+
+## 当前判断
+
+该能力不是 bug，而是尚未接入 V4 Executor。
+
+后续需要单独开发：
+
+V4-EXPORT-FIX106B：为 v4_excel_executor 增加 write_image operation 支持。
+
+完成后再做真实图片 Export 回归。
