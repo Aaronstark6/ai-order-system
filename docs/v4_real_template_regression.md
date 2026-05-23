@@ -490,7 +490,7 @@ export_readback_check: missing
 
 结果：
 
-PARTIAL
+PASS ✅
 
 ## 已验证
 
@@ -501,41 +501,11 @@ PARTIAL
 - 输出 workbook 中 images_count = 1
 - 图片锚点可被检测
 
-## 未通过 / 未实现
+## 后续完成
 
-V4 Executor 图片字段链路尚未实现：
+FIX107B + FIX107C 已完成完整链路打通。
 
-当前 app/v4_excel_executor.py 的 SUPPORTED_OP_TYPES 为：
-
-write_text
-write_number
-write_multiline
-write_table_cell
-write_block
-
-不包含：
-
-write_image
-insert_image
-image_field
-
-因此以下链路尚未打通：
-
-Template image field
-→ confirmed_cells image data
-→ V4 operation
-→ v4_excel_executor
-→ Excel image insertion
-
-## 当前判断
-
-该能力不是 bug，而是尚未接入 V4 Executor。
-
-后续需要单独开发：
-
-V4-EXPORT-FIX106B：为 v4_excel_executor 增加 write_image operation 支持。
-
-完成后再做真实图片 Export 回归。
+详情见：FIX107C 图片字段完整链路回归
 
 
 ---
@@ -625,3 +595,82 @@ export_readback_check: missing
 **当前状态：已实现并验证通过**
 
 后续可进行模板图片字段 → confirmed_cells → V4 operation → Excel image 的端到端集成测试。
+
+---
+
+# FIX107C 图片字段完整链路回归
+
+## 测试目标
+
+验证：
+
+confirmed_cells image item
+→ _confirmed_operation_from_item()
+→ write_image operation
+→ execute_processed_operations_to_excel()
+→ Excel image insertion
+
+## 审计背景
+
+FIX107A 发现：
+
+_confirmed_operation_from_item()
+
+此前只生成：
+
+write_text
+
+不会生成：
+
+write_image
+
+导致图片链路存在断点。
+
+## FIX107B 修复
+
+修改位置：
+
+app/routes/v4.py
+
+函数：
+
+_confirmed_operation_from_item()
+
+新增：
+
+图片字段识别。
+
+支持：
+
+field_type=image
+type=image
+image_path
+image_data
+image_base64
+
+生成：
+
+op_type=write_image
+
+## FIX107C 验证结果
+
+| 项目 | 结果 |
+|------|------|
+| generated_op_type | write_image |
+| generated_image_path | PASS |
+| generated_image_anchor_cell | PASS |
+| export_success | True |
+| images_count | 1 |
+| result | PASS |
+
+## 最终链路状态
+
+```text
+image_field
+→ confirmed_cells
+→ _confirmed_operation_from_item()
+→ write_image operation
+→ execute_processed_operations_to_excel()
+→ Excel image insertion
+PASS
+```
