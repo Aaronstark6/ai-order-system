@@ -3,7 +3,7 @@ from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
 
 STRUCTURED_SEMANTICS = {"customer_info", "document_info", "product_detail"}
-TABLE_SEMANTICS = {"formula", "packaging", "production_batch", "label_requirement"}
+TABLE_SEMANTICS = {"formula", "packaging", "production_batch", "label_requirement", "order_items", "product_detail", "table"}
 
 EXACT_SOURCE_PATHS = {
     "客户名称": "customer.name",

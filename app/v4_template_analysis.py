@@ -21,6 +21,18 @@ HEADER_FIELDS = {
     "营养成分": "nutrient",
     "每份含量": "amount",
     "NRV%": "nrv",
+    "产品名称": "product_name",
+    "产品": "product_name",
+    "品名": "product_name",
+    "数量": "quantity",
+    "订购数量": "quantity",
+    "采购数量": "quantity",
+    "包装": "packaging",
+    "包装方式": "packaging",
+    "单价": "unit_price",
+    "价格": "unit_price",
+    "交期": "delivery_time",
+    "交货期": "delivery_time",
 }
 
 BLOCK_KEYWORDS = [
@@ -502,6 +514,38 @@ def _infer_table_end_row(sheet, header_row, start_col, end_col):
     return end_row
 
 
+def _infer_table_semantic_type(header_values):
+    values = {str(value or "").strip() for value in header_values if str(value or "").strip()}
+    order_item_keywords = {
+        "产品名称",
+        "产品",
+        "品名",
+        "数量",
+        "订购数量",
+        "采购数量",
+        "规格",
+        "产品规格",
+        "包装",
+        "包装方式",
+        "单价",
+        "价格",
+        "交期",
+        "交货期",
+    }
+    formula_keywords = {
+        "原料名",
+        "原料",
+        "含量",
+        "百分比",
+        "规格",
+    }
+    if len(values & order_item_keywords) >= 2:
+        return "order_items"
+    if len(values & formula_keywords) >= 2:
+        return "formula"
+    return "table"
+
+
 def infer_header_row(sheet, row_number):
     row_cells = _row_text_cells(sheet, row_number)
     candidates = []
@@ -556,8 +600,20 @@ def scan_table_regions(template_path):
                     default_end_row=end_row,
                 )
                 columns = header.get("columns", [])
+                header_values = []
+                for column in columns:
+                    if isinstance(column, dict):
+                        header_values.append(
+                            column.get("label")
+                            or column.get("header")
+                            or column.get("value")
+                            or ""
+                        )
+                semantic_type = _infer_table_semantic_type(header_values)
                 table_regions.append(
                     {
+                        "type": "table",
+                        "semantic_type": semantic_type,
                         "sheet": sheet.title,
                         "table_key": f"smart_table_{len(table_regions) + 1}",
                         "table_name": _infer_table_name(columns),
