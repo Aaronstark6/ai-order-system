@@ -242,3 +242,108 @@ Template Analysis / Auto Mapping 已验证至少两种真实模板。
 当前状态：
 
 **PASS**
+
+---
+
+# FIX104A 真实模板完整 Export 回归
+
+## 测试目标
+
+验证真实模板从配置到 Excel 导出的完整链路：
+
+真实模板
+→ profile 配置
+→ confirmed_cells
+→ operations merge
+→ Excel Export
+→ 输出文件单元格校验
+
+## 测试环境
+
+Feature Flags 当前状态：
+
+```text
+excel_feature_flags = {}
+```
+
+## 测试模板
+
+文件名：real_template.xlsx
+
+模板类型：软胶囊定制品订单生产要求模板
+
+## 测试字段
+
+| label | source_path | sheet | row | col |
+|-------|-------------|-------|-----|-----|
+| 文档编号 | document.doc_no | Sheet1 | 2 | 2 |
+| 日期 | order.order_date | Sheet1 | 3 | 2 |
+| 客户名称 | customer.name | Sheet1 | 4 | 2 |
+| 客户性质 | customer.type | Sheet1 | 5 | 2 |
+| 数量 | order.quantity | Sheet1 | 6 | 2 |
+| 负责人 | order.owner | Sheet1 | 7 | 2 |
+
+## 测试数据
+
+```json
+{
+  "document": {
+    "doc_no": "DOC-2024-001"
+  },
+  "order": {
+    "order_date": "2024-03-15",
+    "quantity": "10000",
+    "owner": "张三"
+  },
+  "customer": {
+    "name": "测试客户有限公司",
+    "type": "VIP客户"
+  }
+}
+```
+
+## 测试步骤与结果
+
+### 1. 测试场景
+
+设置 template_file_path = "real_template.xlsx"
+保存 confirmed_cells 映射
+
+### 2. 合并操作
+
+merge 结果：
+- original_count: 6
+- override_count: 6 (全部正确合并)
+- processed_operations: 6 个
+
+### 3. Excel 写入
+
+- 成功写入 6 个单元格
+- 无写入错误
+
+### 4. 输出文件校验
+
+| cell | expected | actual | pass |
+|------|----------|--------|------|
+| B3 | DOC-2024-001 | DOC-2024-001 | ✓ |
+| B4 | 2024-03-15 | 2024-03-15 | ✓ |
+| B5 | 测试客户有限公司 | 测试客户有限公司 | ✓ |
+| B6 | VIP客户 | VIP客户 | ✓ |
+| B7 | 10000 | 10000 | ✓ |
+| B8 | 张三 | 张三 | ✓ |
+
+cell_verify_pass_count: 6
+
+## 结论
+
+完整真实模板 Excel Export 回归测试：
+
+**PASS**
+
+验证链路：
+✓ 真实模板扫描
+✓ Profile 配置保存
+✓ Confirmed Cells 映射
+✓ Operations 合并 (_override_operations_with_confirmed_cells)
+✓ Excel 写入 (V4ExcelExecutor)
+✓ 输出文件回读校验
