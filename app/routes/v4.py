@@ -2894,8 +2894,8 @@ def _confirmed_item_with_mapping_config(item, config):
         or ""
     ).strip()
     merged["source_cell"] = _cell_key(merged.get("source_cell") or config.get("label_cell") or config.get("_source_cell"))
-    merged["cell"] = _cell_key(config.get("target_cell") or merged.get("cell") or merged.get("display_cell") or merged.get("source_cell"))
-    merged["target_cell"] = _cell_key(config.get("target_cell") or merged.get("cell"))
+    merged["cell"] = _cell_key(config.get("target_cell") or merged.get("target_cell") or merged.get("image_anchor_cell") or merged.get("cell") or merged.get("display_cell") or merged.get("source_cell"))
+    merged["target_cell"] = _cell_key(config.get("target_cell") or merged.get("target_cell") or merged.get("image_anchor_cell") or merged.get("cell"))
     merged["sheet_name"] = _sheet_key(
         config.get("sheet_name")
         or config.get("target_sheet")
@@ -3120,7 +3120,8 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
             continue
 
         operation = _confirmed_operation_from_item(enriched_item, worksheet)
-        if str(operation.get("value") or "").strip() == "":
+        is_image = operation.get("op_type") == "write_image"
+        if not is_image and str(operation.get("value") or "").strip() == "":
             write_mode_summary["skipped"] += 1
             _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
             continue
@@ -4985,9 +4986,10 @@ def api_v4_export_confirmed_excel(
 
         text_confirmed_cells, image_confirmed_cells = _split_confirmed_cells_for_excel_export(confirmed_cells)
 
+        use_operation_image_export = True
         override_result = _override_operations_with_confirmed_cells(
             processed_operations,
-            text_confirmed_cells,
+            confirmed_cells,
             profile=profile,
             template_path=template_path,
         )
@@ -5017,11 +5019,14 @@ def api_v4_export_confirmed_excel(
                 exported_file_path = exported_file_path
             else:
                 exported_file_path = Path("output") / exported_file_path
-        image_export_summary = _insert_confirmed_images_into_excel(
-            exported_file_path,
-            image_confirmed_cells,
-            excel_feature_flags=excel_feature_flags,
-        )
+        if image_confirmed_cells and not use_operation_image_export:
+            image_export_summary = _insert_confirmed_images_into_excel(
+                exported_file_path,
+                image_confirmed_cells,
+                excel_feature_flags=excel_feature_flags,
+            )
+        else:
+            image_export_summary = {"total": 0, "inserted": 0, "skipped": 0, "warnings": []}
         if image_export_summary.get("warnings"):
             export_result["warnings"] = [
                 *(export_result.get("warnings", []) or []),
