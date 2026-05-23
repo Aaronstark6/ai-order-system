@@ -347,3 +347,100 @@ cell_verify_pass_count: 6
 ✓ Operations 合并 (_override_operations_with_confirmed_cells)
 ✓ Excel 写入 (V4ExcelExecutor)
 ✓ 输出文件回读校验
+
+---
+
+# FIX105A 真实模板动态表格写入验证
+
+## 测试目标
+
+验证真实模板中动态表格写入能力，重点验证 write_table_cell / row_offset / col_offset 链路。
+
+## 测试环境
+
+Feature Flags 当前状态：
+
+```text
+image_fields: missing
+dynamic_tables: missing
+advanced_write_modes: missing
+option_write_enhancement: missing
+format_protection: missing
+export_readback_check: missing
+```
+
+## 模板信息
+
+- 模板文件：软胶囊、爆珠模板 (c71a0eaf-51a9-45a4-bbec-834e1b3a2211.xlsx)
+- Sheet 名称：软胶囊、爆珠
+- 安全测试区域起点：B30
+
+## 原始模板 B8:F12 区域
+
+```
+B8=代号：
+软胶囊壳形状、大小和颜色：
+填充量（内容物重量）：
+包装数量和规格：1000瓶， 60粒/瓶
+包装尺寸和要求：瓶子大小颜色，盖子样式颜色； 铝箔袋大小要求
+干燥剂：默认英文的干燥剂
+瓶口密封方式：默认铝箔片密封
+是否贴标签：
+谁设计制作标签：
+标签材质和工艺要求：
+批号日期：
+批号默认是年月日， 生产日期和有效期是 日/月/年，有效期2年
+瓶盖热缩膜：默认不做热缩膜
+全包热缩膜：默认不做全包热缩膜
+是否套防护塑料袋：默认套袋子，防划伤
+
+配方：中文&英文
+ | C8=None | D8=None | E8=None | F8=None
+B9=其他要求：如条形码，彩盒，礼盒 | C9=None | D9=None | E9=None | F9=None
+B10=其他可选包装：散装，三边封袋装，泡罩等 | C10=None | D10=None | E10=None | F10=None
+B11=None | C11=None | D11=None | E11=None | F11=None
+B12=None | C12=None | D12=None | E12=None | F12=None
+```
+
+## 测试数据
+
+目标：写入 2 行 x 3 列 的动态表格数据
+
+第 1 行（row_offset=0）：
+- 产品：软胶囊
+- 数量：5000
+- 规格：500mg
+
+第 2 行（row_offset=1）：
+- 产品：爆珠
+- 数量：8000
+- 规格：300mg
+
+## 测试结果
+
+- 导出成功：True
+- 写入操作数量：6
+- 输出文件位置：output/v4_core_c71a0eaf-51a9-45a4-bbec-834e1b3a2211_20260523_211846.xlsx
+
+### 单元格验证结果
+
+| 单元格 | 预期值 | 实际值 | 状态 |
+|--------|--------|--------|------|
+| B30 | 软胶囊 | 软胶囊 | ✓ |
+| C30 | 5000 | 5000 | ✓ |
+| D30 | 500mg | 500mg | ✓ |
+| B31 | 爆珠 | 爆珠 | ✓ |
+| C31 | 8000 | 8000 | ✓ |
+| D31 | 300mg | 300mg | ✓ |
+
+## 结论
+
+动态表格写入验证结果：**PASS**
+
+验证链路：
+✓ write_table_cell 操作类型支持
+✓ row_offset 偏移计算正确
+✓ col_offset 偏移计算正确
+✓ 多行列数据正确写入
+✓ confirmed=True 标志正常工作
+✓ 输出文件回读校验通过
