@@ -2985,6 +2985,34 @@ def _confirmed_write_value(item, worksheet):
 
 def _confirmed_operation_from_item(item, worksheet):
     target_cell = _cell_key(item.get("target_cell") or item.get("cell"))
+    field_type = str(item.get("field_type") or item.get("type") or "").strip().lower()
+    is_image_field = (
+        field_type == "image"
+        or bool(item.get("image_path"))
+        or bool(item.get("image_data"))
+        or bool(item.get("image_base64"))
+    )
+    if is_image_field:
+        return {
+            "op_type": "write_image",
+            "target_cell": target_cell,
+            "source": item.get("source") or "Confirmed Workspace",
+            "field_key": item.get("field_key") or "",
+            "field_label": item.get("label") or "",
+            "mapping_confirmed": True,
+            "confirmed_override": True,
+            "confirmed_label": item.get("label") or "",
+            "confirmed_source": item.get("source") or "Confirmed Workspace",
+            "write_mode": item.get("write_mode") or "",
+            "intent_type": item.get("intent_type") or "",
+            "image_anchor_cell": item.get("image_anchor_cell") or item.get("target_cell") or item.get("cell"),
+            "image_path": item.get("image_path") or "",
+            "image_data": item.get("image_data") or "",
+            "image_base64": item.get("image_base64") or "",
+            "image_fit": item.get("image_fit") or "contain",
+            "confirmed": True,
+            "target_sheet": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
+        }
     value = _confirmed_write_value(item, worksheet)
     return {
         "op_type": "write_text",
