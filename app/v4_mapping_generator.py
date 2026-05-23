@@ -59,7 +59,10 @@ def _empty_mapping():
 
 
 def _clean_label(value):
-    return str(value or "").strip().rstrip(":：")
+    text = str(value or "").strip()
+    while text and (text.endswith(":") or text.endswith("：")):
+        text = text.rstrip(":：").rstrip()
+    return text
 
 
 def _line_count(value):

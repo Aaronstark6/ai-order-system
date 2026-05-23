@@ -35,6 +35,8 @@ BLOCK_KEYWORDS = [
 
 def _clean_text(value):
     text = str(value or "").strip()
+    while text and (text.endswith(":") or text.endswith("：")):
+        text = text.rstrip(":：").rstrip()
     return text if text else ""
 
 
@@ -59,6 +61,7 @@ def scan_excel_labels(template_path):
             for cell in row:
                 if not isinstance(cell.value, str):
                     continue
+                raw_value = str(cell.value or "")
                 value = _clean_text(cell.value)
                 if not value or _is_numeric_text(value):
                     continue
@@ -67,6 +70,7 @@ def scan_excel_labels(template_path):
                         "sheet": sheet.title,
                         "cell": cell.coordinate,
                         "value": value,
+                        "raw_value": raw_value,
                     }
                 )
     return labels

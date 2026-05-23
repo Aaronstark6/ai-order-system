@@ -40,7 +40,10 @@ STRUCTURED_LABELS = {
 
 
 def _clean_label(value):
-    return str(value or "").strip().rstrip(":：")
+    text = str(value or "").strip()
+    while text and (text.endswith(":") or text.endswith("：")):
+        text = text.rstrip(":：").rstrip()
+    return text
 
 
 def _infer_target_cell(label_cell):
