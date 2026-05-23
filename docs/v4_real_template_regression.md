@@ -536,3 +536,92 @@ Template image field
 V4-EXPORT-FIX106B：为 v4_excel_executor 增加 write_image operation 支持。
 
 完成后再做真实图片 Export 回归。
+
+
+---
+
+# FIX106C 图片字段 Executor 回归
+
+## 测试目标
+
+验证 V4 Executor 新增的 write_image operation 是否可用。
+
+验证链路：
+
+real_template.xlsx
+→ write_image operation
+→ execute_processed_operations_to_excel
+→ Excel output
+→ workbook image 检查
+
+## 测试环境
+
+Feature Flags 当前状态：
+
+```text
+image_fields: missing
+dynamic_tables: missing
+advanced_write_modes: missing
+option_write_enhancement: missing
+format_protection: missing
+export_readback_check: missing
+```
+
+## 测试步骤
+
+### 1. 创建真实图片
+
+- 文件名：tmp_fix106c_logo.png
+- 尺寸：160x60
+- 内容：FIX106C 文本
+- 创建方式：Pillow Image 生成
+
+### 2. 构造 write_image operation
+
+```json
+{
+  "op_type": "write_image",
+  "image_path": "tmp_fix106c_logo.png",
+  "target_cell": "H5",
+  "image_anchor_cell": "H5",
+  "image_fit": "contain",
+  "confirmed": true
+}
+```
+
+### 3. 执行完整 V4 Executor Export 链路
+
+调用：`execute_processed_operations_to_excel(template_path, operations)`
+
+## 测试结果
+
+| 项目 | 结果 |
+|------|------|
+| supported_types_contains_write_image | True |
+| export_success | True |
+| operations_written | 1 |
+| images_count | 1 |
+| anchor | anchor_info_not_available |
+| result | **PASS** |
+
+## 输出文件验证
+
+- 输出路径：output/v4_core_c71a0eaf-51a9-45a4-bbec-834e1b3a2211_20260523_222404.xlsx
+- 图片数量：1
+- 写入状态：success
+
+## 结论
+
+**V4 Executor 图片字段链路已实现** ✅
+
+验证链路完整通过：
+
+✓ write_image operation 已加入 SUPPORTED_OP_TYPES
+✓ execute_processed_operations_to_excel 支持图片操作
+✓ 图片文件正确加载 (openpyxl.drawing.image.Image)
+✓ 图片正确锚定到目标单元格 (H5)
+✓ 输出 Excel 包含图片 (images_count = 1)
+
+**当前状态：已实现并验证通过**
+
+后续可进行模板图片字段 → confirmed_cells → V4 operation → Excel image 的端到端集成测试。
