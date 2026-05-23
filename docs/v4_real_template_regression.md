@@ -185,3 +185,60 @@ option_write_enhancement:
 format_protection:
 export_readback_check:
 ```
+
+---
+
+# FIX103A 第二真实模板回归
+
+模板：
+
+软胶囊_软胶囊爆珠模板
+
+模板类型：
+
+软胶囊爆珠模板
+
+验证结果：
+
+labels_count: 15
+structured_count: 6
+table_count: 0
+block_count: 0
+needs_review_count: 2
+
+已识别字段：
+
+- 文档编号 → document.doc_no
+- 日期 → order.order_date
+- 客户名称 → customer.name
+- 客户性质 → customer.type
+- 数量 → order.quantity
+- 负责人 → order.owner
+
+低置信度字段：
+
+- 备货单号--产品代号
+- 产品描述
+
+missing_fields:
+
+无。
+
+识别率：
+
+100%
+
+## 与第一真实模板对比
+
+| 模板 | 类型 | structured | tables | blocks |
+|------|------|------|------|------|
+| real_template.xlsx | 定制品订单 | 6 | 3 | 2 |
+| 软胶囊爆珠模板 | 爆珠模板 | 6 | 0 | 0 |
+
+结论：
+
+Template Analysis / Auto Mapping 已验证至少两种真实模板。
+
+当前状态：
+
+**PASS**
