@@ -497,3 +497,49 @@ Excel readback:
 ## 状态更新
 
 动态表格状态从 `IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE` 更新为 `PASS`。
+
+---
+
+# V4-WORKSPACE-FIELD-CLOSE01 Workspace Field Control
+
+## 结果
+
+PASS
+
+## 审计结论
+
+Template Settings 的 `show_in_workspace` 会随保存配置写入 profile configuration；后端 `workspace_fields` 生成会过滤 `show_in_workspace=false` 的字段；`/api/v4/template-layout` 返回过滤后的 `workspace_fields`；`v4-order-workspace` 使用真实 `workspace_fields` 渲染订单确认区。
+
+```text
+WORKSPACE_FIELD_CONTROL_AUDIT: PASS
+```
+
+## 真实验证
+
+测试模板：软胶囊
+
+测试字段：`F20 / semantic_f20 / 其他`
+
+### Case A: show_in_workspace=true
+
+```text
+profile.configuration.F20.show_in_workspace: true
+template-layout.workspace_fields_count: 41
+template-layout.semantic_f20_count: 1
+v4-order-workspace [data-field-key="semantic_f20"]: displayed
+JS errors: none
+```
+
+### Case B: show_in_workspace=false
+
+```text
+profile.configuration.F20.show_in_workspace: false
+template-layout.workspace_fields_count: 40
+template-layout.semantic_f20_count: 0
+v4-order-workspace [data-field-key="semantic_f20"]: 0
+JS errors: none
+```
+
+## 状态更新
+
+Workspace Field Control: PASS
