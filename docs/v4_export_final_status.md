@@ -326,12 +326,13 @@ result: PASS
 
 | 功能 | 状态 |
 |------|------|
-| Workspace image upload widget | NOT VERIFIED |
+| Workspace image upload widget | PASS |
 | Workspace dynamic table multi-row UI | NOT VERIFIED |
+
+FIX112A 已补齐真实 Workspace 图片字段上传控件，支持选择、替换、清除、preview，并保持 image.data_url payload contract。
 
 原因：
 
-- 当前页面缺少真实图片字段上传控件
 - 当前页面缺少可操作动态表多行 UI 控件
 
 ## 最终链路状态
@@ -355,8 +356,8 @@ PASS
 1. **temporary image cleanup strategy**
    - 需要后续优化临时图片清理策略
 
-2. **workspace image upload control coverage**
-   - 当前 UI 缺少真实图片上传控件
+2. **workspace image upload browser automation coverage**
+   - 控件和 API payload 已验证；仅剩浏览器自动化 setInputFiles 受限，未做完整自动塞文件测试
 
 3. **dynamic table UI coverage**
    - 当前 UI 缺少可操作动态表多行 UI 控件

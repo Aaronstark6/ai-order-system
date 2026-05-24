@@ -1182,12 +1182,13 @@ result: PASS
 
 | 功能 | 状态 |
 |------|------|
-| Workspace image upload widget | NOT VERIFIED |
+| Workspace image upload widget | PASS |
 | Workspace dynamic table multi-row UI | NOT VERIFIED |
+
+FIX112A 已补齐真实 Workspace 图片字段上传控件，支持选择、替换、清除、preview，并保持 image.data_url payload contract。
 
 原因：
 
-- 当前页面缺少真实图片字段上传控件
 - 当前页面缺少可操作动态表多行 UI 控件
 
 ## 最终链路状态
@@ -1211,8 +1212,8 @@ PASS
 1. **temporary image cleanup strategy**
    - 需要后续优化临时图片清理策略
 
-2. **workspace image upload control coverage**
-   - 当前 UI 缺少真实图片上传控件
+2. **workspace image upload browser automation coverage**
+   - 控件和 API payload 已验证；仅剩浏览器自动化 setInputFiles 受限，未做完整自动塞文件测试
 
 3. **dynamic table UI coverage**
    - 当前 UI 缺少可操作动态表多行 UI 控件
@@ -1222,3 +1223,69 @@ PASS
 **result: PASS**
 
 真实 Workspace UI 导出链路已打通，validator 误判已修复。
+
+---
+
+# FIX112A Workspace 图片上传控件回归
+
+## 测试目标
+
+验证真实 Workspace 页面是否已经支持图片字段上传控件，并能进入现有图片导出链路。
+
+## 修改内容
+
+- Workspace 图片字段现在显示选择图片、替换图片、清除图片、preview。
+- 支持图片格式：
+  - png
+  - jpg
+  - jpeg
+  - webp
+- 图片字段使用现有状态结构：
+  - workspaceImageValues
+- confirmed_cells 仍使用现有 payload contract：
+  - image.data_url
+  - image.mime_type
+  - image.filename
+  - image.image_fit
+
+## 后端兼容
+
+继续使用现有链路：
+
+workspaceImageValues
+→ confirmed_cells image payload
+→ data_url materialize
+→ write_image
+→ executor
+→ Excel
+
+## 验证结果
+
+- 真实页面：
+  http://127.0.0.1:8000/v4-order-workspace
+
+- 真实模板：
+  软胶囊
+  v4/system_templates/软胶囊_软胶囊爆珠模板_20260523_181128_191d0554.xlsx
+
+- 页面已出现图片控件：
+  semantic_g10 / G10 / 瓶子、胶囊壳等附图片
+
+- 真实 HTTP 调用 /api/v4/export-confirmed-excel 使用同一 UI payload contract 验证通过：
+  - success: true
+  - op_types 包含 write_image
+  - images_count: 1
+  - Excel 文件存在
+  - C5 写入确认文本
+
+## 结论
+
+result: PASS
+
+## 当前边界
+
+Codex in-app browser 当前没有暴露 setInputFiles，因此自动化里无法真正把本地文件塞进页面 file input。
+
+本次已完成：
+- 浏览器确认控件出现
+- 使用同一 confirmed_cells payload 走真实 API 验证 Excel 图片插入成功
