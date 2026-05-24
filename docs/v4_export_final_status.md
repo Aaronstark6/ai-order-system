@@ -367,3 +367,92 @@ PASS
 **result: PASS**
 
 真实 Workspace UI 导出链路已打通，validator 误判已修复。
+
+---
+
+# FIX114A V4 当前真实完成状态收口
+
+## 总体结论
+
+V4 当前状态：**Export / Workspace / Image UI 主链路 PASS；动态表格 UI 为 IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE。**
+
+动态表格 UI 不能写 PASS，也不能写 FAIL。FIX113C 的真实验证表明当前软胶囊真实模板没有 table field，因此无法完成真实端到端动态表格验证。
+
+## 最终状态矩阵
+
+| 模块 | 当前状态 | 真实依据 |
+|------|----------|----------|
+| Export 主链路 | PASS | 普通字段、图片字段、真实 `/api/v4/export-confirmed-excel` 均已通过真实导出验证 |
+| 普通字段写入 Excel | PASS | confirmed cells 文本值可覆盖/新增 operation 并写入 Excel |
+| 图片字段 data_url -> temp image_path -> write_image -> Excel | PASS | FIX109B/FIX112A 验证 `write_image` 进入 executor，Excel `images_count=1` |
+| Real API Export | PASS | `/api/v4/export-confirmed-excel` 真实链路通过 |
+| Workspace UI 普通字段确认与导出 | PASS | FIX111A/FIX111B 后真实 Workspace 导出成功 |
+| product.product_type validator blocker | PASS | blocking error 已降级 warning，未关闭 validator，未跳过其它 required 校验 |
+| 图片字段 UI 识别 | PASS | 软胶囊模板 G10 `image_area` 已进入 Workspace 图片字段 |
+| 图片上传/替换/清除/preview | PASS | FIX112A 已补齐控件和现有 `workspaceImageValues` 状态写入 |
+| png/jpg/jpeg/webp 支持 | PASS | UI accept 支持四类格式，data_url materialize 支持对应扩展名 |
+| confirmed_cells image payload | PASS | 继续使用 `image.data_url` / `mime_type` / `filename` / `image_fit` contract |
+| Excel 图片写入 | PASS | 真实 API 验证导出文件存在且 workbook 图片数 >= 1 |
+| 动态表格 UI | IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE | FIX113B 已实现最小 UI；FIX113C 真实软胶囊模板 `table_fields_count=0` |
+
+## 动态表格 UI 真实验证状态
+
+FIX113B 已实现最小动态表格 UI 能力：
+
+- `workspaceTableRows`
+- `workspaceTableKey()`
+- `isWorkspaceTableField()`
+- `renderWorkspaceTableControls()`
+- `addWorkspaceTableRow()`
+- `removeWorkspaceTableRow()`
+- `renderWorkspaceFields()`
+- `collectConfirmedCellsFromInputs()`
+- extra `row_offset` confirmed_cells
+
+FIX113C 真实验证结果：
+
+```text
+workspace_fields_count: 40
+table_fields_count: 0
+table_fields: []
+页面未显示“新增一行 / 删除一行”
+confirmed_cells row_offset: NOT VERIFIED
+Excel 下一行写入: NOT VERIFIED
+```
+
+结论：
+
+```text
+dynamic_table_ui: IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE
+```
+
+## Known Risks
+
+1. 当前缺少真实 table field 模板，因此动态表格 UI 不能完成真实 E2E PASS。
+2. 后续若要验证动态表格，需要先创建真实 table field 模板配置。
+3. 临时图片清理策略后续仍可优化。
+4. 后续产品化重点应转向模板配置体验，而不是继续堆工程化功能。
+
+## Recommended Next Phase
+
+下一阶段建议进入：**V4 产品化阶段**。
+
+重点：
+
+- 模板名称管理
+- 字段配置可视化
+- 哪些字段显示到 Workspace
+- 图片字段配置体验
+- 表格字段配置体验
+- 减少业务员看到工程化概念，例如文件路径、内部 mapping key、`current_template_path`
+
+## FIX114A RESULT
+
+```text
+export_main_chain: PASS
+workspace_ui: PASS
+image_field_ui: PASS
+dynamic_table_ui: IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE
+
+result: PASS WITH DYNAMIC TABLE UI PARTIAL VERIFIED
+```
