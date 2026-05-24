@@ -131,7 +131,7 @@ def validate_order_object(order_object):
         errors.append("缺少 product")
 
     if not str(product.get("product_type") or "").strip():
-        errors.append("缺少 product.product_type")
+        warnings.append("缺少 product.product_type")
 
     if not str(product.get("product_name") or "").strip():
         warnings.append("product.product_name 为空")
