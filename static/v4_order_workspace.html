@@ -871,14 +871,14 @@
             <h2>订单信息确认</h2>
 
             <div class="section profile-section">
-                <h3>选择系统模板</h3>
+                <h3>选择模板</h3>
                 <div class="profile-grid">
                     <div>
-                        <label for="v4ProfileSelect">系统模板</label>
+                        <label for="v4ProfileSelect">模板</label>
                         <select id="v4ProfileSelect"></select>
                     </div>
                 </div>
-                <div id="v4ProfileStatus" class="status info">正在加载系统模板...</div>
+                <div id="v4ProfileStatus" class="status info">正在加载模板...</div>
                 <div class="small"><a href="/v4-template-settings">当前映射字段不对？进入配置中心调整</a></div>
             </div>
 
@@ -1193,7 +1193,7 @@
         function displaySystemTemplateName(profile, fallback = "") {
             const rawName = profile && (profile.profile_name || profile.profile_id) ? (profile.profile_name || profile.profile_id) : fallback;
             return String(rawName || "未选择")
-                .replace(new RegExp(["Template", "Profile"].join(" "), "g"), "系统模板")
+                .replace(new RegExp(["Template", "Profile"].join(" "), "g"), "模板")
                 .replace(new RegExp(["Pro", "file"].join(""), "g"), "模板");
         }
 
@@ -3302,7 +3302,7 @@
                 const profilesResponse = await fetch("/api/v4/template-profiles");
                 const profilesResult = await profilesResponse.json();
                 if (!profilesResponse.ok || !profilesResult.success) {
-                    throw new Error(profilesResult.error || "系统模板加载失败");
+                    throw new Error(profilesResult.error || "模板加载失败");
                 }
 
                 v4Profiles = Array.isArray(profilesResult.profiles) ? profilesResult.profiles : [];
@@ -3315,7 +3315,7 @@
                 const currentResponse = await fetch("/api/v4/current-template-profile");
                 const currentResult = await currentResponse.json();
                 if (!currentResponse.ok || !currentResult.success) {
-                    throw new Error(currentResult.error || "当前系统模板加载失败");
+                    throw new Error(currentResult.error || "当前模板加载失败");
                 }
 
                 activeV4Profile = currentResult.profile || {};
@@ -3326,11 +3326,11 @@
                 if (activeV4Profile.profile_id) {
                     document.getElementById("v4ProfileSelect").value = activeV4Profile.profile_id;
                 }
-                setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile)}`, "success");
+                setStatus("v4ProfileStatus", `当前模板：${displaySystemTemplateName(activeV4Profile)}`, "success");
                 await loadWorkspaceMappingHealth(activeV4Profile.profile_id || "");
                 renderConfigurationPreview();
             } catch (error) {
-                setStatus("v4ProfileStatus", error.message || "系统模板加载失败", "error");
+                setStatus("v4ProfileStatus", error.message || "模板加载失败", "error");
             }
         }
 
@@ -3399,7 +3399,7 @@
 
         async function setActiveV4Profile(profileId) {
             if (!profileId) {
-                setStatus("v4ProfileStatus", "请选择系统模板", "warning");
+                setStatus("v4ProfileStatus", "请选择模板", "warning");
                 return;
             }
 
@@ -3407,7 +3407,7 @@
                 workspaceCandidateValues = {};
                 workspaceImageValues = {};
                 window.workspaceImageValues = workspaceImageValues;
-                setStatus("v4ProfileStatus", "正在切换系统模板...", "info");
+                setStatus("v4ProfileStatus", "正在切换模板...", "info");
                 const response = await fetch("/api/v4/set-current-template-profile", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -3415,19 +3415,19 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(result.error || "系统模板切换失败");
+                    throw new Error(result.error || "模板切换失败");
                 }
                 activeV4Profile = result.profile || {};
                 v4WorkspaceFields = Array.isArray(result.workspace_fields) ? result.workspace_fields : v4WorkspaceFields;
                 v4RuntimeMappingSource = result.runtime_mapping_source || v4RuntimeMappingSource;
                 window.v4WorkspaceFields = v4WorkspaceFields;
                 window.v4RuntimeMappingSource = v4RuntimeMappingSource;
-                setStatus("v4ProfileStatus", `当前系统模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
+                setStatus("v4ProfileStatus", `当前模板：${displaySystemTemplateName(activeV4Profile, profileId)}`, "success");
                 await loadWorkspaceMappingHealth(activeV4Profile.profile_id || profileId);
                 await loadV4TemplateLayout();
                 renderConfigurationPreview();
             } catch (error) {
-                setStatus("v4ProfileStatus", error.message || "系统模板切换失败", "error");
+                setStatus("v4ProfileStatus", error.message || "模板切换失败", "error");
             }
         }
 

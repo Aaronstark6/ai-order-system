@@ -772,10 +772,10 @@
         </header>
 
         <section class="panel">
-            <h2>映射与模板管理</h2>
+            <h2>模板与映射管理</h2>
             <div id="settingsStatus" class="status info" style="display:none;"></div>
 
-            <h3>映射选择</h3>
+            <h3>选择映射</h3>
             <div class="row">
                 <div>
                     <select id="mappingSelect" onchange="selectMapping(this.value)"></select>
@@ -792,15 +792,15 @@
                     <span id="currentMappingName" style="color: #1d2939; font-size: 16px; font-weight: 700;">未选择</span>
                 </div>
                 <div>
-                    <span style="color: #667085; font-size: 13px;">模板文件：</span>
+                    <span style="color: #667085; font-size: 13px;">模板：</span>
                     <span id="currentTemplateFile" style="color: #1d2939; font-size: 16px; font-weight: 700;">未上传</span>
                 </div>
             </div>
 
-            <h3>模板文件操作</h3>
+            <h3>模板操作</h3>
             <div class="file-row">
                 <input id="templateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm" onchange="uploadTemplateFile()">
-                <button type="button" class="danger fixed-danger" onclick="deleteTemplateFile()">删除当前模板文件</button>
+                <button type="button" class="danger fixed-danger" onclick="deleteTemplateFile()">删除当前模板</button>
                 <button type="button" class="danger fixed-danger" onclick="deleteMapping()">删除当前映射</button>
                 <span id="fileActionStatus" class="small"></span>
             </div>
@@ -831,7 +831,7 @@
                 </div>
                 <div class="visual-workbench-hint">提示：点击左侧模板单元格，查看 V4 对模板结构的理解与推荐配置。</div>
                 <div class="visual-workbench-body">
-                    <div id="visualGridArea" class="config-empty">当前映射尚未绑定模板文件。</div>
+                    <div id="visualGridArea" class="config-empty">当前映射尚未绑定模板。</div>
                     <div id="visualCellDetail" class="visual-detail">
                         <div class="small">点击左侧模板单元格查看 V4 判断。</div>
                     </div>
@@ -980,7 +980,7 @@
         async function loadVisualGrid(mappingId) {
             selectedVisualCell = "";
             if (!mappingId) {
-                visualGridByMappingId[mappingId || ""] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板文件。" };
+                visualGridByMappingId[mappingId || ""] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板。" };
                 renderVisualWorkbench();
                 renderSemanticControlBar();
                 return null;
@@ -993,7 +993,7 @@
                 renderSemanticControlBar();
                 return visualGrid;
             } catch (error) {
-                visualGridByMappingId[mappingId] = { rows: 0, cols: 0, cells: [], merges: [], message: error.message || "当前映射尚未绑定模板文件。" };
+                visualGridByMappingId[mappingId] = { rows: 0, cols: 0, cells: [], merges: [], message: error.message || "当前映射尚未绑定模板。" };
                 renderVisualWorkbench();
                 renderSemanticControlBar();
                 return null;
@@ -1100,7 +1100,7 @@
             input.value = "";
             const newId = getMappingId(result.profile);
             configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
-            visualGridByMappingId[newId] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板文件。" };
+            visualGridByMappingId[newId] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板。" };
             await loadMappings(newId);
             setStatus("映射已创建。", "success");
         }
@@ -1109,8 +1109,8 @@
             if (!selectedMappingId) { setStatus("请先选择映射。", "warning"); return; }
             const input = document.getElementById("templateFileInput");
             const file = input.files && input.files[0];
-            if (!file) { setStatus("请选择要上传的模板文件。", "warning"); return; }
-            setStatus("正在上传并分析模板文件...", "info");
+            if (!file) { setStatus("请选择要上传的模板。", "warning"); return; }
+            setStatus("正在上传并分析模板...", "info");
             setInlineStatus("上传中...");
             const formData = new FormData();
             formData.append("template_file", file);
@@ -1126,25 +1126,25 @@
             await loadMappingHealth(selectedMappingId, false);
             updateCurrentState();
             renderConfig();
-            setInlineStatus("模板文件已上传。");
-            setStatus("模板文件已上传并完成分析。", "success");
+            setInlineStatus("模板已上传。");
+            setStatus("模板已上传并完成分析。", "success");
         }
 
         async function deleteTemplateFile() {
             if (!selectedMappingId) { setStatus("请先选择映射。", "warning"); return; }
-            if (!confirm("确定删除当前模板文件吗？映射会保留。")) return;
-            setStatus("正在删除模板文件...", "info");
+            if (!confirm("确定删除当前模板吗？映射会保留。")) return;
+            setStatus("正在删除模板...", "info");
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/delete-template-file`, { method: "POST" });
             selectedMapping = result.profile || await loadMappingDetail(selectedMappingId);
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
-            visualGridByMappingId[selectedMappingId] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板文件。" };
+            visualGridByMappingId[selectedMappingId] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板。" };
             selectedVisualCell = "";
             updateCurrentState();
             renderVisualWorkbench();
             renderConfig();
-            setInlineStatus("模板文件已删除。");
-            setStatus("模板文件已删除。", "success");
+            setInlineStatus("模板已删除。");
+            setStatus("模板已删除。", "success");
         }
 
         async function deleteMapping() {
@@ -1635,7 +1635,7 @@
             const cells = Array.isArray(grid?.cells) ? grid.cells : [];
             if (!rows || !cols || !cells.length) {
                 gridArea.className = "config-empty";
-                gridArea.innerHTML = escapeHtml(message || "当前映射尚未绑定模板文件。");
+                gridArea.innerHTML = escapeHtml(message || "当前映射尚未绑定模板。");
                 renderVisualDetail(null);
                 return;
             }
