@@ -2097,7 +2097,7 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
             "errors": [{"message": f"导出文件回读失败：{exc}"}],
         }
 
-    lookup = _build_template_configuration_lookup(profile)
+    lookup = _confirmed_config_lookup_from_profile(profile)
 
     for raw_item in confirmed_cells:
         if not isinstance(raw_item, dict):

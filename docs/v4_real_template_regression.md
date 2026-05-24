@@ -961,3 +961,88 @@ PASS ✅
 **result: PASS**
 
 真实 API 图片链路已完成打通，图片字段现在通过新链路导出到 Excel。
+---
+
+# FIX110A 真正端到端业务回归
+
+## 目标
+
+验证真实模板 + 真实 workspace payload + 真实 confirmed_cells + 真实 `/api/v4/export-confirmed-excel` route handler 的完整导出链路。
+
+说明：当前 conda 环境缺少 `httpx`，无法使用 FastAPI `TestClient`；本次按任务允许项使用真实 route handler 调用，未直接调用 `_override_operations_with_confirmed_cells` 或 executor 内部函数。
+
+## API 调用结构
+
+- API: `/api/v4/export-confirmed-excel`
+- 调用参数: `chat_text`, `confirmed_cells_json`
+- profile_id: `软胶囊`
+- template_id: `v4/system_templates/软胶囊_软胶囊爆珠模板_20260523_181128_191d0554.xlsx`
+- workspace payload: normal text fields + dynamic table rows + workspace image `image.data_url`
+- confirmed_cells_count: 9
+- image payload shape: `image.data_url`
+
+Feature flags:
+
+```text
+image_fields: True
+dynamic_tables: True
+advanced_write_modes: True
+option_write_enhancement: True
+format_protection: True
+formula_protection: True
+export_readback_check: True
+```
+
+## 验证数据
+
+普通字段：
+
+```text
+C4 = DOC-FIX110A
+F4 = 20260524
+C5 = FIX110A客户
+F5 = 品牌客户
+C6 = 8888
+F6 = Alice
+```
+
+动态表格：
+
+```text
+B10 = 其他可选包装：动态表-R1
+B11 = 其他可选包装：动态表-R2
+```
+
+图片字段：
+
+```text
+workspace image.data_url -> temp image_path -> write_image -> Excel image insertion
+```
+
+## Blocker 处理
+
+真实 API 首次执行发现 `export_readback_check=True` 时 `_build_export_readback_audit()` 调用未定义的 `_build_template_configuration_lookup`。这是阻断真实 API 成功返回的 blocker。
+
+最小修复：
+
+```text
+_build_export_readback_audit()
+-> _confirmed_config_lookup_from_profile(profile)
+```
+
+未改动旧图片插入链路，`use_operation_image_export=True` 保持不变。
+
+## FIX110A RESULT
+
+```text
+normal_fields: PASS
+dynamic_tables: PASS
+image_export: PASS
+real_api_export: PASS
+
+images_count: 1
+text_cells_verified: {"C4": "DOC-FIX110A", "F4": "20260524", "C5": "FIX110A客户", "F5": "品牌客户", "C6": "8888", "F6": "Alice"}
+table_cells_verified: {"B10": "其他可选包装：动态表-R1", "B11": "其他可选包装：动态表-R2"}
+
+result: PASS
+```

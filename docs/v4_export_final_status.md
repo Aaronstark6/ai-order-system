@@ -155,3 +155,38 @@ Reason:
 - Executor support matrix: PASS.
 - Real API route uses the new override/executor path: PASS.
 - Workspace image field export through current confirmed cell payload: PASS after FIX109B.
+
+# FIX110A Real Business E2E Regression
+
+## Result
+
+PASS
+
+## Real API Path
+
+`/api/v4/export-confirmed-excel` was exercised through the real route handler with:
+
+- profile_id: `软胶囊`
+- template_id: `v4/system_templates/软胶囊_软胶囊爆珠模板_20260523_181128_191d0554.xlsx`
+- confirmed_cells_count: 9
+- image payload shape: `image.data_url`
+- feature flags: `image_fields=True`, `dynamic_tables=True`, `advanced_write_modes=True`, `option_write_enhancement=True`, `format_protection=True`, `formula_protection=True`, `export_readback_check=True`
+
+## Verified Output
+
+```text
+normal_fields: PASS
+dynamic_tables: PASS
+image_export: PASS
+real_api_export: PASS
+
+images_count: 1
+text_cells_verified: {"C4": "DOC-FIX110A", "F4": "20260524", "C5": "FIX110A客户", "F5": "品牌客户", "C6": "8888", "F6": "Alice"}
+table_cells_verified: {"B10": "其他可选包装：动态表-R1", "B11": "其他可选包装：动态表-R2"}
+
+result: PASS
+```
+
+## Blocker Closed
+
+FIX110A found and minimally fixed a real API blocker in export readback: `_build_export_readback_audit()` now uses the existing `_confirmed_config_lookup_from_profile(profile)` helper. No legacy image insertion default was restored.
