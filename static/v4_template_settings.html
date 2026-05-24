@@ -675,6 +675,15 @@
             color: #667085;
             font-size: 13px;
         }
+        .developer-only-panel {
+            display: none;
+        }
+        body.show-developer-tools .developer-only-panel {
+            display: grid;
+        }
+        body.show-developer-tools .excel-feature-panel.developer-only-panel {
+            display: block;
+        }
         .mapping-health-panel {
             background: #fff;
             border: 1px solid #e4e7ec;
@@ -812,11 +821,11 @@
                 <div class="visual-workbench-title">可视化模板配置</div>
                 <div id="semanticControlBar" class="semantic-control-bar">
                     <div class="semantic-control-status">
-                        <strong>语义推荐状态</strong>
-                        <span>可应用语义推荐：0项</span>
+                        <strong>自动识别建议</strong>
+                        <span>可应用自动识别建议：0项</span>
                     </div>
                     <div class="semantic-control-actions">
-                        <button type="button" class="secondary" disabled>应用语义推荐</button>
+                        <button type="button" class="secondary" disabled>应用自动识别建议</button>
                         <button type="button" class="ghost" disabled>重新分析</button>
                         <button type="button" class="ghost" disabled>高级诊断</button>
                         <button type="button" disabled>保存配置</button>
@@ -837,7 +846,7 @@
                     </div>
                 </div>
             </div>
-            <div id="excelFeatureFlagsPanel" class="excel-feature-panel"></div>
+            <div id="excelFeatureFlagsPanel" class="excel-feature-panel developer-only-panel"></div>
             <div id="templateConfigArea" class="config-empty">
                 当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。
             </div>
@@ -1468,7 +1477,7 @@
                 <div class="visual-detail-title">单元格配置</div>
                 <div class="visual-detail-field">
                     <label><input data-visual-detail-field="manual_override" type="checkbox" ${config.manual_override ? "checked" : ""}> 锁定人工配置</label>
-                    <div class="small">锁定后，全局“应用语义推荐”不会覆盖此单元格。</div>
+                    <div class="small">锁定后，全局“应用自动识别建议”不会覆盖此单元格。</div>
                 </div>
                 <div class="visual-detail-field">
                     <label>单元格</label>
@@ -1483,10 +1492,10 @@
                     <input class="visual-readonly" type="text" value="${escapeHtml(INTENT_LABELS[config.intent_type] || config.intent_type || "未知")}" readonly>
                 </div>
                 <div class="visual-detail-section">
-                    <div class="visual-detail-section-title">语义推荐</div>
+                    <div class="visual-detail-section-title">自动识别建议</div>
                     <div class="visual-detail-row">
                         <div class="visual-detail-label">语义增强</div>
-                        <div class="visual-detail-value">${config.semantic_promoted ? '<span class="semantic-badge">语义推荐</span>' : "否"}</div>
+                        <div class="visual-detail-value">${config.semantic_promoted ? '<span class="semantic-badge">自动识别建议</span>' : "否"}</div>
                     </div>
                     <div class="visual-detail-row">
                         <div class="visual-detail-label">semantic_type</div>
@@ -1890,19 +1899,19 @@
             const stats = getSemanticRecommendationStats();
             const enabled = Boolean(selectedMappingId && stats.hasVisualGrid && stats.applicable);
             const statusText = selectedMappingId
-                ? `可应用语义推荐：${stats.applicable}项`
+                ? `可应用自动识别建议：${stats.applicable}项`
                 : "请先选择映射";
             const detailText = stats.hasCandidates
                 ? `语义候选共 ${stats.total} 项，应用后仍需点击“保存配置”。`
-                : "当前没有可应用的语义推荐。";
+                : "当前没有可应用的自动识别建议。";
             area.innerHTML = `
                 <div class="semantic-control-status">
-                    <strong>语义推荐状态</strong>
+                    <strong>自动识别建议状态</strong>
                     <span>${escapeHtml(statusText)}</span>
                     <span>${escapeHtml(detailText)}</span>
                 </div>
                 <div class="semantic-control-actions">
-                    <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>应用语义推荐</button>
+                    <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>应用自动识别建议</button>
                     <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>重新分析</button>
                     <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
                     <button type="button" onclick="saveTemplateConfiguration()" ${selectedMappingId ? "" : "disabled"}>保存配置</button>
@@ -1921,11 +1930,13 @@
             await loadMappingHealth(selectedMappingId, false);
             renderConfig();
             renderSemanticControlBar();
-            setStatus("模板已重新分析，语义推荐已刷新。", "success");
+            setStatus("模板已重新分析，自动识别建议已刷新。", "success");
         }
 
         function openAdvancedDiagnostics() {
+            document.body.classList.add("show-developer-tools");
             mappingHealthExpanded = true;
+            renderExcelFeatureFlagsPanel();
             renderMappingHealth();
             const panel = document.getElementById("mappingHealthPanel");
             if (panel) panel.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -2078,10 +2089,10 @@
                 return;
             }
             if (!hasSemanticCandidates(selectedMappingId)) {
-                setStatus("当前没有可应用的语义推荐。", "warning");
+                setStatus("当前没有可应用的自动识别建议。", "warning");
                 return;
             }
-            if (!confirm("确定要把语义推荐应用为草稿配置吗？已有人工配置会尽量保留。")) return;
+            if (!confirm("确定要把自动识别建议应用为草稿配置吗？已有人工配置会尽量保留。")) return;
             const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
             const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object" ? { ...cached.savedConfiguration } : {};
             const { draft, stats } = buildSemanticDraftConfiguration(selectedMappingId);
@@ -2094,7 +2105,7 @@
             renderVisualWorkbench();
             renderConfigurationValidation();
             await loadMappingHealth(selectedMappingId, false);
-            setStatus(`已应用语义推荐：${stats.applied_count} 项；保留人工配置：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后点击保存配置。`, "warning");
+            setStatus(`已应用自动识别建议：${stats.applied_count} 项；保留人工配置：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后点击保存配置。`, "warning");
         }
 
         async function applyCurrentCellSemanticDraftConfiguration() {
@@ -2105,12 +2116,12 @@
             const cellRef = normalizeCell(selectedVisualCell);
             const candidate = getCachedCandidateForCell(cellRef);
             if (!candidate || candidate.semantic_promoted !== true) {
-                setStatus("当前单元格没有可应用的语义推荐。", "warning");
+                setStatus("当前单元格没有可应用的自动识别建议。", "warning");
                 return;
             }
             const confidence = Number(candidate.confidence || candidate.semantic_confidence || 0);
             if (confidence < 0.70) {
-                setStatus("当前单元格语义推荐可信度较低，未自动应用。", "warning");
+                setStatus("当前单元格自动识别建议可信度较低，未自动应用。", "warning");
                 return;
             }
             const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
@@ -2133,7 +2144,7 @@
             renderVisualWorkbench();
             renderConfigurationValidation();
             await loadMappingHealth(selectedMappingId, false);
-            setStatus("已将语义推荐应用到当前单元格。请检查后点击保存配置。", "warning");
+            setStatus("已将自动识别建议应用到当前单元格。请检查后点击保存配置。", "warning");
         }
 
         function formatConfidenceBreakdown(breakdown) {
@@ -2434,7 +2445,7 @@
         function renderRuntimeMappingSource(source = {}) {
             const className = source.source === "semantic_fallback" ? "warning" : "success";
             const hint = source.source === "semantic_fallback"
-                ? '<div style="margin-top:6px;">当前尚未保存有效配置，工作页可能使用语义回退结果。建议点击“应用语义推荐”后保存配置。</div>'
+                ? '<div style="margin-top:6px;">当前尚未保存有效配置，工作页可能使用语义回退结果。建议点击“应用自动识别建议”后保存配置。</div>'
                 : "";
             return `
                 <div class="validation-banner ${className}">
@@ -2889,7 +2900,7 @@
                                         <tr class="debug-row" style="display:none;">
                                             <td colspan="5">
                                                 <details class="debug-details" open>
-                                                    <summary>智能推荐详情${row.semanticPromoted ? '<span class="semantic-badge">语义推荐</span>' : ""}</summary>
+                                                    <summary>智能推荐详情${row.semanticPromoted ? '<span class="semantic-badge">自动识别建议</span>' : ""}</summary>
                                                     <div class="debug-grid">
                                                         <div class="debug-item"><div class="debug-label">匹配可信度</div><div class="debug-value">${row.candidateConfidence ? row.candidateConfidence.toFixed(2) : "-"}</div></div>
                                                         <div class="debug-item"><div class="debug-label">推荐原因</div><div class="debug-value">${escapeHtml(row.candidateReason || "-")}</div></div>
