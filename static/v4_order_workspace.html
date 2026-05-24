@@ -816,6 +816,29 @@
                 white-space: normal;
             }
         }
+        .workspace-table-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .workspace-table-button {
+            border: 1px solid #d0d5dd;
+            background: #fff;
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        .workspace-table-button.danger {
+            color: #b42318;
+        }
+
+        .workspace-table-count {
+            font-size: 12px;
+            color: #667085;
+        }
     </style>
 </head>
 <body>
@@ -902,6 +925,8 @@
         let workspaceSectionCollapsed = {};
         let workspaceCandidateValues = {};
         let workspaceImageValues = {};
+        let workspaceTableRows = window.workspaceTableRows || {};
+        window.workspaceTableRows = workspaceTableRows;
         const DEFAULT_EXCEL_FEATURE_FLAGS = {
             image_fields: true,
             dynamic_tables: false,
@@ -2436,7 +2461,7 @@
         }
 
         function renderBusinessFieldCard(item) {
-            return renderWorkspaceRow(item, renderBusinessFieldControl(item));
+            return renderWorkspaceRow(item, renderBusinessFieldControl(item) + renderWorkspaceTableControls(item));
         }
 
         function businessFieldDataAttributes(item) {
@@ -2455,6 +2480,7 @@
                 data-intent-type="${escapeHtml(item.intent_type || "")}"
                 data-row-offset="${Number(item.row_offset || 0)}"
                 data-col-offset="${Number(item.col_offset || item.table_col_offset || 0)}"
+                data-table-col-offset="${Number(item.table_col_offset || item.col_offset || 0)}"
             `;
         }
 
@@ -2467,6 +2493,37 @@
             const fieldType = String(item?.field_type || item?.config?.field_type || "").trim();
             const type = String(item?.type || "").trim();
             return fieldType === "image" || type === "image" || type === "image_upload";
+        }
+
+        function workspaceTableKey(item) {
+            return `${item.field_key || ""}::${item.cell || item.target_cell || ""}`;
+        }
+
+        function isWorkspaceTableField(item) {
+            const intentType = String(item?.intent_type || "");
+            const writeMode = String(item?.write_mode || "");
+            const fieldType = String(item?.field_type || item?.type || "");
+            return (
+                fieldType === "table" ||
+                fieldType === "dynamic_table" ||
+                writeMode === "write_table_cell" ||
+                intentType.includes("table")
+            );
+        }
+
+        function renderWorkspaceTableControls(item) {
+            if (!isWorkspaceTableField(item)) return "";
+
+            const key = workspaceTableKey(item);
+            const rows = workspaceTableRows[key] || [];
+
+            return `
+                <div class="workspace-table-controls" data-table-key="${escapeHtml(key)}">
+                    <button type="button" class="workspace-table-button" onclick="addWorkspaceTableRow(this)">新增一行</button>
+                    <button type="button" class="workspace-table-button danger" onclick="removeWorkspaceTableRow(this)">删除一行</button>
+                    <span class="workspace-table-count">当前额外行：${rows.length}</span>
+                </div>
+            `;
         }
 
         function renderWorkspaceImagePreview(image) {
@@ -2535,6 +2592,48 @@
             if (preview) preview.innerHTML = renderWorkspaceImagePreview(null);
             markWorkspaceFieldManual(button);
             syncConfirmedCellsFromInputs();
+        }
+
+        function addWorkspaceTableRow(button) {
+            const wrapper = button.closest("[data-field-key]");
+            if (!wrapper) return;
+
+            const fieldKey = wrapper.dataset.fieldKey || "";
+            const cell = wrapper.dataset.cell || "";
+            const key = `${fieldKey}::${cell}`;
+
+            if (!workspaceTableRows[key]) workspaceTableRows[key] = [];
+            workspaceTableRows[key].push({ row_offset: workspaceTableRows[key].length + 1 });
+
+            window.workspaceTableRows = workspaceTableRows;
+            syncConfirmedCellsFromInputs();
+            renderWorkspaceFields();
+        }
+
+        function removeWorkspaceTableRow(button) {
+            const wrapper = button.closest("[data-field-key]");
+            if (!wrapper) return;
+
+            const fieldKey = wrapper.dataset.fieldKey || "";
+            const cell = wrapper.dataset.cell || "";
+            const key = `${fieldKey}::${cell}`;
+
+            if (workspaceTableRows[key] && workspaceTableRows[key].length) {
+                workspaceTableRows[key].pop();
+            }
+
+            window.workspaceTableRows = workspaceTableRows;
+            syncConfirmedCellsFromInputs();
+            renderWorkspaceFields();
+        }
+
+        function renderWorkspaceFields() {
+            const sections = getSemanticWorkspaceSections();
+            const area = document.getElementById("v4ConfirmationArea");
+            if (area) {
+                area.innerHTML = groupWorkspaceBusinessSections(sections).map(renderBusinessFormSection).join("");
+            }
+            initializeConfirmedCellsSnapshotFromInputs();
         }
 
         function handleWorkspaceImageSelected(input) {
@@ -2998,7 +3097,37 @@
                         col_offset: Number(image.col_offset || 0),
                     },
                 }));
-            return [...textItems, ...radioItems, ...imageItems];
+            const baseItems = [...textItems, ...radioItems, ...imageItems];
+            
+            // 收集额外表格行
+            const extraItems = [];
+            for (const item of baseItems) {
+                const key = `${item.field_key || ""}::${item.cell || ""}`;
+                const extraRows = workspaceTableRows[key] || [];
+                
+                for (const extraRow of extraRows) {
+                    const baseRowOffset = Number(item.row_offset || 0);
+                    const extraRowOffset = Number(extraRow.row_offset || 0);
+                    
+                    extraItems.push({
+                        cell: item.cell || "",
+                        display_cell: item.display_cell || item.cell || "",
+                        source_cell: item.source_cell || "",
+                        field_key: item.field_key || "",
+                        source: item.source || "Manual",
+                        label: item.label || "",
+                        write_mode: "write_table_cell",
+                        intent_type: item.intent_type || "",
+                        option_value: "",
+                        value: item.value || "",
+                        row_offset: baseRowOffset + extraRowOffset,
+                        col_offset: Number(item.col_offset || 0),
+                        table_col_offset: Number(item.table_col_offset || 0),
+                    });
+                }
+            }
+            
+            return [...baseItems, ...extraItems];
         }
 
         function getExportCheckState() {
