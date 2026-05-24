@@ -1,6 +1,6 @@
 # V4 Export Final Status Audit
 
-Audit ID: V4-EXPORT-FIX109A
+Audit ID: V4-EXPORT-FIX109A / V4-EXPORT-FIX109B
 
 Audit date: 2026-05-24
 
@@ -20,10 +20,10 @@ Scope:
 | Auto Mapping | Supported, profile-dependent | Auto mapping can generate structured, table, and block mappings. |
 | Confirmed Cells: normal fields | Supported | `confirmed_cells(text)` enter `_override_operations_with_confirmed_cells`, become `write_text`, then executor writes cells. |
 | Confirmed Cells: dynamic table fields | Supported | Parsed table rows and confirmed cells carry `row_offset` / `col_offset`; executor applies offsets through `_operation_target_cell`. |
-| Confirmed Cells: workspace image fields | Partial / broken for current UI payload | `_confirmed_operation_from_item` emits `write_image`, but current workspace payload carries nested `image.data_url`; executor requires `image_path`, so image operation is skipped. |
+| Confirmed Cells: workspace image fields | Supported | FIX109B materializes workspace `image.data_url` to a temporary `image_path`, then emits `write_image` for executor image insertion. |
 | Operations Pipeline | Supported | Pipeline normalizes/finalizes op types and preserves supported ops. |
 | Executor | Supported for all declared op types | `SUPPORTED_OP_TYPES = {"write_text", "write_number", "write_multiline", "write_table_cell", "write_block", "write_image"}`. |
-| Real API Export | Partial | `/api/v4/export-confirmed-excel` uses override + executor, but current workspace image payload does not become an executable image operation. |
+| Real API Export | Supported | `/api/v4/export-confirmed-excel` uses override + executor; workspace image payload now becomes executable `write_image`. |
 
 ## 2. Link Status Table
 
@@ -31,8 +31,8 @@ Scope:
 | --- | --- | --- | --- |
 | Normal field export | `confirmed_cells(text)` -> `_override_operations_with_confirmed_cells` -> `_confirmed_operation_from_item` -> `write_text` / existing op override -> `execute_processed_operations_to_excel` -> Excel | PASS | Confirmed text values override matching operations or add new `write_text` operations. |
 | Dynamic table export | dynamic table confirmed cells -> `write_table_cell` -> `row_offset` / `col_offset` -> executor -> Excel | PASS | Direct executor verification wrote `target_cell=A4,row_offset=1,col_offset=2` to `C5`. |
-| Image field export | workspace image field -> `confirmed_cells(image)` -> override -> `_confirmed_operation_from_item` -> `write_image` -> executor -> Excel image insertion | FAIL for current workspace payload | Frontend sends `image.data_url`; `_confirmed_operation_from_item` does not convert nested `image.data_url` into `image_path`; executor warns "缺少 image_path" and writes 0 images. |
-| Real API export | `/api/v4/export-confirmed-excel` -> profile -> feature flags -> override -> executor -> output file | PARTIAL | API calls override with all `confirmed_cells` and executes the resulting operations. Legacy image fallback is disabled by `use_operation_image_export = True`, exposing the current `image_path` gap. |
+| Image field export | workspace image field -> `confirmed_cells(image)` -> override -> `_confirmed_operation_from_item` -> `write_image` -> executor -> Excel image insertion | PASS | FIX109B converts workspace `image.data_url` to a temp `image_path`, so executor can insert the image. |
+| Real API export | `/api/v4/export-confirmed-excel` -> profile -> feature flags -> override -> executor -> output file | PASS | API calls override with all `confirmed_cells` and executes the resulting operations. Legacy image fallback remains disabled by `use_operation_image_export = True`. |
 
 ## 3. Feature Flags Status
 
@@ -72,12 +72,40 @@ write_image
 | `write_multiline` | Yes | Writes text and applies wrap text. | Reachable when structured mapping uses `operation=write_multiline`. |
 | `write_table_cell` | Yes | Writes scalar value after applying `row_offset` / `col_offset`. | Reachable from table mappings and parsed table confirmed cells. |
 | `write_block` | Yes | Writes block text and applies wrap text. | Reachable from block mappings. |
-| `write_image` | Yes | Requires `image_path`, then inserts image at `image_anchor_cell` / `target_cell`. | Reachable and executable with explicit `image_path`; not executable from current workspace `image.data_url` confirmed payload. |
+| `write_image` | Yes | Requires `image_path`, then inserts image at `image_anchor_cell` / `target_cell`. | Reachable from workspace `image.data_url` after FIX109B temp `image_path` materialization, and executable with explicit `image_path`. |
 
 Verification run:
 - Direct executor test wrote `write_text`, `write_number`, `write_multiline`, `write_table_cell`, `write_block`, and `write_image` successfully.
 - Direct executor output had `operations_written = 6`, table cell value at `C5`, and `image_count = 1`.
-- Workspace-style image confirmed cell generated `write_image` with empty `image_path`; executor returned `operations_written = 0` and warning `缺少 image_path`.
+- FIX109B workspace-style image confirmed cell generated `write_image` with a temp `image_path`; executor inserted 1 image.
+
+# FIX109B Workspace 图片 data_url 链路修复
+
+## 结果
+
+PASS
+
+## 验证项
+
+data_url_materialized: True
+generated_image_path_exists: True
+write_image_generated: True
+write_text_generated: True
+export_success: True
+images_count: 1
+text_cell_value: FIX109B客户
+old_image_insert_skipped: True
+
+## 最终图片链路
+
+workspace image.data_url
+→ _materialize_image_data_url_to_temp_file()
+→ image_path
+→ write_image operation
+→ execute_processed_operations_to_excel()
+→ Excel image insertion
+
+PASS
 
 ## 5. Legacy / New Path Status
 
@@ -86,22 +114,21 @@ Verification run:
 | `_split_confirmed_cells_for_excel_export` | Still present and still called by `/api/v4/export-confirmed-excel`. | Active for splitting text/image lists, but not used to exclude images from override. |
 | `_insert_confirmed_images_into_excel` | Still present. | Default off in the real API because `use_operation_image_export = True`; only runs if that variable becomes false. |
 | New confirmed override path | Active. | API passes all `confirmed_cells` into `_override_operations_with_confirmed_cells`. |
-| New image operation path | Active but incomplete for workspace payload. | Generates `write_image`, but does not materialize `image.data_url` to an `image_path`. |
+| New image operation path | Active. | FIX109B materializes `image.data_url` to a temporary `image_path`, then generates executable `write_image`. |
 | Duplicate image insertion risk | Low by default. | Since legacy fallback is disabled, current default does not insert both legacy and operation images. Risk returns if `use_operation_image_export` is flipped false while image operations remain in the operation list. |
 
 ## 6. Known Risks
 
-1. Workspace image export is currently broken in the new operation path.
-   - Frontend confirmed image item shape: `field_type: "image"` plus nested `image.data_url`.
-   - `_confirmed_operation_from_item` only copies top-level `image_path`, `image_data`, and `image_base64`.
-   - `v4_excel_executor` only reads `image_path`.
+1. Temporary image cleanup strategy can be optimized later.
+   - FIX109B writes materialized workspace images to a temporary `image_path` under the output temp image area.
+   - Verification cleaned its temporary image, but production lifecycle cleanup can be made more explicit in a future housekeeping pass.
 
 2. Legacy image helpers are conditionally retained.
    - They are not dead code, but they are currently default-off in the real API.
    - `_insert_confirmed_images_into_excel` is the only current code that knows how to decode `image.data_url`.
 
-3. `image_export_summary` may under-report attempted image export.
-   - With operation image export enabled, the API returns a zeroed summary even when image confirmed cells were submitted and then skipped by executor warnings.
+3. `image_export_summary` remains legacy-path oriented.
+   - With operation image export enabled, the API returns a zeroed legacy image summary even though images are handled by `write_image`.
 
 4. `export_readback_check` audits only `text_confirmed_cells`.
    - Current readback does not verify operation-based image insertion.
@@ -111,21 +138,20 @@ Verification run:
 
 ## 7. Recommended Next Phase
 
-Recommended next phase: V4-EXPORT-FIX109B.
+Recommended next phase: V4 Export housekeeping.
 
 Scope should be narrow:
-- Decide one canonical image payload for the operation path.
-- Convert workspace `image.data_url` into a temporary `image_path` before executor, or extend executor to accept and materialize image data.
+- Document or automate production cleanup for materialized temporary image files.
 - Add image readback/audit summary for operation-based image export.
 - Keep legacy fallback disabled by default unless explicitly used as a compatibility mode.
 
-## FIX109A Result
+## Export Total Result
 
-PARTIAL
+PASS
 
 Reason:
 - Normal fields: PASS.
 - Dynamic table fields: PASS.
 - Executor support matrix: PASS.
 - Real API route uses the new override/executor path: PASS.
-- Workspace image field export through current confirmed cell payload: FAIL.
+- Workspace image field export through current confirmed cell payload: PASS after FIX109B.
