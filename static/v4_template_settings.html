@@ -693,6 +693,9 @@
             margin: 14px 0;
             padding: 14px;
         }
+        .mapping-health-panel.developer-only-panel {
+            display: none;
+        }
         .mapping-health-header {
             align-items: center;
             cursor: pointer;
@@ -851,7 +854,7 @@
                 当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。
             </div>
             <div id="configurationValidation" class="validation-panel"></div>
-            <div id="mappingHealthPanel" class="mapping-health-panel"></div>
+            <div id="mappingHealthPanel" class="mapping-health-panel developer-only-panel"></div>
         </section>
     </main>
 
