@@ -2983,16 +2983,69 @@ def _confirmed_write_value(item, worksheet):
     return value
 
 
+def _materialize_image_data_url_to_temp_file(item):
+    if not isinstance(item, dict):
+        return ""
+
+    image = item.get("image")
+    image = image if isinstance(image, dict) else {}
+
+    data = (
+        str(image.get("data_url") or "").strip()
+        or str(item.get("image_data") or "").strip()
+        or str(item.get("image_base64") or "").strip()
+    )
+    if not data:
+        return ""
+
+    mime_type = str(image.get("mime_type") or item.get("mime_type") or "").strip().lower()
+    encoded = data
+    if data.startswith("data:"):
+        if "," not in data:
+            return ""
+        header, encoded = data.split(",", 1)
+        header_mime = header[5:].split(";")[0].strip().lower()
+        mime_type = mime_type or header_mime
+
+    ext = _image_extension_from_mime_type(mime_type or "image/png")
+    if ext not in {".png", ".jpg", ".jpeg"}:
+        return ""
+
+    try:
+        raw = base64.b64decode(encoded)
+    except Exception:
+        logger.warning("V4 confirmed image data_url decode failed", exc_info=True)
+        return ""
+
+    if not raw:
+        return ""
+
+    tmp_dir = get_base_dir() / "output" / "tmp_images"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    image_path = tmp_dir / f"confirmed_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex}{ext}"
+    try:
+        image_path.write_bytes(raw)
+    except Exception:
+        logger.warning("V4 confirmed image temp file write failed: path=%s", image_path, exc_info=True)
+        return ""
+    return str(image_path)
+
+
 def _confirmed_operation_from_item(item, worksheet):
     target_cell = _cell_key(item.get("target_cell") or item.get("cell"))
     field_type = str(item.get("field_type") or item.get("type") or "").strip().lower()
+    image = item.get("image") if isinstance(item.get("image"), dict) else {}
     is_image_field = (
         field_type == "image"
         or bool(item.get("image_path"))
         or bool(item.get("image_data"))
         or bool(item.get("image_base64"))
+        or bool(image.get("data_url"))
     )
     if is_image_field:
+        image_path = str(item.get("image_path") or "").strip()
+        if not image_path:
+            image_path = _materialize_image_data_url_to_temp_file(item)
         return {
             "op_type": "write_image",
             "target_cell": target_cell,
@@ -3006,10 +3059,10 @@ def _confirmed_operation_from_item(item, worksheet):
             "write_mode": item.get("write_mode") or "",
             "intent_type": item.get("intent_type") or "",
             "image_anchor_cell": item.get("image_anchor_cell") or item.get("target_cell") or item.get("cell"),
-            "image_path": item.get("image_path") or "",
+            "image_path": image_path,
             "image_data": item.get("image_data") or "",
             "image_base64": item.get("image_base64") or "",
-            "image_fit": item.get("image_fit") or "contain",
+            "image_fit": item.get("image_fit") or image.get("image_fit") or "contain",
             "confirmed": True,
             "target_sheet": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
         }
