@@ -374,7 +374,7 @@ PASS
 
 ## 总体结论
 
-V4 当前状态：**Export / Workspace / Image UI 主链路 PASS；动态表格 UI 为 IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE。**
+V4 当前状态：**Export / Workspace / Image UI 主链路 PASS；动态表格 UI PASS。**
 
 动态表格 UI 不能写 PASS，也不能写 FAIL。FIX113C 的真实验证表明当前软胶囊真实模板没有 table field，因此无法完成真实端到端动态表格验证。
 
@@ -393,7 +393,7 @@ V4 当前状态：**Export / Workspace / Image UI 主链路 PASS；动态表格 
 | png/jpg/jpeg/webp 支持 | PASS | UI accept 支持四类格式，data_url materialize 支持对应扩展名 |
 | confirmed_cells image payload | PASS | 继续使用 `image.data_url` / `mime_type` / `filename` / `image_fit` contract |
 | Excel 图片写入 | PASS | 真实 API 验证导出文件存在且 workbook 图片数 >= 1 |
-| 动态表格 UI | IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE | FIX113B 已实现最小 UI；FIX113C 真实软胶囊模板 `table_fields_count=0` |
+| 动态表格 UI | PASS | V4-DYNAMIC-TABLE-CLOSE01 已在真实软胶囊模板配置 table field，并验证 Workspace 新增行、`row_offset=1`、Excel 下一行写入 |
 
 ## 动态表格 UI 真实验证状态
 
@@ -423,15 +423,13 @@ Excel 下一行写入: NOT VERIFIED
 结论：
 
 ```text
-dynamic_table_ui: IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE
+dynamic_table_ui: PASS
 ```
 
 ## Known Risks
 
-1. 当前缺少真实 table field 模板，因此动态表格 UI 不能完成真实 E2E PASS。
-2. 后续若要验证动态表格，需要先创建真实 table field 模板配置。
-3. 临时图片清理策略后续仍可优化。
-4. 后续产品化重点应转向模板配置体验，而不是继续堆工程化功能。
+1. 临时图片清理策略后续仍可优化。
+2. 后续产品化重点应转向模板配置体验，而不是继续堆工程化功能。
 
 ## Recommended Next Phase
 
@@ -452,7 +450,50 @@ dynamic_table_ui: IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE
 export_main_chain: PASS
 workspace_ui: PASS
 image_field_ui: PASS
-dynamic_table_ui: IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE
+dynamic_table_ui: PASS
 
-result: PASS WITH DYNAMIC TABLE UI PARTIAL VERIFIED
+result: PASS
 ```
+
+---
+
+# V4-DYNAMIC-TABLE-CLOSE01 动态表格闭环
+
+## 结果
+
+PASS
+
+## 配置来源
+
+真实软胶囊模板中通过 `/v4-template-settings` 将 `B24` 配置为动态表格测试字段：
+
+```text
+label: 动态表格测试项
+field_key: dynamic_table_test
+target_cell: B24
+field_type: table
+write_mode: write_table_cell
+show_in_workspace: true
+```
+
+## 真实验证证据
+
+```text
+template_layout.workspace_fields_count: 41
+template_layout.table_fields_count: 1
+workspace table field: dynamic_table_test / B24 / field_type=table / write_mode=write_table_cell
+workspace row controls: 新增一行 / 删除一行 displayed
+extra row input: displayed
+confirmed row_offset: 0 and 1
+export API: /api/v4/export-confirmed-excel success
+processed table ops:
+  write_table_cell B24 row_offset=0 value=DT_BASE_CLOSE01
+  write_table_cell B24 row_offset=1 value=DT_ROW2_CLOSE01
+Excel readback:
+  B24 = DT_BASE_CLOSE01
+  B25 = DT_ROW2_CLOSE01
+```
+
+## 状态更新
+
+动态表格状态从 `IMPLEMENTED / PARTIAL VERIFIED / NO REAL TABLE TEMPLATE` 更新为 `PASS`。

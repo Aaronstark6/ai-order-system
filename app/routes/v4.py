@@ -245,6 +245,10 @@ def _normalize_template_configuration_items(items):
         cell = str(item.get("cell") or "").strip().upper()
         if not cell:
             continue
+        field_type = str(item.get("field_type") or "text").strip()
+        write_mode = str(item.get("write_mode") or "").strip()
+        if field_type in {"table", "dynamic_table"}:
+            write_mode = "write_table_cell"
         configuration[cell] = {
             "label": str(item.get("label") or "").strip(),
             "show_in_workspace": bool(item.get("show_in_workspace", True)),
@@ -256,7 +260,7 @@ def _normalize_template_configuration_items(items):
             "candidate_reason": str(item.get("candidate_reason") or "").strip(),
             "confidence_breakdown": item.get("confidence_breakdown") if isinstance(item.get("confidence_breakdown"), dict) else {},
             "intent_type": str(item.get("intent_type") or "").strip(),
-            "write_mode": str(item.get("write_mode") or "").strip(),
+            "write_mode": write_mode,
             "label_cell": str(item.get("label_cell") or "").strip().upper(),
             "target_cell": str(item.get("target_cell") or "").strip().upper(),
             "sheet_name": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
@@ -264,7 +268,7 @@ def _normalize_template_configuration_items(items):
             "intent_confidence": float(item.get("intent_confidence") or 0),
             "intent_reason": str(item.get("intent_reason") or "").strip(),
             "ai_extract_hint": str(item.get("ai_extract_hint") or "").strip(),
-            "field_type": str(item.get("field_type") or "text").strip(),
+            "field_type": field_type,
             "image_fit": str(item.get("image_fit") or "contain").strip(),
             "image_anchor_cell": str(item.get("image_anchor_cell") or item.get("target_cell") or item.get("cell") or "").strip().upper(),
             "col_offset": int(item.get("col_offset") or item.get("table_col_offset") or item.get("column_offset") or 0),
@@ -1469,7 +1473,8 @@ def _build_ai_extraction_contract_from_workspace_fields(workspace_fields):
         write_mode = str(field.get("write_mode") or "").strip()
         explicit_field_type = str(field.get("field_type") or field.get("type") or "").strip()
         is_image_field = explicit_field_type == "image"
-        if not is_image_field and (intent_type in hidden_intents or write_mode in hidden_write_modes):
+        is_table_field = explicit_field_type in {"table", "dynamic_table"} or write_mode == "write_table_cell"
+        if not is_image_field and not is_table_field and (intent_type in hidden_intents or write_mode in hidden_write_modes):
             continue
 
         label = str(field.get("label") or field_key).strip() or field_key
@@ -1906,6 +1911,7 @@ def _build_runtime_mapping_trace_report(profile):
         "select_option_text",
         "write_table_column",
         "write_row_field",
+        "write_table_cell",
     }
     skipped_write_modes = {"skip", "none"}
     skipped_intents = {"title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"}
@@ -2057,7 +2063,7 @@ def _export_audit_root_cause(item, expected="", actual="", write_mode="", has_ma
     if expected_text and not actual_text:
         return "missing_export", "期望值存在，但导出单元格为空"
 
-    if mode in {"append_after_colon", "check_option", "select_option_text", "write_table_column", "write_row_field"}:
+    if mode in {"append_after_colon", "check_option", "select_option_text", "write_table_column", "write_row_field", "write_table_cell"}:
         return "write_mode_issue", "可能与特殊写入模式有关"
 
     if expected_text != actual_text:
@@ -2287,6 +2293,7 @@ def _build_mapping_health_report(profile):
         "select_option_text",
         "write_table_column",
         "write_row_field",
+        "write_table_cell",
     }
     executable_write_modes = required_target_write_modes
     skipped_intents = {"title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"}
@@ -2436,10 +2443,11 @@ def _build_workspace_fields_from_profile(profile):
         is_image_intent = intent_type in {"image_area", "attachment_hint"}
         field_type = "image" if raw_field_type == "image" or is_image_intent else raw_field_type
         is_image_field = field_type == "image"
-        if not is_image_field and intent_type in hidden_intents:
+        write_mode = str(item.get("write_mode") or "").strip()
+        is_table_field = field_type in {"table", "dynamic_table"} or write_mode == "write_table_cell"
+        if not is_image_field and not is_table_field and intent_type in hidden_intents:
             continue
 
-        write_mode = str(item.get("write_mode") or "").strip()
         if not is_image_field and write_mode in hidden_write_modes:
             continue
 
@@ -3068,8 +3076,10 @@ def _confirmed_operation_from_item(item, worksheet):
             "target_sheet": _sheet_key(item.get("sheet_name") or item.get("target_sheet") or item.get("worksheet") or item.get("sheet")),
         }
     value = _confirmed_write_value(item, worksheet)
+    write_mode = str(item.get("write_mode") or "").strip()
+    is_table_field = field_type in {"table", "dynamic_table"} or write_mode == "write_table_cell"
     return {
-        "op_type": "write_text",
+        "op_type": "write_table_cell" if is_table_field else "write_text",
         "target_cell": target_cell,
         "value": value,
         "source": item.get("source") or "Confirmed Workspace",
@@ -3079,7 +3089,7 @@ def _confirmed_operation_from_item(item, worksheet):
         "confirmed_override": True,
         "confirmed_label": item.get("label") or "",
         "confirmed_source": item.get("source") or "Confirmed Workspace",
-        "write_mode": item.get("write_mode") or "",
+        "write_mode": write_mode,
         "intent_type": item.get("intent_type") or "",
         "source_cell": item.get("source_cell") or "",
         "option_value": item.get("option_value") or "",
@@ -3135,6 +3145,11 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
         operation["intent_type"] = enriched_item.get("intent_type", "")
         operation["source_cell"] = enriched_item.get("source_cell", "")
         operation["option_value"] = enriched_item.get("option_value", "")
+        field_type = str(enriched_item.get("field_type") or enriched_item.get("type") or "").strip().lower()
+        if field_type in {"table", "dynamic_table"} or write_mode == "write_table_cell":
+            operation["op_type"] = "write_table_cell"
+            operation["row_offset"] = enriched_item.get("row_offset") or 0
+            operation["col_offset"] = enriched_item.get("col_offset") or 0
         if enriched_item.get("field_key"):
             operation["field_key"] = enriched_item.get("field_key")
         if enriched_item.get("label"):

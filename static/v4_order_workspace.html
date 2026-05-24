@@ -2431,7 +2431,7 @@
 
         function renderWorkspaceRow(item, editorHtml) {
             return `
-                <div class="workspace-row" data-status="${escapeHtml(item.status || "")}">
+                <div class="workspace-row" data-status="${escapeHtml(item.status || "")}" ${businessFieldDataAttributes(item)}>
                     <div class="workspace-label">
                         ${escapeHtml(item.label || item.field_key || item.cell || "字段")}
                         <small>${escapeHtml(item.field_key || item.intent_type || item.cell || "")}</small>
@@ -2516,12 +2516,24 @@
 
             const key = workspaceTableKey(item);
             const rows = workspaceTableRows[key] || [];
+            const extraRowsHtml = rows.map((row, index) => `
+                <input
+                    class="workspace-table-extra-input"
+                    type="text"
+                    value="${escapeHtml(row.value || "")}"
+                    data-table-key="${escapeHtml(key)}"
+                    data-row-index="${index}"
+                    placeholder="第 ${Number(row.row_offset || index + 1) + 1} 行"
+                    oninput="updateWorkspaceTableRowValue(this)"
+                >
+            `).join("");
 
             return `
-                <div class="workspace-table-controls" data-table-key="${escapeHtml(key)}">
+                <div class="workspace-table-controls" data-table-key="${escapeHtml(key)}" ${businessFieldDataAttributes(item)}>
                     <button type="button" class="workspace-table-button" onclick="addWorkspaceTableRow(this)">新增一行</button>
                     <button type="button" class="workspace-table-button danger" onclick="removeWorkspaceTableRow(this)">删除一行</button>
                     <span class="workspace-table-count">当前额外行：${rows.length}</span>
+                    ${extraRowsHtml}
                 </div>
             `;
         }
@@ -2627,8 +2639,21 @@
             renderWorkspaceFields();
         }
 
+        function updateWorkspaceTableRowValue(input) {
+            const key = input.dataset.tableKey || "";
+            const rowIndex = Number(input.dataset.rowIndex || 0);
+            if (!key || !workspaceTableRows[key] || !workspaceTableRows[key][rowIndex]) return;
+            workspaceTableRows[key][rowIndex] = {
+                ...workspaceTableRows[key][rowIndex],
+                value: input.value,
+            };
+            window.workspaceTableRows = workspaceTableRows;
+            syncConfirmedCellsFromInputs();
+        }
+
         function renderWorkspaceFields() {
-            const sections = getSemanticWorkspaceSections();
+            const workspaceFields = Array.isArray(v4WorkspaceFields) ? v4WorkspaceFields : [];
+            const sections = workspaceFields.length ? buildWorkspaceFieldSections(workspaceFields, {}) : getSemanticWorkspaceSections();
             const area = document.getElementById("v4ConfirmationArea");
             if (area) {
                 area.innerHTML = groupWorkspaceBusinessSections(sections).map(renderBusinessFormSection).join("");
@@ -3119,7 +3144,7 @@
                         write_mode: "write_table_cell",
                         intent_type: item.intent_type || "",
                         option_value: "",
-                        value: item.value || "",
+                        value: typeof extraRow.value === "string" ? extraRow.value : (item.value || ""),
                         row_offset: baseRowOffset + extraRowOffset,
                         col_offset: Number(item.col_offset || 0),
                         table_col_offset: Number(item.table_col_offset || 0),
@@ -3129,6 +3154,7 @@
             
             return [...baseItems, ...extraItems];
         }
+        window.collectConfirmedCellsFromInputs = collectConfirmedCellsFromInputs;
 
         function getExportCheckState() {
             const normalControls = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell], #v4ConfirmationArea textarea[data-cell]"))

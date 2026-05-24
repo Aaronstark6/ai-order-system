@@ -885,8 +885,8 @@
             ["format_protection", "格式保护 format_protection"],
             ["export_readback_check", "导出结果检查 export_readback_check"],
         ];
-        const FIELD_TYPE_OPTIONS = ["text", "image"];
-        const FIELD_TYPE_LABELS = { text: "text", image: "image" };
+        const FIELD_TYPE_OPTIONS = ["text", "image", "table"];
+        const FIELD_TYPE_LABELS = { text: "text", image: "image", table: "表格字段" };
         const IMAGE_FIT_OPTIONS = ["contain", "cover", "stretch"];
         let visualIntentLayerFilters = {
             "fill-field": true,
@@ -1442,7 +1442,7 @@
 
         function renderImageFieldConfigControls(config, attrName = "data-config-field") {
             if (!isImageFieldsEnabled()) return "";
-            const fieldType = config.field_type === "image" ? "image" : "text";
+            const fieldType = FIELD_TYPE_OPTIONS.includes(config.field_type) ? config.field_type : "text";
             const imageFit = IMAGE_FIT_OPTIONS.includes(config.image_fit) ? config.image_fit : "contain";
             const anchorCell = normalizeCell(config.image_anchor_cell || config.target_cell || config.cell || "");
             return `
@@ -1616,8 +1616,11 @@
                 ai_extract_hint: readValue("ai_extract_hint").trim(),
             };
             if (isImageFieldsEnabled()) {
-                const fieldType = readValue("field_type") === "image" ? "image" : "text";
+                const fieldType = FIELD_TYPE_OPTIONS.includes(readValue("field_type")) ? readValue("field_type") : "text";
                 savedConfiguration[effective.cell].field_type = fieldType;
+                if (fieldType === "table") {
+                    savedConfiguration[effective.cell].write_mode = "write_table_cell";
+                }
                 if (fieldType === "image") {
                     savedConfiguration[effective.cell].image_fit = IMAGE_FIT_OPTIONS.includes(readValue("image_fit")) ? readValue("image_fit") : "contain";
                     savedConfiguration[effective.cell].image_anchor_cell = normalizeCell(readValue("image_anchor_cell")) || savedConfiguration[effective.cell].target_cell || effective.cell;
@@ -2235,6 +2238,9 @@
                 };
                 if (isImageFieldsEnabled()) {
                     item.field_type = fieldTypeInput ? fieldTypeInput.value.trim() : (row.dataset.fieldType || "text");
+                    if (item.field_type === "table") {
+                        item.write_mode = "write_table_cell";
+                    }
                     if (item.field_type === "image") {
                         item.image_fit = imageFitInput ? imageFitInput.value.trim() : (row.dataset.imageFit || "contain");
                         item.image_anchor_cell = imageAnchorCellInput ? imageAnchorCellInput.value.trim() : (row.dataset.imageAnchorCell || item.target_cell || cell);
