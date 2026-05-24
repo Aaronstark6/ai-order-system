@@ -523,8 +523,35 @@
             display: grid;
             gap: 8px;
         }
-        .workspace-image-upload input[type="file"] {
-            width: 100%;
+        .workspace-image-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .workspace-image-file-input {
+            display: none;
+        }
+        .workspace-image-button {
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid #d0d5dd;
+            border-radius: 6px;
+            color: #344054;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 13px;
+            font-weight: 700;
+            min-height: 36px;
+            padding: 0 12px;
+        }
+        .workspace-image-button:hover {
+            background: #eef4ff;
+            border-color: #b2ccff;
+        }
+        .workspace-image-button.clear {
+            background: #fff;
+            color: #b42318;
         }
         .workspace-image-preview {
             align-items: center;
@@ -1701,7 +1728,9 @@
         function inferWorkspaceFieldType(field) {
             const intentType = String(field?.intent_type || "");
             const writeMode = String(field?.write_mode || "");
+            const fieldType = String(field?.field_type || field?.type || "");
             const labelKey = `${field?.label || ""} ${field?.field_key || ""}`.toLowerCase();
+            if (fieldType === "image" || fieldType === "image_upload" || ["image_area", "attachment_hint"].includes(intentType)) return "image_upload";
             if (["option_checkbox", "option_text_choice"].includes(intentType)) return "single_choice";
             if (labelKey.includes("日期") || labelKey.includes("date")) return "date";
             if (labelKey.includes("数量") || labelKey.includes("quantity") || labelKey.includes("qty") || labelKey.includes("number") || labelKey.includes("amount")) return "number";
@@ -1794,10 +1823,17 @@
                     field_key: field.field_key || "",
                     value: rawValue == null ? "" : String(rawValue),
                     cell: field.cell || "",
+                    display_cell: field.display_cell || field.cell || "",
                     source_cell: field.source_cell || "",
                     intent_type: field.intent_type || "",
                     write_mode: field.write_mode || "",
                     option_value: field.option_value || "",
+                    field_type: field.field_type || (type === "image_upload" ? "image" : field.type || "text"),
+                    image_fit: field.image_fit || "contain",
+                    image_anchor_cell: field.image_anchor_cell || field.cell || "",
+                    row_offset: Number(field.row_offset || 0),
+                    col_offset: Number(field.col_offset || field.table_col_offset || 0),
+                    table_col_offset: Number(field.table_col_offset || field.col_offset || 0),
                     options: [],
                     required: isWorkspaceFieldRequired(field),
                     confidence: field.confidence || 0,
@@ -2430,7 +2466,7 @@
             if (excelFeatureFlags.image_fields !== true) return false;
             const fieldType = String(item?.field_type || item?.config?.field_type || "").trim();
             const type = String(item?.type || "").trim();
-            return fieldType === "image" || type === "image";
+            return fieldType === "image" || type === "image" || type === "image_upload";
         }
 
         function renderWorkspaceImagePreview(image) {
@@ -2462,15 +2498,43 @@
                     data-row-offset="${Number(item.row_offset || 0)}"
                     data-col-offset="${Number(item.col_offset || item.table_col_offset || 0)}"
                 >
-                    <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/jpg,image/webp"
-                        data-image-key="${escapeHtml(key)}"
-                        onchange="handleWorkspaceImageSelected(this)"
-                    >
                     <div data-image-preview="${escapeHtml(key)}">${renderWorkspaceImagePreview(image)}</div>
+                    <div class="workspace-image-actions">
+                        <label class="workspace-image-button">
+                            ${image ? "更换图片" : "选择图片"}
+                            <input
+                                class="workspace-image-file-input"
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                data-image-key="${escapeHtml(key)}"
+                                onchange="handleWorkspaceImageSelected(this)"
+                            >
+                        </label>
+                        <button class="workspace-image-button" type="button" onclick="triggerWorkspaceImagePicker(this)">替换图片</button>
+                        <button class="workspace-image-button clear" type="button" onclick="clearWorkspaceImage(this)">清除图片</button>
+                    </div>
                 </div>
             `;
+        }
+
+        function triggerWorkspaceImagePicker(button) {
+            const wrapper = button.closest(".workspace-image-upload");
+            const input = wrapper ? wrapper.querySelector("input[type='file']") : null;
+            if (input) input.click();
+        }
+
+        function clearWorkspaceImage(button) {
+            const wrapper = button.closest(".workspace-image-upload");
+            if (!wrapper) return;
+            const input = wrapper.querySelector("input[type='file']");
+            const key = input?.dataset.imageKey || `${wrapper.dataset.fieldKey || ""}::${wrapper.dataset.cell || ""}`;
+            delete workspaceImageValues[key];
+            window.workspaceImageValues = workspaceImageValues;
+            if (input) input.value = "";
+            const preview = wrapper.querySelector("[data-image-preview]");
+            if (preview) preview.innerHTML = renderWorkspaceImagePreview(null);
+            markWorkspaceFieldManual(button);
+            syncConfirmedCellsFromInputs();
         }
 
         function handleWorkspaceImageSelected(input) {
@@ -2705,6 +2769,12 @@
                 intent_type: field.intent_type || "",
                 write_mode: field.write_mode || "",
                 option_value: field.option_value || "",
+                field_type: field.field_type || (field.type === "image_upload" ? "image" : field.type || "text"),
+                image_fit: field.image_fit || "contain",
+                image_anchor_cell: field.image_anchor_cell || field.cell || "",
+                row_offset: Number(field.row_offset || 0),
+                col_offset: Number(field.col_offset || field.table_col_offset || 0),
+                table_col_offset: Number(field.table_col_offset || field.col_offset || 0),
                 options: Array.isArray(field.options) ? field.options : [],
                 required,
                 status: workspaceFieldStatus(value, required, hasAiValue),

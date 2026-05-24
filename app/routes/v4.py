@@ -1650,7 +1650,7 @@ def _semantic_workspace_type(region, field=None):
         return "single_choice"
     if semantic_type in {"note_instruction"} or intent_type == "readonly_example":
         return "readonly_note"
-    if semantic_type == "image_attachment_area" or intent_type == "attachment_hint":
+    if semantic_type == "image_attachment_area" or intent_type in {"attachment_hint", "image_area"}:
         return "image_upload"
     if semantic_type == "inline_field" or intent_type == "inline_fill_after_colon":
         if any(keyword in label_key for keyword in ("要求", "描述", "备注", "说明", "other", "note", "description")):
@@ -2431,10 +2431,11 @@ def _build_workspace_fields_from_profile(profile):
         if not field_key:
             continue
 
-        field_type = str(item.get("field_type") or "text").strip()
-        is_image_field = field_type == "image"
-
         intent_type = str(item.get("intent_type") or "").strip()
+        raw_field_type = str(item.get("field_type") or "text").strip()
+        is_image_intent = intent_type in {"image_area", "attachment_hint"}
+        field_type = "image" if raw_field_type == "image" or is_image_intent else raw_field_type
+        is_image_field = field_type == "image"
         if not is_image_field and intent_type in hidden_intents:
             continue
 
@@ -3008,7 +3009,7 @@ def _materialize_image_data_url_to_temp_file(item):
         mime_type = mime_type or header_mime
 
     ext = _image_extension_from_mime_type(mime_type or "image/png")
-    if ext not in {".png", ".jpg", ".jpeg"}:
+    if ext not in {".png", ".jpg", ".jpeg", ".webp"}:
         return ""
 
     try:
@@ -3115,8 +3116,9 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
         config = _lookup_confirmed_mapping_config(confirmed_item, config_lookup)
         enriched_item = _confirmed_item_with_mapping_config(confirmed_item, config)
         write_mode = str(enriched_item.get("write_mode") or "").strip()
+        is_image_item = _confirmed_cell_is_image_item(enriched_item)
         write_mode_summary["total"] += 1
-        if write_mode in {"skip", "none"}:
+        if write_mode in {"skip", "none"} and not is_image_item:
             operation["value"] = ""
             operation["confirmed_override"] = True
             operation["confirmed_skip_reason"] = f"write_mode={write_mode}"
@@ -3166,8 +3168,9 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
             continue
 
         write_mode = str(enriched_item.get("write_mode") or "").strip()
+        is_image_item = _confirmed_cell_is_image_item(enriched_item)
         write_mode_summary["total"] += 1
-        if write_mode in {"skip", "none"}:
+        if write_mode in {"skip", "none"} and not is_image_item:
             write_mode_summary["skipped"] += 1
             _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
             continue
