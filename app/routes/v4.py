@@ -5197,11 +5197,20 @@ def api_v4_export_confirmed_excel(
 
         pipeline_result = pipeline_e2e_result.get("pipeline_result", {})
         processed_operations = pipeline_result.get("processed_operations", [])
-        if not isinstance(processed_operations, list) or not processed_operations:
+        if not isinstance(processed_operations, list):
             return {
                 "success": False,
                 "stage": "processed_operations",
                 "error": "暂无 processed operations，无法导出 Excel",
+                "pipeline_e2e_result": pipeline_e2e_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+        confirmed_has_items = any(isinstance(item, dict) for item in confirmed_cells)
+        if not processed_operations and not confirmed_has_items:
+            return {
+                "success": False,
+                "stage": "processed_operations",
+                "error": "鏆傛棤 processed operations 鎴?confirmed cells锛屾棤娉曞鍑?Excel",
                 "pipeline_e2e_result": pipeline_e2e_result,
                 "pipeline_state": get_pipeline_state(),
             }
@@ -5224,6 +5233,17 @@ def api_v4_export_confirmed_excel(
         confirmed_override_count = override_result.get("override_count", 0)
         confirmed_added_count = override_result.get("added_count", 0)
         write_mode_summary = override_result.get("write_mode_summary", _confirmed_export_empty_summary())
+        if not overridden_operations:
+            return {
+                "success": False,
+                "stage": "processed_operations",
+                "error": "鏆傛棤鍙墽琛岀殑 processed operations 鎴?confirmed cells锛屾棤娉曞鍑?Excel",
+                "pipeline_e2e_result": pipeline_e2e_result,
+                "confirmed_override_count": confirmed_override_count,
+                "confirmed_added_count": confirmed_added_count,
+                "write_mode_summary": write_mode_summary,
+                "pipeline_state": get_pipeline_state(),
+            }
 
         export_result = execute_processed_operations_to_excel(template_path, overridden_operations)
         if not export_result.get("success"):

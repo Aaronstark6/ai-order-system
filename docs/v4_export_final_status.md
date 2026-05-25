@@ -1341,3 +1341,111 @@ Image summary P1: CLOSED
 Final audit P1 list: NONE
 V4 completion: 96% -> 98%
 ```
+
+---
+
+# V4-RELEASE-CANDIDATE-AUDIT01 Release Candidate Audit
+
+## RELEASE_CANDIDATE_AUDIT_RESULT
+
+```text
+BASE_HEAD: 51b7f79
+RC_STATUS: CONDITIONAL_PASS
+CURRENT_COMPLETION: 98%
+REAL_BUSINESS_TEST_RECOMMENDATION: YES, after applying the P0 fix in this audit.
+```
+
+## P0
+
+Initial audit against `51b7f79` found one real blocker:
+
+```text
+P0: export-confirmed-excel failed when the current softgel profile had semantic workspace fields but zero processed_operations.
+```
+
+Evidence before fix:
+
+```text
+AI Parse: success
+semantic_workspace_schema.fields_count: 5
+processed_operations_count: 0
+export-confirmed-excel: FAIL
+stage: processed_operations
+error: 暂无 processed operations，无法导出 Excel
+```
+
+Minimal fix applied:
+
+```text
+If processed_operations is empty but confirmed_cells are present,
+allow confirmed override to build executable operations before export.
+If both are empty, still fail early.
+```
+
+Evidence after fix:
+
+```text
+export-confirmed-excel: PASS
+confirmed_added_count: 5
+operations_written: 5
+normal field C5: RC_NORMAL_VALUE
+dynamic table B24: RC_DT_ROW0
+dynamic table B25: RC_DT_ROW1
+dynamic table C24: RC_DT_COL1
+Excel images_count: 1
+image_export_summary: total=1 inserted=1 skipped=0
+readback: total=4 checked=4 matched=4 mismatched=0 skipped=0
+```
+
+## P1
+
+```text
+NONE after the P0 fix.
+```
+
+## P2
+
+```text
+1. Add automated regression coverage for the RC paths verified manually here.
+2. Clean historical label/text encoding artifacts in some profile/UI output.
+3. Consider returning semantic_workspace_schema from set-current-template-profile so pre-parse preview updates immediately after switching profiles.
+```
+
+## Scope Result
+
+```text
+AI Parse -> Workspace -> Confirmed -> Excel: PASS after P0 fix
+Normal fields: PASS
+Image fields: PASS
+Dynamic table: PASS
+Workspace field control: PASS via semantic workspace fallback for current softgel profile
+Configuration persistence: PASS
+Multi-mapping isolation: PASS
+Export Readback: PASS
+Dynamic table offset readback: PASS
+Image export summary: PASS
+Real browser pages: PASS
+Real softgel template export: PASS after P0 fix
+```
+
+## Profile / Mapping Evidence
+
+```text
+profiles_count: 5
+softgel runtime_mapping_source: semantic_fallback
+softgel semantic_fields_count: 5
+default_profile runtime_mapping_source: empty
+softgel -> default_profile -> softgel switch: isolated profile/template/runtime sources, no cross-config bleed observed
+```
+
+## Follow-up Test Checklist
+
+```text
+1. Run one real operator order through softgel AI Parse.
+2. Confirm semantic workspace fields are understandable to the operator.
+3. Manually override at least two fields, then export.
+4. Confirm Excel values, image count, image summary, and readback panel.
+5. Repeat profile switch softgel -> default_profile -> softgel before export.
+6. Repeat one non-softgel profile export as a smoke test.
+7. Promote the commands from this audit into automated regression tests.
+```
