@@ -1,5 +1,5 @@
 {
-  "version": "v4-field-catalog-001",
+  "version": "v4-field-catalog-002",
   "description": "V4字段标识库",
   "domains": [
     {
@@ -75,6 +75,111 @@
       ]
     },
     {
+      "key": "product",
+      "label": "产品形态",
+      "fields": [
+        {
+          "key": "product_form",
+          "field_key": "product.product_form",
+          "label": "产品形态",
+          "aliases": ["产品形式", "产品类型", "剂型", "软胶囊", "泡腾片", "固体饮料", "软糖", "片剂"],
+          "keywords": ["产品形式", "产品类型", "剂型", "软胶囊", "泡腾片", "固体饮料", "软糖", "片剂", "product form"],
+          "ai_extract_hint": "产品形态 / 软胶囊 / 泡腾片 / 固体饮料 / 软糖 / 片剂",
+          "type": "text",
+          "enabled": true,
+          "priority": 74
+        },
+        {
+          "key": "soft_capsule_shell_size",
+          "field_key": "product.soft_capsule.shell_size",
+          "label": "软胶囊壳大小",
+          "aliases": ["软胶囊壳大小", "胶囊壳大小", "软胶囊壳形状大小", "壳形状大小", "胶囊大小"],
+          "keywords": ["软胶囊壳大小", "胶囊壳大小", "软胶囊壳形状", "壳形状", "shell size"],
+          "ai_extract_hint": "软胶囊壳大小 / 胶囊壳形状大小",
+          "type": "text",
+          "enabled": true,
+          "priority": 88
+        },
+        {
+          "key": "soft_capsule_shell_color",
+          "field_key": "product.soft_capsule.shell_color",
+          "label": "软胶囊壳颜色",
+          "aliases": ["软胶囊壳颜色", "胶囊壳颜色", "壳颜色", "胶囊颜色"],
+          "keywords": ["软胶囊壳颜色", "胶囊壳颜色", "壳颜色", "shell color"],
+          "ai_extract_hint": "软胶囊壳颜色 / 胶囊壳颜色",
+          "type": "text",
+          "enabled": true,
+          "priority": 86
+        },
+        {
+          "key": "soft_capsule_shell_material",
+          "field_key": "product.soft_capsule.shell_material",
+          "label": "胶囊壳材质",
+          "aliases": ["胶囊壳材质", "软胶囊壳材质", "素食胶囊", "明胶", "壳材质"],
+          "keywords": ["胶囊壳材质", "软胶囊壳材质", "素食", "明胶", "shell material"],
+          "ai_extract_hint": "胶囊壳材质 / 素食 / 明胶",
+          "type": "text",
+          "enabled": true,
+          "priority": 84
+        },
+        {
+          "key": "tablet_size_weight",
+          "field_key": "product.tablet.size_weight",
+          "label": "片剂大小/克重",
+          "aliases": ["片剂大小克重", "片剂大小/克重", "泡腾片大小克重", "大小/克重"],
+          "keywords": ["片剂大小", "泡腾片大小", "片剂克重", "泡腾片克重"],
+          "ai_extract_hint": "片剂大小/克重 / 泡腾片大小克重",
+          "type": "text",
+          "enabled": true,
+          "priority": 82
+        },
+        {
+          "key": "powder_size_weight",
+          "field_key": "product.powder.size_weight",
+          "label": "固体饮料大小/克重",
+          "aliases": ["固体饮料大小克重", "固体饮料大小/克重", "固体饮料克重", "每个serving多少克"],
+          "keywords": ["固体饮料大小", "固体饮料克重", "serving多少克", "serving"],
+          "ai_extract_hint": "固体饮料大小/克重 / 每个 serving 多少克",
+          "type": "text",
+          "enabled": true,
+          "priority": 82
+        },
+        {
+          "key": "gummy_size_weight",
+          "field_key": "product.gummy.size_weight",
+          "label": "软糖大小/克重",
+          "aliases": ["软糖大小克重", "软糖大小/克重", "软糖克重"],
+          "keywords": ["软糖大小", "软糖克重", "gummy size", "gummy weight"],
+          "ai_extract_hint": "软糖大小/克重",
+          "type": "text",
+          "enabled": true,
+          "priority": 82
+        },
+        {
+          "key": "coating_enabled",
+          "field_key": "product.coating_enabled",
+          "label": "是否包衣",
+          "aliases": ["是否包衣", "包衣", "要不要包衣"],
+          "keywords": ["是否包衣", "包衣", "coating"],
+          "ai_extract_hint": "是否包衣",
+          "type": "boolean",
+          "enabled": true,
+          "priority": 78
+        },
+        {
+          "key": "coating_color",
+          "field_key": "product.coating_color",
+          "label": "包衣颜色",
+          "aliases": ["包衣颜色", "包衣色"],
+          "keywords": ["包衣颜色", "包衣色", "coating color"],
+          "ai_extract_hint": "包衣颜色",
+          "type": "text",
+          "enabled": true,
+          "priority": 80
+        }
+      ]
+    },
+    {
       "key": "packaging",
       "label": "包装要求",
       "fields": [
@@ -93,8 +198,8 @@
           "key": "quantity_per_unit",
           "field_key": "packaging.quantity_per_unit",
           "label": "装量",
-          "aliases": ["装量", "包装数量", "包装规格", "每瓶数量", "每袋数量", "每管数量", "粒/瓶", "片/管"],
-          "keywords": ["装量", "包装数量", "包装规格", "每瓶", "每袋", "每管", "粒/瓶", "片/管", "quantity per unit", "per bottle", "per bag", "per tube"],
+          "aliases": ["装量", "装量要求", "包装数量", "包装规格", "每瓶数量", "每袋数量", "每管数量", "粒/瓶", "片/管"],
+          "keywords": ["装量", "装量要求", "包装数量", "包装规格", "每瓶", "每袋", "每管", "粒/瓶", "片/管", "quantity per unit", "per bottle", "per bag", "per tube"],
           "ai_extract_hint": "装量 / 每瓶数量 / 每袋数量 / 每管数量",
           "type": "text",
           "enabled": true,
@@ -104,9 +209,9 @@
           "key": "capacity",
           "field_key": "packaging.capacity",
           "label": "容量",
-          "aliases": ["容量", "毫升", "克重", "ml", "g"],
-          "keywords": ["容量", "毫升", "克重", "ml", "g", "gram", "grams", "capacity"],
-          "ai_extract_hint": "容量 / ml / 毫升 / g / 克",
+          "aliases": ["容量", "毫升", "ml"],
+          "keywords": ["容量", "毫升", "ml", "milliliter", "capacity"],
+          "ai_extract_hint": "容量 / ml / 毫升",
           "type": "text",
           "enabled": true,
           "priority": 76
@@ -137,23 +242,222 @@
           "key": "seal_method",
           "field_key": "packaging.seal_method",
           "label": "密封方式",
-          "aliases": ["密封方式", "瓶口密封", "盖子密封", "袋口密封", "封口方式"],
-          "keywords": ["密封", "封口", "铝箔", "热封", "塑封", "seal method", "sealing", "foil seal", "heat seal"],
-          "ai_extract_hint": "密封方式 / 瓶口密封 / 盖子密封 / 铝箔 / 热封 / 塑封",
+          "aliases": ["密封方式", "封口方式", "密封", "封口"],
+          "keywords": ["密封", "封口", "seal method", "sealing"],
+          "ai_extract_hint": "密封方式 / 封口方式",
+          "type": "text",
+          "enabled": true,
+          "priority": 62
+        },
+        {
+          "key": "container_fill",
+          "field_key": "packaging.container_fill",
+          "label": "容器内填充物",
+          "aliases": ["容器内填充物要求", "瓶内放置物", "容器内放置物", "瓶内填充物", "填充物要求"],
+          "keywords": ["容器内填充物", "瓶内放置物", "容器内放置物", "瓶内填充", "填充物"],
+          "ai_extract_hint": "容器内填充物要求 / 瓶内放置物",
+          "type": "text",
+          "enabled": true,
+          "priority": 92
+        },
+        {
+          "key": "desiccant",
+          "field_key": "packaging.desiccant",
+          "label": "干燥剂",
+          "aliases": ["干燥剂", "放干燥剂", "默认英文的干燥剂"],
+          "keywords": ["干燥剂", "desiccant"],
+          "ai_extract_hint": "干燥剂 / 是否放干燥剂",
+          "type": "text",
+          "enabled": true,
+          "priority": 90
+        },
+        {
+          "key": "spoon",
+          "field_key": "packaging.spoon",
+          "label": "勺子",
+          "aliases": ["勺子", "放勺子", "是否放勺子", "配勺"],
+          "keywords": ["勺子", "放勺子", "配勺", "spoon"],
+          "ai_extract_hint": "勺子 / 是否放勺子 / 配勺",
+          "type": "text",
+          "enabled": true,
+          "priority": 88
+        },
+        {
+          "key": "bottle_seal_method",
+          "field_key": "packaging.bottle_seal_method",
+          "label": "瓶口密封方式",
+          "aliases": ["瓶口密封", "瓶口密封方式", "瓶子密封", "瓶子密封方式", "铝箔密封"],
+          "keywords": ["瓶口", "瓶子密封", "铝箔", "瓶口密封", "bottle seal", "foil seal"],
+          "ai_extract_hint": "瓶口密封方式 / 铝箔密封",
+          "type": "text",
+          "enabled": true,
+          "priority": 96
+        },
+        {
+          "key": "cap_seal_method",
+          "field_key": "packaging.cap_seal_method",
+          "label": "盖子密封方式",
+          "aliases": ["盖子密封", "盖子密封方式", "瓶盖密封", "瓶盖热缩膜"],
+          "keywords": ["盖子密封", "瓶盖密封", "瓶盖热缩", "cap seal", "lid seal"],
+          "ai_extract_hint": "盖子密封方式 / 瓶盖密封",
+          "type": "text",
+          "enabled": true,
+          "priority": 94
+        },
+        {
+          "key": "bag_seal_method",
+          "field_key": "packaging.bag_seal_method",
+          "label": "袋口密封方式",
+          "aliases": ["袋口密封", "袋口密封方式", "袋子热封", "热封"],
+          "keywords": ["袋口密封", "袋子热封", "热封", "bag seal", "heat seal"],
+          "ai_extract_hint": "袋口密封方式 / 袋子热封",
+          "type": "text",
+          "enabled": true,
+          "priority": 94
+        },
+        {
+          "key": "shrink_wrap_cap",
+          "field_key": "packaging.shrink_wrap_cap",
+          "label": "瓶盖热缩膜",
+          "aliases": ["瓶盖热缩膜", "盖子热缩膜", "瓶盖是否做热缩膜"],
+          "keywords": ["瓶盖热缩膜", "盖子热缩膜", "瓶盖热缩", "cap shrink wrap"],
+          "ai_extract_hint": "瓶盖热缩膜 / 盖子热缩膜",
+          "type": "text",
+          "enabled": true,
+          "priority": 86
+        },
+        {
+          "key": "shrink_wrap_full",
+          "field_key": "packaging.shrink_wrap_full",
+          "label": "全包热缩膜",
+          "aliases": ["全包热缩膜", "罐子全包热缩膜", "是否做全包热缩膜"],
+          "keywords": ["全包热缩膜", "全包热缩", "full shrink wrap"],
+          "ai_extract_hint": "全包热缩膜 / 是否做全包热缩膜",
+          "type": "text",
+          "enabled": true,
+          "priority": 84
+        },
+        {
+          "key": "protective_bag",
+          "field_key": "packaging.protective_bag",
+          "label": "防护塑料袋",
+          "aliases": ["防护塑料袋", "是否套防护塑料袋", "套袋子", "防划伤"],
+          "keywords": ["防护塑料袋", "套防护塑料袋", "套袋子", "防划伤", "protective bag"],
+          "ai_extract_hint": "防护塑料袋 / 是否套袋防划伤",
           "type": "text",
           "enabled": true,
           "priority": 82
         },
         {
+          "key": "dimension_requirement",
+          "field_key": "packaging.dimension_requirement",
+          "label": "包装尺寸要求",
+          "aliases": ["包装尺寸和要求", "包装尺寸要求", "包装尺寸", "袋尺寸", "瓶子大小"],
+          "keywords": ["包装尺寸", "袋尺寸", "瓶子大小", "尺寸要求", "packaging dimension"],
+          "ai_extract_hint": "包装尺寸和要求 / 包装尺寸要求",
+          "type": "text",
+          "enabled": true,
+          "priority": 80
+        },
+        {
           "key": "extra_requirements",
           "field_key": "packaging.extra_requirements",
           "label": "其他包装要求",
-          "aliases": ["其他包装要求", "包装要求", "包装尺寸和要求", "包材要求", "包装备注"],
-          "keywords": ["其他包装", "包装要求", "包装尺寸", "包材", "packaging requirement"],
-          "ai_extract_hint": "其他包装要求 / 包装尺寸和要求 / 包材要求",
+          "aliases": ["其他包装要求", "包装要求", "包材要求", "包装备注"],
+          "keywords": ["其他包装", "包装要求", "包材", "packaging requirement"],
+          "ai_extract_hint": "其他包装要求 / 包材要求",
           "type": "textarea",
           "enabled": true,
           "priority": 60
+        }
+      ]
+    },
+    {
+      "key": "formula",
+      "label": "配方",
+      "fields": [
+        {
+          "key": "bilingual_formula",
+          "field_key": "formula.bilingual_formula",
+          "label": "中英文配方",
+          "aliases": ["配方", "中文&英文", "中文和英文配方", "中英文配方", "配方：中文&英文"],
+          "keywords": ["配方", "中文&英文", "中文和英文", "bilingual formula", "formula"],
+          "ai_extract_hint": "配方 / 中文&英文 / 中英文配方",
+          "type": "textarea",
+          "enabled": true,
+          "priority": 86
+        },
+        {
+          "key": "chinese_formula",
+          "field_key": "formula.chinese_formula",
+          "label": "中文配方",
+          "aliases": ["中文配方", "配方中文", "中文成分"],
+          "keywords": ["中文配方", "配方中文", "中文成分"],
+          "ai_extract_hint": "中文配方",
+          "type": "textarea",
+          "enabled": true,
+          "priority": 84
+        },
+        {
+          "key": "english_formula",
+          "field_key": "formula.english_formula",
+          "label": "英文配方",
+          "aliases": ["英文配方", "配方英文", "英文成分", "English formula"],
+          "keywords": ["英文配方", "配方英文", "英文成分", "english formula"],
+          "ai_extract_hint": "英文配方",
+          "type": "textarea",
+          "enabled": true,
+          "priority": 84
+        }
+      ]
+    },
+    {
+      "key": "attachment",
+      "label": "图片附件",
+      "fields": [
+        {
+          "key": "product_photo",
+          "field_key": "attachment.product_photo",
+          "label": "产品参考图",
+          "aliases": ["产品参考图", "产品图片", "产品图", "产品照片"],
+          "keywords": ["产品参考图", "产品图片", "产品图", "product photo", "product image"],
+          "ai_extract_hint": "产品参考图 / 产品图片",
+          "type": "image",
+          "enabled": true,
+          "priority": 86
+        },
+        {
+          "key": "container_photo",
+          "field_key": "attachment.container_photo",
+          "label": "容器图片",
+          "aliases": ["瓶子图片", "罐子图片", "容器图片", "瓶子、胶囊壳等附图片"],
+          "keywords": ["瓶子图片", "罐子图片", "容器图片", "container photo", "bottle image"],
+          "ai_extract_hint": "瓶子图片 / 容器图片",
+          "type": "image",
+          "enabled": true,
+          "priority": 84
+        },
+        {
+          "key": "capsule_shell_photo",
+          "field_key": "attachment.capsule_shell_photo",
+          "label": "胶囊壳图片",
+          "aliases": ["胶囊壳图片", "软胶囊壳图片", "胶囊壳等附图片"],
+          "keywords": ["胶囊壳图片", "软胶囊壳图片", "capsule shell photo", "capsule image"],
+          "ai_extract_hint": "胶囊壳图片 / 软胶囊壳图片",
+          "type": "image",
+          "enabled": true,
+          "priority": 84
+        },
+        {
+          "key": "label_photo",
+          "field_key": "attachment.label_photo",
+          "label": "标签图片",
+          "aliases": ["标签图片", "标签图", "正标图", "背标图"],
+          "keywords": ["标签图片", "标签图", "正标", "背标", "label photo", "label image"],
+          "ai_extract_hint": "标签图片 / 正标图 / 背标图",
+          "type": "image",
+          "enabled": true,
+          "priority": 82
         }
       ]
     },

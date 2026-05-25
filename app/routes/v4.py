@@ -387,6 +387,10 @@ _SECTION_FIELD_HINTS = [
         },
     ),
     (
+        ["image", "photo", "picture", "attachment", "图片", "图", "附件"],
+        {"attachment": 0.24},
+    ),
+    (
         ["summary", "total", "amount", "price", "合计", "汇总", "金额", "总计", "价格"],
         {"amount": 0.22, "quantity": 0.08},
     ),
@@ -1150,9 +1154,11 @@ def _section_score_for_rule(section_text, rule):
     if not section_text:
         return 0
     score = 0
+    field_key = str(rule.get("field_key") or "")
+    domain_key = field_key.split(".", 1)[0] if "." in field_key else field_key
     for keywords, field_scores in _SECTION_FIELD_HINTS:
         if any(_normalize_candidate_text(keyword) in section_text for keyword in keywords):
-            score = max(score, float(field_scores.get(rule["field_key"], 0) or 0))
+            score = max(score, float(field_scores.get(field_key, field_scores.get(domain_key, 0)) or 0))
     return score
 
 

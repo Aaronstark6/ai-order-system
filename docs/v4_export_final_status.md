@@ -1582,3 +1582,77 @@ Compatibility:
 Next:
 - A future field catalog UI can edit aliases/keywords without changing routes/v4.py.
 ```
+
+## V4-FIELD-CATALOG-DOMAIN02
+
+```text
+FIELD_CATALOG_DOMAIN02: PASS
+
+Scope:
+- Priority-1 domains only: Packaging, Product Form, Formula, Attachment.
+- No profile migration.
+- No AI parser / Workspace / Export changes.
+- No field catalog UI.
+
+Field catalog:
+- Updated v4/schemas/field_catalog.json to v4-field-catalog-002.
+- Total catalog fields: 47.
+
+Added/expanded domains:
+- Product: product.product_form, product.soft_capsule.shell_size, product.soft_capsule.shell_color,
+  product.soft_capsule.shell_material, product.tablet.size_weight, product.powder.size_weight,
+  product.gummy.size_weight, product.coating_enabled, product.coating_color.
+- Packaging: packaging.container_fill, packaging.desiccant, packaging.spoon,
+  packaging.bottle_seal_method, packaging.cap_seal_method, packaging.bag_seal_method,
+  packaging.shrink_wrap_cap, packaging.shrink_wrap_full, packaging.protective_bag,
+  packaging.dimension_requirement.
+- Formula: formula.bilingual_formula, formula.chinese_formula, formula.english_formula.
+- Attachment: attachment.product_photo, attachment.container_photo,
+  attachment.capsule_shell_photo, attachment.label_photo.
+
+Backend compatibility:
+- Section hint fallback now supports dotted-key domains, so new packaging.* fields can receive
+  packaging section context without hardcoding every subfield.
+- Added attachment section context for 图片/图/附件 labels so attachment.* beats generic product_name.
+
+Synthetic candidate verification:
+- 容器内填充物要求 -> packaging.container_fill
+- 干燥剂 -> packaging.desiccant
+- 勺子 -> packaging.spoon
+- 瓶口密封方式 -> packaging.bottle_seal_method
+- 盖子密封方式 -> packaging.cap_seal_method
+- 袋口密封 -> packaging.bag_seal_method
+- 包装尺寸和要求 -> packaging.dimension_requirement
+- 软胶囊壳大小 -> product.soft_capsule.shell_size
+- 软胶囊壳颜色 -> product.soft_capsule.shell_color
+- 胶囊壳材质 -> product.soft_capsule.shell_material
+- 包衣颜色 -> product.coating_color
+- 配方：中文&英文 -> formula.bilingual_formula
+- 中文配方 -> formula.chinese_formula
+- 英文配方 -> formula.english_formula
+- 产品参考图 -> attachment.product_photo
+- 瓶子图片 -> attachment.container_photo
+- 胶囊壳图片 -> attachment.capsule_shell_photo
+
+Real template verification:
+- 定制品订单模板:
+  - 容器内填充物要求 / 瓶内放置物 -> packaging.container_fill
+  - 默认干燥剂 -> packaging.desiccant
+  - 瓶口密封方式 / 瓶子密封 / 铝箔密封 -> packaging.bottle_seal_method
+  - 盖子密封方式 -> packaging.cap_seal_method
+  - 袋口密封 -> packaging.bag_seal_method
+  - 软胶囊 / 片剂 / 固体饮料 / 软糖 -> product.product_form
+  - 胶囊壳大小 -> product.soft_capsule.shell_size
+  - 胶囊壳颜色 -> product.soft_capsule.shell_color
+  - 是否包衣/包衣颜色 -> product.coating_color
+  - 瓶子、胶囊壳等附图片 -> attachment.container_photo
+- 软胶囊 / 泡腾片:
+  - Title and reference text can identify product.product_form.
+
+Fallback / residual:
+- Existing profiles are not migrated and may still contain old saved candidate_field_key values.
+- Large free-text instruction blocks still need template re-analysis/manual review to split into fine fields.
+- Repeated “大小/克重” cells in different product columns need column context to disambiguate
+  tablet/powder/gummy size_weight perfectly; current matching is keyword-first.
+- Logistics, Certification, Testing, Payment, full Sensory domain, and Field Catalog UI remain out of scope.
+```
