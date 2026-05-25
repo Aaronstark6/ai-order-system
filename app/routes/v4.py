@@ -2761,6 +2761,45 @@ def _current_template_profile_for_export():
     return profile if isinstance(profile, dict) else {}
 
 
+def _clear_mapping_runtime_state():
+    set_structured_operations([])
+    set_table_operations([])
+    set_block_operations([])
+    set_unified_operations([])
+    set_pipeline_result([], [])
+    set_mapping_safety(
+        {
+            "has_conflicts": False,
+            "conflicts": [],
+            "warnings": [],
+            "skipped_operations": [],
+            "overwrite_warnings": [],
+        }
+    )
+    set_mapping_counts(
+        {
+            "enabled_structured_mappings": 0,
+            "enabled_table_mappings": 0,
+            "enabled_block_rules": 0,
+        }
+    )
+    set_validator_result({})
+    set_render_preview(
+        {
+            "cells": [],
+            "cell_preview": [],
+            "table_preview": [],
+            "block_preview": [],
+            "skipped_preview": [],
+            "mapping_safety": {},
+            "generated_time": None,
+        }
+    )
+    set_render_targets({"html_preview": "", "excel_preview": []})
+    set_excel_result(None)
+    return get_pipeline_state()
+
+
 def _resolve_bound_template_file_path(path_value):
     raw_path = str(path_value or "").strip()
     if not raw_path:
@@ -2797,7 +2836,7 @@ def _resolve_export_template_source():
         )
         raise ValueError("系统模板文件不存在") from exc
 
-    set_current_template(bound_path.name)
+    set_current_template(str(bound_path))
     logger.info(
         "V4 export using system template file: profile_id=%s path=%s",
         profile_id,
@@ -3470,22 +3509,26 @@ def api_v4_set_current_template_profile(payload: Any = Body(None)):
         }
 
     state = set_current_profile(profile)
+    state = _clear_mapping_runtime_state()
     template_file_path = str(profile.get("template_file_path") or "").strip()
     if template_file_path:
         try:
             bound_template_path = _resolve_bound_template_file_path(template_file_path)
-            state = set_current_template(bound_template_path.name)
+            state = set_current_template(str(bound_template_path))
             logger.info(
                 "V4 current template profile bound template resolved: profile_id=%s path=%s",
                 profile.get("profile_id"),
                 bound_template_path,
             )
         except (OSError, ValueError) as exc:
+            state = set_current_template(None)
             logger.info(
                 "V4 current template profile bound template unavailable: profile_id=%s error=%s",
                 profile.get("profile_id"),
                 exc,
             )
+    else:
+        state = set_current_template(None)
     return {
         "success": True,
         "message": "Current Template Profile 已设置",
@@ -4311,9 +4354,11 @@ def api_v4_load_order_object():
         }
 
     state = load_order_object_into_pipeline(order_object if isinstance(order_object, dict) else {})
-    profile = get_current_template_profile()
-    if profile:
-        state = set_current_profile(profile)
+    current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    if not current_profile:
+        profile = get_current_template_profile()
+        if profile:
+            state = set_current_profile(profile)
 
     return {
         "success": True,

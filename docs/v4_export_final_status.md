@@ -618,3 +618,109 @@ write_mode: select_option_text
 ## 状态
 
 Config Persistence: PASS
+
+---
+
+# V4-MULTI-MAPPING-CLOSE01 Multi Mapping Switch Audit
+
+## 结果
+
+PASS
+
+```text
+MULTI_MAPPING_AUDIT: PASS
+```
+
+## 修复
+
+本次审计发现并关闭 3 个映射切换串状态风险：
+
+1. 切换到无绑定模板的 `default_profile` 后，`current_template_path` 会残留上一个模板。
+2. 切换到有绑定模板的映射时，运行态模板只保存文件名，不利于后续模板来源一致性验证。
+3. `load-order-object` 会覆盖当前 profile 为默认 profile，且映射切换后旧 `processed_operations` 可能被后续导出复用。
+
+后端现在在 `/api/v4/set-current-template-profile` 中：
+
+- 有绑定模板时写入解析后的模板绝对路径。
+- 无绑定模板或模板不可用时清空 `current_template_path`。
+- 切换映射时清空运行期 operations / pipeline / render / mapping safety / export result，保留订单对象，让后续导出按当前映射重新构建。
+- `load-order-object` 仅在当前没有 profile 时才回落默认 profile。
+
+## 真实验证
+
+切换序列：
+
+```text
+软胶囊 -> default_profile -> 软胶囊
+```
+
+切换结果：
+
+```text
+软胶囊:
+  profile_id: 软胶囊
+  template_file_path: v4/system_templates/软胶囊_软胶囊爆珠模板_20260523_181128_191d0554.xlsx
+  current_template_path: D:\CursorFilses\ai-order-system\v4\system_templates\软胶囊_软胶囊爆珠模板_20260523_181128_191d0554.xlsx
+  workspace_fields_count: 41
+  runtime_mapping_source: saved_configuration
+
+default_profile:
+  profile_id: default_profile
+  template_file_path: null
+  current_template_path: null
+  workspace_fields_count: 0
+  runtime_mapping_source: empty
+
+软胶囊:
+  profile_id: 软胶囊
+  current_template_path: D:\CursorFilses\ai-order-system\v4\system_templates\软胶囊_软胶囊爆珠模板_20260523_181128_191d0554.xlsx
+  workspace_fields_count: 41
+  runtime_mapping_source: saved_configuration
+```
+
+`/api/v4/export-confirmed-excel` 路由级验证使用确定性解析结果避免外部 AI 网络波动，真实执行 profile、workspace_fields、confirmed override 和 Excel executor：
+
+```text
+软胶囊 export-confirmed-excel: PASS
+  template_source: profile
+  operations_written: 17
+  confirmed_override_count: 2
+  confirmed_added_count: 1
+  pipeline_workspace_fields_count: 41
+
+default_profile export-confirmed-excel: PASS (expected block)
+  stage: template_upload
+  error: 当前系统模板未绑定模板文件
+  current_template_path: null
+  pipeline_workspace_fields_count: 0
+
+软胶囊 export-confirmed-excel after switch back: PASS
+  template_source: profile
+  operations_written: 17
+  pipeline_workspace_fields_count: 41
+```
+
+Core export stale-operation check:
+
+```text
+软胶囊 -> default_profile -> 软胶囊:
+  stale default_profile operations reused by 软胶囊 export: NO
+  mapping switch clears processed_operations: PASS
+```
+
+Frontend JS check:
+
+```text
+/v4-template-settings: no console errors
+/v4-order-workspace: no console errors
+```
+
+## 结论
+
+```text
+workspace_fields follows mapping: PASS
+export uses current mapping: PASS
+configuration bleed found after fix: NO
+template/config/workspace_fields source consistency: PASS
+py_compile app/routes/v4.py: PASS
+```
