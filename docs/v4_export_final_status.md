@@ -570,3 +570,51 @@ Excel images_count=1: PASS
 ## 状态
 
 DONE
+
+---
+
+# V4-CONFIG-PERSIST-CLOSE01 Config Persistence
+
+## 结果
+
+PASS
+
+## 审计结论
+
+```text
+CONFIG_PERSIST_AUDIT: PASS
+```
+
+Template Settings 的 `saveTemplateConfiguration()` 会调用 `/api/v4/template-profiles/{profile_id}/configuration`；后端保存到 profile 的 `render_config.template_configuration` 并通过 `save_template_profile()` 写入 `v4/template_profiles/{profile_id}.json`；页面刷新、映射切换和 `/api/v4/template-layout` 均从已保存 profile 重新加载配置。
+
+## 真实验证
+
+测试模板：软胶囊
+
+测试字段：`F20`
+
+测试配置：
+
+```text
+label: persist_test_close01
+candidate_field_key: persist_test_close01
+show_in_workspace: true
+field_type: text
+target_cell: F20
+write_mode: select_option_text
+```
+
+验证结果：
+
+```text
+保存配置: PASS
+刷新页面后配置仍存在: PASS
+切换到 default_profile 后再切回软胶囊: PASS
+重新请求 /v4-template-settings 页面: PASS
+/api/v4/template-profiles/软胶囊/configuration: PASS
+/api/v4/template-layout workspace_fields contains persist_test_close01: PASS
+```
+
+## 状态
+
+Config Persistence: PASS
