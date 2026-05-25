@@ -2072,6 +2072,45 @@ def _export_audit_root_cause(item, expected="", actual="", write_mode="", has_ma
     return "unknown", "未知原因"
 
 
+def _readback_cell_with_offsets(cell_ref, row_offset=0, col_offset=0):
+    match = re.match(r"^([A-Za-z]+)([1-9][0-9]*)$", str(cell_ref or "").strip())
+    if not match:
+        return _cell_key(cell_ref)
+
+    from openpyxl.utils import column_index_from_string, get_column_letter
+
+    col_letters = match.group(1).upper()
+    row = int(match.group(2))
+    col = column_index_from_string(col_letters)
+
+    try:
+        row_delta = int(row_offset or 0)
+    except (TypeError, ValueError):
+        row_delta = 0
+
+    try:
+        col_delta = int(col_offset or 0)
+    except (TypeError, ValueError):
+        col_delta = 0
+
+    target_row = max(1, row + row_delta)
+    target_col = max(1, col + col_delta)
+    return f"{get_column_letter(target_col)}{target_row}"
+
+
+def _readback_target_cell_for_confirmed_item(cell, merged):
+    write_mode = str(merged.get("write_mode") or "").strip()
+    field_type = str(merged.get("field_type") or merged.get("type") or "").strip().lower()
+    if write_mode != "write_table_cell" and field_type not in {"table", "dynamic_table"}:
+        return _cell_key(cell)
+
+    return _readback_cell_with_offsets(
+        cell,
+        row_offset=merged.get("row_offset"),
+        col_offset=merged.get("col_offset") or merged.get("table_col_offset") or merged.get("column_offset"),
+    )
+
+
 
 def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=None):
     from openpyxl import load_workbook
@@ -2113,7 +2152,8 @@ def _build_export_readback_audit(exported_file_path, confirmed_cells, profile=No
         config = _lookup_confirmed_mapping_config(raw_item, lookup)
         merged = _confirmed_item_with_mapping_config(raw_item, config)
 
-        cell = _cell_key(merged.get("cell") or merged.get("target_cell") or merged.get("display_cell"))
+        base_cell = _cell_key(merged.get("cell") or merged.get("target_cell") or merged.get("display_cell"))
+        cell = _readback_target_cell_for_confirmed_item(base_cell, merged)
         value = merged.get("value")
         write_mode = str(merged.get("write_mode") or "").strip()
         field_key = str(merged.get("field_key") or "").strip()

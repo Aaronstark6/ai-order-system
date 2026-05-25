@@ -996,7 +996,7 @@ E2E status: PASS
 ```text
 BASE_HEAD: 69ce472
 SYSTEM_AUDIT_RESULT: DONE_WITH_P1_ITEMS
-V4_CURRENT_COMPLETION: 94%
+V4_CURRENT_COMPLETION: 96%
 REAL_BUSINESS_BLOCKER_P0: NO
 MAIN_FUNCTION_MISSING: NO
 ```
@@ -1082,15 +1082,7 @@ NONE
 
 ### P1
 
-1. 动态表格 row_offset / col_offset 的 export readback 仍会误报。
-   - 动态表格导出真实正确：`B24=FINAL_DT_BASE`，`B25=FINAL_DT_ROW2`。
-   - 但 `_build_export_readback_audit()` 对 `write_table_cell row_offset=1` 仍读取原始 `B24`，导致第二行 readback 显示：
-     - expected: `FINAL_DT_ROW2`
-     - actual: `FINAL_DT_BASE`
-     - root_cause: `write_mode_issue`
-   - 影响：不阻断导出，但会影响动态表格导出后的自动核验准确性。
-
-2. 图片导出 summary 仍偏 legacy。
+1. 图片导出 summary 仍偏 legacy。
    - operation image export 已真实写入图片，Excel 图片数为 `1`。
    - `image_export_summary` 仍为 legacy fallback summary：`total=0, inserted=0, skipped=0`。
    - 影响：不阻断图片导出，但会让结果摘要低估图片写入情况。
@@ -1114,10 +1106,10 @@ NONE
 1. V4 当前完成度
 
 ```text
-94%
+96%
 ```
 
-理由：主业务闭环已完成；普通字段、图片字段、动态表格导出、多映射、配置持久化、Workspace 字段控制、标量 readback、浏览器运行均通过。剩余主要是 readback 对动态表格偏移的准确性和摘要/标签等非阻断问题。
+理由：主业务闭环已完成；普通字段、图片字段、动态表格导出、多映射、配置持久化、Workspace 字段控制、标量 readback、动态表格 offset readback、浏览器运行均通过。剩余主要是图片摘要、标签文本和测试自动化等非阻断问题。
 
 2. 是否存在真实业务阻断
 
@@ -1131,7 +1123,7 @@ NO
 NO
 ```
 
-动态表格 readback 偏移误报属于核验准确性缺口，不是动态表格导出主功能缺失。
+动态表格导出和 offset readback 均已通过真实验证。
 
 4. 哪些东西其实已经可以停止开发
 
@@ -1153,10 +1145,10 @@ Workspace 字段显示/隐藏控制
 5. 下一步最值得做的事情
 
 ```text
-P1: 修正 export readback 对 write_table_cell 的 row_offset / col_offset 回读目标计算。
+P1: 修正 operation image export 的 image_export_summary 摘要。
 ```
 
-这是当前最有价值的下一步，因为它能让“导出成功后自动核验”覆盖动态表格，而不会扩大业务功能面。
+这是当前最有价值的下一步，因为图片已真实写入 Excel，但摘要仍显示 legacy fallback 的零值，容易影响用户判断。
 
 ## 最终验证命令
 
@@ -1165,3 +1157,111 @@ conda run -n ai-order-system python -m py_compile app/routes/v4.py app/v4_excel_
 ```
 
 结果：`PASS`
+
+---
+
+# V4-READBACK-TABLE-OFFSET-FIX01 Readback Table Offset Fix
+
+## 结果
+
+PASS
+
+```text
+READBACK_TABLE_OFFSET_AUDIT: PASS
+```
+
+## 问题原因
+
+修复前，导出执行器已经正确使用 `target_cell + row_offset + col_offset` 写入动态表格。例如：
+
+```text
+B24 row_offset=0 col_offset=0 -> B24
+B24 row_offset=1 col_offset=0 -> B25
+B24 row_offset=0 col_offset=1 -> C24
+```
+
+但 `_build_export_readback_audit()` 只用 normalized `cell` 执行 `sheet[cell].value`，没有把 `row_offset / col_offset` 应用于回读目标，所以 `row_offset=1` 的 confirmed item 仍读取 `B24`，造成 false mismatch。
+
+## 修复
+
+新增 readback 侧目标 cell 计算：
+
+```text
+_readback_cell_with_offsets(cell_ref, row_offset, col_offset)
+_readback_target_cell_for_confirmed_item(cell, merged)
+```
+
+仅当 `write_mode=write_table_cell` 或字段类型为 `table/dynamic_table` 时应用 offset；普通字段仍读取原始目标 cell，图片字段不进入 text readback。
+
+## 真实验证
+
+真实软胶囊模板：
+
+```text
+v4/system_templates/软胶囊_软胶囊爆珠模板_20260523_181128_191d0554.xlsx
+```
+
+导出文件：
+
+```text
+output/v4_core_软胶囊_软胶囊爆珠模板_20260523_181128_191d0554_20260525_110343.xlsx
+```
+
+动态表格回读：
+
+```text
+row_offset=0:
+  write: B24 = TABLE_ROW0_PASS
+  readback cell: B24
+  status: matched
+
+row_offset=1:
+  write: B25 = TABLE_ROW1_PASS
+  readback cell: B25
+  status: matched
+
+col_offset=1:
+  write: C24 = TABLE_COL1_PASS
+  readback cell: C24
+  status: matched
+```
+
+readback summary：
+
+```text
+total: 4
+checked: 4
+matched: 4
+mismatched: 0
+skipped: 0
+root_cause_summary:
+  ok: 4
+```
+
+普通字段回归：
+
+```text
+C5 = NORMAL_READBACK_PASS
+status: matched
+```
+
+图片字段回归：
+
+```text
+operation image export: PASS
+excel_image_count: 1
+image_export_summary unchanged:
+  total: 0
+  inserted: 0
+  skipped: 0
+  warnings: []
+```
+
+## 状态更新
+
+```text
+Dynamic table readback offset issue: CLOSED
+Final audit P1 dynamic table readback item: REMOVED
+V4 completion: 94% -> 96%
+Remaining P1: operation image export summary is still legacy-oriented
+```
