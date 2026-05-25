@@ -1487,3 +1487,30 @@ Validation:
 Residual P2:
 - Theme/indexed colors are surfaced safely as tokens, but exact Excel theme/tint color conversion is not fully implemented.
 ```
+
+## V4-MAINTENANCE-TOOLS01
+
+```text
+MAINTENANCE_TOOLS_AUDIT: PASS
+
+Added safe maintenance actions on /v4-template-settings:
+- POST /api/v4/maintenance/clear-runtime-state
+- POST /api/v4/maintenance/cleanup-temp-files
+
+Clear runtime state:
+- Clears current_order_object, structured/table/block/unified operations, pipeline processed_operations/stages, render_targets, excel_result, validator_result, and mapping_safety.
+- Preserves current_profile, current_template_path, template profiles, saved template configuration, mappings, uploaded system templates, and rules.
+
+Cleanup temp files:
+- Deletes files older than 7 days from whitelisted temp/output locations only.
+- Allowed: v4/output/*.xlsx, output/*.xlsx, output/tmp_images image files, output/layout_cache image files, readback temp dirs if present.
+- Forbidden/protected: v4/system_templates, v4/template_profiles, v4/rules, v4/schemas, templates/uploads, profile json, config json.
+
+Real validation:
+- Maintenance area appears at the bottom of the template/mapping management panel.
+- Clear runtime state kept current_profile=softgel and profiles_count=5.
+- Cleanup temp files deleted 46 old whitelisted temp/export files.
+- Protected counts after cleanup: v4/system_templates=4, v4/template_profiles json=5, v4/rules json=22.
+- Softgel mapping remained selectable.
+- JS error: 0.
+```

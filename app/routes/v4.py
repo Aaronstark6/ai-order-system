@@ -4,7 +4,7 @@ import re
 import shutil
 import uuid
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 from zipfile import BadZipFile
@@ -4402,6 +4402,140 @@ def api_v4_reset_pipeline_state():
         "success": True,
         "message": "Pipeline State 已重置",
         "pipeline_state": reset_pipeline_state(),
+    }
+
+
+@router.post("/api/v4/maintenance/clear-runtime-state")
+def api_v4_maintenance_clear_runtime_state():
+    logger.info("V4 maintenance clear runtime state requested")
+    cleared = []
+
+    load_order_object_into_pipeline({})
+    cleared.append("current_order_object")
+
+    set_structured_operations([])
+    set_table_operations([])
+    set_block_operations([])
+    set_unified_operations([])
+    cleared.extend([
+        "structured_operations",
+        "table_operations",
+        "block_operations",
+        "unified_operations",
+    ])
+
+    set_pipeline_result([], [])
+    cleared.append("pipeline_result")
+
+    set_render_targets({"html_preview": "", "excel_preview": []})
+    cleared.append("render_targets")
+
+    set_excel_result(None)
+    cleared.append("excel_result")
+
+    set_validator_result({})
+    cleared.append("validator_result")
+
+    set_mapping_safety({})
+    cleared.append("mapping_safety")
+
+    return {
+        "success": True,
+        "cleared": cleared,
+        "pipeline_state": get_pipeline_state(),
+    }
+
+
+def _maintenance_is_within(base_path, candidate_path):
+    try:
+        candidate_path.resolve().relative_to(base_path.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _maintenance_cleanup_old_files(directory, patterns, cutoff_time):
+    deleted_files = []
+    skipped = []
+    errors = []
+    directory = Path(directory)
+    if not directory.is_dir():
+        return {"deleted_files": [], "skipped": [str(directory)], "errors": []}
+
+    for pattern in patterns:
+        for file_path in directory.glob(pattern):
+            try:
+                if not file_path.is_file() or not _maintenance_is_within(directory, file_path):
+                    continue
+                if datetime.fromtimestamp(file_path.stat().st_mtime) >= cutoff_time:
+                    continue
+                file_path.unlink()
+                deleted_files.append(str(file_path))
+            except Exception as exc:
+                errors.append({"file": str(file_path), "error": str(exc)})
+
+    return {"deleted_files": deleted_files, "skipped": skipped, "errors": errors}
+
+
+@router.post("/api/v4/maintenance/cleanup-temp-files")
+def api_v4_maintenance_cleanup_temp_files():
+    logger.info("V4 maintenance cleanup temp files requested")
+    base_dir = get_base_dir().resolve()
+    cutoff_time = datetime.now() - timedelta(days=7)
+    cleanup_targets = [
+        {
+            "directory": base_dir / "v4" / "output",
+            "patterns": ["*.xlsx"],
+        },
+        {
+            "directory": base_dir / "output",
+            "patterns": ["*.xlsx"],
+        },
+        {
+            "directory": base_dir / "output" / "tmp_images",
+            "patterns": ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp", "*.gif"],
+        },
+        {
+            "directory": base_dir / "output" / "layout_cache",
+            "patterns": ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp", "*.gif"],
+        },
+        {
+            "directory": base_dir / "output" / "readback",
+            "patterns": ["*.xlsx", "*.json", "*.tmp"],
+        },
+        {
+            "directory": base_dir / "v4" / "output" / "readback",
+            "patterns": ["*.xlsx", "*.json", "*.tmp"],
+        },
+    ]
+    deleted_files = []
+    skipped = []
+    errors = []
+
+    for target in cleanup_targets:
+        directory = target["directory"].resolve()
+        if not _maintenance_is_within(base_dir, directory):
+            skipped.append(str(directory))
+            continue
+        result = _maintenance_cleanup_old_files(directory, target["patterns"], cutoff_time)
+        deleted_files.extend(result.get("deleted_files", []))
+        skipped.extend(result.get("skipped", []))
+        errors.extend(result.get("errors", []))
+
+    relative_deleted = []
+    for file_path in deleted_files[:20]:
+        try:
+            relative_deleted.append(str(Path(file_path).resolve().relative_to(base_dir)))
+        except ValueError:
+            relative_deleted.append(str(file_path))
+
+    return {
+        "success": not bool(errors),
+        "deleted_count": len(deleted_files),
+        "deleted_files": relative_deleted,
+        "skipped": skipped,
+        "errors": errors[:20],
+        "retention_days": 7,
     }
 
 
