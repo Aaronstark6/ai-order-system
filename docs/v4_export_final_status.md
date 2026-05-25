@@ -1543,3 +1543,42 @@ Next:
 - No profile migration in this fix.
 - A future field library UI can expose schema-derived labels/aliases if taxonomy grows beyond packaging.
 ```
+
+## V4-FIELD-CATALOG-MVP01
+
+```text
+FIELD_CATALOG_MVP: PASS
+
+Field catalog:
+- v4/schemas/field_catalog.json
+- Contains basic, packaging, labeling, and batch_marking domains.
+- Fields include field_key, label, aliases, keywords, ai_extract_hint, type, enabled, and priority.
+
+Backend:
+- load_field_catalog() reads the JSON safely.
+- flatten_field_catalog() exposes enabled fields as flat field records.
+- get_field_catalog_labels() builds field_key -> label maps.
+- get_field_catalog_candidate_rules() converts catalog fields to candidate rules.
+- Candidate recognition now uses catalog rules first, then existing hardcoded rules as fallback.
+- If the catalog is missing or invalid, existing hardcoded rules remain available.
+
+API:
+- GET /api/v4/field-catalog
+- Returns fields[] and labels{} for Template Settings.
+
+Verified candidates:
+- 容器要求 -> packaging.container_type
+- 装量要求：60粒/瓶 -> packaging.quantity_per_unit
+- 瓶口密封方式 -> packaging.seal_method
+- 标签要求 -> labeling.label_requirement
+- 生产日期/批号 -> batch_marking.requirement
+- 其他包装要求 -> packaging.extra_requirements
+- 客户名称 / 订单日期 / 产品名称 / 数量 / 规格 / 金额 remain mapped to existing basic keys.
+
+Compatibility:
+- No existing profile migration.
+- AI Parse, Workspace, and Export contracts remain unchanged; field_key continues to flow as a flat string.
+
+Next:
+- A future field catalog UI can edit aliases/keywords without changing routes/v4.py.
+```

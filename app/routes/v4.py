@@ -427,6 +427,122 @@ _GENERIC_LABEL_HINTS = {
 }
 
 
+def load_field_catalog():
+    path = get_base_dir() / "v4" / "schemas" / "field_catalog.json"
+    if not path.is_file():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        logger.warning("V4 field catalog load failed: path=%s", path, exc_info=True)
+        return {}
+    if not isinstance(data, dict) or not isinstance(data.get("domains"), list):
+        logger.warning("V4 field catalog invalid format: path=%s", path)
+        return {}
+    return data
+
+
+def flatten_field_catalog(catalog=None):
+    catalog = catalog if isinstance(catalog, dict) else load_field_catalog()
+    domains = catalog.get("domains") if isinstance(catalog.get("domains"), list) else []
+    fields = []
+    for domain in domains:
+        if not isinstance(domain, dict):
+            continue
+        domain_key = str(domain.get("key") or "").strip()
+        domain_label = str(domain.get("label") or domain_key).strip()
+        domain_fields = domain.get("fields") if isinstance(domain.get("fields"), list) else []
+        for field in domain_fields:
+            if not isinstance(field, dict):
+                continue
+            field_key = str(field.get("field_key") or "").strip()
+            if not field_key:
+                continue
+            aliases = field.get("aliases") if isinstance(field.get("aliases"), list) else []
+            keywords = field.get("keywords") if isinstance(field.get("keywords"), list) else []
+            fields.append(
+                {
+                    "key": str(field.get("key") or field_key).strip(),
+                    "field_key": field_key,
+                    "label": str(field.get("label") or field_key).strip() or field_key,
+                    "domain": domain_key,
+                    "domain_label": domain_label,
+                    "aliases": [str(item).strip() for item in aliases if str(item).strip()],
+                    "keywords": [str(item).strip() for item in keywords if str(item).strip()],
+                    "ai_extract_hint": str(field.get("ai_extract_hint") or field.get("label") or field_key).strip(),
+                    "type": str(field.get("type") or "text").strip() or "text",
+                    "enabled": field.get("enabled") is not False,
+                    "priority": int(field.get("priority") or 0),
+                }
+            )
+    return fields
+
+
+def get_field_catalog_labels():
+    labels = {}
+    for field in flatten_field_catalog():
+        if not field.get("enabled"):
+            continue
+        field_key = str(field.get("field_key") or "").strip()
+        label = str(field.get("label") or field_key).strip()
+        if field_key and label:
+            labels[field_key] = label
+    return labels
+
+
+def _field_catalog_rule_from_field(field):
+    keywords = []
+    for value in [field.get("label"), *(field.get("aliases") or []), *(field.get("keywords") or [])]:
+        text = str(value or "").strip()
+        if text and text not in keywords:
+            keywords.append(text)
+    return {
+        "field_key": field["field_key"],
+        "field_label": field.get("label") or field["field_key"],
+        "keywords": keywords,
+        "ai_extract_hint": field.get("ai_extract_hint") or field.get("label") or field["field_key"],
+        "priority": int(field.get("priority") or 0),
+        "field_type": field.get("type") or "text",
+        "source": "field_catalog",
+    }
+
+
+def get_field_catalog_candidate_rules():
+    rules = []
+    seen = set()
+    for field in flatten_field_catalog():
+        field_key = str(field.get("field_key") or "").strip()
+        if not field.get("enabled") or not field_key or field_key in seen:
+            continue
+        rules.append(_field_catalog_rule_from_field(field))
+        seen.add(field_key)
+    for rule in _MAPPING_CANDIDATE_RULES:
+        field_key = str(rule.get("field_key") or "").strip()
+        if field_key and field_key not in seen:
+            rules.append(rule)
+            seen.add(field_key)
+    return rules or list(_MAPPING_CANDIDATE_RULES)
+
+
+def _field_key_from_catalog_keywords(text):
+    normalized_text = _normalize_candidate_text(text)
+    if not normalized_text:
+        return ""
+    matches = []
+    for rule in get_field_catalog_candidate_rules():
+        if rule.get("source") != "field_catalog":
+            continue
+        best_score = _keyword_score_for_rule(normalized_text, rule)
+        if best_score <= 0:
+            continue
+        matches.append((best_score, int(rule.get("priority") or 0), str(rule.get("field_key") or "")))
+    if not matches:
+        return ""
+    matches.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    return matches[0][2]
+
+
 def _normalize_candidate_text(value):
     text = str(value or "").strip().lower()
     text = re.sub(r"[\s:：/\\|,，.。;；()（）\[\]【】_-]+", "", text)
@@ -991,7 +1107,7 @@ def _intent_for_label(label_text, cell, section, label_index, context):
 
 
 def _mapping_rule_by_key():
-    return {rule["field_key"]: rule for rule in _MAPPING_CANDIDATE_RULES}
+    return {rule["field_key"]: rule for rule in get_field_catalog_candidate_rules()}
 
 
 def _section_candidate_text(section):
@@ -1015,6 +1131,8 @@ def _keyword_score_for_rule(normalized_text, rule):
     for keyword in rule["keywords"]:
         normalized_keyword = _normalize_candidate_text(keyword)
         if not normalized_keyword:
+            continue
+        if normalized_keyword == "g" and not re.search(r"\d+g\b", normalized_text):
             continue
         if normalized_text == normalized_keyword:
             score = max(score, 0.68)
@@ -1080,7 +1198,7 @@ def _candidate_for_label(label_text, section, label_index=1, total_labels=1, cel
     normalized_text = _normalize_candidate_text(label_text)
     section_text = _section_candidate_text(section)
     scored_candidates = []
-    for rule in _MAPPING_CANDIDATE_RULES:
+    for rule in get_field_catalog_candidate_rules():
         keyword_score = _keyword_score_for_rule(normalized_text, rule)
         section_score = _section_score_for_rule(section_text, rule)
         neighbor_score = _neighbor_score_for_rule(neighbor_text, rule)
@@ -1107,11 +1225,19 @@ def _candidate_for_label(label_text, section, label_index=1, total_labels=1, cel
                 "candidate_reason": _reason_from_breakdown(breakdown),
                 "confidence_breakdown": {key: value for key, value in breakdown.items() if value > 0},
                 "priority": int(rule.get("priority") or 0),
+                "source": rule.get("source") or "hardcoded_rules",
             }
         )
 
     if scored_candidates:
-        scored_candidates.sort(key=lambda item: (-item["confidence"], -int(item.get("priority") or 0), item["field_key"]))
+        scored_candidates.sort(
+            key=lambda item: (
+                -int(item.get("source") == "field_catalog"),
+                -item["confidence"],
+                -int(item.get("priority") or 0),
+                item["field_key"],
+            )
+        )
         return scored_candidates[0]
 
     return {
@@ -1127,6 +1253,9 @@ def _candidate_for_label(label_text, section, label_index=1, total_labels=1, cel
 def _slugify_semantic_field_key(label, semantic_type, cell, section_text=""):
     text = f"{label or ''} {section_text or ''}".strip().lower()
     semantic_type = str(semantic_type or "").strip()
+    catalog_field_key = _field_key_from_catalog_keywords(text)
+    if catalog_field_key:
+        return catalog_field_key
     keyword_map = [
         (("瓶身颜色", "容器颜色", "瓶子颜色", "罐子颜色", "袋子颜色", "container color", "bottle color", "jar color"), "packaging.container_color"),
         (("盖子颜色", "瓶盖颜色", "盖颜色", "cap color", "lid color"), "packaging.cap_color"),
@@ -3563,6 +3692,17 @@ def api_v4_product_schema():
     return {
         "success": True,
         "data": load_product_schema(),
+    }
+
+
+@router.get("/api/v4/field-catalog")
+def api_v4_field_catalog():
+    logger.info("V4 field catalog requested")
+    fields = flatten_field_catalog()
+    return {
+        "success": True,
+        "fields": fields,
+        "labels": get_field_catalog_labels(),
     }
 
 

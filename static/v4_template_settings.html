@@ -1044,6 +1044,7 @@
         let isSavingConfiguration = false;
         let isReanalyzingMapping = false;
         let lastSavedAt = "";
+        let fieldCatalogFields = [];
         const DEFAULT_EXCEL_FEATURE_FLAGS = {
             image_fields: true,
             dynamic_tables: false,
@@ -1196,6 +1197,19 @@
                 throw new Error(result.error || "操作失败");
             }
             return result;
+        }
+
+        async function loadFieldCatalog() {
+            try {
+                const result = await fetchJson("/api/v4/field-catalog");
+                fieldCatalogFields = Array.isArray(result.fields) ? result.fields : [];
+                if (result.labels && typeof result.labels === "object") {
+                    Object.assign(FIELD_LIBRARY_LABELS, result.labels);
+                }
+            } catch (error) {
+                console.warn("V4 field catalog load failed", error);
+                fieldCatalogFields = [];
+            }
         }
 
         async function loadMappingDetail(mappingId) {
@@ -3522,7 +3536,7 @@
         };
 
         window.addEventListener("DOMContentLoaded", () => {
-            loadMappings().catch((error) => {
+            loadFieldCatalog().then(() => loadMappings()).catch((error) => {
                 setStatus(error.message || "映射加载失败", "error");
                 updateCurrentState();
                 renderConfig();

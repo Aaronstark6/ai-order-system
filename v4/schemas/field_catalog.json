@@ -1,0 +1,261 @@
+{
+  "version": "v4-field-catalog-001",
+  "description": "V4字段标识库",
+  "domains": [
+    {
+      "key": "basic",
+      "label": "基础字段",
+      "fields": [
+        {
+          "key": "customer_name",
+          "field_key": "customer_name",
+          "label": "客户名称",
+          "aliases": ["客户名称", "客户公司", "客户", "公司名称", "customer name", "customer company"],
+          "keywords": ["客户名称", "客户公司", "客户", "customer"],
+          "ai_extract_hint": "客户名称 / 客户公司",
+          "type": "text",
+          "enabled": true,
+          "priority": 90
+        },
+        {
+          "key": "order_date",
+          "field_key": "order_date",
+          "label": "订单日期",
+          "aliases": ["订单日期", "下单日期", "日期", "date", "order date"],
+          "keywords": ["订单日期", "下单日期", "日期", "order date"],
+          "ai_extract_hint": "订单日期 / 下单日期 / 日期",
+          "type": "date",
+          "enabled": true,
+          "priority": 88
+        },
+        {
+          "key": "product_name",
+          "field_key": "product_name",
+          "label": "产品名称",
+          "aliases": ["产品名称", "产品名", "品名", "产品", "product name"],
+          "keywords": ["产品名称", "产品名", "品名", "product name"],
+          "ai_extract_hint": "产品名称 / 品名",
+          "type": "text",
+          "enabled": true,
+          "priority": 86
+        },
+        {
+          "key": "quantity",
+          "field_key": "quantity",
+          "label": "数量",
+          "aliases": ["数量", "订单数量", "qty", "quantity", "count"],
+          "keywords": ["数量", "订单数量", "qty", "quantity"],
+          "ai_extract_hint": "数量 / 订单数量",
+          "type": "number",
+          "enabled": true,
+          "priority": 84
+        },
+        {
+          "key": "specification",
+          "field_key": "specification",
+          "label": "规格",
+          "aliases": ["规格", "规格型号", "型号", "spec", "specification"],
+          "keywords": ["规格", "规格型号", "型号", "specification"],
+          "ai_extract_hint": "规格 / 规格型号",
+          "type": "text",
+          "enabled": true,
+          "priority": 82
+        },
+        {
+          "key": "amount",
+          "field_key": "amount",
+          "label": "金额",
+          "aliases": ["金额", "总金额", "货值", "总价", "价格", "amount", "price", "total"],
+          "keywords": ["金额", "总金额", "货值", "总价", "价格", "amount", "price", "total"],
+          "ai_extract_hint": "金额 / 总金额 / 价格",
+          "type": "number",
+          "enabled": true,
+          "priority": 80
+        }
+      ]
+    },
+    {
+      "key": "packaging",
+      "label": "包装要求",
+      "fields": [
+        {
+          "key": "container_type",
+          "field_key": "packaging.container_type",
+          "label": "容器类型",
+          "aliases": ["容器要求", "容器类型", "包装方式", "瓶装", "袋装", "管装", "罐装"],
+          "keywords": ["容器", "瓶装", "袋装", "管装", "罐装", "container type", "bottle", "bag", "tube", "jar"],
+          "ai_extract_hint": "容器类型 / 容器要求 / 瓶装 / 袋装 / 管装",
+          "type": "text",
+          "enabled": true,
+          "priority": 70
+        },
+        {
+          "key": "quantity_per_unit",
+          "field_key": "packaging.quantity_per_unit",
+          "label": "装量",
+          "aliases": ["装量", "包装数量", "包装规格", "每瓶数量", "每袋数量", "每管数量", "粒/瓶", "片/管"],
+          "keywords": ["装量", "包装数量", "包装规格", "每瓶", "每袋", "每管", "粒/瓶", "片/管", "quantity per unit", "per bottle", "per bag", "per tube"],
+          "ai_extract_hint": "装量 / 每瓶数量 / 每袋数量 / 每管数量",
+          "type": "text",
+          "enabled": true,
+          "priority": 78
+        },
+        {
+          "key": "capacity",
+          "field_key": "packaging.capacity",
+          "label": "容量",
+          "aliases": ["容量", "毫升", "克重", "ml", "g"],
+          "keywords": ["容量", "毫升", "克重", "ml", "g", "gram", "grams", "capacity"],
+          "ai_extract_hint": "容量 / ml / 毫升 / g / 克",
+          "type": "text",
+          "enabled": true,
+          "priority": 76
+        },
+        {
+          "key": "container_color",
+          "field_key": "packaging.container_color",
+          "label": "容器颜色",
+          "aliases": ["容器颜色", "瓶身颜色", "瓶子颜色", "罐子颜色", "袋子颜色"],
+          "keywords": ["容器颜色", "瓶身颜色", "瓶子颜色", "container color", "bottle color", "jar color"],
+          "ai_extract_hint": "容器颜色 / 瓶身颜色 / 瓶子颜色",
+          "type": "text",
+          "enabled": true,
+          "priority": 86
+        },
+        {
+          "key": "cap_color",
+          "field_key": "packaging.cap_color",
+          "label": "盖子颜色",
+          "aliases": ["盖子颜色", "瓶盖颜色", "盖颜色"],
+          "keywords": ["盖子颜色", "瓶盖颜色", "cap color", "lid color"],
+          "ai_extract_hint": "盖子颜色 / 瓶盖颜色",
+          "type": "text",
+          "enabled": true,
+          "priority": 84
+        },
+        {
+          "key": "seal_method",
+          "field_key": "packaging.seal_method",
+          "label": "密封方式",
+          "aliases": ["密封方式", "瓶口密封", "盖子密封", "袋口密封", "封口方式"],
+          "keywords": ["密封", "封口", "铝箔", "热封", "塑封", "seal method", "sealing", "foil seal", "heat seal"],
+          "ai_extract_hint": "密封方式 / 瓶口密封 / 盖子密封 / 铝箔 / 热封 / 塑封",
+          "type": "text",
+          "enabled": true,
+          "priority": 82
+        },
+        {
+          "key": "extra_requirements",
+          "field_key": "packaging.extra_requirements",
+          "label": "其他包装要求",
+          "aliases": ["其他包装要求", "包装要求", "包装尺寸和要求", "包材要求", "包装备注"],
+          "keywords": ["其他包装", "包装要求", "包装尺寸", "包材", "packaging requirement"],
+          "ai_extract_hint": "其他包装要求 / 包装尺寸和要求 / 包材要求",
+          "type": "textarea",
+          "enabled": true,
+          "priority": 60
+        }
+      ]
+    },
+    {
+      "key": "labeling",
+      "label": "标签要求",
+      "fields": [
+        {
+          "key": "design_source",
+          "field_key": "labeling.design_source",
+          "label": "标签设计来源",
+          "aliases": ["谁设计制作标签", "标签谁设计", "标签设计来源", "标签设计"],
+          "keywords": ["设计标签", "标签设计", "谁设计", "design label", "label design"],
+          "ai_extract_hint": "标签设计来源 / 谁设计制作标签",
+          "type": "text",
+          "enabled": true,
+          "priority": 72
+        },
+        {
+          "key": "printing_source",
+          "field_key": "labeling.printing_source",
+          "label": "标签印刷来源",
+          "aliases": ["标签印刷来源", "谁印刷标签", "标签制作方", "标签印刷"],
+          "keywords": ["印刷标签", "标签印刷", "printing label", "label printing"],
+          "ai_extract_hint": "标签印刷来源 / 谁印刷标签",
+          "type": "text",
+          "enabled": true,
+          "priority": 70
+        },
+        {
+          "key": "label_requirement",
+          "field_key": "labeling.label_requirement",
+          "label": "标签要求",
+          "aliases": ["标签要求", "标签材质", "标签工艺要求", "标签材质和工艺要求"],
+          "keywords": ["标签要求", "标签材质", "标签工艺", "label requirement", "label material"],
+          "ai_extract_hint": "标签要求 / 标签材质和工艺要求",
+          "type": "textarea",
+          "enabled": true,
+          "priority": 68
+        },
+        {
+          "key": "no_label",
+          "field_key": "labeling.no_label",
+          "label": "不贴标签",
+          "aliases": ["是否贴标签", "不贴标签", "无需标签", "不需要标签"],
+          "keywords": ["是否贴标签", "不贴标签", "无需标签", "no label"],
+          "ai_extract_hint": "是否贴标签 / 不贴标签",
+          "type": "boolean",
+          "enabled": true,
+          "priority": 66
+        }
+      ]
+    },
+    {
+      "key": "batch_marking",
+      "label": "批号日期",
+      "fields": [
+        {
+          "key": "location",
+          "field_key": "batch_marking.location",
+          "label": "批号位置",
+          "aliases": ["批号位置", "日期位置", "喷码位置"],
+          "keywords": ["批号位置", "日期位置", "喷码位置", "batch location"],
+          "ai_extract_hint": "批号位置 / 日期位置 / 喷码位置",
+          "type": "text",
+          "enabled": true,
+          "priority": 70
+        },
+        {
+          "key": "production_date",
+          "field_key": "batch_marking.production_date",
+          "label": "生产日期",
+          "aliases": ["生产日期", "生产日", "mfg date", "manufacturing date"],
+          "keywords": ["生产日期", "生产日", "mfg", "manufacturing date"],
+          "ai_extract_hint": "生产日期",
+          "type": "date",
+          "enabled": true,
+          "priority": 68
+        },
+        {
+          "key": "expiry_date",
+          "field_key": "batch_marking.expiry_date",
+          "label": "有效期",
+          "aliases": ["有效期", "保质期", "到期日期", "expiry date"],
+          "keywords": ["有效期", "保质期", "到期", "expiry"],
+          "ai_extract_hint": "有效期 / 保质期 / 到期日期",
+          "type": "date",
+          "enabled": true,
+          "priority": 66
+        },
+        {
+          "key": "requirement",
+          "field_key": "batch_marking.requirement",
+          "label": "批号/日期要求",
+          "aliases": ["批号日期", "批号要求", "日期要求", "批号/日期要求", "生产日期/批号"],
+          "keywords": ["批号", "批次", "生产日期", "有效期", "batch", "lot number", "date code"],
+          "ai_extract_hint": "批号/日期要求 / 生产日期 / 有效期",
+          "type": "textarea",
+          "enabled": true,
+          "priority": 64
+        }
+      ]
+    }
+  ]
+}
