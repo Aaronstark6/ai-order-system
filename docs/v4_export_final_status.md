@@ -986,3 +986,182 @@ Excel Export: PASS
 AI vs Confirmed priority: PASS
 E2E status: PASS
 ```
+
+---
+
+# V4-FINAL-AUDIT01 Full Real System Audit
+
+## SYSTEM_AUDIT_RESULT
+
+```text
+BASE_HEAD: 69ce472
+SYSTEM_AUDIT_RESULT: DONE_WITH_P1_ITEMS
+V4_CURRENT_COMPLETION: 94%
+REAL_BUSINESS_BLOCKER_P0: NO
+MAIN_FUNCTION_MISSING: NO
+```
+
+## 分级结论
+
+### DONE
+
+以下能力已在真实软胶囊模板上闭环完成：
+
+1. AI Parse -> Workspace -> Confirmed -> Export 主链路
+   - 真实 AI 请求成功。
+   - `workspace_fields_count=41`。
+   - `runtime_mapping_source=saved_configuration`。
+   - AI 解析核心值：`customer_name=Final Audit Nutrition LLC`、`order_date=20260525`、`product_name=Final Audit Omega-3 Softgel`、`quantity=50000`。
+   - `parse_confirmed_cells_count=8`，`processed_operations_count=8`。
+
+2. 普通字段导出
+   - Workspace confirmed 覆盖：
+     - `C5 customer_name = FINAL_CONFIRMED_CUSTOMER`
+     - `F4 order_date = 20301231`
+   - Excel 回读：
+     - `C5 = FINAL_CONFIRMED_CUSTOMER`
+     - `F4 = 20301231`
+   - 结论：Confirmed value 优先于 AI value。
+
+3. 图片字段导出
+   - 当前软胶囊图片字段：`semantic_g10 / G10 / field_type=image / image_anchor_cell=G10`。
+   - 通过 confirmed image data URL 走 operation image export。
+   - Excel 回读图片对象数：`excel_image_count=1`。
+   - 结论：图片字段可真实写入 Excel。
+
+4. 动态表格导出
+   - 当前软胶囊动态表格字段：`dynamic_table_test / B24 / field_type=table / write_mode=write_table_cell`。
+   - Confirmed table values：
+     - `B24 row_offset=0 -> FINAL_DT_BASE`
+     - `B24 row_offset=1 -> FINAL_DT_ROW2`
+   - Excel 回读：
+     - `B24 = FINAL_DT_BASE`
+     - `B25 = FINAL_DT_ROW2`
+   - 结论：动态表格写入本身已可用。
+
+5. Workspace 字段控制
+   - `/api/v4/template-layout` 从当前 profile 配置生成 `workspace_fields`。
+   - `show_in_workspace=false` 已有真实验证会从 Workspace 字段中移除。
+   - 当前软胶囊布局字段数：`41`。
+
+6. 配置持久化
+   - 当前软胶囊 profile 配置项数：`56`。
+   - 配置来源为保存后的 profile `render_config.template_configuration`。
+   - 页面刷新、映射切换、`template-layout` 均从 profile 重新读取。
+
+7. 多映射切换
+   - 真实切换：`软胶囊 -> default_profile -> 软胶囊`。
+   - 结果：
+     - 软胶囊：`workspace_fields_count=41`，`current_template_path` 指向软胶囊模板。
+     - default_profile：`workspace_fields_count=0`，`current_template_path=null`。
+     - 切回软胶囊：恢复 `workspace_fields_count=41`。
+   - 未发现当前映射配置串用。
+
+8. Export Readback
+   - `export_readback_check=true`。
+   - 普通字段 readback 可判断 matched。
+   - mismatch / skipped 均已有真实验证和原因输出。
+   - Workspace 页面显示 readback 面板、计数和原因。
+
+9. 真实浏览器运行
+   - `/v4-template-settings`：真实浏览器加载成功，无 console/page error。
+   - `/v4-order-workspace`：真实浏览器加载成功，无 console/page error。
+
+10. 真实软胶囊模板
+   - 模板文件：`v4/system_templates/软胶囊_软胶囊爆珠模板_20260523_181128_191d0554.xlsx`。
+   - 导出文件：`output/v4_core_软胶囊_软胶囊爆珠模板_20260523_181128_191d0554_20260525_104947.xlsx`。
+   - `export_success=true`，`operations_written=11`。
+
+### P0
+
+```text
+NONE
+```
+
+未发现阻断真实业务使用的问题。当前 V4 可以完成软胶囊模板下的核心业务：AI 解析、Workspace 确认、普通字段覆盖、图片写入、动态表格写入、Excel 导出。
+
+### P1
+
+1. 动态表格 row_offset / col_offset 的 export readback 仍会误报。
+   - 动态表格导出真实正确：`B24=FINAL_DT_BASE`，`B25=FINAL_DT_ROW2`。
+   - 但 `_build_export_readback_audit()` 对 `write_table_cell row_offset=1` 仍读取原始 `B24`，导致第二行 readback 显示：
+     - expected: `FINAL_DT_ROW2`
+     - actual: `FINAL_DT_BASE`
+     - root_cause: `write_mode_issue`
+   - 影响：不阻断导出，但会影响动态表格导出后的自动核验准确性。
+
+2. 图片导出 summary 仍偏 legacy。
+   - operation image export 已真实写入图片，Excel 图片数为 `1`。
+   - `image_export_summary` 仍为 legacy fallback summary：`total=0, inserted=0, skipped=0`。
+   - 影响：不阻断图片导出，但会让结果摘要低估图片写入情况。
+
+### P2
+
+1. 业务标签文本需要清理/规范化。
+   - 部分 profile label 在后端输出中呈现历史编码痕迹。
+   - 不影响 cell、field_key、write_mode、export，但影响人工阅读体验。
+
+2. AI extraction contract 可继续产品化整理。
+   - 当前主链路可用，但字段 key 仍以模板配置为中心。
+   - 可后续把 `product_type` 等通用业务字段与模板选项字段做更清晰的业务别名层。
+
+3. 测试自动化可以补齐。
+   - 当前审计通过脚本和真实路由验证完成。
+   - 后续可沉淀为回归测试，减少人工审计成本。
+
+## 必须回答
+
+1. V4 当前完成度
+
+```text
+94%
+```
+
+理由：主业务闭环已完成；普通字段、图片字段、动态表格导出、多映射、配置持久化、Workspace 字段控制、标量 readback、浏览器运行均通过。剩余主要是 readback 对动态表格偏移的准确性和摘要/标签等非阻断问题。
+
+2. 是否存在真实业务阻断
+
+```text
+NO
+```
+
+3. 是否还有主功能未完成
+
+```text
+NO
+```
+
+动态表格 readback 偏移误报属于核验准确性缺口，不是动态表格导出主功能缺失。
+
+4. 哪些东西其实已经可以停止开发
+
+```text
+AI Parse 主链路
+Workspace confirmed override
+普通字段导出
+图片字段写入
+动态表格写入
+Workspace 字段显示/隐藏控制
+配置持久化
+多映射切换
+真实软胶囊模板导出
+基础浏览器可运行性
+```
+
+这些不建议继续做功能性开发，除非后续有明确业务新需求。
+
+5. 下一步最值得做的事情
+
+```text
+P1: 修正 export readback 对 write_table_cell 的 row_offset / col_offset 回读目标计算。
+```
+
+这是当前最有价值的下一步，因为它能让“导出成功后自动核验”覆盖动态表格，而不会扩大业务功能面。
+
+## 最终验证命令
+
+```text
+conda run -n ai-order-system python -m py_compile app/routes/v4.py app/v4_excel_executor.py
+```
+
+结果：`PASS`
