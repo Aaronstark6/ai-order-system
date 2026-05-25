@@ -543,3 +543,30 @@ JS errors: none
 ## 状态更新
 
 Workspace Field Control: PASS
+
+---
+
+# V4-IMAGE-CONFIG-CLOSE02 Image Config Control
+
+## 结果
+
+PASS
+
+## 真实状态
+
+```text
+Template Settings image config: PASS
+field_type=image: PASS
+show_in_workspace true/false: PASS
+Workspace 图片字段显示/隐藏: PASS
+preview / replace / clear: PASS
+image_fit=contain: PASS
+image_anchor_cell=G10: PASS
+export-confirmed-excel: PASS
+Excel images_count=1: PASS
+真实用户确认: 图片可真实写入 Excel
+```
+
+## 状态
+
+DONE
