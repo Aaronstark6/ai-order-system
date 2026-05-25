@@ -475,12 +475,36 @@ def _excel_color_text(color):
     if color is None:
         return ""
     rgb = getattr(color, "rgb", None)
-    if rgb and str(rgb) != "00000000":
-        return str(rgb)
+    rgb_text = str(rgb or "").strip()
+    if re.fullmatch(r"[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8}", rgb_text) and rgb_text != "00000000":
+        return rgb_text
     indexed = getattr(color, "indexed", None)
-    if indexed is not None:
+    if type(indexed) is int:
         return f"indexed:{indexed}"
+    theme = getattr(color, "theme", None)
+    if type(theme) is int:
+        return f"theme:{theme}"
     return ""
+
+
+def _excel_horizontal_align(alignment):
+    value = str(getattr(alignment, "horizontal", "") or "").strip().lower()
+    if value == "centercontinuous":
+        return "center"
+    if value in {"left", "center", "right", "general"}:
+        return value
+    if value in {"fill", "justify", "distributed"}:
+        return "left"
+    return "general"
+
+
+def _excel_vertical_align(alignment):
+    value = str(getattr(alignment, "vertical", "") or "").strip().lower()
+    if value in {"top", "center", "bottom"}:
+        return value
+    if value in {"justify", "distributed"}:
+        return "top"
+    return "bottom"
 
 
 def _merge_candidate_with_saved_configuration(candidate, saved_item):
@@ -585,6 +609,10 @@ def _build_visual_grid(template_path, mapping_candidates, template_configuration
             is_merged = bool(merge_info)
             merge_start = bool(merge_info.get("merge_start", False))
             display_value = raw_value if (not is_merged or merge_start) else ""
+            font = cell_obj.font
+            alignment = cell_obj.alignment
+            horizontal_align = _excel_horizontal_align(alignment)
+            vertical_align = _excel_vertical_align(alignment)
             saved_item = saved.get(cell_ref, {})
             v4_fields = _merge_candidate_with_saved_configuration(candidates_by_cell.get(cell_ref, {}), saved_item)
             semantic = _primary_semantic_for_cell(semantic_lookup, cell_ref)
@@ -601,10 +629,16 @@ def _build_visual_grid(template_path, mapping_candidates, template_configuration
                     "col": col,
                     "value": raw_value,
                     "display_value": display_value,
-                    "font_bold": bool(cell_obj.font.bold),
-                    "font_size": float(cell_obj.font.sz or 0),
+                    "font_bold": bool(font.bold),
+                    "font_size": float(font.sz or 0),
+                    "font_name": str(font.name or ""),
+                    "font_color": _excel_color_text(font.color),
                     "fill_color": _excel_color_text(cell_obj.fill.fgColor),
-                    "align": str(cell_obj.alignment.horizontal or ""),
+                    "align": horizontal_align,
+                    "horizontal_align": horizontal_align,
+                    "vertical_align": vertical_align,
+                    "wrap_text": bool(alignment.wrap_text),
+                    "shrink_to_fit": bool(alignment.shrink_to_fit),
                     "merged_range": merge_info.get("range", ""),
                     "is_merged": is_merged,
                     "merge_start": merge_start,

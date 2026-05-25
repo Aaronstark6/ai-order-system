@@ -524,7 +524,7 @@
             border: 1px solid #edf0f4;
             line-height: 1.1;
             overflow: hidden;
-            padding: 0 4px;
+            padding: 0;
             vertical-align: middle;
         }
         .visual-grid th {
@@ -553,23 +553,28 @@
             max-width: 100%;
             overflow: hidden;
             text-overflow: ellipsis;
-            overflow-wrap: anywhere;
-            white-space: normal;
-            word-break: break-word;
         }
         .visual-cell-content {
-            display: -webkit-box;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
             max-height: 100%;
             max-width: 100%;
             overflow: hidden;
-            overflow-wrap: anywhere;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 4;
-            white-space: normal;
-            word-break: break-word;
+            padding: 2px 4px;
+            width: 100%;
         }
-        .visual-cell.has-text { border-color: #b8c4d4; font-weight: 600; }
-        .visual-cell.has-v4 { font-weight: 600; }
+        .visual-cell-content.wrap-text {
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+            word-break: normal;
+        }
+        .visual-cell-content.no-wrap {
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .visual-cell.has-text { border-color: #b8c4d4; }
         .visual-cell.fill-field { box-shadow: inset 4px 0 0 #1677ff, inset 0 -3px 0 #1677ff; }
         .visual-cell.option-field { box-shadow: inset 4px 0 0 #52c41a, inset 0 -3px 0 #52c41a; }
         .visual-cell.title-field { box-shadow: inset 4px 0 0 #722ed1, inset 0 -3px 0 #722ed1; }
@@ -1335,16 +1340,70 @@
             return letters || "";
         }
 
+        function excelColorToCss(value) {
+            const color = String(value || "").trim();
+            if (/^[A-Fa-f0-9]{8}$/.test(color) && color !== "00000000") return `#${color.slice(2)}`;
+            if (/^[A-Fa-f0-9]{6}$/.test(color)) return `#${color}`;
+            return "";
+        }
+
+        function normalizeHorizontalAlign(value) {
+            const align = String(value || "").toLowerCase();
+            return ["left", "center", "right"].includes(align) ? align : "left";
+        }
+
+        function normalizeVerticalAlign(value) {
+            const align = String(value || "").toLowerCase();
+            return ["top", "center", "bottom"].includes(align) ? align : "bottom";
+        }
+
+        function excelFontSizePx(value, shrinkToFit = false) {
+            const sizePt = Number(value);
+            if (!Number.isFinite(sizePt) || sizePt <= 0) return null;
+            const px = sizePt * 96 / 72;
+            const adjusted = shrinkToFit ? Math.max(9, px * 0.9) : px;
+            return Math.round(adjusted * 10) / 10;
+        }
+
+        function cssFontFamily(value) {
+            const fontName = String(value || "").trim();
+            if (!fontName) return "";
+            const safeName = fontName.replace(/["'\\;]/g, "");
+            return `'${safeName}', Arial, 'Microsoft YaHei', sans-serif`;
+        }
+
         function visualCellStyle(cell) {
             const styles = [];
+            const horizontalAlign = normalizeHorizontalAlign(cell.horizontal_align || cell.align);
+            const verticalAlign = normalizeVerticalAlign(cell.vertical_align);
+            const fillColor = excelColorToCss(cell.fill_color);
+            const fontColor = excelColorToCss(cell.font_color);
+            const fontSize = excelFontSizePx(cell.font_size, cell.shrink_to_fit);
+            const fontFamily = cssFontFamily(cell.font_name);
+            styles.push(`text-align:${horizontalAlign}`);
+            styles.push(`vertical-align:${verticalAlign === "center" ? "middle" : verticalAlign}`);
             if (cell.font_bold) styles.push("font-weight:700");
-            if (cell.align) styles.push(`text-align:${escapeHtml(cell.align)}`);
-            const color = String(cell.fill_color || "");
-            if (/^[A-Fa-f0-9]{8}$/.test(color) && color !== "00000000") {
-                styles.push(`background-color:#${color.slice(2)}`);
-            } else if (/^[A-Fa-f0-9]{6}$/.test(color)) {
-                styles.push(`background-color:#${color}`);
-            }
+            if (fontSize) styles.push(`font-size:${fontSize}px`);
+            if (fontColor) styles.push(`color:${fontColor}`);
+            if (fontFamily) styles.push(`font-family:${fontFamily}`);
+            if (fillColor) styles.push(`background-color:${fillColor}`);
+            return styles.join(";");
+        }
+
+        function visualCellContentStyle(cell) {
+            const styles = [];
+            const horizontalAlign = normalizeHorizontalAlign(cell.horizontal_align || cell.align);
+            const verticalAlign = normalizeVerticalAlign(cell.vertical_align);
+            const fontColor = excelColorToCss(cell.font_color);
+            const fontSize = excelFontSizePx(cell.font_size, cell.shrink_to_fit);
+            const fontFamily = cssFontFamily(cell.font_name);
+            styles.push(`text-align:${horizontalAlign}`);
+            styles.push(`align-items:${horizontalAlign === "center" ? "center" : horizontalAlign === "right" ? "flex-end" : "flex-start"}`);
+            styles.push(`justify-content:${verticalAlign === "top" ? "flex-start" : verticalAlign === "center" ? "center" : "flex-end"}`);
+            if (cell.font_bold) styles.push("font-weight:700");
+            if (fontSize) styles.push(`font-size:${fontSize}px`);
+            if (fontColor) styles.push(`color:${fontColor}`);
+            if (fontFamily) styles.push(`font-family:${fontFamily}`);
             return styles.join(";");
         }
 
@@ -1823,8 +1882,10 @@
                     ].filter(Boolean).join(" ");
                     const spanAttrs = `${rowspan > 1 ? ` rowspan="${rowspan}"` : ""}${colspan > 1 ? ` colspan="${colspan}"` : ""}`;
                     const cellStyle = [`height:${rowHeight}px`, visualCellStyle(cell)].filter(Boolean).join(";");
+                    const contentStyle = visualCellContentStyle(cell);
+                    const contentClass = cell.wrap_text ? "wrap-text" : "no-wrap";
                     const displayText = escapeHtml(cell.display_value || "");
-                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}"><div class="visual-cell-content">${displayText}</div></td>`);
+                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}"><div class="visual-cell-content ${contentClass}" style="${contentStyle}">${displayText}</div></td>`);
                 }
                 bodyRows.push(`<tr style="height:${rowHeight}px"><th class="row-head" style="height:${rowHeight}px">${row}</th>${tds.join("")}</tr>`);
             }

@@ -1449,3 +1449,41 @@ softgel -> default_profile -> softgel switch: isolated profile/template/runtime 
 6. Repeat one non-softgel profile export as a smoke test.
 7. Promote the commands from this audit into automated regression tests.
 ```
+
+## V4-EXCEL-VISUAL-RENDER-FIX01
+
+```text
+BACKEND_VISUAL_GRID_STYLE_AUDIT: PASS
+
+Root cause:
+- Visual grid cells already had col_widths, row_heights, merges, display_value, fill_color, font_bold, font_size, and align.
+- Missing Excel style fields caused the frontend to approximate rendering instead of following the workbook.
+- Frontend text lived directly in the table cell sizing context, and earlier CSS/content handling was preventing Excel-like text placement.
+
+Backend fields added/standardized:
+- font_name
+- font_color
+- horizontal_align
+- vertical_align
+- wrap_text
+- shrink_to_fit
+- align remains present for backward compatibility
+
+Frontend rendering:
+- table-layout remains fixed.
+- colgroup controls column width.
+- tr/td height remains based on Excel row height.
+- td owns size, border, selection, and click behavior.
+- visual-cell-content owns text layout, wrapping, clipping, font, and vertical placement.
+
+Validation:
+- Bubble tablet template B8: fixed table layout, merged colspan=5, wrap_text=true, vertical top, left aligned, no width/height blowout.
+- Bubble tablet yellow instruction cell G3: colspan=5, rowspan=5, centered text, yellow fill rendered from FFFFFF00.
+- Softgel template B8: fixed table layout, merged colspan=5, wrap_text=true, click opens right-side cell config.
+- Apply auto-detected suggestions button remains present.
+- Sticky save bar remains present.
+- JS error: 0.
+
+Residual P2:
+- Theme/indexed colors are surfaced safely as tokens, but exact Excel theme/tint color conversion is not fully implemented.
+```
