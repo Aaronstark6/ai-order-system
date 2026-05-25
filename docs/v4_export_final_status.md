@@ -127,8 +127,8 @@ PASS
    - They are not dead code, but they are currently default-off in the real API.
    - `_insert_confirmed_images_into_excel` is the only current code that knows how to decode `image.data_url`.
 
-3. `image_export_summary` remains legacy-path oriented.
-   - With operation image export enabled, the API returns a zeroed legacy image summary even though images are handled by `write_image`.
+3. `image_export_summary` now follows operation image export.
+   - With operation image export enabled, the API reads the exported workbook image count and reports the inserted image count instead of returning the legacy zero summary.
 
 4. `export_readback_check` audits only `text_confirmed_cells`.
    - Current readback does not verify operation-based image insertion.
@@ -995,8 +995,8 @@ E2E status: PASS
 
 ```text
 BASE_HEAD: 69ce472
-SYSTEM_AUDIT_RESULT: DONE_WITH_P1_ITEMS
-V4_CURRENT_COMPLETION: 96%
+SYSTEM_AUDIT_RESULT: DONE
+V4_CURRENT_COMPLETION: 98%
 REAL_BUSINESS_BLOCKER_P0: NO
 MAIN_FUNCTION_MISSING: NO
 ```
@@ -1082,10 +1082,9 @@ NONE
 
 ### P1
 
-1. 图片导出 summary 仍偏 legacy。
-   - operation image export 已真实写入图片，Excel 图片数为 `1`。
-   - `image_export_summary` 仍为 legacy fallback summary：`total=0, inserted=0, skipped=0`。
-   - 影响：不阻断图片导出，但会让结果摘要低估图片写入情况。
+NONE.
+
+Last P1 closed by `V4-IMAGE-SUMMARY-FIX01`: operation image export now reports `image_export_summary.total=1, inserted=1, skipped=0` when the exported Excel contains one newly inserted image.
 
 ### P2
 
@@ -1106,10 +1105,10 @@ NONE
 1. V4 当前完成度
 
 ```text
-96%
+98%
 ```
 
-理由：主业务闭环已完成；普通字段、图片字段、动态表格导出、多映射、配置持久化、Workspace 字段控制、标量 readback、动态表格 offset readback、浏览器运行均通过。剩余主要是图片摘要、标签文本和测试自动化等非阻断问题。
+理由：主业务闭环已完成；普通字段、图片字段、图片摘要、动态表格导出、多映射、配置持久化、Workspace 字段控制、标量 readback、动态表格 offset readback、浏览器运行均通过。剩余主要是标签文本和测试自动化等非阻断 P2 问题。
 
 2. 是否存在真实业务阻断
 
@@ -1145,10 +1144,10 @@ Workspace 字段显示/隐藏控制
 5. 下一步最值得做的事情
 
 ```text
-P1: 修正 operation image export 的 image_export_summary 摘要。
+P2: 补自动化回归覆盖和清理历史标签文本。
 ```
 
-这是当前最有价值的下一步，因为图片已真实写入 Excel，但摘要仍显示 legacy fallback 的零值，容易影响用户判断。
+当前 P0/P1 已关闭。下一步最有价值的是把已验证主链路固化为自动化回归，并清理历史标签文本。
 
 ## 最终验证命令
 
@@ -1250,9 +1249,9 @@ status: matched
 ```text
 operation image export: PASS
 excel_image_count: 1
-image_export_summary unchanged:
-  total: 0
-  inserted: 0
+image_export_summary fixed:
+  total: 1
+  inserted: 1
   skipped: 0
   warnings: []
 ```
@@ -1263,5 +1262,82 @@ image_export_summary unchanged:
 Dynamic table readback offset issue: CLOSED
 Final audit P1 dynamic table readback item: REMOVED
 V4 completion: 94% -> 96%
-Remaining P1: operation image export summary is still legacy-oriented
+Remaining P1 before V4-IMAGE-SUMMARY-FIX01: operation image export summary is still legacy-oriented
+```
+
+---
+
+# V4-IMAGE-SUMMARY-FIX01 Image Summary Fix
+
+## Result
+
+PASS
+
+```text
+IMAGE_SUMMARY_AUDIT: PASS
+```
+
+## Root Cause
+
+The real image export path already used `write_image` operations and the executor inserted images into Excel. The API summary still used the legacy branch:
+
+```text
+use_operation_image_export = True
+image_confirmed_cells present
+legacy fallback skipped
+summary returned total=0 inserted=0 skipped=0
+```
+
+This made `image_export_summary` disagree with the exported workbook.
+
+## Fix
+
+`/api/v4/export-confirmed-excel` now builds operation image summary after export by comparing workbook image counts:
+
+```text
+template images count
+exported workbook images count
+inserted = exported - template
+```
+
+No executor change was required.
+
+## Real Verification
+
+Real softgel template:
+
+```text
+v4/system_templates/softgel_softgel_burst_template_20260523_181128_191d0554.xlsx
+```
+
+Image field result:
+
+```text
+Excel images_count: 1
+image_export_summary.total: 1
+image_export_summary.inserted: 1
+image_export_summary.skipped: 0
+image_export_summary.source: operation_image_export
+```
+
+Regression:
+
+```text
+Normal field C5: IMAGE_SUMMARY_NORMAL_PASS
+Normal readback: matched
+
+Dynamic table B24 row_offset=0: matched
+Dynamic table B25 row_offset=1: matched
+Dynamic table C24 col_offset=1: matched
+
+Readback summary:
+total=4 checked=4 matched=4 mismatched=0 skipped=0
+```
+
+## Status Update
+
+```text
+Image summary P1: CLOSED
+Final audit P1 list: NONE
+V4 completion: 96% -> 98%
 ```

@@ -5074,6 +5074,77 @@ def _insert_confirmed_images_into_excel(exported_file_path, confirmed_cells, exc
     return summary
 
 
+def _count_workbook_images(workbook_path):
+    try:
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(workbook_path)
+        try:
+            return sum(len(getattr(sheet, "_images", [])) for sheet in workbook.worksheets), ""
+        finally:
+            close = getattr(workbook, "close", None)
+            if callable(close):
+                close()
+    except Exception as exc:
+        return 0, str(exc)
+
+
+def _operation_image_export_summary(template_path, exported_file_path, operations, confirmed_cells):
+    image_items = [
+        item for item in confirmed_cells if _confirmed_cell_is_image_item(item)
+    ] if isinstance(confirmed_cells, list) else []
+    image_operations = [
+        operation
+        for operation in operations
+        if isinstance(operation, dict) and operation.get("op_type") == "write_image"
+    ] if isinstance(operations, list) else []
+
+    total = len(image_items) or len(image_operations)
+    summary = {
+        "total": total,
+        "inserted": 0,
+        "skipped": 0,
+        "warnings": [],
+        "disabled": False,
+        "source": "operation_image_export",
+    }
+    if not total:
+        return summary
+
+    template_image_count, template_error = _count_workbook_images(template_path)
+    exported_image_count, exported_error = _count_workbook_images(exported_file_path)
+    if exported_error:
+        executable_image_ops = [
+            operation
+            for operation in image_operations
+            if str(operation.get("image_path") or "").strip()
+        ]
+        summary["inserted"] = min(total, len(executable_image_ops))
+        summary["skipped"] = max(0, total - summary["inserted"])
+        summary["warnings"].append(f"导出图片数量回读失败: {exported_error}")
+        return summary
+
+    inserted = exported_image_count
+    if not template_error:
+        inserted = max(0, exported_image_count - template_image_count)
+    else:
+        summary["warnings"].append(f"模板图片数量回读失败: {template_error}")
+
+    summary["inserted"] = min(total, inserted)
+    summary["skipped"] = max(0, total - summary["inserted"])
+
+    missing_image_path_count = sum(
+        1 for operation in image_operations
+        if not str(operation.get("image_path") or "").strip()
+    )
+    if missing_image_path_count:
+        summary["warnings"].append(
+            f"{missing_image_path_count} 个图片 operation 缺少 image_path"
+        )
+
+    return summary
+
+
 @router.post("/api/v4/export-confirmed-excel")
 def api_v4_export_confirmed_excel(
     chat_text: str = Form(""),
@@ -5175,7 +5246,14 @@ def api_v4_export_confirmed_excel(
                 exported_file_path = exported_file_path
             else:
                 exported_file_path = Path("output") / exported_file_path
-        if image_confirmed_cells and not use_operation_image_export:
+        if image_confirmed_cells and use_operation_image_export:
+            image_export_summary = _operation_image_export_summary(
+                template_path,
+                exported_file_path,
+                overridden_operations,
+                image_confirmed_cells,
+            )
+        elif image_confirmed_cells:
             image_export_summary = _insert_confirmed_images_into_excel(
                 exported_file_path,
                 image_confirmed_cells,
