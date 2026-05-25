@@ -105,6 +105,24 @@
             min-width: 138px;
         }
         button:disabled { cursor: not-allowed; opacity: 0.55; }
+        .button-spinner {
+            animation: spin 0.75s linear infinite;
+            border: 2px solid rgba(255,255,255,0.7);
+            border-top-color: transparent;
+            border-radius: 999px;
+            display: inline-block;
+            height: 14px;
+            margin-right: 8px;
+            vertical-align: -2px;
+            width: 14px;
+        }
+        button.ghost .button-spinner {
+            border-color: rgba(52,64,84,0.45);
+            border-top-color: transparent;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
         button.small {
             color: #fff;
             min-height: 32px;
@@ -146,6 +164,37 @@
             flex: 1 1 260px;
             font-size: 13px;
             line-height: 1.5;
+        }
+        .sticky-save-bar {
+            align-items: center;
+            background: #101828;
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 8px;
+            bottom: 24px;
+            box-shadow: 0 12px 28px rgba(16,24,40,0.22);
+            color: #fff;
+            display: none;
+            gap: 12px;
+            max-width: min(520px, calc(100vw - 32px));
+            padding: 12px 14px;
+            position: fixed;
+            right: 24px;
+            z-index: 40;
+        }
+        .sticky-save-bar.visible { display: flex; }
+        .sticky-save-message {
+            font-size: 13px;
+            line-height: 1.4;
+            min-width: 0;
+        }
+        .sticky-save-message strong {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+        .sticky-save-bar button {
+            background: #12b76a;
+            flex: 0 0 auto;
         }
         .excel-feature-panel {
             background: #fafbfd;
@@ -771,6 +820,12 @@
             .business-config-toolbar button { flex: 1; }
             .business-config-row { grid-template-columns: 1fr; }
             .business-config-cell { justify-self: start; }
+            .sticky-save-bar {
+                bottom: 12px;
+                left: 12px;
+                right: 12px;
+            }
+            .sticky-save-bar button { width: auto; }
         }
     </style>
 </head>
@@ -858,6 +913,14 @@
         </section>
     </main>
 
+    <div id="stickySaveBar" class="sticky-save-bar" aria-live="polite">
+        <div class="sticky-save-message">
+            <strong>存在未保存修改</strong>
+            <span id="stickySaveDetail">保存后才会用于 Workspace 和导出。</span>
+        </div>
+        <button type="button" data-action="save-config" onclick="saveTemplateConfiguration()">保存配置</button>
+    </div>
+
     <script>
         let mappings = [];
         let selectedMappingId = "";
@@ -869,6 +932,10 @@
         let configViewMode = "table";
         let businessSectionCollapsed = {};
         let selectedVisualCell = "";
+        let hasUnsavedChanges = false;
+        let isSavingConfiguration = false;
+        let isReanalyzingMapping = false;
+        let lastSavedAt = "";
         const DEFAULT_EXCEL_FEATURE_FLAGS = {
             image_fields: true,
             dynamic_tables: false,
@@ -909,11 +976,57 @@
             if (!element) return;
             element.textContent = text || "";
             element.className = `status ${type}`;
-            element.style.display = type === "error" || type === "warning" ? "block" : "none";
+            element.style.display = text ? "block" : "none";
         }
 
         function setInlineStatus(text) {
             document.getElementById("fileActionStatus").textContent = text || "";
+        }
+
+        function formatTimestamp(date = new Date()) {
+            const pad = (value) => String(value).padStart(2, "0");
+            return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        }
+
+        function setActionButtonsBusy(action, busy, busyLabel = "") {
+            document.querySelectorAll(`[data-action="${action}"]`).forEach((button) => {
+                if (!button.dataset.defaultLabel) {
+                    button.dataset.defaultLabel = button.textContent.trim();
+                }
+                button.disabled = busy || !selectedMappingId;
+                if (busy) {
+                    button.innerHTML = `<span class="button-spinner" aria-hidden="true"></span>${escapeHtml(busyLabel || button.dataset.defaultLabel)}`;
+                } else {
+                    button.textContent = button.dataset.defaultLabel;
+                }
+            });
+        }
+
+        function updateStickySaveBar() {
+            const bar = document.getElementById("stickySaveBar");
+            if (!bar) return;
+            bar.classList.toggle("visible", Boolean(hasUnsavedChanges && selectedMappingId));
+            const detail = document.getElementById("stickySaveDetail");
+            if (detail) {
+                detail.textContent = hasUnsavedChanges
+                    ? "保存后才会用于 Workspace 和导出。"
+                    : (lastSavedAt ? `配置已保存于 ${lastSavedAt}` : "");
+            }
+            setActionButtonsBusy("save-config", isSavingConfiguration, "保存中...");
+        }
+
+        function setUnsavedChanges(value) {
+            hasUnsavedChanges = Boolean(value);
+            updateStickySaveBar();
+        }
+
+        function normalizeRepeatedSaveButtons(scope = document) {
+            scope.querySelectorAll('.config-actions button[onclick="saveTemplateConfiguration()"]').forEach((button) => {
+                const hint = document.createElement("span");
+                hint.className = "config-action-hint";
+                hint.textContent = "修改后可使用顶部“保存当前配置”或右下角保存条。";
+                button.replaceWith(hint);
+            });
         }
 
         function getMappingId(mapping) { return mapping?.[profileKey()] || ""; }
@@ -1092,6 +1205,7 @@
             await loadMappingHealth(selectedMappingId, false);
             updateCurrentState();
             renderConfig();
+            setUnsavedChanges(false);
             if (showLoading) setStatus("已切换映射。", "success");
         }
 
@@ -1567,6 +1681,9 @@
                     <div class="small" style="margin-top:8px;">应用后请点击页面下方“保存配置”完成保存。</div>
                 </div>
             `;
+            panel.querySelectorAll("input[data-excel-feature-flag]").forEach((input) => {
+                input.addEventListener("change", () => setUnsavedChanges(true));
+            });
         }
 
         function applyVisualCellDetailToConfig() {
@@ -1630,6 +1747,7 @@
                 }
             }
             configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
+            setUnsavedChanges(true);
             renderConfig();
             renderVisualWorkbench();
             setStatus("已应用到当前单元格，请点击页面下方“保存配置”完成保存。", "warning");
@@ -1923,6 +2041,18 @@
                     <button type="button" onclick="saveTemplateConfiguration()" ${selectedMappingId ? "" : "disabled"}>保存配置</button>
                 </div>
             `;
+            const reanalyzeButton = area.querySelector('button[onclick="reanalyzeCurrentMapping()"]');
+            if (reanalyzeButton) {
+                reanalyzeButton.dataset.action = "reanalyze";
+                reanalyzeButton.textContent = "重新分析";
+            }
+            const saveButton = area.querySelector('button[onclick="saveTemplateConfiguration()"]');
+            if (saveButton) {
+                saveButton.dataset.action = "save-config";
+                saveButton.textContent = "保存当前配置";
+            }
+            setActionButtonsBusy("reanalyze", isReanalyzingMapping, "重新分析中...");
+            setActionButtonsBusy("save-config", isSavingConfiguration, "保存中...");
         }
 
         async function reanalyzeCurrentMapping() {
@@ -2107,6 +2237,7 @@
                 if (key) savedConfiguration[key] = { ...(savedConfiguration[key] || {}), ...item };
             });
             configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
+            setUnsavedChanges(true);
             renderConfig();
             renderVisualWorkbench();
             renderConfigurationValidation();
@@ -2146,6 +2277,7 @@
                 user_edited: true,
             };
             configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
+            setUnsavedChanges(true);
             renderConfig();
             renderVisualWorkbench();
             renderConfigurationValidation();
@@ -2591,6 +2723,7 @@
                 targetRow.dataset.userEdited = "true";
                 targetRow.dataset.manualOverride = "true";
             }
+            setUnsavedChanges(true);
         }
 
         function getCurrentExcelFeatureFlags() {
@@ -3013,6 +3146,7 @@
             area.className = "";
             if (configViewMode === "business") {
                 area.innerHTML = renderBusinessConfigView(configSections);
+                normalizeRepeatedSaveButtons(area);
                 area.querySelectorAll("[data-config-field]").forEach((input) => {
                     input.addEventListener("input", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
                     input.addEventListener("change", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
@@ -3022,7 +3156,60 @@
             }
 
             renderTableConfigView(configSections);
+            normalizeRepeatedSaveButtons(area);
         }
+
+        const baseReanalyzeCurrentMapping = reanalyzeCurrentMapping;
+        reanalyzeCurrentMapping = async function() {
+            if (!selectedMappingId) {
+                return baseReanalyzeCurrentMapping();
+            }
+            if (isReanalyzingMapping) return;
+            isReanalyzingMapping = true;
+            setActionButtonsBusy("reanalyze", true, "重新分析中...");
+            setStatus("重新分析中...", "info");
+            try {
+                await baseReanalyzeCurrentMapping();
+                const stats = getSemanticRecommendationStats();
+                setStatus(`重新分析完成，发现 ${stats.total} 项建议，其中 ${stats.applicable} 项可应用。`, "success");
+            } catch (error) {
+                setStatus(`重新分析失败：${error.message || "未知错误"}`, "error");
+            } finally {
+                isReanalyzingMapping = false;
+                setActionButtonsBusy("reanalyze", false);
+            }
+        };
+
+        const baseSaveTemplateConfiguration = saveTemplateConfiguration;
+        saveTemplateConfiguration = async function() {
+            if (!selectedMappingId) {
+                return baseSaveTemplateConfiguration();
+            }
+            const items = collectEditableConfiguration();
+            if (!items.length) {
+                return baseSaveTemplateConfiguration();
+            }
+            const validation = validateCurrentMappingConfiguration(items);
+            if (validation.errors.length) {
+                return baseSaveTemplateConfiguration();
+            }
+            if (isSavingConfiguration) return;
+            isSavingConfiguration = true;
+            setActionButtonsBusy("save-config", true, "保存中...");
+            setStatus("保存中...", "info");
+            try {
+                await baseSaveTemplateConfiguration();
+                lastSavedAt = formatTimestamp();
+                setUnsavedChanges(false);
+                setStatus(`✓ 配置已保存 ${lastSavedAt}`, "success");
+            } catch (error) {
+                setStatus(`保存失败：${error.message || "未知错误"}`, "error");
+            } finally {
+                isSavingConfiguration = false;
+                setActionButtonsBusy("save-config", false);
+                updateStickySaveBar();
+            }
+        };
 
         window.addEventListener("DOMContentLoaded", () => {
             loadMappings().catch((error) => {
