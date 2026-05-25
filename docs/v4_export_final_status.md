@@ -1514,3 +1514,32 @@ Real validation:
 - Softgel mapping remained selectable.
 - JS error: 0.
 ```
+
+## V4-FIELD-LIBRARY-PACKAGING-FIX01
+
+```text
+FIELD_TAXONOMY_PACKAGING_FIX: PASS
+
+Root cause:
+- product_schema.json already contains packaging subfields, but template candidate generation only emitted coarse packaging.
+- _MAPPING_CANDIDATE_RULES and _slugify_semantic_field_key collapsed packaging-related labels to packaging.
+
+Supported packaging subfields:
+- packaging.container_type: 容器类型 / 容器要求 / 瓶装 / 袋装 / 管装
+- packaging.capacity: 容量 / ml / 毫升 / g / 克
+- packaging.quantity_per_unit: 装量 / 每瓶数量 / 每袋数量 / 每管数量
+- packaging.container_color: 容器颜色 / 瓶身颜色 / 瓶子颜色
+- packaging.cap_color: 盖子颜色 / 瓶盖颜色
+- packaging.seal_method: 密封方式 / 瓶口密封 / 盖子密封 / 铝箔 / 热封 / 塑封
+
+Fallback remains:
+- packaging: broad packaging requirements that cannot be safely split.
+- labeling / batch_code / other_requirements: existing semantic keys remain outside this packaging-only scope.
+
+UI:
+- Template Settings field labels now display dotted packaging keys with Chinese business labels.
+
+Next:
+- No profile migration in this fix.
+- A future field library UI can expose schema-derived labels/aliases if taxonomy grows beyond packaging.
+```

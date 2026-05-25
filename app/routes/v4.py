@@ -309,10 +309,53 @@ _MAPPING_CANDIDATE_RULES = [
         "ai_extract_hint": "规格 / 规格型号",
     },
     {
+        "field_key": "packaging.container_type",
+        "field_label": "容器类型",
+        "keywords": ["容器要求", "容器类型", "容器", "瓶装", "袋装", "管装", "罐装", "包装方式", "container type", "bottle", "bag", "tube", "jar"],
+        "ai_extract_hint": "容器类型 / 容器要求 / 瓶装 / 袋装 / 管装",
+        "priority": 50,
+    },
+    {
+        "field_key": "packaging.quantity_per_unit",
+        "field_label": "装量",
+        "keywords": ["装量", "包装数量", "包装规格", "每瓶", "每袋", "每管", "粒/瓶", "片/管", "粒每瓶", "片每管", "quantity per unit", "per bottle", "per bag", "per tube"],
+        "ai_extract_hint": "装量 / 每瓶数量 / 每袋数量 / 每管数量",
+        "priority": 58,
+    },
+    {
+        "field_key": "packaging.capacity",
+        "field_label": "容量",
+        "keywords": ["容量", "毫升", "克重", "ml", "milliliter", "g", "gram", "grams", "capacity"],
+        "ai_extract_hint": "容量 / ml / 毫升 / g / 克",
+        "priority": 56,
+    },
+    {
+        "field_key": "packaging.container_color",
+        "field_label": "容器颜色",
+        "keywords": ["瓶身颜色", "容器颜色", "瓶子颜色", "罐子颜色", "袋子颜色", "container color", "bottle color", "jar color"],
+        "ai_extract_hint": "容器颜色 / 瓶身颜色 / 瓶子颜色",
+        "priority": 66,
+    },
+    {
+        "field_key": "packaging.cap_color",
+        "field_label": "盖子颜色",
+        "keywords": ["盖子颜色", "瓶盖颜色", "盖颜色", "cap color", "lid color"],
+        "ai_extract_hint": "盖子颜色 / 瓶盖颜色",
+        "priority": 64,
+    },
+    {
+        "field_key": "packaging.seal_method",
+        "field_label": "密封方式",
+        "keywords": ["密封方式", "瓶口密封", "盖子密封", "袋口密封", "密封", "封口", "铝箔", "热封", "塑封", "seal method", "sealing", "foil seal", "heat seal"],
+        "ai_extract_hint": "密封方式 / 瓶口密封 / 盖子密封 / 铝箔 / 热封 / 塑封",
+        "priority": 62,
+    },
+    {
         "field_key": "packaging",
         "field_label": "包装",
         "keywords": ["包装", "包装规格", "包装要求", "package", "packaging"],
         "ai_extract_hint": "包装 / 包装规格 / 包装要求",
+        "priority": 10,
     },
     {
         "field_key": "amount",
@@ -330,7 +373,18 @@ _SECTION_FIELD_HINTS = [
     ),
     (
         ["product", "item", "spec", "packing", "package", "detail", "table", "产品", "品名", "规格", "包装", "明细", "表格"],
-        {"product_name": 0.22, "quantity": 0.16, "packaging": 0.18, "specification": 0.18},
+        {
+            "product_name": 0.22,
+            "quantity": 0.16,
+            "packaging": 0.18,
+            "packaging.container_type": 0.18,
+            "packaging.quantity_per_unit": 0.18,
+            "packaging.capacity": 0.18,
+            "packaging.container_color": 0.18,
+            "packaging.cap_color": 0.18,
+            "packaging.seal_method": 0.18,
+            "specification": 0.18,
+        },
     ),
     (
         ["summary", "total", "amount", "price", "合计", "汇总", "金额", "总计", "价格"],
@@ -347,6 +401,26 @@ _GENERIC_LABEL_HINTS = {
     "qty": {"quantity": 0.48},
     "规格": {"specification": 0.48},
     "型号": {"specification": 0.42},
+    "容器": {"packaging.container_type": 0.58},
+    "瓶装": {"packaging.container_type": 0.58},
+    "袋装": {"packaging.container_type": 0.58},
+    "管装": {"packaging.container_type": 0.58},
+    "装量": {"packaging.quantity_per_unit": 0.58},
+    "每瓶": {"packaging.quantity_per_unit": 0.58},
+    "每袋": {"packaging.quantity_per_unit": 0.58},
+    "每管": {"packaging.quantity_per_unit": 0.58},
+    "容量": {"packaging.capacity": 0.58},
+    "毫升": {"packaging.capacity": 0.58},
+    "瓶身颜色": {"packaging.container_color": 0.58},
+    "容器颜色": {"packaging.container_color": 0.58},
+    "瓶子颜色": {"packaging.container_color": 0.58},
+    "盖子颜色": {"packaging.cap_color": 0.58},
+    "瓶盖颜色": {"packaging.cap_color": 0.58},
+    "密封": {"packaging.seal_method": 0.58},
+    "封口": {"packaging.seal_method": 0.58},
+    "铝箔": {"packaging.seal_method": 0.58},
+    "热封": {"packaging.seal_method": 0.58},
+    "塑封": {"packaging.seal_method": 0.58},
     "包装": {"packaging": 0.48},
     "金额": {"amount": 0.48},
     "价格": {"amount": 0.42},
@@ -973,7 +1047,7 @@ def _reading_order_score_for_rule(rule, label_index, total_labels, cell):
 
     if field_key in {"customer_name", "order_date"} and (ratio <= 0.3 or (row and row <= 8)):
         return 0.08
-    if field_key in {"product_name", "quantity", "specification", "packaging"} and ratio >= 0.25:
+    if (field_key in {"product_name", "quantity", "specification", "packaging"} or field_key.startswith("packaging.")) and ratio >= 0.25:
         return 0.06
     if field_key == "amount" and ratio >= 0.65:
         return 0.07
@@ -1032,11 +1106,12 @@ def _candidate_for_label(label_text, section, label_index=1, total_labels=1, cel
                 "ai_extract_hint": rule["ai_extract_hint"],
                 "candidate_reason": _reason_from_breakdown(breakdown),
                 "confidence_breakdown": {key: value for key, value in breakdown.items() if value > 0},
+                "priority": int(rule.get("priority") or 0),
             }
         )
 
     if scored_candidates:
-        scored_candidates.sort(key=lambda item: (-item["confidence"], item["field_key"]))
+        scored_candidates.sort(key=lambda item: (-item["confidence"], -int(item.get("priority") or 0), item["field_key"]))
         return scored_candidates[0]
 
     return {
@@ -1053,11 +1128,18 @@ def _slugify_semantic_field_key(label, semantic_type, cell, section_text=""):
     text = f"{label or ''} {section_text or ''}".strip().lower()
     semantic_type = str(semantic_type or "").strip()
     keyword_map = [
+        (("瓶身颜色", "容器颜色", "瓶子颜色", "罐子颜色", "袋子颜色", "container color", "bottle color", "jar color"), "packaging.container_color"),
+        (("盖子颜色", "瓶盖颜色", "盖颜色", "cap color", "lid color"), "packaging.cap_color"),
+        (("瓶口密封", "盖子密封", "袋口密封", "密封方式", "密封", "封口", "铝箔", "热封", "塑封", "seal method", "sealing", "foil seal", "heat seal"), "packaging.seal_method"),
+        (("装量", "包装数量", "每瓶", "每袋", "每管", "粒/瓶", "片/管", "粒每瓶", "片每管", "quantity per unit", "per bottle", "per bag", "per tube"), "packaging.quantity_per_unit"),
+        (("容量", "毫升", "克重", "ml", "milliliter", "g", "gram", "grams", "capacity"), "packaging.capacity"),
+        (("容器要求", "容器类型", "容器", "瓶装", "袋装", "管装", "罐装", "container type", "bottle", "bag", "tube", "jar"), "packaging.container_type"),
         (("客户名称", "客户", "customer"), "customer_name"),
         (("数量", "quantity", "qty", "amount"), "quantity"),
         (("日期", "date"), "date"),
         (("产品形式", "产品类型", "剂型", "形式", "product type", "product_type"), "product_type"),
         (("产品名称", "品名", "产品", "product name", "product"), "product_name"),
+        (("包装要求", "包材", "包装", "package", "packaging"), "packaging"),
         (("包装", "包材", "package", "packaging"), "packaging"),
         (("标签", "label", "labeling"), "labeling"),
         (("批号", "批次", "batch"), "batch_code"),

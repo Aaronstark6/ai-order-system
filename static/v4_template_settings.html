@@ -370,6 +370,9 @@
             min-height: 36px;
             width: 100%;
         }
+        .business-config-editor .semantic-analysis-panel {
+            margin-top: 8px;
+        }
         .business-config-cell {
             background: #f8fafc;
             border: 1px solid #e4e7ec;
@@ -438,6 +441,57 @@
         }
         .debug-label { color: #667085; font-size: 11px; margin-bottom: 2px; }
         .debug-value { color: #1d2939; font-size: 12px; word-break: break-all; }
+        .semantic-analysis-panel {
+            background: #fff;
+            border: 1px solid #e6eaf0;
+            border-radius: 6px;
+            padding: 10px;
+        }
+        .semantic-analysis-title {
+            align-items: center;
+            color: #1d2939;
+            display: flex;
+            font-size: 14px;
+            font-weight: 700;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .semantic-analysis-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        }
+        .semantic-analysis-item {
+            background: #fafbfd;
+            border: 1px solid #edf0f4;
+            border-radius: 4px;
+            padding: 8px 10px;
+        }
+        .semantic-analysis-label {
+            color: #667085;
+            font-size: 11px;
+            margin-bottom: 3px;
+        }
+        .semantic-analysis-value {
+            color: #1d2939;
+            font-size: 12px;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+        .semantic-technical-details {
+            border-top: 1px solid #edf0f4;
+            margin-top: 10px;
+            padding-top: 8px;
+        }
+        .semantic-technical-details summary {
+            color: #475467;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .semantic-technical-details .semantic-analysis-grid {
+            margin-top: 8px;
+        }
         .visual-workbench {
             border: 1px solid #e6eaf0;
             border-radius: 8px;
@@ -1681,6 +1735,32 @@
             "unknown": "未知"
         };
 
+        const FIELD_LIBRARY_LABELS = {
+            "customer_name": "客户名称",
+            "order_date": "订单日期",
+            "product_name": "产品名称",
+            "product_type": "产品类型",
+            "quantity": "数量",
+            "packaging": "包装要求",
+            "packaging.container_type": "容器类型",
+            "packaging.capacity": "容量",
+            "packaging.quantity_per_unit": "装量",
+            "packaging.container_color": "容器颜色",
+            "packaging.cap_color": "盖子颜色",
+            "packaging.seal_method": "密封方式",
+            "formula": "配方",
+            "flavor": "口味",
+            "unit_weight": "单粒重量",
+            "delivery_date": "交货日期",
+            "responsible_person": "负责人",
+            "customer_type": "客户性质",
+            "order_number": "订单编号",
+            "batch_number": "批号",
+            "label_requirement": "标签要求",
+            "other_requirements": "其他要求",
+            "image": "图片"
+        };
+
         const INTENT_CLASS_BY_TYPE = {
             "label_fill_right": "fill-field",
             "label_fill_below": "fill-field",
@@ -1736,6 +1816,134 @@
             `;
         }
 
+        function firstNonEmpty(...values) {
+            for (const value of values) {
+                if (value === 0) return 0;
+                const text = String(value ?? "").trim();
+                if (text) return value;
+            }
+            return "";
+        }
+
+        function formatConfidence(value) {
+            const number = Number(value);
+            return Number.isFinite(number) && number > 0 ? number.toFixed(2) : "-";
+        }
+
+        function friendlyFieldKeyLabel(key) {
+            const normalizedKey = String(key || "").trim();
+            if (!normalizedKey) return "-";
+            const label = FIELD_LIBRARY_LABELS[normalizedKey];
+            if (!label || label === normalizedKey) return normalizedKey;
+            return `${label} (${normalizedKey})`;
+        }
+
+        function formatSemanticFieldName(data) {
+            const key = String(data.candidate_field_key || "").trim();
+            return friendlyFieldKeyLabel(key);
+        }
+
+        function normalizeSemanticAnalysisData(source) {
+            const data = source || {};
+            return {
+                semantic_promoted: Boolean(firstNonEmpty(data.semantic_promoted, data.semanticPromoted, false)),
+                semantic_type: String(firstNonEmpty(data.semantic_type, data.semanticType, "") || ""),
+                semantic_region_id: String(firstNonEmpty(data.semantic_region_id, data.semanticRegionId, data.semantic_region, data.semanticRegion, "") || ""),
+                semantic_confidence: Number(firstNonEmpty(data.semantic_confidence, data.semanticConfidence, 0) || 0),
+                semantic_reason: String(firstNonEmpty(data.semantic_reason, data.semanticReason, "") || ""),
+                candidate_field_key: String(firstNonEmpty(data.candidate_field_key, data.candidateFieldKey, data.field_key, data.fieldKey, "") || ""),
+                candidate_field_label: String(firstNonEmpty(data.candidate_field_label, data.candidateFieldLabel, data.field_label, data.fieldLabel, "") || ""),
+                candidate_confidence: Number(firstNonEmpty(data.candidate_confidence, data.candidateConfidence, data.confidence, 0) || 0),
+                candidate_source: String(firstNonEmpty(data.candidate_source, data.candidateSource, data.source, "") || ""),
+                candidate_reason: String(firstNonEmpty(data.candidate_reason, data.candidateReason, "") || ""),
+                ai_extract_hint: String(firstNonEmpty(data.ai_extract_hint, data.aiExtractHint, "") || ""),
+                confidence_breakdown: data.confidence_breakdown || data.confidenceBreakdown || {},
+                intent_type: String(firstNonEmpty(data.intent_type, data.intentType, "") || ""),
+                intent_confidence: Number(firstNonEmpty(data.intent_confidence, data.intentConfidence, 0) || 0),
+                intent_reason: String(firstNonEmpty(data.intent_reason, data.intentReason, "") || ""),
+                label_cell: String(firstNonEmpty(data.label_cell, data.labelCell, data.cell, "") || ""),
+                target_cell: String(firstNonEmpty(data.target_cell, data.targetCell, "") || ""),
+                write_mode: String(firstNonEmpty(data.write_mode, data.writeMode, "") || ""),
+                section: String(firstNonEmpty(data.section, data.sectionKey, "") || ""),
+                type: String(firstNonEmpty(data.type, "") || ""),
+            };
+        }
+
+        function renderSemanticAnalysisItem(label, value) {
+            return `
+                <div class="semantic-analysis-item">
+                    <div class="semantic-analysis-label">${escapeHtml(label)}</div>
+                    <div class="semantic-analysis-value">${escapeHtml(value || "-")}</div>
+                </div>
+            `;
+        }
+
+        function renderSemanticAnalysisPanel(source, options = {}) {
+            const data = normalizeSemanticAnalysisData(source);
+            const title = options.title || "AI识别结果";
+            const mainItems = [
+                ["AI识别类型", SEMANTIC_TYPE_LABELS[data.semantic_type] || data.semantic_type || "-"],
+                ["建议字段", formatSemanticFieldName(data)],
+                ["AI置信度", formatConfidence(data.semantic_confidence || data.candidate_confidence)],
+                ["AI判断依据", data.semantic_reason || data.candidate_reason || "-"],
+                ["AI提取提示", data.ai_extract_hint || "-"],
+            ];
+            const technicalItems = [
+                ["模板区域", data.semantic_region_id || data.section || "-"],
+                ["semantic source", data.candidate_source || "-"],
+                ["analysis source", data.type || data.intent_type || "-"],
+                ["raw semantic info", [
+                    `semantic_type=${data.semantic_type || "-"}`,
+                    `semantic_confidence=${formatConfidence(data.semantic_confidence)}`,
+                    `semantic_reason=${data.semantic_reason || "-"}`,
+                ].join("；")],
+                ["candidate internal data", [
+                    `candidate_field_key=${data.candidate_field_key || "-"}`,
+                    `candidate_confidence=${formatConfidence(data.candidate_confidence)}`,
+                    `candidate_reason=${data.candidate_reason || "-"}`,
+                    `confidence_breakdown=${formatConfidenceBreakdown(data.confidence_breakdown)}`,
+                    `label_cell=${data.label_cell || "-"}`,
+                    `target_cell=${data.target_cell || "-"}`,
+                    `write_mode=${data.write_mode || "-"}`,
+                    `intent_confidence=${formatConfidence(data.intent_confidence)}`,
+                    `intent_reason=${data.intent_reason || "-"}`,
+                ].join("；")],
+            ];
+            return `
+                <div class="semantic-analysis-panel" data-semantic-renderer="shared">
+                    <div class="semantic-analysis-title">
+                        ${escapeHtml(title)}
+                        ${data.semantic_promoted ? '<span class="semantic-badge">自动识别建议</span>' : ""}
+                    </div>
+                    <div class="semantic-analysis-grid">
+                        ${mainItems.map(([label, value]) => renderSemanticAnalysisItem(label, value)).join("")}
+                    </div>
+                    <details class="semantic-technical-details">
+                        <summary>查看技术详情</summary>
+                        <div class="semantic-analysis-grid">
+                            ${technicalItems.map(([label, value]) => renderSemanticAnalysisItem(label, value)).join("")}
+                        </div>
+                    </details>
+                </div>
+            `;
+        }
+
+        function hasSemanticAnalysisData(source) {
+            const data = normalizeSemanticAnalysisData(source);
+            return Boolean(
+                data.semantic_type
+                || data.semantic_reason
+                || data.semantic_region_id
+                || data.candidate_field_key
+                || data.candidate_reason
+                || data.ai_extract_hint
+            );
+        }
+
+        function renderBusinessSemanticPanel(row) {
+            return hasSemanticAnalysisData(row) ? renderSemanticAnalysisPanel(row, { title: "AI识别结果" }) : "";
+        }
+
         function renderVisualDetail(cell) {
             const area = document.getElementById("visualCellDetail");
             if (!area) return;
@@ -1744,13 +1952,6 @@
                 return;
             }
             const config = getVisualCellEffectiveConfig(cell);
-            const confidenceText = [
-                config.candidate_confidence ? `匹配可信度：${Number(config.candidate_confidence).toFixed(2)}` : "",
-                config.candidate_source ? `来源：${config.candidate_source}` : "",
-                config.candidate_reason ? `原因：${config.candidate_reason}` : "",
-                config.intent_confidence ? `意图可信度：${Number(config.intent_confidence).toFixed(2)}` : "",
-                config.intent_reason ? `意图原因：${config.intent_reason}` : "",
-            ].filter(Boolean).join(" / ") || "-";
             area.innerHTML = `
                 <div class="visual-detail-title">单元格配置</div>
                 <div class="visual-detail-field">
@@ -1770,35 +1971,7 @@
                     <input class="visual-readonly" type="text" value="${escapeHtml(INTENT_LABELS[config.intent_type] || config.intent_type || "未知")}" readonly>
                 </div>
                 <div class="visual-detail-section">
-                    <div class="visual-detail-section-title">自动识别建议</div>
-                    <div class="visual-detail-row">
-                        <div class="visual-detail-label">语义增强</div>
-                        <div class="visual-detail-value">${config.semantic_promoted ? '<span class="semantic-badge">自动识别建议</span>' : "否"}</div>
-                    </div>
-                    <div class="visual-detail-row">
-                        <div class="visual-detail-label">semantic_type</div>
-                        <div class="visual-detail-value">${escapeHtml(SEMANTIC_TYPE_LABELS[config.semantic_type] || config.semantic_type || "-")}</div>
-                    </div>
-                    <div class="visual-detail-row">
-                        <div class="visual-detail-label">semantic_region</div>
-                        <div class="visual-detail-value">${escapeHtml(config.semantic_region_id || "-")}</div>
-                    </div>
-                    <div class="visual-detail-row">
-                        <div class="visual-detail-label">semantic_confidence</div>
-                        <div class="visual-detail-value">${config.semantic_confidence ? escapeHtml(Number(config.semantic_confidence).toFixed(2)) : "-"}</div>
-                    </div>
-                    <div class="visual-detail-row">
-                        <div class="visual-detail-label">semantic_reason</div>
-                        <div class="visual-detail-value">${escapeHtml(config.semantic_reason || "-")}</div>
-                    </div>
-                    <div class="visual-detail-row">
-                        <div class="visual-detail-label">candidate_field_key</div>
-                        <div class="visual-detail-value">${escapeHtml(config.candidate_field_key || "-")}</div>
-                    </div>
-                    <div class="visual-detail-row">
-                        <div class="visual-detail-label">candidate_confidence</div>
-                        <div class="visual-detail-value">${config.candidate_confidence ? escapeHtml(Number(config.candidate_confidence).toFixed(2)) : "-"}</div>
-                    </div>
+                    ${renderSemanticAnalysisPanel(config, { title: "AI识别结果" })}
                     <button type="button" class="secondary" onclick="applyCurrentCellSemanticDraftConfiguration()" ${config.semantic_promoted ? "" : "disabled"}>应用到当前单元格</button>
                 </div>
                 <div class="visual-detail-field">
@@ -1833,10 +2006,6 @@
                     <input data-visual-detail-field="ai_extract_hint" type="text" value="${escapeHtml(config.ai_extract_hint || "")}">
                 </div>
                 ${renderImageFieldConfigControls(config, "data-visual-detail-field")}
-                <div class="visual-detail-row">
-                    <div class="visual-detail-label">可信度/原因</div>
-                    <div class="visual-detail-value">${escapeHtml(confidenceText)}</div>
-                </div>
                 <div class="visual-detail-actions">
                     <button type="button" onclick="applyVisualCellDetailToConfig()">应用编辑到配置</button>
                     <div class="small" style="margin-top:8px;">应用后请点击页面下方“保存配置”完成保存。</div>
@@ -3142,9 +3311,9 @@
                                     <div class="business-config-row" data-config-row ${renderConfigRowDataAttributes(row)}>
                                         <div class="business-config-label">
                                             ${escapeHtml(row.configLabel || row.candidateFieldLabel || row.candidateFieldKey || row.cell || "-")}
-                                            <small>${escapeHtml(row.candidateFieldKey || row.intentType || "-")}</small>
+                                            <small>${escapeHtml(row.candidateFieldKey ? friendlyFieldKeyLabel(row.candidateFieldKey) : (row.intentType || "-"))}</small>
                                         </div>
-                                        <div class="business-config-editor">${renderBusinessConfigEditor(row)}${renderBusinessConfigHiddenFields(row)}</div>
+                                        <div class="business-config-editor">${renderBusinessConfigEditor(row)}${renderBusinessSemanticPanel(row)}${renderBusinessConfigHiddenFields(row)}</div>
                                         <div class="business-config-cell">${escapeHtml(row.cell || "-")}</div>
                                     </div>
                                 `).join("")}
@@ -3199,24 +3368,8 @@
                                         <tr class="debug-row" style="display:none;">
                                             <td colspan="5">
                                                 <details class="debug-details" open>
-                                                    <summary>智能推荐详情${row.semanticPromoted ? '<span class="semantic-badge">自动识别建议</span>' : ""}</summary>
-                                                    <div class="debug-grid">
-                                                        <div class="debug-item"><div class="debug-label">匹配可信度</div><div class="debug-value">${row.candidateConfidence ? row.candidateConfidence.toFixed(2) : "-"}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">推荐原因</div><div class="debug-value">${escapeHtml(row.candidateReason || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">可信度分析</div><div class="debug-value">${escapeHtml(formatConfidenceBreakdown(row.confidenceBreakdown))}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">AI提取提示</div><div class="debug-value">${escapeHtml(row.aiExtractHint || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">候选来源</div><div class="debug-value">${escapeHtml(row.candidateSource || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">标签单元格</div><div class="debug-value">${escapeHtml(row.labelCell || row.cell || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">意图可信度</div><div class="debug-value">${row.intentConfidence ? Number(row.intentConfidence).toFixed(2) : "-"}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">意图判断原因</div><div class="debug-value">${escapeHtml(row.intentReason || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">区域</div><div class="debug-value">${escapeHtml(row.section || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">类型</div><div class="debug-value">${escapeHtml(row.type || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">候选字段名</div><div class="debug-value">${escapeHtml(row.candidateFieldLabel || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">语义增强</div><div class="debug-value">${row.semanticPromoted ? "是" : "否"}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">语义类型</div><div class="debug-value">${escapeHtml(SEMANTIC_TYPE_LABELS[row.semanticType] || row.semanticType || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">语义原因</div><div class="debug-value">${escapeHtml(row.semanticReason || "-")}</div></div>
-                                                        <div class="debug-item"><div class="debug-label">语义可信度</div><div class="debug-value">${row.semanticConfidence ? Number(row.semanticConfidence).toFixed(2) : "-"}</div></div>
-                                                    </div>
+                                                    <summary>智能推荐详情</summary>
+                                                    ${renderSemanticAnalysisPanel(row, { title: "AI识别结果" })}
                                                     <div class="small" style="margin-top:10px;">系统自动判断仅供参考，可人工修正。</div>
                                                     <div class="debug-grid" style="margin-top:10px;">
                                                         <div class="debug-item">
