@@ -844,3 +844,145 @@ Workspace readback result display: PASS
 diagnostic reason for locating errors: PASS
 py_compile app/routes/v4.py: PASS
 ```
+
+---
+
+# V4-AI-PIPELINE-CLOSE01 AI Pipeline E2E Audit
+
+## 结果
+
+PASS
+
+```text
+AI_PIPELINE_AUDIT: PASS
+```
+
+## 审计结论
+
+真实软胶囊模板下，业务主链路已闭合：
+
+```text
+chat input
+-> AI parse
+-> parse-chat-run-pipeline
+-> workspace_fields / confirmed_cells
+-> Workspace confirmed override payload
+-> export-confirmed-excel
+-> Excel export
+```
+
+未发现需要修改 `app/ai_parser.py` 的证据；AI 请求、Workspace 字段生成、confirmed override、Excel 写入均已通过真实验证。
+
+## 测试输入
+
+```text
+客户名称：Blue Harbor Nutrition LLC
+客户性质：美国品牌客户
+订单日期：2026-05-25
+订单数量：50000瓶
+产品名称：Omega-3 Fish Oil Softgel
+产品类型：软胶囊
+规格：每粒700mg，每瓶60粒
+胶囊壳颜色：透明
+瓶盖密封方式：压旋盖
+标签要求：英文标签，批号打印在瓶底
+备注：首批试单，请按软胶囊爆珠模板出单。
+```
+
+## AI 解析结果
+
+真实调用 `/api/v4/parse-chat-run-pipeline`，当前映射为 `软胶囊`。
+
+```text
+success: true
+workspace_fields_count: 41
+runtime_mapping_source.source: saved_configuration
+runtime_mapping_source.saved_fields_count: 44
+ai_extraction_contract.fields_count: 16
+ai_extraction_contract.option_groups_count: 7
+confirmed_cells_count: 8
+processed_operations_count: 8
+```
+
+核心 AI 值：
+
+```text
+customer_name: Blue Harbor Nutrition LLC
+order_date: 20260525
+product_name: Omega-3 Fish Oil Softgel
+quantity: 50000
+```
+
+Workspace 字段示例：
+
+```text
+F4  source=E4  field_key=order_date     write_mode=write_right_cell
+C5  source=B5  field_key=customer_name  write_mode=write_right_cell
+B7  source=B7  field_key=product_name   write_mode=write_right_cell
+C6  source=B6  field_key=quantity       write_mode=write_right_cell
+```
+
+AI 绑定出的 confirmed cells 示例：
+
+```text
+C5 customer_name = Blue Harbor Nutrition LLC
+F4 order_date    = 20260525
+B7 product_name  = Omega-3 Fish Oil Softgel
+C6 quantity      = 50000
+```
+
+## Confirmed Override 验证
+
+在 Workspace confirmed payload 中手动覆盖两个字段：
+
+```text
+customer_name:
+  AI value_A: Blue Harbor Nutrition LLC
+  confirmed value_B: CONFIRMED_CUSTOMER_CLOSE01
+  target cell: C5
+
+order_date:
+  AI value_A: 20260525
+  confirmed value_B: 20300131
+  target cell: F4
+```
+
+调用 `/api/v4/export-confirmed-excel` 后：
+
+```text
+export_success: true
+filename: v4_core_软胶囊_软胶囊爆珠模板_20260523_181128_191d0554_20260525_102552.xlsx
+confirmed_override_count: 2
+confirmed_added_count: 0
+operations_written: 8
+pipeline_workspace_fields_count: 41
+```
+
+## Excel 最终值
+
+真实读取导出的 Excel：
+
+```text
+C5 = CONFIRMED_CUSTOMER_CLOSE01
+F4 = 20300131
+```
+
+结论：
+
+```text
+AI=value_A
+Workspace confirmed=value_B
+Excel=value_B
+confirmed override priority: PASS
+```
+
+## 状态
+
+```text
+AI Parse: PASS
+Workspace fields from current mapping: PASS
+Confirmed Override: PASS
+Excel Export: PASS
+AI vs Confirmed priority: PASS
+E2E status: PASS
+```
