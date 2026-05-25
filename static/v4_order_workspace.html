@@ -3547,13 +3547,22 @@
                 <div class="smart-debug-section">
                     <div class="small"><strong>需要人工查看的单元格</strong></div>
                     ${renderSmartDebugTable(
-                        ["Cell", "字段", "期望", "实际"],
-                        badItems.map((item) => [
-                            item.cell || "-",
-                            item.label || item.field_key || "-",
-                            item.expected || "",
-                            item.actual || "",
-                        ])
+                        [
+                            { key: "cell", label: "Cell" },
+                            { key: "field", label: "字段" },
+                            { key: "status", label: "状态" },
+                            { key: "reason", label: "原因" },
+                            { key: "expected", label: "期望" },
+                            { key: "actual", label: "实际" },
+                        ],
+                        badItems.map((item) => ({
+                            cell: item.cell || "-",
+                            field: item.label || item.field_key || "-",
+                            status: item.status || "-",
+                            reason: item.root_cause_label || item.message || item.root_cause || "-",
+                            expected: item.expected || "",
+                            actual: item.actual || "",
+                        }))
                     )}
                 </div>
             ` : '<div class="small">Excel结果检查未发现明显不一致。</div>';

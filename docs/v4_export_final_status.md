@@ -724,3 +724,123 @@ configuration bleed found after fix: NO
 template/config/workspace_fields source consistency: PASS
 py_compile app/routes/v4.py: PASS
 ```
+
+---
+
+# V4-EXPORT-READBACK-CLOSE01 Export Readback Audit
+
+## 结果
+
+PASS
+
+```text
+EXPORT_READBACK_AUDIT: PASS
+```
+
+## 审计结论
+
+`/api/v4/export-confirmed-excel` 在导出后会根据当前映射的 `excel_feature_flags.export_readback_check` 决定是否执行 Excel 回读；软胶囊当前有效配置为 `export_readback_check=true`。启用时，后端会用 `openpyxl.load_workbook(exported_file_path, data_only=False)` 读取刚导出的 Excel，并把 `export_readback_audit` 同时返回在顶层和 `export_result.readback_audit`。
+
+Workspace 页面会调用 `renderExportReadbackAudit(result)` 显示回读结果。面板现在展示总项、已检查、一致、不一致、跳过，并在需要人工查看的单元格表格中展示 `Cell / 字段 / 状态 / 原因 / 期望 / 实际`，用于定位 mismatch 或 skipped 的原因。
+
+## 真实验证
+
+测试映射：`软胶囊`
+
+测试导出文件：
+
+```text
+output/v4_core_软胶囊_软胶囊爆珠模板_20260523_181128_191d0554_20260525_100138.xlsx
+```
+
+启用状态：
+
+```text
+excel_feature_flags.export_readback_check: true
+export_result.readback_audit == export_readback_audit: true
+```
+
+### 正常字段 matched
+
+字段：`order_date`
+
+目标单元格：`F4`
+
+```text
+expected: RB_MATCH_VALUE
+actual: RB_MATCH_VALUE
+summary:
+  total: 1
+  checked: 1
+  matched: 1
+  mismatched: 0
+  skipped: 0
+root_cause_summary:
+  ok: 1
+```
+
+### 故意制造 mismatch
+
+同一导出文件上使用错误期望值回读：
+
+```text
+expected: RB_INTENTIONAL_MISMATCH
+actual: RB_MATCH_VALUE
+status: mismatched
+message: 导出回读值与期望值不一致
+root_cause: value_mismatch
+root_cause_label: 导出值与期望值不一致
+summary:
+  total: 1
+  checked: 1
+  matched: 0
+  mismatched: 1
+  skipped: 0
+```
+
+### skipped
+
+用缺少目标 cell 和 `write_mode=skip` 两种输入验证：
+
+```text
+missing cell:
+  status: skipped
+  message: 缺少目标 cell
+  root_cause_label: 已跳过检查
+
+write_mode skip:
+  cell: ZZ999
+  status: skipped
+  message: write_mode 为 skip/none
+  root_cause_label: 已跳过检查
+
+summary:
+  total: 2
+  checked: 0
+  matched: 0
+  mismatched: 0
+  skipped: 2
+```
+
+### Workspace 显示
+
+真实浏览器加载 `/v4-order-workspace` 后调用回读渲染函数验证：
+
+```text
+panel_displayed: true
+shows_total_checked_matched_mismatched_skipped: true
+shows_mismatch_reason: true
+shows_skipped_reason: true
+JS errors: none
+```
+
+## 状态
+
+```text
+export_readback_check enabled: PASS
+post-export Excel read: PASS
+matched / mismatched / skipped classification: PASS
+Workspace readback result display: PASS
+diagnostic reason for locating errors: PASS
+py_compile app/routes/v4.py: PASS
+```
