@@ -2038,7 +2038,6 @@
                     <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>应用自动识别建议</button>
                     <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>重新分析</button>
                     <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
-                    <button type="button" onclick="saveTemplateConfiguration()" ${selectedMappingId ? "" : "disabled"}>保存配置</button>
                 </div>
             `;
             const reanalyzeButton = area.querySelector('button[onclick="reanalyzeCurrentMapping()"]');
@@ -2046,13 +2045,7 @@
                 reanalyzeButton.dataset.action = "reanalyze";
                 reanalyzeButton.textContent = "重新分析";
             }
-            const saveButton = area.querySelector('button[onclick="saveTemplateConfiguration()"]');
-            if (saveButton) {
-                saveButton.dataset.action = "save-config";
-                saveButton.textContent = "保存当前配置";
-            }
             setActionButtonsBusy("reanalyze", isReanalyzingMapping, "重新分析中...");
-            setActionButtonsBusy("save-config", isSavingConfiguration, "保存中...");
         }
 
         async function reanalyzeCurrentMapping() {
