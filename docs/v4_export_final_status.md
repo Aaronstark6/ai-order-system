@@ -1656,3 +1656,45 @@ Fallback / residual:
   tablet/powder/gummy size_weight perfectly; current matching is keyword-first.
 - Logistics, Certification, Testing, Payment, full Sensory domain, and Field Catalog UI remain out of scope.
 ```
+
+## V4-REAL-BUSINESS-TEST01
+
+```text
+REAL_BUSINESS_TEST_RESULT: PARTIAL / NOT_READY_FOR_FULL_BUSINESS_TRIAL
+```
+
+Validation input:
+- Real softgel template/profile: `软胶囊`
+- Real business chat sample: Blue Harbor Nutrition LLC / Omega-3 Fish Oil Softgel / 50000 bottles / HDPE bottle / 60 capsules per bottle / label and batch requirements.
+
+AI Parse / Workspace:
+- Real browser selected `软胶囊` and ran AI parse successfully.
+- Current softgel profile exposes only 1 saved workspace field: `packaging` at `B10`.
+- Runtime mapping source: `saved_configuration`, `saved_fields_count=1`, `semantic_fields_count=5`.
+- AI parse therefore extracted the broad `packaging` value, but did not extract customer name, order date, product name, quantity, product-form fields, labeling fields, batch fields, or formula fields into Workspace.
+
+Browser validation:
+- `/v4-order-workspace` real browser parse: PASS, JS error: 0.
+- Browser export with the single available packaging field: PASS.
+- Browser readback panel: total=1, checked=1, matched=1, mismatched=0, skipped=0.
+
+Export engine validation with confirmed payload:
+- Export API accepted confirmed cells and generated Excel.
+- Packaging `B10`: matched.
+- Dynamic table offset readback: `B24`, `B25`, `C24` matched.
+- Image export summary: `total=1`, `inserted=1`, `skipped=0`; workbook image count=1.
+- Normal fields and labeling/batch confirmed overrides were skipped by current profile/semantic skip configuration, so they were not written to Excel in this real profile run.
+
+Field Catalog Accuracy Audit:
+- Correct fine-grained taxonomy hit through active Workspace: 0%.
+- Broad generic fallback hit: 1 field (`packaging`) out of the expected business field set.
+- Missing/not exposed in active Workspace: customer_name, order_date, product_name, quantity, product.product_form, product.soft_capsule.shell_size, product.soft_capsule.shell_color, packaging.container_type, packaging.quantity_per_unit, packaging.desiccant, packaging.bottle_seal_method, packaging.cap_seal_method, labeling.label_requirement, labeling.design_source, batch_marking.requirement, formula.bilingual_formula.
+- Main cause: field_catalog v2 exists, but the current real softgel profile has not been re-analyzed/migrated into field_catalog-driven workspace fields; saved configuration takes precedence and only exposes coarse `packaging`.
+
+P0/P1:
+- P0: none found in the export/readback engine itself.
+- P1: current real softgel profile is not ready for full business trial because the main business fields are missing from Workspace and confirmed override.
+
+Recommendation:
+- Run `V4-FIELD-CATALOG-DOMAIN03` focused on profile re-analysis / profile upgrade for real softgel and bubble-tablet templates.
+- Do not expand taxonomy first; the immediate blocker is applying existing catalog fields to real profiles and confirming editable target cells.
