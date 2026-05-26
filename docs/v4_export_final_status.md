@@ -1794,6 +1794,31 @@ V4-VALIDATOR-FRONTEND-USE-DRAFT01-AUDIT
 在 GitHub 审计前端接入范围。
 随后再考虑 V4-VALIDATOR-FRONTEND-CLEANUP01。
 
+---
+## V4-VALIDATOR-FRONTEND-USE-DRAFT01A
+
+FRONTEND_USE_DRAFT_VALIDATOR01A: STALE_GUARD_ADDED
+
+修改内容：
+为 renderConfigurationValidation() 的异步 draft validator 调用增加 stale guard。
+
+原因：
+renderConfigurationValidation() 已改为 async。
+快速切换映射时，旧 profile 的 validate-draft 响应可能晚于新 profile 返回，存在旧结果覆盖新页面的风险。
+
+实现：
+新增 configurationValidationRequestSeq。
+每次 renderConfigurationValidation() 调用递增 requestSeq。
+渲染前确认 requestSeq 和 selectedMappingId 仍然匹配。
+不匹配则直接 return。
+
+范围：
+未修改后端。
+未修改保存逻辑。
+未删除本地 validator。
+未修改 mapping-health。
+未修改导出、AI parser、Workspace。
+
 ## V4-REAL-BUSINESS-TEST01
 
 ```text
