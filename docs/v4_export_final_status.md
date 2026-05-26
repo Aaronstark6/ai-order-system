@@ -1754,6 +1754,36 @@ V4-VALIDATOR-DRAFT-ENDPOINT01-AUDIT
 V4-VALIDATOR-FRONTEND-USE-DRAFT01
 
 ---
+## V4-VALIDATOR-FRONTEND-FALLBACK-LABEL01
+
+FRONTEND_FALLBACK_VALIDATOR_LABEL01: DOCUMENTED
+
+修改内容：
+标记前端本地 validateCurrentMappingConfiguration() 为 fallback validator。
+
+当前主链路：
+renderConfigurationValidation()
+→ validateCurrentMappingConfigurationWithDraftBackend()
+→ POST /api/v4/template-profiles/{profile_id}/validate-draft
+→ normalizeDraftValidationResult()
+
+fallback 链路：
+后端 draft validator 失败时
+→ validateCurrentMappingConfiguration()
+
+范围：
+未修改 validator 逻辑。
+未修改后端。
+未修改保存逻辑。
+未删除前端本地 validator。
+未删除 isFrontendBusinessSharedField()。
+未修改 mapping-health。
+
+目的：
+避免后续继续把前端本地 validator 当成主规则来源维护。
+后续复杂 validator 规则应优先放在后端 mapping-health / validate-draft。
+
+---
 ## V4-VALIDATOR-FRONTEND-USE-DRAFT01
 
 FRONTEND_USE_DRAFT_VALIDATOR01: IMPLEMENTED

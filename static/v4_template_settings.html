@@ -2841,6 +2841,9 @@
             return Number.isFinite(row) ? row : null;
         }
 
+// Local fallback helper used only by validateCurrentMappingConfiguration().
+// Do not extend this as the primary validator rule source.
+// Primary business shared field rules should live in backend mapping-health / validate-draft.
         function isFrontendBusinessSharedField(fieldKey, usage) {
             const key = String(fieldKey || "").trim();
             if (!key.startsWith("packaging.") && !key.startsWith("batch_marking.") && !key.startsWith("labeling.")) {
@@ -2968,6 +2971,10 @@
             }
         }
 
+// Local fallback validator.
+// Main validation path is validateCurrentMappingConfigurationWithDraftBackend(),
+// which calls backend POST /api/v4/template-profiles/{profile_id}/validate-draft.
+// Keep this function as fallback for backend/network failure only.
         function validateCurrentMappingConfiguration(preferredItems = null) {
             const items = collectValidationConfigurationItems(preferredItems);
             const errors = [];
