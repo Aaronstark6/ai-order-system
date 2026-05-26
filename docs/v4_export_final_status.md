@@ -2143,3 +2143,34 @@ Regression:
 
 Follow-up:
 - Recommend `V4-VALIDATOR-UNIFY-AUDIT01` to audit whether the page can eventually use one backend validator instead of maintaining parallel frontend/backend duplicate logic.
+
+---
+
+## V4-SETTINGS-UX-SMALL01
+
+```
+SETTINGS_UX_SMALL01_RESULT: IMPLEMENTED
+```
+
+Changes:
+- 系统维护区域从左下方移动到模板操作右侧空白区域，使用左右两栏布局
+- 添加响应式 CSS，窄屏时自动变成上下布局
+- 业务表单分组默认折叠，用户点击后可展开/折叠
+
+Modified files:
+- `static/v4_template_settings.html`: HTML结构调整和CSS样式添加
+- `docs/v4_export_final_status.md`: 文档记录
+
+Page validation:
+- 系统维护不再占据模板操作下方大块左侧区域
+- 系统维护显示在模板操作右侧空白区域
+- 清除运行状态按钮仍可点击
+- 清理临时文件按钮仍可点击
+- 业务表单模式下，各分组默认是折叠状态
+- 点击分组标题后可以展开
+- 再次点击可以折叠
+- Console errors: 0
+
+Scope:
+- 不涉及后端、字段库、导出、AI parser
+- 纯前端 UI 体验优化

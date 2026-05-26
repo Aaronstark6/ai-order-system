@@ -81,6 +81,22 @@
         .maintenance-status {
             margin-top: 10px;
         }
+        .template-operation-layout {
+            align-items: stretch;
+            display: grid;
+            gap: 16px;
+            grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+            margin-top: 8px;
+        }
+        .template-operation-left {
+            min-width: 0;
+        }
+        .maintenance-box-compact {
+            margin-top: 0;
+        }
+        .maintenance-box-compact h3 {
+            margin-top: 0;
+        }
         .mapping-status-inline {
             align-items: center;
             background: #fafbfd;
@@ -923,6 +939,7 @@
                 right: 12px;
             }
             .sticky-save-bar button { width: auto; }
+            .template-operation-layout { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -961,23 +978,27 @@
                 </div>
             </div>
 
-            <h3>模板操作</h3>
-            <div class="file-row">
-                <input id="templateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm" onchange="uploadTemplateFile()">
-                <button type="button" class="danger fixed-danger" onclick="deleteTemplateFile()">删除当前模板</button>
-                <button type="button" class="danger fixed-danger" onclick="deleteMapping()">删除当前映射</button>
-                <span id="fileActionStatus" class="small"></span>
-            </div>
-
-            <div class="maintenance-box">
-                <h3>系统维护</h3>
-                <div class="small">这些操作只清理运行状态或临时文件，不会删除模板、映射和已保存配置。</div>
-                <div class="maintenance-actions">
-                    <button type="button" class="ghost" data-maintenance-action="clear-runtime-state" onclick="clearRuntimeState()">清除运行状态</button>
-                    <button type="button" class="ghost" data-maintenance-action="cleanup-temp-files" onclick="cleanupTempFiles()">清理临时文件</button>
+            <div class="template-operation-layout">
+                <div class="template-operation-left">
+                    <h3>模板操作</h3>
+                    <div class="file-row">
+                        <input id="templateFileInput" type="file" accept=".xlsx,.xlsm,.xltx,.xltm" onchange="uploadTemplateFile()">
+                        <button type="button" class="danger fixed-danger" onclick="deleteTemplateFile()">删除当前模板</button>
+                        <button type="button" class="danger fixed-danger" onclick="deleteMapping()">删除当前映射</button>
+                        <span id="fileActionStatus" class="small"></span>
+                    </div>
                 </div>
-                <div id="maintenanceStatus" class="status maintenance-status" style="display:none;"></div>
-                <div class="small" style="margin-top:8px;">清除当前运行中的解析结果、导出结果和临时流程状态，不会删除模板、映射或已保存配置。清理临时文件会删除 7 天前的旧导出文件和临时图片。</div>
+
+                <div class="maintenance-box maintenance-box-compact">
+                    <h3>系统维护</h3>
+                    <div class="small">这些操作只清理运行状态或临时文件，不会删除模板、映射和已保存配置。</div>
+                    <div class="maintenance-actions">
+                        <button type="button" class="ghost" data-maintenance-action="clear-runtime-state" onclick="clearRuntimeState()">清除运行状态</button>
+                        <button type="button" class="ghost" data-maintenance-action="cleanup-temp-files" onclick="cleanupTempFiles()">清理临时文件</button>
+                    </div>
+                    <div id="maintenanceStatus" class="status maintenance-status" style="display:none;"></div>
+                    <div class="small" style="margin-top:8px;">清除当前运行中的解析结果、导出结果和临时流程状态，不会删除模板、映射或已保存配置。清理临时文件会删除 7 天前的旧导出文件和临时图片。</div>
+                </div>
             </div>
         </section>
 
@@ -3380,7 +3401,7 @@
                 .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
                 .map(section => {
                     const rows = groupedMappings[section.key];
-                    const collapsed = businessSectionCollapsed[section.key] === true;
+                    const collapsed = businessSectionCollapsed[section.key] !== false;
                     return `
                         <div class="business-config-section">
                             <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(section.key)}')">
@@ -3419,7 +3440,7 @@
                 .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
                 .map(section => {
                     const rows = groupedMappings[section.key];
-                    const collapsed = businessSectionCollapsed[section.key] === true;
+                    const collapsed = businessSectionCollapsed[section.key] !== false;
                     return `
                     <div class="mapping-section-card">
                         <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(section.key)}')">
