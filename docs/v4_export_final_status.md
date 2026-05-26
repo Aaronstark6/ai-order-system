@@ -1698,3 +1698,86 @@ P0/P1:
 Recommendation:
 - Run `V4-FIELD-CATALOG-DOMAIN03` focused on profile re-analysis / profile upgrade for real softgel and bubble-tablet templates.
 - Do not expand taxonomy first; the immediate blocker is applying existing catalog fields to real profiles and confirming editable target cells.
+
+## V4-PROFILE-UPGRADE-FROM-CATALOG01
+
+```text
+PROFILE_UPGRADE_AUDIT: PASS
+REAL_PROFILE_UPGRADE_RESULT: PASS
+```
+
+Scope:
+- No `field_catalog.json` taxonomy expansion.
+- No AI parser, export engine, or Workspace main-chain rewrite.
+- Only real softgel profile was applied/saved; other profiles were not migrated.
+
+Saved configuration audit:
+- `saved_configuration` takes precedence over regenerated candidates in visual grid/config rendering.
+- `show_in_workspace` is saved per template configuration item and filters `/api/v4/template-layout` workspace fields.
+- `manual_override=true` and `user_edited=true` are now preserved on save.
+- Applying automatic suggestions skips `manual_override=true` / `user_edited=true`.
+- Unlocked coarse `packaging` can be upgraded to `packaging.*`, `labeling.*`, `batch_marking.*`, or `product.*`.
+
+Upgrade action:
+- Added `/api/v4/template-profiles/{profile_id}/regenerate-field-catalog-candidates`.
+- Template Settings button changed to `从字段库重新识别`.
+- The button regenerates suggestion-layer candidates from template analysis + visual template content + field_catalog v2; it does not save or overwrite current configuration by itself.
+- User still applies suggestions, reviews, then saves configuration.
+
+Real softgel profile:
+- Profile: `软胶囊`
+- Template file: `v4/system_templates/软胶囊_软胶囊爆珠模板_20260525_132945_ee1c84d0.xlsx`
+- Before upgrade `workspace_fields_count=1`: `packaging`
+- After upgrade `workspace_fields_count=18`
+- Fine-grained workspace fields: `14/18` contain dotted field_catalog keys.
+
+New workspace fields after save:
+```text
+customer_name
+packaging.container_type
+quantity
+product_name
+order_date
+product.soft_capsule.shell_size
+packaging.quantity_per_unit
+packaging.bottle_seal_method
+packaging.desiccant
+labeling.no_label
+labeling.design_source
+labeling.label_requirement
+batch_marking.requirement
+packaging.cap_seal_method
+packaging.shrink_wrap_full
+packaging.protective_bag
+formula.bilingual_formula
+product.product_form
+```
+
+Required-field check:
+```text
+customer_name: PASS
+order_date: PASS
+product_name: PASS
+quantity: PASS
+product.product_form: PASS
+packaging.container_type: PASS
+packaging.quantity_per_unit: PASS
+packaging.bottle_seal_method: PASS
+labeling.label_requirement: PASS
+batch_marking.requirement: PASS
+```
+
+Real business regression:
+- AI Parse: PASS
+- Workspace fields count: `18`
+- field_catalog fine-grained hit: `14/18 = 77.8%`
+- Broad-only `packaging`: no longer active; upgraded to `packaging.container_type` plus additional packaging subfields.
+- Confirmed cells: `11`
+- Processed operations: `7`
+- Export: PASS
+- Export file: `v4_core_软胶囊_软胶囊爆珠模板_20260525_132945_ee1c84d0_20260526_092032.xlsx`
+- Readback: PASS, `total=11`, `checked=3`, `matched=3`, `mismatched=0`, `skipped=8`.
+
+Residual notes:
+- Several regenerated fields intentionally target existing free-text blocks (`B8`, `G3`, `G11`) because the real template does not provide separate dedicated cells for every fine-grained catalog field.
+- Readback skips fields whose write mode/target cannot be checked independently from a shared free-text block.

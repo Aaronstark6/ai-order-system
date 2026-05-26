@@ -2370,8 +2370,8 @@
                 ? `可应用自动识别建议：${stats.applicable}项`
                 : "请先选择映射";
             const detailText = stats.hasCandidates
-                ? `语义候选共 ${stats.total} 项，应用后仍需点击“保存配置”。`
-                : "当前没有可应用的自动识别建议。";
+                ? `字段库候选共 ${stats.total} 项，应用后仍需点击“保存配置”。`
+                : "根据当前模板内容和字段库重新生成字段建议，不会自动覆盖已锁定人工配置。";
             area.innerHTML = `
                 <div class="semantic-control-status">
                     <strong>自动识别建议状态</strong>
@@ -2380,16 +2380,16 @@
                 </div>
                 <div class="semantic-control-actions">
                     <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>应用自动识别建议</button>
-                    <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>重新分析</button>
+                    <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>从字段库重新识别</button>
                     <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
                 </div>
             `;
             const reanalyzeButton = area.querySelector('button[onclick="reanalyzeCurrentMapping()"]');
             if (reanalyzeButton) {
                 reanalyzeButton.dataset.action = "reanalyze";
-                reanalyzeButton.textContent = "重新分析";
+                reanalyzeButton.textContent = "从字段库重新识别";
             }
-            setActionButtonsBusy("reanalyze", isReanalyzingMapping, "重新分析中...");
+            setActionButtonsBusy("reanalyze", isReanalyzingMapping, "字段库识别中...");
         }
 
         async function reanalyzeCurrentMapping() {
@@ -2397,13 +2397,28 @@
                 setStatus("请先选择映射。", "warning");
                 return;
             }
-            setStatus("正在重新分析当前模板...", "info");
-            await loadMappingConfiguration(selectedMappingId);
+            setStatus("正在根据字段库重新识别当前模板...", "info");
+            const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/regenerate-field-catalog-candidates`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+            });
+            const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
+            const analysis = result.template_analysis && typeof result.template_analysis === "object" ? result.template_analysis : cached.analysis || {};
+            const structure = analysis.template_structure && typeof analysis.template_structure === "object" ? analysis.template_structure : {};
+            configByMappingId[selectedMappingId] = {
+                ...cached,
+                labels: Array.isArray(result.template_labels) ? result.template_labels : cached.labels || [],
+                structureLabels: Array.isArray(structure.labels) ? structure.labels : cached.structureLabels || [],
+                sections: Array.isArray(result.layout_sections) ? result.layout_sections : cached.sections || [],
+                analysis,
+                candidates: Array.isArray(result.mapping_candidates) ? result.mapping_candidates : [],
+            };
             await loadVisualGrid(selectedMappingId);
             await loadMappingHealth(selectedMappingId, false);
             renderConfig();
             renderSemanticControlBar();
-            setStatus("模板已重新分析，自动识别建议已刷新。", "success");
+            const stats = getSemanticRecommendationStats();
+            setStatus(`字段库重新识别完成：${stats.total} 项建议，${stats.applicable} 项可应用。`, "success");
         }
 
         function openAdvancedDiagnostics() {
@@ -2429,13 +2444,18 @@
         function isManualConfiguration(existing, candidate) {
             if (!existing || typeof existing !== "object") return false;
             if (existing.manual_override === true || existing.user_edited === true) return true;
-            const existingKey = String(existing.candidate_field_key || "").trim();
-            const candidateKey = String(candidate.field_key || "").trim();
-            if (existingKey && candidateKey && existingKey !== candidateKey) return true;
-            const existingLabel = String(existing.label || "").trim();
-            const candidateLabel = semanticDraftCandidateLabel(candidate);
-            if (existingLabel && candidateLabel && existingLabel !== candidateLabel) return true;
             return false;
+        }
+
+        function canApplyFieldCatalogCandidate(existing, candidate) {
+            if (isManualConfiguration(existing, candidate)) return false;
+            const existingKey = String(existing?.candidate_field_key || existing?.field_key || "").trim();
+            const candidateKey = String(candidate?.field_key || "").trim();
+            if (!existingKey || !candidateKey || existingKey === candidateKey) return true;
+            const source = String(existing?.candidate_source || existing?.source || "").toLowerCase();
+            const upgradePrefixes = ["packaging.", "labeling.", "batch_marking.", "product."];
+            if (existingKey === "packaging" && upgradePrefixes.some((prefix) => candidateKey.startsWith(prefix))) return true;
+            return source.includes("semantic") || source.includes("fallback") || source.includes("template_analysis");
         }
 
         function buildSemanticDraftItem(candidate, visualCell = {}, existing = {}, displayOrder = 1) {
@@ -2493,6 +2513,7 @@
             const candidates = Array.isArray(cached?.candidates) ? cached.candidates : [];
             const draft = {};
             const skippedCells = new Set();
+            const appliedFieldKeys = new Set();
             const stats = {
                 applied_count: 0,
                 skipped_manual_count: 0,
@@ -2535,7 +2556,14 @@
                     skippedCells.add(cell);
                     return;
                 }
-                if (isManualConfiguration(existing, candidate)) {
+                const candidateKey = String(candidate.field_key || "").trim();
+                const candidateShowsInWorkspace = semanticDraftShowInWorkspace(candidate);
+                if (candidateShowsInWorkspace && candidateKey && appliedFieldKeys.has(candidateKey)) {
+                    stats.skipped_no_candidate_count += 1;
+                    skippedCells.add(cell);
+                    return;
+                }
+                if (!canApplyFieldCatalogCandidate(existing, candidate)) {
                     draft[cell] = {
                         ...existing,
                         semantic_type: existing.semantic_type || candidate.semantic_type || "",
@@ -2549,6 +2577,7 @@
                     return;
                 }
                 draft[cell] = buildSemanticDraftItem(candidate, visualByCell[cell] || {}, existing, index + 1);
+                if (candidateShowsInWorkspace && candidateKey) appliedFieldKeys.add(candidateKey);
                 stats.applied_count += 1;
                 skippedCells.add(cell);
             });
@@ -3490,14 +3519,14 @@
             }
             if (isReanalyzingMapping) return;
             isReanalyzingMapping = true;
-            setActionButtonsBusy("reanalyze", true, "重新分析中...");
-            setStatus("重新分析中...", "info");
+            setActionButtonsBusy("reanalyze", true, "字段库识别中...");
+            setStatus("字段库识别中...", "info");
             try {
                 await baseReanalyzeCurrentMapping();
                 const stats = getSemanticRecommendationStats();
-                setStatus(`重新分析完成，发现 ${stats.total} 项建议，其中 ${stats.applicable} 项可应用。`, "success");
+                setStatus(`字段库重新识别完成，发现 ${stats.total} 项建议，其中 ${stats.applicable} 项可应用。`, "success");
             } catch (error) {
-                setStatus(`重新分析失败：${error.message || "未知错误"}`, "error");
+                setStatus(`字段库重新识别失败：${error.message || "未知错误"}`, "error");
             } finally {
                 isReanalyzingMapping = false;
                 setActionButtonsBusy("reanalyze", false);

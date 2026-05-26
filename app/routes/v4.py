@@ -273,6 +273,8 @@ def _normalize_template_configuration_items(items):
             "image_anchor_cell": str(item.get("image_anchor_cell") or item.get("target_cell") or item.get("cell") or "").strip().upper(),
             "col_offset": int(item.get("col_offset") or item.get("table_col_offset") or item.get("column_offset") or 0),
             "table_col_offset": int(item.get("table_col_offset") or item.get("col_offset") or item.get("column_offset") or 0),
+            "manual_override": bool(item.get("manual_override", False)),
+            "user_edited": bool(item.get("user_edited", False)),
         }
     return configuration
 
@@ -865,9 +867,15 @@ def _intent_cell_text(context, row, col):
 def _intent_blank_cell(context, row, col):
     if row < 1 or col < 1:
         return False
-    info = _intent_cell_info(context, _cell_ref(row, col))
+    ref = _cell_ref(row, col)
+    info = _intent_cell_info(context, ref)
     if not info:
         return True
+    start_cell = str(info.get("merged_start") or "").strip().upper()
+    if start_cell and start_cell != ref:
+        start_info = _intent_cell_info(context, start_cell)
+        if str(start_info.get("value") or "").strip():
+            return False
     return not str(info.get("value") or "").strip()
 
 
@@ -888,7 +896,9 @@ def _infer_right_target_cell(context, cell):
         if target_col > int(context.get("max_col") or target_col):
             break
         if _intent_blank_cell(context, row, target_col):
-            return _intent_target_cell(context, row, target_col)
+            target_cell = _intent_target_cell(context, row, target_col)
+            if target_cell and target_cell != cell:
+                return target_cell
     return ""
 
 
@@ -1448,23 +1458,37 @@ def _promote_candidate_with_semantic(candidate, intent, semantic, semantic_index
             "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
         }
     elif semantic_type in {"title", "section_header"}:
+        has_writable_catalog_intent = (
+            semantic_type == "section_header"
+            and bool(candidate.get("field_key"))
+            and str(intent.get("write_mode") or "").strip() in {
+                "write_right_cell",
+                "write_below_cell",
+                "append_after_colon",
+                "write_table_column",
+                "write_row_field",
+                "write_table_cell",
+            }
+            and bool(_cell_key(intent.get("target_cell")))
+        )
         candidate = {
             **candidate,
             "field_label": semantic_label or candidate.get("field_label", ""),
             "confidence": max(float(candidate.get("confidence") or 0), semantic_confidence),
             "ai_extract_hint": candidate.get("ai_extract_hint") or semantic_label,
             "candidate_reason": str(semantic.get("reason") or candidate.get("candidate_reason") or ""),
-            "show_in_workspace": False,
         }
-        intent = {
-            **intent,
-            "intent_type": semantic_type,
-            "write_mode": "skip",
-            "label_cell": source_cell or cell,
-            "target_cell": "",
-            "intent_confidence": max(float(intent.get("intent_confidence") or 0), semantic_confidence),
-            "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
-        }
+        if not has_writable_catalog_intent:
+            candidate["show_in_workspace"] = False
+            intent = {
+                **intent,
+                "intent_type": semantic_type,
+                "write_mode": "skip",
+                "label_cell": source_cell or cell,
+                "target_cell": "",
+                "intent_confidence": max(float(intent.get("intent_confidence") or 0), semantic_confidence),
+                "intent_reason": str(semantic.get("reason") or intent.get("intent_reason") or ""),
+            }
     else:
         promoted["semantic_promoted"] = False
 
@@ -1600,6 +1624,191 @@ def _primary_semantic_for_cell(semantic_by_cell, cell):
     )[0] if regions else {}
 
 
+def _catalog_rule_for_field_key(field_key):
+    field_key = str(field_key or "").strip()
+    if not field_key:
+        return {}
+    for rule in get_field_catalog_candidate_rules():
+        if str(rule.get("field_key") or "").strip() == field_key:
+            return rule
+    return {}
+
+
+def _field_catalog_override_key_for_text(text):
+    normalized = _normalize_candidate_text(text)
+    if not normalized:
+        return ""
+    overrides = [
+        (
+            [
+                "\u5305\u88c5\u6570\u91cf",
+                "\u5305\u88c5\u89c4\u683c",
+                "\u6bcf\u74f6",
+                "\u6bcf\u888b",
+                "\u7c92\u74f6",
+                "\u7c92\u6bcf\u74f6",
+            ],
+            "packaging.quantity_per_unit",
+        ),
+        (
+            ["\u74f6\u53e3\u5bc6\u5c01"],
+            "packaging.bottle_seal_method",
+        ),
+        (
+            ["\u6279\u53f7\u65e5\u671f", "\u6279\u53f7"],
+            "batch_marking.requirement",
+        ),
+        (
+            ["\u4ea7\u54c1\u63cf\u8ff0"],
+            "product_name",
+        ),
+    ]
+    for keywords, field_key in overrides:
+        if any(_normalize_candidate_text(keyword) in normalized for keyword in keywords):
+            return field_key
+    return ""
+
+
+def _field_catalog_candidate_for_text(text, section, label_index, total_labels, cell, neighbor_text=""):
+    candidate = _candidate_for_label(text, section, label_index, total_labels, cell, neighbor_text)
+    override_key = _field_catalog_override_key_for_text(text)
+    if override_key:
+        rule = _catalog_rule_for_field_key(override_key)
+        if rule:
+            confidence = max(float(candidate.get("confidence") or 0), 0.72)
+            candidate = {
+                **candidate,
+                "field_key": rule.get("field_key") or override_key,
+                "field_label": rule.get("field_label") or candidate.get("field_label", ""),
+                "confidence": round(confidence, 2),
+                "ai_extract_hint": rule.get("ai_extract_hint") or candidate.get("ai_extract_hint", ""),
+                "candidate_reason": "field_catalog_override",
+                "confidence_breakdown": {
+                    **(candidate.get("confidence_breakdown") if isinstance(candidate.get("confidence_breakdown"), dict) else {}),
+                    "catalog_override": 0.72,
+                },
+                "priority": int(rule.get("priority") or candidate.get("priority") or 0),
+                "source": "field_catalog",
+            }
+    return candidate
+
+
+def _split_field_catalog_candidate_lines(text):
+    parts = []
+    for part in re.split(r"[\r\n]+", str(text or "")):
+        cleaned = part.strip()
+        if cleaned:
+            parts.append(cleaned)
+    return parts
+
+
+def _field_catalog_expansion_target(context, cell, text):
+    if "\uff1a" in str(text or "") or ":" in str(text or ""):
+        return cell, "append_after_colon", "inline_fill_after_colon"
+    point = _cell_point(cell)
+    if point:
+        row, _ = point
+        right = _infer_right_target_cell(context, cell)
+        if right:
+            return right, "write_right_cell", "label_fill_right"
+        below = _infer_below_target_cell(context, cell)
+        if below and row <= 8:
+            return below, "write_below_cell", "label_fill_below"
+    return cell, "append_after_colon", "inline_fill_after_colon"
+
+
+def _generate_field_catalog_expansion_candidates(template_analysis, layout_sections, template_path, existing_candidates):
+    analysis = template_analysis if isinstance(template_analysis, dict) else {}
+    labels = analysis.get("labels") if isinstance(analysis.get("labels"), list) else []
+    if not labels:
+        return []
+    intent_context = _load_template_intent_context(template_path)
+    used_field_keys = {
+        str(item.get("field_key") or "").strip()
+        for item in existing_candidates if isinstance(item, dict)
+        and str(item.get("field_key") or "").strip()
+        and str(item.get("write_mode") or "").strip() not in {"skip", "none", ""}
+    }
+    used_cells = {
+        str(item.get("cell") or "").strip().upper()
+        for item in existing_candidates if isinstance(item, dict) and item.get("cell")
+    }
+    expansion = []
+    synthetic_index = 0
+    total_labels = len(labels)
+
+    for label_index, label in enumerate(labels, 1):
+        if not isinstance(label, dict):
+            continue
+        cell = str(label.get("cell") or "").strip().upper()
+        label_text = str(label.get("value") or label.get("name") or "").strip()
+        if not cell or not label_text:
+            continue
+        lines = _split_field_catalog_candidate_lines(label_text)
+        if len(lines) <= 1 and "\uff1a" not in label_text and ":" not in label_text:
+            preview = _field_catalog_candidate_for_text(label_text, _section_for_cell(layout_sections, cell), label_index, total_labels, cell)
+            preview_key = str(preview.get("field_key") or "").strip()
+            if _field_catalog_override_key_for_text(label_text) != "product_name" and preview_key not in {"customer_name", "order_date", "quantity"}:
+                continue
+            lines = [label_text]
+        section = _section_for_cell(layout_sections, cell)
+        section_name = (
+            section.get("title")
+            or section.get("source_region_name")
+            or section.get("section_key")
+            or ""
+        ) if isinstance(section, dict) else ""
+        for line_index, line in enumerate(lines, 1):
+            candidate = _field_catalog_candidate_for_text(line, section, label_index, total_labels, cell)
+            field_key = str(candidate.get("field_key") or "").strip()
+            if not field_key or field_key in {"packaging"}:
+                continue
+            if field_key in used_field_keys:
+                continue
+            confidence = max(float(candidate.get("confidence") or 0), 0.72)
+            if confidence < 0.70:
+                continue
+            target_cell, write_mode, intent_type = _field_catalog_expansion_target(intent_context, cell, line)
+            synthetic_index += 1
+            synthetic_cell = f"{cell}__FC{synthetic_index:02d}"
+            while synthetic_cell in used_cells:
+                synthetic_index += 1
+                synthetic_cell = f"{cell}__FC{synthetic_index:02d}"
+            used_cells.add(synthetic_cell)
+            used_field_keys.add(field_key)
+            expansion.append(
+                {
+                    "cell": synthetic_cell,
+                    "field_key": field_key,
+                    "field_label": candidate.get("field_label") or line,
+                    "section": section_name,
+                    "section_key": section.get("section_key", "") if isinstance(section, dict) else "",
+                    "confidence": round(confidence, 2),
+                    "source": "field_catalog_v2_expansion",
+                    "ai_extract_hint": candidate.get("ai_extract_hint") or line,
+                    "candidate_reason": candidate.get("candidate_reason") or "field_catalog_line",
+                    "confidence_breakdown": candidate.get("confidence_breakdown") if isinstance(candidate.get("confidence_breakdown"), dict) else {},
+                    "intent_type": intent_type,
+                    "write_mode": write_mode,
+                    "label_cell": cell,
+                    "target_cell": target_cell,
+                    "option_value": "",
+                    "intent_confidence": 0.80,
+                    "intent_reason": "field_catalog_v2_expansion",
+                    "semantic_type": "field_catalog_line",
+                    "semantic_region_id": "",
+                    "semantic_confidence": round(confidence, 2),
+                    "semantic_reason": "field_catalog_v2_expansion",
+                    "semantic_promoted": True,
+                    "show_in_workspace": True,
+                    "label_text": line,
+                    "display_order": (label_index * 100) + line_index,
+                }
+            )
+
+    return expansion
+
+
 def _generate_mapping_candidates(template_analysis, layout_sections, template_path=None):
     analysis = template_analysis if isinstance(template_analysis, dict) else {}
     labels = analysis.get("labels") if isinstance(analysis.get("labels"), list) else []
@@ -1618,7 +1827,7 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
         seen_cells.add(cell)
         section = _section_for_cell(layout_sections, cell)
         neighbor_text = _neighbor_label_text(labels, index - 1, cell)
-        candidate = _candidate_for_label(label_text, section, index, len(labels), cell, neighbor_text)
+        candidate = _field_catalog_candidate_for_text(label_text, section, index, len(labels), cell, neighbor_text)
         intent = _intent_for_label(label_text, cell, section, index, intent_context)
         semantic = _primary_semantic_for_cell(semantic_by_cell, cell)
         section_name = (
@@ -1665,6 +1874,7 @@ def _generate_mapping_candidates(template_analysis, layout_sections, template_pa
                 "display_order": index,
             }
         )
+    candidates.extend(_generate_field_catalog_expansion_candidates(analysis, layout_sections, template_path, candidates))
     candidates.sort(
         key=lambda item: (
             -_semantic_candidate_rank(item),
@@ -3942,6 +4152,80 @@ def api_v4_template_profile_configuration(profile_id: str):
             "error": str(exc) or "模板配置加载失败",
             "layout_sections": [],
             "template_analysis": {},
+        }
+
+
+@router.post("/api/v4/template-profiles/{profile_id}/regenerate-field-catalog-candidates")
+def api_v4_template_profile_regenerate_field_catalog_candidates(profile_id: str):
+    from app.v4_template_analysis import analyze_template
+
+    logger.info("V4 field catalog candidate regeneration requested: profile_id=%s", profile_id)
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "Template Profile 不存在",
+            "mapping_candidates": [],
+        }
+
+    template_file_path = str(profile.get("template_file_path") or "").strip()
+    if not template_file_path:
+        return {
+            "success": False,
+            "error": "当前映射尚未绑定模板文件。",
+            "mapping_candidates": [],
+        }
+
+    try:
+        bound_template_path = _resolve_bound_template_file_path(template_file_path)
+        analysis = analyze_template(bound_template_path)
+        layout_result = build_layout_sections_from_template_analysis(analysis)
+        layout_sections = layout_result.get("layout_sections", [])
+        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
+        catalog = load_field_catalog()
+        return {
+            "success": True,
+            "profile_id": profile.get("profile_id", ""),
+            "field_catalog_version": catalog.get("version") or catalog.get("schema_version") or "",
+            "layout_sections": layout_sections,
+            "layout_summary": layout_result.get("summary", {}),
+            "template_analysis": analysis if isinstance(analysis, dict) else {},
+            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
+            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
+            "mapping_candidates": mapping_candidates,
+            "summary": {
+                "mapping_candidates_count": len(mapping_candidates),
+                "field_catalog_candidates_count": sum(
+                    1 for item in mapping_candidates
+                    if isinstance(item, dict) and str(item.get("source") or "").startswith("field_catalog")
+                ),
+                "applicable_candidates_count": sum(
+                    1 for item in mapping_candidates
+                    if isinstance(item, dict)
+                    and item.get("semantic_promoted") is True
+                    and float(item.get("confidence") or 0) >= 0.70
+                ),
+            },
+        }
+    except (BadZipFile, InvalidFileException) as exc:
+        return {
+            "success": False,
+            "error": f"Excel 模板格式无效：{exc}",
+            "mapping_candidates": [],
+        }
+    except (OSError, ValueError) as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "mapping_candidates": [],
+        }
+    except Exception as exc:
+        logger.exception("V4 field catalog candidate regeneration failed")
+        return {
+            "success": False,
+            "error": str(exc) or "字段库重新识别失败",
+            "mapping_candidates": [],
         }
 
 
