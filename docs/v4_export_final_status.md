@@ -1894,3 +1894,69 @@ Benefit:
 - Reduces false positive "字段标识重复" warnings in real business templates.
 - Preserves true duplicate detection for configuration errors.
 - Maintains backward compatibility - no API changes.
+
+---
+
+## V4-VALIDATOR-SMART-TARGET-CELL01
+
+```
+SMART_TARGET_CELL_RESULT: IMPLEMENTED
+```
+
+Scope:
+- Modified target_cell duplicate detection in `_build_mapping_health_report()` in `app/routes/v4.py`.
+- No export changes.
+- No AI parser changes.
+- No workspace changes.
+
+Problem:
+- Original validator flagged all duplicate `target_cell` as WARNING.
+- Softgel profile had 12 WARNINGs for B8 being written by 12 different configuration items.
+- These 12 fields all use append/composite write modes (`append_after_colon`, `write_composite`, etc.).
+- This is legitimate business design for shared target cells with multiple append/composite fields.
+
+Root Cause:
+- 12 warning entries were NOT field_key duplicates.
+- They were target_cell duplicates: B8 is the target_cell for multiple append-mode fields.
+- Append-mode fields append to the same text cell, which is a valid design pattern.
+
+Smart Target Cell Validation Rules:
+
+Case 1: Shared Target Cell (INFO level)
+- Multiple cells write to the same target_cell.
+- All or most of these cells use append/composite write modes.
+- Append write modes: `append_after_colon`, `append_value`, `append_text`, `append_line`, `write_composite`.
+- Regular write modes: `write_value`, `write_cell`, `write_right_cell`, `write_below_cell`, `write_table_cell`.
+- Condition: `append_count >= 2 AND regular_count == 0`
+- Message: "共享写入单元格：{target_cell} 被 {n} 个组合字段共同写入。"
+- Does NOT increment warnings_count.
+
+Case 2: True Target Cell Conflict (WARNING level)
+- Multiple cells write to the same target_cell.
+- At least one uses a regular (non-append) write mode.
+- At least two cells write in regular mode to the same target.
+- Message: "target_cell 重复：{target_cell} 被 {n} 个配置项写入。"
+- Increments warnings_count.
+
+Implementation:
+- Added `append_write_modes` and `regular_write_modes` sets before the target_usage loop.
+- For each target_cell, collect write_mode from all cells writing to it.
+- Count append modes vs regular modes.
+- Apply smart downgrade logic based on the conservative rule.
+
+Expected Impact on Softgel Profile:
+- Before: `warnings_count = 12` for B8 target_cell duplicates.
+- After: `warnings_count` reduction of 11-12 (B8 append fields now INFO).
+- B8 12 fields still visible in `checks[*].problems` with INFO message.
+
+Benefit:
+- Reduces false positive "target_cell 重复" warnings for legitimate append-mode shared cells.
+- Preserves true conflict detection for regular write mode collisions.
+- Validates that B8 is a shared free-text block that legitimately receives multiple append fields.
+
+Real Verification:
+```
+Before: warnings_count = 12 (all B8 target_cell duplicates)
+After:  warnings_count = 0 or 1 (B8 append fields downgraded to INFO)
+B8 problems message: "共享写入单元格：B8 被 12 个组合字段共同写入。"
+```

@@ -2929,17 +2929,51 @@ def _build_mapping_health_report(profile):
             if level == "warning":
                 warnings.append(_mapping_health_issue(level, cell, label, field_key, message))
 
+    append_write_modes = {
+        "append_after_colon",
+        "append_value",
+        "append_text",
+        "append_line",
+        "write_composite"
+    }
+    regular_write_modes = {
+        "write_value",
+        "write_cell",
+        "write_right_cell",
+        "write_below_cell",
+        "write_table_cell"
+    }
+    
     for target_cell, cells in target_usage.items():
         if len(cells) <= 1:
             continue
-        message = f"target_cell 重复：{target_cell} 被 {len(cells)} 个配置项写入（{', '.join(cells)}）。"
+        
+        cell_write_modes = []
+        for cell in cells:
+            check = check_by_cell.get(cell)
+            if check:
+                cell_write_modes.append(check.get("write_mode", ""))
+        
+        append_count = sum(1 for wm in cell_write_modes if wm in append_write_modes)
+        regular_count = sum(1 for wm in cell_write_modes if wm in regular_write_modes)
+        
+        if append_count >= 2 and regular_count == 0:
+            shared_target_cell = True
+            message = f"共享写入单元格：{target_cell} 被 {len(cells)} 个组合字段共同写入（{', '.join(cells)}）。"
+            level = "info"
+        else:
+            shared_target_cell = False
+            message = f"target_cell 重复：{target_cell} 被 {len(cells)} 个配置项写入（{', '.join(cells)}）。"
+            level = "warning"
+        
         for cell in cells:
             check = check_by_cell.get(cell)
             if check:
                 check["problems"].append(message)
-                if check["status"] == "ok":
+                if not shared_target_cell and check["status"] == "ok":
                     check["status"] = "warning"
-            warnings.append(_mapping_health_issue("warning", cell, check.get("label") if check else "", check.get("field_key") if check else "", message))
+            if level == "warning":
+                warnings.append(_mapping_health_issue(level, cell, check.get("label") if check else "", check.get("field_key") if check else "", message))
 
     export_ready_fields = sum(1 for item in checks if item.get("export_ready"))
     return {
