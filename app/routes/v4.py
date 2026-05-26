@@ -2854,6 +2854,8 @@ def _build_mapping_health_report(profile):
                 "label": label,
                 "section": section,
                 "semantic_type": semantic_type,
+                "target_cell": target_cell,
+                "write_mode": write_mode,
             })
         if target_cell and not is_skipped:
             target_usage.setdefault(target_cell, []).append(cell)
@@ -2881,41 +2883,67 @@ def _build_mapping_health_report(profile):
 
     check_by_cell = {item["cell"]: item for item in checks}
     
-    def _is_same_section_or_semantic(fields):
-        if len(fields) < 2:
+    def _cell_row_number(cell):
+        match = re.match(r"^[A-Z]{1,3}([1-9][0-9]*)$", _cell_key(cell))
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except (TypeError, ValueError):
+            return None
+
+    def _is_business_shared_field(field_key, field_items):
+        key = str(field_key or "").strip()
+        if not key.startswith(("packaging.", "batch_marking.", "labeling.")):
+            return False
+        if len(field_items) < 2:
+            return False
+
+        rows = [
+            row
+            for row in (_cell_row_number(item.get("cell")) for item in field_items)
+            if row is not None
+        ]
+        if len(rows) != len(field_items):
+            return False
+        if max(rows) - min(rows) <= 1:
             return True
-        sections = {f["section"] for f in fields if f["section"]}
-        semantic_types = {f["semantic_type"] for f in fields if f["semantic_type"]}
-        
-        if len(sections) == 1:
-            return True
-        if len(semantic_types) == 1:
-            return True
-        
-        domain_parts = set()
-        for f in fields:
-            field_key = check_by_cell.get(f["cell"], {}).get("field_key", "")
-            if "." in field_key:
-                domain = field_key.split(".")[0]
-                domain_parts.add(domain)
-        if len(domain_parts) == 1:
-            return True
-        
-        return False
+
+        append_write_modes_for_field = {
+            "append_after_colon",
+            "append_value",
+            "append_text",
+            "append_line",
+            "write_composite",
+        }
+        target_cells = {
+            _cell_key(item.get("target_cell"))
+            for item in field_items
+            if _cell_key(item.get("target_cell"))
+        }
+        write_modes = {str(item.get("write_mode") or "").strip() for item in field_items}
+        return len(target_cells) == 1 and bool(write_modes) and write_modes.issubset(append_write_modes_for_field)
+
+    def _shared_business_field_message(field_key, cells):
+        return f"共享业务字段：{field_key} 被 {len(cells)} 个同组选项单元格使用（{', '.join(cells)}）。"
+
+    def _duplicate_field_key_message(field_key, cells):
+        return f"field_key 重复：{field_key} 被 {len(cells)} 个配置项使用（{', '.join(cells)}）。"
     
     for field_key, field_items in field_usage.items():
         if len(field_items) <= 1:
             continue
         
-        is_shared_field = _is_same_section_or_semantic(field_items)
         cells = [f["cell"] for f in field_items]
         labels = [f["label"] for f in field_items]
         
-        if is_shared_field:
+        if _is_business_shared_field(field_key, field_items):
             message = f"共享字段：{field_key} 被 {len(cells)} 个相关单元格使用（{', '.join(cells)}）。"
+            message = _shared_business_field_message(field_key, cells)
             level = "info"
         else:
             message = f"field_key 重复：{field_key} 被 {len(cells)} 个配置项使用（{', '.join(cells)}）。"
+            message = _duplicate_field_key_message(field_key, cells)
             level = "warning"
         
         for item in field_items:

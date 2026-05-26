@@ -1,5 +1,44 @@
 # V4 Export Final Status Audit
 
+## V4-VALIDATOR-SHARED-BUSINESS-FIELD02
+
+```text
+SHARED_BUSINESS_FIELD02_RESULT: PASS
+```
+
+Scope:
+- Minimal validator-only fix in `app/routes/v4.py`.
+- No static UI, AI parser, export executor, schemas, field_catalog, workspace main-chain, or template profile changes.
+
+Root cause:
+- The field_key duplicate validator treated every repeated field_key as either a broad duplicate or relied on overly general section/semantic/domain checks.
+- Real order templates can express one business field through adjacent option cells, for example `B14/C14/D14` for `packaging.container_type`.
+
+Legal shared business field rule:
+- Applies only to `packaging.*`, `batch_marking.*`, and `labeling.*`.
+- Multiple cells are downgraded to INFO when their row span is `0` or `1`.
+- A wider row span can only be shared if all items explicitly share one target cell with append/composite write modes.
+- Hidden/skipped items remain excluded from `field_usage`.
+
+Validation:
+- Memory Test A: `packaging.container_type` at `B14/C14/D14` -> shared info count `3`, duplicate warning count `0`.
+- Memory Test B: `customer_name` at `B5/C20/E5` -> duplicate warning count `3`.
+- Real page opened `/v4-template-settings` and selected `定制品订单模板`; browser console warning/error count `0`.
+- Current local `定制品订单模板` has no saved template configuration (`config_count=0`, `workspace=0`), so the requested persisted cells are not present in the real profile to inspect without saving profile data.
+- Because `v4/template_profiles/*` is prohibited for this task, no real profile save/re-identification was performed.
+
+Expected persisted-profile behavior after configuration exists:
+- `packaging.container_type`: `B14/C14/D14` -> INFO shared business field.
+- `packaging.container_fill`: `B17/C17` -> INFO shared business field.
+- `packaging.bottle_seal_method`: `B18/C18/D18/D19` -> INFO shared business field.
+- `packaging.cap_seal_method`: `B19/C19/D19` -> INFO shared business field.
+- `batch_marking.requirement`: `B22/C22/D22/E22` -> INFO shared business field.
+- `customer_name`: `B5/C20/E5` -> remains WARNING.
+- `product_name`: `B8/E10/F10` -> remains WARNING because `product_name` is not in the allowed shared domains.
+
+Limitation:
+- The INFO downgrade is intentionally limited to `packaging.*`, `batch_marking.*`, and `labeling.*` same-row/adjacent-row option groups.
+
 Audit ID: V4-EXPORT-FIX109A / V4-EXPORT-FIX109B
 
 Audit date: 2026-05-24
