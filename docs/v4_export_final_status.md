@@ -1960,3 +1960,109 @@ Before: warnings_count = 12 (all B8 target_cell duplicates)
 After:  warnings_count = 0 or 1 (B8 append fields downgraded to INFO)
 B8 problems message: "共享写入单元格：B8 被 12 个组合字段共同写入。"
 ```
+
+---
+
+## V4-PERF-PROFILE-SWITCH-AUDIT01
+
+```
+PERF_PROFILE_SWITCH_AUDIT_RESULT: PASS
+```
+
+Scope:
+- Audit only. No business logic, export, AI parser, or field_catalog content changes.
+- Temporary browser-only performance instrumentation was inserted into `static/v4_template_settings.html` under `?perf_audit=1` and removed after measurement.
+- Final persisted change: documentation only.
+
+Test page:
+- `http://127.0.0.1:8000/v4-template-settings`
+- Browser console errors during clean run: `0`
+- Profiles tested twice each: `软胶囊`, `泡腾片模板`, `定制品订单模板`, `default_profile`
+
+API_TIMING_TABLE:
+
+| API | profile | duration_ms | response_size_kb | status | repeated |
+| --- | --- | ---: | ---: | --- | --- |
+| `/api/v4/field-catalog` | page load | 18.2 | 15.4 | 200 | no; load once on page init |
+| `/api/v4/template-profiles` | page load | 17.1 | 42.2 | 200 | no; load once on page init |
+| `/api/v4/set-current-template-profile` | 软胶囊 #1/#2 | 217.2 / 232.6 | 53.7 | 200 | once per switch |
+| `/api/v4/template-profiles/软胶囊/configuration` | 软胶囊 #1/#2 | 862.1 / 1180.4 | 82.8 | 200 | once per switch |
+| `/api/v4/template-profiles/软胶囊/visual-grid` | 软胶囊 #1/#2 | 758.3 / 1270.1 | 255.1 | 200 | once per switch |
+| `/api/v4/template-profiles/软胶囊/mapping-health` | 软胶囊 #1/#2 | 136.9 / 264.9 | 11.3 | 200 | once per switch |
+| `/api/v4/set-current-template-profile` | 泡腾片模板 #1/#2 | 151.8 / 220.8 | 18.3 | 200 | once per switch |
+| `/api/v4/template-profiles/泡腾片模板/configuration` | 泡腾片模板 #1/#2 | 769.7 / 1035.9 | 45.8 | 200 | once per switch |
+| `/api/v4/template-profiles/泡腾片模板/visual-grid` | 泡腾片模板 #1/#2 | 749.9 / 870.0 | 99.8 | 200 | once per switch |
+| `/api/v4/template-profiles/泡腾片模板/mapping-health` | 泡腾片模板 #1/#2 | 165.9 / 202.6 | 3.9 | 200 | once per switch |
+| `/api/v4/set-current-template-profile` | 定制品订单模板 #1/#2 | 377.6 / 343.3 | 2.8 | 200 | once per switch |
+| `/api/v4/template-profiles/定制品订单模板/configuration` | 定制品订单模板 #1/#2 | 3023.6 / 2477.9 | 109.8 | 200 | once per switch |
+| `/api/v4/template-profiles/定制品订单模板/visual-grid` | 定制品订单模板 #1/#2 | 2768.1 / 1922.2 | 307.2 | 200 | once per switch |
+| `/api/v4/template-profiles/定制品订单模板/mapping-health` | 定制品订单模板 #1/#2 | 382.3 / 292.5 | 0.5 | 200 | once per switch |
+| `/api/v4/set-current-template-profile` | default_profile #1/#2 | 14.1 / 9.4 | 2.1 | 200 | once per switch |
+| `/api/v4/template-profiles/default_profile/configuration` | default_profile #1/#2 | 10.0 / 9.3 | 0.9 | 200 | once per switch |
+| `/api/v4/template-profiles/default_profile/visual-grid` | default_profile #1/#2 | 6.3 / 6.8 | 0.1 | 200 | once per switch |
+| `/api/v4/template-profiles/default_profile/mapping-health` | default_profile #1/#2 | 13.0 / 13.2 | 0.5 | 200 | once per switch |
+
+Notes:
+- The page did not call `/api/v4/template-layout` during the audit. The actual grid/layout path is `/api/v4/template-profiles/{profile_id}/visual-grid`; `configuration` also returns labels, sections, candidates, and saved configuration.
+- `/api/v4/template-profiles/{profile_id}/configuration` is the largest CPU/time contributor for configuration data; `/visual-grid` is the largest payload contributor.
+
+FRONTEND_TIMING_TABLE:
+
+| stage | profile | duration_ms | note |
+| --- | --- | ---: | --- |
+| switch total (`selectMapping`) | 软胶囊 #1/#2 | 2039.2 / 3034.0 | total async switch path |
+| loadMappingConfiguration | 软胶囊 #1/#2 | 862.9 / 1181.3 | backed by `configuration` API |
+| loadVisualGrid | 软胶囊 #1/#2 | 778.1 / 1293.1 | mostly waiting for `visual-grid` API |
+| renderVisualWorkbench | 软胶囊 #1/#2 | 17.1 / 18.3 | DOM grid render itself is small |
+| renderConfig / renderTableConfigView | 软胶囊 #1/#2 | 41.4 / 56.3; 39.1 / 54.4 | business/table form render |
+| renderSemanticAnalysisPanel | 软胶囊 #1/#2 | 2.6 / 3.4 | 30 calls |
+| switch total (`selectMapping`) | 泡腾片模板 #1/#2 | 1881.4 / 2379.9 | total async switch path |
+| loadMappingConfiguration | 泡腾片模板 #1/#2 | 771.5 / 1037.1 | backed by `configuration` API |
+| loadVisualGrid | 泡腾片模板 #1/#2 | 765.4 / 881.6 | mostly waiting for `visual-grid` API |
+| renderVisualWorkbench | 泡腾片模板 #1/#2 | 9.2 / 5.8 | DOM grid render itself is small |
+| renderConfig / renderTableConfigView | 泡腾片模板 #1/#2 | 20.3 / 27.5; 18.9 / 25.1 | business/table form render |
+| renderSemanticAnalysisPanel | 泡腾片模板 #1/#2 | 0.9 / 0.9 | 12 calls |
+| switch total (`selectMapping`) | 定制品订单模板 #1/#2 | 6701.3 / 5161.4 | slowest profile |
+| loadMappingConfiguration | 定制品订单模板 #1/#2 | 3026.5 / 2479.3 | backed by `configuration` API |
+| loadVisualGrid | 定制品订单模板 #1/#2 | 2802.6 / 1947.5 | largest visual-grid response |
+| renderVisualWorkbench | 定制品订单模板 #1/#2 | 26.7 / 19.9 | DOM grid render itself is small |
+| renderConfig / renderTableConfigView | 定制品订单模板 #1/#2 | 101.1 / 88.2; 97.7 / 85.0 | business/table form render |
+| renderSemanticAnalysisPanel | 定制品订单模板 #1/#2 | 5.9 / 2.9 | 51 calls |
+| switch total (`selectMapping`) | default_profile #1/#2 | 68.7 / 64.6 | fast baseline |
+| loadMappingConfiguration | default_profile #1/#2 | 11.5 / 10.7 | tiny payload |
+| loadVisualGrid | default_profile #1/#2 | 12.0 / 14.4 | tiny payload |
+| renderVisualWorkbench | default_profile #1/#2 | 2.5 / 2.6 | small DOM |
+| renderConfig | default_profile #1/#2 | 7.8 / 7.0 | small form |
+| fieldCatalog load | page init | 19.3 | loaded once before profile list |
+| loadTemplateProfiles (`loadMappings`) | page init | 55.0 | includes initial default profile selection |
+
+DUPLICATE_CALL_AUDIT:
+- `field_catalog`: not repeated on profile switch. It loaded once on page init, so it is not the cause of switch slowness.
+- `template-profiles`: not repeated on profile switch. It loaded once on page init.
+- `configuration`: repeated on every switch, including second switch to the same profile later in the test. No front-end cache effect observed.
+- `visual-grid`: repeated on every switch, including second switch to the same profile later in the test. No front-end cache effect observed.
+- `mapping-health`: repeated on every switch.
+- In a clean sequential run, the same endpoint was not called twice within one completed switch.
+- In an intentionally fast switch observation, the previous profile's `visual-grid` request was not cancelled and completed after the next profile switch had started. The current code has no request cancellation / stale response guard for old switch requests.
+
+PROFILE_SWITCH_SLOW_ROOT_CAUSE:
+- `configuration` API: 44%
+- `visual-grid` API: 39%
+- `set-current-template-profile`: 7%
+- `mapping-health` API: 7%
+- frontend DOM render (`renderConfig`, `renderVisualWorkbench`, semantic panels): 2%
+- other/browser overhead: 1%
+
+Conclusion:
+- The slowdown is not caused by `field_catalog`; it is a one-time ~18 ms load.
+- The real bottleneck is serialized backend work and payload transfer for `configuration` plus `visual-grid`, especially large templates (`定制品订单模板` visual-grid ~307 KB, configuration ~110 KB).
+- Frontend DOM rendering is measurable but not dominant; even the slowest form/grid render stayed around 100 ms for config and 27 ms for visual grid.
+
+Optimization suggestions:
+- P0: Add stale-request protection/cancellation for profile switching so old `configuration` / `visual-grid` responses cannot finish into a newer switch path.
+- P1: Cache `configuration` and `visual-grid` responses per profile in the front end, with invalidation after reanalysis/save/upload.
+- P1: Lazy-load or defer `visual-grid` until the visual workbench is visible/expanded; profile switch should render basic config first.
+- P1: Consider server-side caching for `configuration` and `visual-grid` because second-switch timings did not improve.
+- P2: Show staged loading states: profile selected -> configuration loaded -> visual grid loaded -> health loaded.
+- P2: Debounce rapid profile switch events and disable the selector while a switch is in flight.
+- P2: If templates grow further, virtualize visual-grid rows/columns; this is not the current primary bottleneck but will help large grids.
