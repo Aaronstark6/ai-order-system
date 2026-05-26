@@ -1705,7 +1705,7 @@ DRAFT_VALIDATOR_ENDPOINT01: IMPLEMENTED
 POST /api/v4/template-profiles/{profile_id}/validate-draft
 
 设计目标：
-该接口用于未来让前端提交“当前页面尚未保存的配置草稿”，并由后端统一 validator 检查。
+该接口用于未来让前端提交"当前页面尚未保存的配置草稿"，并由后端统一 validator 检查。
 
 该接口不是保存接口。
 该接口不写 profile。
@@ -1752,7 +1752,6 @@ saved_profile_modified=false
 V4-VALIDATOR-DRAFT-ENDPOINT01-AUDIT
 随后进入：
 V4-VALIDATOR-FRONTEND-USE-DRAFT01
-```
 
 ## V4-REAL-BUSINESS-TEST01
 
