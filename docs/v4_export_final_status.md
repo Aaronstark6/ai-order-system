@@ -2415,3 +2415,19 @@ Recommendation:
 - 推荐路线是先做 Option B 的变体：新增后端 draft validator endpoint，让前端把当前页面草稿配置 POST 给后端统一校验。
 - 后端 validator 成为权威规则来源，前端只负责收集草稿和展示结果。
 - 在 draft validator 闭环验证通过后，再考虑清理前端重复复杂判断。
+
+---
+V4-VALIDATOR-FRONTEND-FALLBACK-LABEL01A
+
+FRONTEND_FALLBACK_LABEL01A: COMMENT_STYLE_FIXED
+
+修改内容：
+修正 fallback validator 相关注释缩进。
+
+范围：
+未修改逻辑。
+未修改函数体。
+未修改调用关系。
+未修改后端。
+未删除本地 validator。
+未删除 isFrontendBusinessSharedField()。
