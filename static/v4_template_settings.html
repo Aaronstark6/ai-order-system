@@ -2506,6 +2506,20 @@
             const source = String(existing?.candidate_source || existing?.source || "").toLowerCase();
             const upgradePrefixes = ["packaging.", "labeling.", "batch_marking.", "product."];
             if (existingKey === "packaging" && upgradePrefixes.some((prefix) => candidateKey.startsWith(prefix))) return true;
+
+            const basicFieldUpgradeMap = {
+                "customer_name": new Set([
+                    "customer_type",
+                    "customer_contact",
+                    "customer_address",
+                    "salesperson",
+                    "document_number",
+                    "order_code",
+                ]),
+            };
+
+            if (basicFieldUpgradeMap[existingKey]?.has(candidateKey)) return true;
+
             return source.includes("semantic") || source.includes("fallback") || source.includes("template_analysis");
         }
 

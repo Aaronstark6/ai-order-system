@@ -2531,3 +2531,49 @@ V4-FIELD-CATALOG-BASIC01 已经修正 field_catalog.json 和 semantic fallback�
 负责人 / 业务员 → salesperson
 文档编号 → document_number
 订单编号 → order_code
+
+---
+V4-FIELD-CATALOG-BASIC01B
+
+FIELD_CATALOG_BASIC01B: BASIC_FIELD_UPGRADE_ALLOWLIST
+
+修改内容：
+扩展前端 canApplyFieldCatalogCandidate() 的字段升级白名单。
+
+原因：
+V4-FIELD-CATALOG-BASIC01 和 V4-FIELD-CATALOG-BASIC01A 已经修正字段库和后端 fallback rules。
+但前端应用自动识别建议时，会保护已有 candidate_field_key。
+当旧字段是 customer_name，新字段是 customer_type/customer_contact/customer_address 等时，旧逻辑不允许覆盖，因此页面看起来没有变化。
+
+本次新增允许升级：
+customer_name → customer_type
+customer_name → customer_contact
+customer_name → customer_address
+customer_name → salesperson
+customer_name → document_number
+customer_name → order_code
+
+保护规则：
+manual_override=true 不覆盖。
+user_edited=true 不覆盖。
+只允许非人工锁定的旧基础字段被字段库新建议纠正。
+
+范围：
+未修改后端。
+未修改字段库。
+未修改 validator。
+未修改保存接口。
+未修改 profile。
+未修改 rules。
+未修改模板文件。
+
+目的：
+让"从字段库重新识别 → 应用自动识别建议"可以真正纠正旧的 customer_name 泛匹配结果。
+
+预期效果：
+客户性质 原为 customer_name 时，可升级为 customer_type。
+客户联系人 原为 customer_name 时，可升级为 customer_contact。
+客户地址 原为 customer_name 时，可升级为 customer_address。
+负责人/业务员 原为 customer_name 时，可升级为 salesperson。
+文档编号 原为 customer_name 时，可升级为 document_number。
+订单编号 原为 customer_name 时，可升级为 order_code。
