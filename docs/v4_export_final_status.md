@@ -2220,3 +2220,42 @@ Scope:
 - 将系统维护按钮从 ghost 描边按钮改为局部实心按钮样式。
 - 目标是与模板操作区域按钮视觉风格更一致。
 - 未修改 onclick、data-maintenance-action、后端接口或业务逻辑。
+
+---
+
+## V4-VALIDATOR-UNIFY-AUDIT01-DOC
+
+```
+VALIDATOR_UNIFY_AUDIT01_RESULT: DOCUMENTED
+```
+
+Scope:
+- Documentation only. No code changes.
+- No backend validator changes.
+- No frontend validator changes.
+- No business logic changes.
+
+Recommendation:
+- V4 页面目前维护两套独立的 validator 逻辑：
+  1. 后端 `/api/v4/template-profiles/{profile_id}/mapping-health` 中的 `_build_mapping_health_report()`
+  2. 前端 `static/v4_template_settings.html` 中的 `validateConfiguration()` / `renderMappingHealthReport()`
+- 两套逻辑已通过 V4-VALIDATOR-FRONTEND-SYNC01 同步了 field_key 重复检测和 append 模式识别。
+- 但仍然存在维护成本：每次修改规则需要同时改两个地方。
+
+Options:
+
+Option A: 保持现状
+- Pros: 无需重构，风险低
+- Cons: 两套逻辑需要手动同步
+
+Option B: 前端直接调用后端 validator API
+- Pros: 单一真相来源，维护成本降低
+- Cons: 增加网络开销，需要改造前端渲染逻辑
+
+Option C: 移除前端 validator，只展示后端结果
+- Pros: 最简维护
+- Cons: 需要确认后端 API 响应时间可接受
+
+Recommendation:
+- Option C 是最小改动路径：后端 validator 已完整，前端 validator 是历史遗留。
+- 但需先验证后端 `/mapping-health` API 在页面场景下的响应时间。
