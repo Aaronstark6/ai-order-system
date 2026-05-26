@@ -1694,8 +1694,23 @@
             }
         ];
         const WORKSPACE_SECTION_RULE_BY_KEY = Object.fromEntries(WORKSPACE_SECTION_RULES.map(section => [section.key, section]));
+        const WORKSPACE_DOMAIN_SECTION_MAP = {
+            basic: "document",
+            product: "product",
+            packaging: "package",
+            labeling: "package",
+            batch_marking: "production",
+            formula: "formula",
+            attachment: "other",
+            other: "other",
+        };
 
         function detectWorkspaceSection(field) {
+            const explicitDomain = String(field?.workspace_domain || field?.domain || "").trim();
+            const mappedSection = WORKSPACE_DOMAIN_SECTION_MAP[explicitDomain];
+            if (mappedSection && WORKSPACE_SECTION_RULE_BY_KEY[mappedSection]) {
+                return mappedSection;
+            }
             const text = [
                 field?.label,
                 field?.field_key,

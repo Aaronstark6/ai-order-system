@@ -2917,8 +2917,73 @@ def _build_mapping_health_report(profile):
     }
 
 
+_WORKSPACE_DOMAIN_ORDER = {
+    "basic": 10,
+    "product": 20,
+    "packaging": 30,
+    "labeling": 40,
+    "batch_marking": 50,
+    "formula": 60,
+    "attachment": 70,
+    "other": 90,
+}
+
+_WORKSPACE_FIELD_KEY_ORDER = {
+    "customer_name": 10,
+    "order_date": 20,
+    "product_name": 30,
+    "quantity": 40,
+    "product.product_form": 50,
+    "product.soft_capsule.shell_size": 60,
+    "packaging.container_type": 100,
+    "packaging.quantity_per_unit": 110,
+    "packaging.bottle_seal_method": 120,
+    "packaging.cap_seal_method": 130,
+    "packaging.desiccant": 140,
+    "packaging.shrink_wrap_full": 150,
+    "packaging.protective_bag": 160,
+    "labeling.label_requirement": 200,
+    "labeling.design_source": 210,
+    "labeling.no_label": 220,
+    "batch_marking.requirement": 300,
+    "formula.bilingual_formula": 400,
+}
+
+
+def _workspace_domain_for_field_key(field_key):
+    key = str(field_key or "").strip()
+    if key in {"customer_name", "order_date", "quantity", "amount", "specification"}:
+        return "basic"
+    if key == "product_name" or key.startswith("product."):
+        return "product"
+    if "." in key:
+        domain = key.split(".", 1)[0]
+        return domain if domain in _WORKSPACE_DOMAIN_ORDER else "other"
+    return "other"
+
+
+def _workspace_field_order(field_key, display_order):
+    try:
+        fallback_order = int(display_order or 0)
+    except (TypeError, ValueError):
+        fallback_order = 0
+    return _WORKSPACE_FIELD_KEY_ORDER.get(str(field_key or "").strip(), 1000 + fallback_order)
+
+
+def _workspace_field_sort_key(item):
+    domain = str(item.get("workspace_domain") or "").strip()
+    return (
+        _WORKSPACE_DOMAIN_ORDER.get(domain, _WORKSPACE_DOMAIN_ORDER["other"]),
+        int(item.get("workspace_order") or 0),
+        int(item.get("display_order") or 0),
+        str(item.get("field_key") or ""),
+        str(item.get("cell") or ""),
+    )
+
+
 def _build_workspace_fields_from_profile(profile):
     configuration = _template_configuration_from_profile(profile)
+    catalog_labels = get_field_catalog_labels()
     workspace_fields = []
     hidden_intents = {"title", "section_header", "note_instruction", "readonly_example"}
     hidden_write_modes = {"skip", "none"}
@@ -2954,18 +3019,24 @@ def _build_workspace_fields_from_profile(profile):
 
         normalized_source_cell = str(source_cell or "").strip().upper()
         target_cell = str(item.get("target_cell") or "").strip().upper()
+        catalog_label = str(catalog_labels.get(field_key) or "").strip()
         label = (
-            str(item.get("label") or "").strip()
+            catalog_label
+            or str(item.get("label") or "").strip()
             or str(item.get("candidate_field_label") or "").strip()
             or str(item.get("field_label") or "").strip()
             or field_key
         )
+        workspace_domain = _workspace_domain_for_field_key(field_key)
+        workspace_order = _workspace_field_order(field_key, sort_key(item))
         workspace_fields.append(
             {
                 "cell": target_cell or normalized_source_cell,
                 "source_cell": str(item.get("label_cell") or normalized_source_cell).strip().upper(),
                 "field_key": field_key,
                 "label": label,
+                "workspace_domain": workspace_domain,
+                "workspace_order": workspace_order,
                 "intent_type": intent_type,
                 "write_mode": write_mode,
                 "option_value": str(item.get("option_value") or "").strip(),
@@ -2980,6 +3051,7 @@ def _build_workspace_fields_from_profile(profile):
             }
         )
 
+    workspace_fields.sort(key=_workspace_field_sort_key)
     return workspace_fields
 
 
@@ -3378,6 +3450,19 @@ def _confirmed_config_lookup_from_profile(profile):
     by_target_cell = {}
     by_field_key = {}
 
+    def field_config_rank(config):
+        if not isinstance(config, dict):
+            return 0
+        rank = 0
+        if config.get("show_in_workspace") is not False:
+            rank += 10
+        write_mode = str(config.get("write_mode") or "").strip()
+        if write_mode not in {"", "skip", "none"}:
+            rank += 5
+        if _cell_key(config.get("target_cell")):
+            rank += 3
+        return rank
+
     for source_cell, config in configuration.items():
         if not isinstance(config, dict):
             continue
@@ -3392,7 +3477,10 @@ def _confirmed_config_lookup_from_profile(profile):
             by_target_cell[target_cell] = item
 
         field_key = str(item.get("candidate_field_key") or item.get("field_key") or "").strip()
-        if field_key and field_key not in by_field_key:
+        if field_key and (
+            field_key not in by_field_key
+            or field_config_rank(item) > field_config_rank(by_field_key[field_key])
+        ):
             by_field_key[field_key] = item
 
     return {
@@ -3406,6 +3494,10 @@ def _lookup_confirmed_mapping_config(item, lookup):
     if not isinstance(item, dict) or not isinstance(lookup, dict):
         return {}
 
+    field_key = str(item.get("field_key") or "").strip()
+    if field_key and field_key in lookup.get("by_field_key", {}):
+        return lookup["by_field_key"][field_key]
+
     for key_name in ("source_cell", "display_cell", "cell"):
         cell = _cell_key(item.get(key_name))
         if cell and cell in lookup.get("by_source_cell", {}):
@@ -3415,10 +3507,6 @@ def _lookup_confirmed_mapping_config(item, lookup):
         cell = _cell_key(item.get(key_name))
         if cell and cell in lookup.get("by_target_cell", {}):
             return lookup["by_target_cell"][cell]
-
-    field_key = str(item.get("field_key") or "").strip()
-    if field_key and field_key in lookup.get("by_field_key", {}):
-        return lookup["by_field_key"][field_key]
 
     return {}
 
@@ -3641,7 +3729,10 @@ def _confirmed_operation_from_item(item, worksheet):
 
 def _override_operations_with_confirmed_cells(processed_operations, confirmed_cells, profile=None, template_path=None):
     operations = deepcopy(processed_operations) if isinstance(processed_operations, list) else []
-    confirmed_items = confirmed_cells if isinstance(confirmed_cells, list) else []
+    confirmed_items = _merge_append_after_colon_confirmed_cells_for_export(
+        confirmed_cells if isinstance(confirmed_cells, list) else [],
+        profile=profile if isinstance(profile, dict) else {},
+    )
     confirmed_by_key = {}
     config_lookup = _confirmed_config_lookup_from_profile(profile if isinstance(profile, dict) else {})
     worksheet = _load_template_worksheet_for_confirmed_export(template_path)
@@ -3663,7 +3754,7 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
         if not confirmed_item:
             continue
 
-        config = _lookup_confirmed_mapping_config(confirmed_item, config_lookup)
+        config = {} if confirmed_item.get("merged_append_after_colon") else _lookup_confirmed_mapping_config(confirmed_item, config_lookup)
         enriched_item = _confirmed_item_with_mapping_config(confirmed_item, config)
         write_mode = str(enriched_item.get("write_mode") or "").strip()
         is_image_item = _confirmed_cell_is_image_item(enriched_item)
@@ -3715,7 +3806,7 @@ def _override_operations_with_confirmed_cells(processed_operations, confirmed_ce
     for item in confirmed_items:
         if not isinstance(item, dict):
             continue
-        config = _lookup_confirmed_mapping_config(item, config_lookup)
+        config = {} if item.get("merged_append_after_colon") else _lookup_confirmed_mapping_config(item, config_lookup)
         enriched_item = _confirmed_item_with_mapping_config(item, config)
         target_cell = _cell_key(enriched_item.get("target_cell") or enriched_item.get("cell"))
         merge_key = _operation_merge_key(enriched_item)
@@ -5579,6 +5670,80 @@ def _split_confirmed_cells_for_excel_export(confirmed_cells):
         else:
             text_items.append(item)
     return text_items, image_items
+
+
+def _merge_append_after_colon_confirmed_cells_for_export(confirmed_cells, profile=None):
+    items = confirmed_cells if isinstance(confirmed_cells, list) else []
+    if not items:
+        return []
+
+    config_lookup = _confirmed_config_lookup_from_profile(profile if isinstance(profile, dict) else {})
+    enriched_items = []
+    append_groups = {}
+
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            enriched_items.append((index, item, "", None))
+            continue
+
+        config = _lookup_confirmed_mapping_config(item, config_lookup)
+        enriched_item = _confirmed_item_with_mapping_config(item, config)
+        write_mode = str(enriched_item.get("write_mode") or "").strip()
+        merge_key = _operation_merge_key(enriched_item)
+        if write_mode != "append_after_colon" or not merge_key:
+            enriched_items.append((index, enriched_item, "", None))
+            continue
+
+        value_text = str(enriched_item.get("value") or "").strip()
+        group = append_groups.setdefault(
+            merge_key,
+            {
+                "first_index": index,
+                "items": [],
+            },
+        )
+        group["items"].append(enriched_item)
+        enriched_items.append((index, enriched_item, merge_key, group))
+
+    merged_items = []
+    emitted_append_keys = set()
+    for _, item, merge_key, group in enriched_items:
+        if not merge_key or not group:
+            if isinstance(item, dict):
+                merged_items.append(item)
+            continue
+
+        if merge_key in emitted_append_keys:
+            continue
+        emitted_append_keys.add(merge_key)
+
+        group_items = [entry for entry in group.get("items", []) if isinstance(entry, dict)]
+        if len(group_items) <= 1:
+            merged_items.extend(group_items)
+            continue
+
+        merged = deepcopy(group_items[0])
+        value_lines = []
+        for entry in group_items:
+            value_text = str(entry.get("value") or "").strip()
+            if not value_text:
+                continue
+            label = str(entry.get("label") or entry.get("field_key") or "").strip()
+            if label and label not in value_text:
+                value_lines.append(f"{label}: {value_text}")
+            else:
+                value_lines.append(value_text)
+
+        merged["value"] = "\n".join(value_lines)
+        merged["merged_append_after_colon"] = True
+        merged["merged_field_keys"] = [
+            str(entry.get("field_key") or "").strip()
+            for entry in group_items
+            if str(entry.get("field_key") or "").strip()
+        ]
+        merged_items.append(merged)
+
+    return merged_items
 
 
 def _image_extension_from_mime_type(mime_type):

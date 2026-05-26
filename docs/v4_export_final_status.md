@@ -1781,3 +1781,65 @@ Real business regression:
 Residual notes:
 - Several regenerated fields intentionally target existing free-text blocks (`B8`, `G3`, `G11`) because the real template does not provide separate dedicated cells for every fine-grained catalog field.
 - Readback skips fields whose write mode/target cannot be checked independently from a shared free-text block.
+
+## V4-REAL-BUSINESS-HARDENING01
+
+```text
+REAL_BUSINESS_HARDENING_RESULT: PASS
+```
+
+Scope:
+- No field catalog expansion.
+- No AI parser changes.
+- No new architecture.
+- Hardened real softgel Workspace ordering/labels and confirmed export handling for shared free-text cells.
+
+FIELD_COVERAGE_REPORT:
+- Workspace fields: `18`
+- Fine-grained field_catalog keys: `14/18 = 77.8%`
+- A. Correct fine-grained/core fields: `customer_name`, `order_date`, `quantity`, `product_name`, `product.product_form`, `product.soft_capsule.shell_size`, `packaging.container_type`, `packaging.quantity_per_unit`, `packaging.bottle_seal_method`, `packaging.cap_seal_method`, `packaging.desiccant`, `packaging.shrink_wrap_full`, `packaging.protective_bag`, `labeling.label_requirement`, `labeling.design_source`, `batch_marking.requirement`, `formula.bilingual_formula`.
+- B. Generic fallback: none active; broad `packaging` is not in Workspace.
+- C. Wrong domain: none found in active Workspace field keys.
+- D. Missing fields/gaps: `packaging.container_capacity`, `packaging.container_color`, `packaging.cap_color`, `packaging.label_size`, `labeling.barcode_requirement`, `batch_marking.production_date_format`, `batch_marking.expiry_date_format`, `product.soft_capsule.shell_color`, `product.soft_capsule.fill_weight`, `attachment.label_artwork_file`.
+- E. Duplicate fields: no duplicate field keys. Shared target cell remains by template design: `B8` carries 12 fine-grained fields.
+
+Workspace UX hardening:
+- Workspace labels now prefer canonical field_catalog labels, avoiding long template-instruction labels in the confirmation UI.
+- Workspace fields are sorted by business domain/order: basic order fields, product, packaging, labeling, batch, formula.
+- Workspace frontend grouping now honors `workspace_domain` when present, instead of relying only on keyword matching.
+- No fields were hidden or deleted.
+
+Real business trial:
+- Browser page `/v4-order-workspace`: loaded successfully with softgel profile; JS console error count `0`.
+- Browser AI Parse path: PASS, page rendered Workspace inputs.
+- Backend route validation of the same real chain with manual edits: AI Parse -> Workspace -> Confirmed -> Export -> Readback PASS.
+- Manual edits covered 2+ normal fields, 2 packaging fields, 1 labeling field, and 1 batch field.
+- Edited values verified in exported Excel:
+  - `customer_name` -> `C5`: `HARDENED CUSTOMER LLC`
+  - `order_date` -> `F4`: `20260601`
+  - `product_name` -> `G3`: `Hardened Omega-3 Softgel`
+  - `quantity` -> `C6`: `60000 bottles`
+  - `packaging.container_type` -> `B10`: `HDPE bottle`
+  - `packaging.quantity_per_unit` -> `B8`: `90 capsules/bottle`
+  - `labeling.label_requirement` -> `B8`: `Confirmed English label with barcode`
+  - `batch_marking.requirement` -> `B8`: `LOT-HARD-01 YYYYMMDD`
+- Export readback: `total=8`, `checked=8`, `matched=8`, `mismatched=0`, `skipped=0`.
+- Shared `B8` append fields are now merged before export so packaging/labeling/batch values are not overwritten by the last confirmed item.
+
+TOP10 FIELD GAP LIST:
+1. `packaging.container_capacity`
+2. `packaging.container_color`
+3. `packaging.cap_color`
+4. `packaging.label_size`
+5. `labeling.barcode_requirement`
+6. `batch_marking.production_date_format`
+7. `batch_marking.expiry_date_format`
+8. `product.soft_capsule.shell_color`
+9. `product.soft_capsule.fill_weight`
+10. `attachment.label_artwork_file`
+
+Next-stage recommendation:
+- Real softgel can enter controlled real-business trial.
+- Do not expand taxonomy immediately for this profile; first collect several real trial transcripts and compare field gaps.
+- `V4-FIELD-CATALOG-DOMAIN03` is useful, but should be driven by the gap list above rather than broad taxonomy expansion.
+- Best next task: `V4-REAL-TRIAL-OBSERVABILITY01`, focused on saving per-order field hit/miss/export-readback telemetry for real trials.
