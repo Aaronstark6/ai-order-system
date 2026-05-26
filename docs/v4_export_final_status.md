@@ -2485,3 +2485,49 @@ customer_name 不再通过单独"客户"泛匹配。
 负责人 / 业务员 → salesperson
 文档编号 → document_number
 订单编号 → order_code
+
+---
+V4-FIELD-CATALOG-BASIC01A
+
+FIELD_CATALOG_BASIC01A: FALLBACK_RULE_SYNCED
+
+修改内容：
+同步 app/routes/v4.py 中 _MAPPING_CANDIDATE_RULES 的基础字段 fallback 规则。
+
+原因：
+V4-FIELD-CATALOG-BASIC01 已经修正 field_catalog.json 和 semantic fallback，但 _MAPPING_CANDIDATE_RULES 仍保留 customer_name 的泛关键词"客户"和"customer"。
+
+本次修正：
+- 收窄 _MAPPING_CANDIDATE_RULES.customer_name
+- 删除单独"客户"
+- 删除单独"customer"
+- 新增 customer_type
+- 新增 customer_contact
+- 新增 customer_address
+- 新增 salesperson
+- 新增 document_number
+- 新增 order_code
+
+范围：
+未修改 validator。
+未修改前端。
+未修改导出。
+未修改 AI parser。
+未修改 Workspace。
+未修改 field_catalog.json。
+未修改 profile。
+未修改 rules。
+未修改模板文件。
+
+目的：
+让 hardcoded fallback candidate rules 与 field_catalog v4-field-catalog-003 保持一致，避免 fallback 继续把"客户性质/客户类型"等误识别为 customer_name。
+
+预期效果：
+客户名称 → customer_name
+客户性质 → customer_type
+客户类型 → customer_type
+客户联系人 → customer_contact
+客户地址 → customer_address
+负责人 / 业务员 → salesperson
+文档编号 → document_number
+订单编号 → order_code
