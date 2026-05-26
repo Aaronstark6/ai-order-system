@@ -2174,3 +2174,32 @@ Page validation:
 Scope:
 - 不涉及后端、字段库、导出、AI parser
 - 纯前端 UI 体验优化
+
+---
+
+## V4-SETTINGS-UX-SMALL02
+
+```
+SETTINGS_UX_SMALL02_RESULT: IMPLEMENTED
+```
+
+Changes:
+- 统一模板操作与系统维护区域视觉风格
+- 系统维护去除嵌套卡片感，和左侧模板操作保持同级视觉
+- 按钮高度统一为 42px
+- 标题顶部对齐
+- 布局间距调整
+
+Modified files:
+- `static/v4_template_settings.html`: CSS 样式调整
+- `docs/v4_export_final_status.md`: 文档记录
+
+CSS changes:
+- `.maintenance-box`: 移除背景、边框、圆角、内边距
+- `.maintenance-actions button`: 添加最小高度和内边距
+- `.template-operation-layout`: 调整对齐方式和间距
+- `.template-operation-left`: 统一标题和文件行样式
+- 新增按钮高度统一规则
+
+Scope:
+- 未修改任何后端、业务逻辑、维护接口或保存逻辑
