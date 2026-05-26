@@ -4520,6 +4520,85 @@ def api_v4_template_profile_mapping_health(profile_id: str):
     return _build_mapping_health_report(profile)
 
 
+@router.post("/api/v4/template-profiles/{profile_id}/validate-draft")
+def api_v4_template_profile_validate_draft(profile_id: str, payload: Any = Body(None)):
+    logger.info("V4 template profile draft validation requested: profile_id=%s", profile_id)
+
+    profile = load_template_profile(profile_id)
+
+    if not profile:
+        return {
+            "success": False,
+            "profile_id": profile_id,
+            "draft_validation": True,
+            "saved_profile_modified": False,
+            "error": "Template Profile 不存在",
+            "summary": {
+                "total_config_items": 0,
+                "workspace_fields": 0,
+                "ai_contract_fields": 0,
+                "export_ready_fields": 0,
+                "errors_count": 1,
+                "warnings_count": 0,
+                "runtime_mapping_source": {
+                    "source": "empty",
+                    "saved_fields_count": 0,
+                    "semantic_fields_count": 0,
+                    "using_saved_configuration": False
+                },
+                "draft_validation": True,
+                "saved_profile_modified": False
+            },
+            "runtime_mapping_source": {
+                "source": "empty",
+                "saved_fields_count": 0,
+                "semantic_fields_count": 0,
+                "using_saved_configuration": False
+            },
+            "checks": [],
+            "errors": [
+                _mapping_health_issue(
+                    "error",
+                    "",
+                    "",
+                    "",
+                    "Template Profile 不存在"
+                )
+            ],
+            "warnings": []
+        }
+
+    payload = payload if isinstance(payload, dict) else {}
+
+    draft_template_configuration = payload.get("template_configuration")
+    draft_section_configuration = payload.get("section_configuration")
+    draft_excel_feature_flags = payload.get("excel_feature_flags")
+
+    temp_profile = dict(profile)
+
+    if isinstance(draft_template_configuration, dict):
+        temp_profile["template_configuration"] = draft_template_configuration
+
+    if isinstance(draft_section_configuration, dict):
+        temp_profile["section_configuration"] = draft_section_configuration
+
+    if isinstance(draft_excel_feature_flags, dict):
+        temp_profile["excel_feature_flags"] = draft_excel_feature_flags
+
+    report = _build_mapping_health_report(temp_profile)
+
+    report["draft_validation"] = True
+    report["saved_profile_modified"] = False
+
+    summary = report.get("summary")
+
+    if isinstance(summary, dict):
+        summary["draft_validation"] = True
+        summary["saved_profile_modified"] = False
+
+    return report
+
+
 @router.get("/api/v4/template-profiles/{profile_id}/runtime-trace")
 def api_v4_template_profile_runtime_trace(profile_id: str):
     logger.info("V4 template profile runtime trace requested: profile_id=%s", profile_id)

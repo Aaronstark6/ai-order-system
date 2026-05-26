@@ -1694,6 +1694,64 @@ Fallback / residual:
 - Repeated “大小/克重” cells in different product columns need column context to disambiguate
   tablet/powder/gummy size_weight perfectly; current matching is keyword-first.
 - Logistics, Certification, Testing, Payment, full Sensory domain, and Field Catalog UI remain out of scope.
+
+---
+## V4-VALIDATOR-DRAFT-ENDPOINT01
+
+DRAFT_VALIDATOR_ENDPOINT01: IMPLEMENTED
+
+修改内容：
+新增后端草稿验证接口：
+POST /api/v4/template-profiles/{profile_id}/validate-draft
+
+设计目标：
+该接口用于未来让前端提交“当前页面尚未保存的配置草稿”，并由后端统一 validator 检查。
+
+该接口不是保存接口。
+该接口不写 profile。
+该接口不写 rules。
+该接口不修改模板文件。
+
+核心实现原则：
+- 不保存 draft
+- 不修改 profile 文件
+- 不修改 rules
+- 不修改模板
+- 不新增独立 validator
+- 不复制 duplicate 检查逻辑
+- 使用 temp_profile 承载 draft configuration
+- 复用 _build_mapping_health_report(temp_profile)
+- 返回结构与 mapping-health 保持一致
+
+支持的请求字段：
+template_configuration
+section_configuration
+excel_feature_flags
+
+返回附加标记：
+draft_validation=true
+saved_profile_modified=false
+
+输入示例：
+{
+  "template_configuration": {},
+  "section_configuration": {},
+  "excel_feature_flags": {}
+}
+
+范围说明：
+本任务只新增 backend endpoint。
+未修改前端配置检查。
+未删除前端 validator。
+未修改 mapping-health。
+未修改导出。
+未修改 AI parser。
+未修改 Workspace。
+
+下一步：
+V4-VALIDATOR-DRAFT-ENDPOINT01-AUDIT
+随后进入：
+V4-VALIDATOR-FRONTEND-USE-DRAFT01
 ```
 
 ## V4-REAL-BUSINESS-TEST01
