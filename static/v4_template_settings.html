@@ -2863,6 +2863,110 @@
             return targetCells.size === 1 && writeModes.length > 0 && writeModes.every((mode) => appendWriteModes.has(mode));
         }
 
+        function buildDraftValidationPayload(preferredItems = null) {
+            const items = collectValidationConfigurationItems(preferredItems);
+            const templateConfiguration = {};
+            items.forEach((item) => {
+                const cell = normalizeCell(item?.cell);
+                if (!cell) return;
+                templateConfiguration[cell] = {
+                    ...item,
+                    cell,
+                };
+            });
+
+            const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
+            const sectionConfiguration = cached?.savedSectionConfiguration && typeof cached.savedSectionConfiguration === "object"
+                ? cached.savedSectionConfiguration
+                : {};
+            const excelFeatureFlags = cached?.excelFeatureFlags && typeof cached.excelFeatureFlags === "object"
+                ? cached.excelFeatureFlags
+                : {};
+
+            return {
+                template_configuration: templateConfiguration,
+                section_configuration: sectionConfiguration,
+                excel_feature_flags: excelFeatureFlags,
+            };
+        }
+
+        function normalizeDraftValidationResult(result) {
+            const source = result && typeof result === "object" ? result : {};
+            const errors = Array.isArray(source.errors) ? source.errors : [];
+            const warnings = Array.isArray(source.warnings) ? source.warnings : [];
+            const checks = Array.isArray(source.checks) ? source.checks : [];
+            const issueCells = new Set([
+                ...errors.map((item) => normalizeCell(item?.cell)).filter(Boolean),
+                ...warnings.map((item) => normalizeCell(item?.cell)).filter(Boolean),
+            ]);
+
+            const normalizedErrors = errors.map((item) => ({
+                cell: normalizeCell(item?.cell),
+                type: item?.field_key || item?.label || "错误",
+                message: item?.message || "",
+            }));
+
+            const normalizedWarnings = warnings.map((item) => ({
+                cell: normalizeCell(item?.cell),
+                type: item?.field_key || item?.label || "警告",
+                message: item?.message || "",
+            }));
+
+            const passed = checks
+                .filter((item) => {
+                    const cell = normalizeCell(item?.cell || item?.source_cell);
+                    if (!cell || issueCells.has(cell)) return false;
+                    return item?.status === "ok" || item?.status === "skipped";
+                })
+                .map((item) => ({
+                    cell: normalizeCell(item?.cell || item?.source_cell),
+                    type: item?.status === "skipped" ? "已跳过" : "可用",
+                    message: Array.isArray(item?.problems) && item.problems.length
+                        ? item.problems.join("；")
+                        : (item?.status === "skipped" ? "已跳过" : "链路正常"),
+                }));
+
+            return {
+                errors: normalizedErrors,
+                warnings: normalizedWarnings,
+                passed,
+                source: "draft-backend",
+                raw: source,
+            };
+        }
+
+        async function validateCurrentMappingConfigurationWithDraftBackend(preferredItems = null) {
+            if (!selectedMappingId) {
+                return validateCurrentMappingConfiguration(preferredItems);
+            }
+
+            const payload = buildDraftValidationPayload(preferredItems);
+
+            try {
+                const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/validate-draft`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!result || result.success === false) {
+                    console.warn("V4 draft validation backend returned failure, falling back to local validation", result);
+                    return {
+                        ...validateCurrentMappingConfiguration(preferredItems),
+                        source: "frontend-fallback",
+                    };
+                }
+
+                return normalizeDraftValidationResult(result);
+            } catch (error) {
+                console.warn("V4 draft validation backend failed, falling back to local validation", error);
+                return {
+                    ...validateCurrentMappingConfiguration(preferredItems),
+                    source: "frontend-fallback",
+                };
+            }
+        }
+
         function validateCurrentMappingConfiguration(preferredItems = null) {
             const items = collectValidationConfigurationItems(preferredItems);
             const errors = [];
@@ -2957,10 +3061,10 @@
             });
         }
 
-        function renderConfigurationValidation(validation = null) {
+        async function renderConfigurationValidation(validation = null) {
             const area = document.getElementById("configurationValidation");
             if (!area) return;
-            const result = validation || validateCurrentMappingConfiguration();
+            const result = validation || await validateCurrentMappingConfigurationWithDraftBackend();
             const hasErrors = result.errors.length > 0;
             area.innerHTML = `
                 <div class="validation-header">

@@ -1753,6 +1753,47 @@ V4-VALIDATOR-DRAFT-ENDPOINT01-AUDIT
 随后进入：
 V4-VALIDATOR-FRONTEND-USE-DRAFT01
 
+---
+## V4-VALIDATOR-FRONTEND-USE-DRAFT01
+
+FRONTEND_USE_DRAFT_VALIDATOR01: IMPLEMENTED
+
+修改内容：
+/v4-template-settings 页面配置检查优先调用后端 draft validator。
+
+调用接口：
+POST /api/v4/template-profiles/{profile_id}/validate-draft
+
+设计原则：
+- 后端 draft validator 作为优先校验来源
+- 前端继续保留 validateCurrentMappingConfiguration() 作为 fallback
+- 不删除前端本地 validator
+- 不修改后端 endpoint
+- 不修改保存逻辑
+- 不自动保存 draft
+- 不写 profile/rules/schema/template 文件
+
+前端新增函数：
+- buildDraftValidationPayload()
+- normalizeDraftValidationResult()
+- validateCurrentMappingConfigurationWithDraftBackend()
+
+保留 fallback：
+如果后端 validate-draft 失败，配置检查会回退到本地 validateCurrentMappingConfiguration()。
+
+范围说明：
+未修改后端。
+未修改导出。
+未修改 AI parser。
+未修改 Workspace。
+未删除 mapping-health。
+未删除前端本地 validator。
+
+下一步：
+V4-VALIDATOR-FRONTEND-USE-DRAFT01-AUDIT
+在 GitHub 审计前端接入范围。
+随后再考虑 V4-VALIDATOR-FRONTEND-CLEANUP01。
+
 ## V4-REAL-BUSINESS-TEST01
 
 ```text
