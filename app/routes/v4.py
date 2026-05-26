@@ -2826,6 +2826,8 @@ def _build_mapping_health_report(profile):
         target_cell = _cell_key(item.get("target_cell"))
         show_in_workspace = item.get("show_in_workspace") is not False
         source_label_cell = _cell_key(item.get("label_cell") or cell)
+        section = str(item.get("section") or item.get("section_key") or "").strip()
+        semantic_type = str(item.get("semantic_type") or "").strip()
         problems = []
         status = "ok"
         is_skipped = write_mode in skipped_write_modes or intent_type in skipped_intents
@@ -2846,8 +2848,13 @@ def _build_mapping_health_report(profile):
         workspace_ready = bool(show_in_workspace and field_key and not is_skipped)
         export_ready = bool(target_cell and write_mode in executable_write_modes and not is_skipped and (not target_cell or excel_cell_re.match(target_cell)))
 
-        if field_key and not is_skipped:
-            field_usage.setdefault(field_key, []).append(cell)
+        if field_key and not is_skipped and show_in_workspace:
+            field_usage.setdefault(field_key, []).append({
+                "cell": cell,
+                "label": label,
+                "section": section,
+                "semantic_type": semantic_type,
+            })
         if target_cell and not is_skipped:
             target_usage.setdefault(target_cell, []).append(cell)
 
@@ -2873,17 +2880,54 @@ def _build_mapping_health_report(profile):
         )
 
     check_by_cell = {item["cell"]: item for item in checks}
-    for field_key, cells in field_usage.items():
-        if len(cells) <= 1:
+    
+    def _is_same_section_or_semantic(fields):
+        if len(fields) < 2:
+            return True
+        sections = {f["section"] for f in fields if f["section"]}
+        semantic_types = {f["semantic_type"] for f in fields if f["semantic_type"]}
+        
+        if len(sections) == 1:
+            return True
+        if len(semantic_types) == 1:
+            return True
+        
+        domain_parts = set()
+        for f in fields:
+            field_key = check_by_cell.get(f["cell"], {}).get("field_key", "")
+            if "." in field_key:
+                domain = field_key.split(".")[0]
+                domain_parts.add(domain)
+        if len(domain_parts) == 1:
+            return True
+        
+        return False
+    
+    for field_key, field_items in field_usage.items():
+        if len(field_items) <= 1:
             continue
-        message = f"field_key 重复：{field_key} 被 {len(cells)} 个配置项使用（{', '.join(cells)}）。"
-        for cell in cells:
+        
+        is_shared_field = _is_same_section_or_semantic(field_items)
+        cells = [f["cell"] for f in field_items]
+        labels = [f["label"] for f in field_items]
+        
+        if is_shared_field:
+            message = f"共享字段：{field_key} 被 {len(cells)} 个相关单元格使用（{', '.join(cells)}）。"
+            level = "info"
+        else:
+            message = f"field_key 重复：{field_key} 被 {len(cells)} 个配置项使用（{', '.join(cells)}）。"
+            level = "warning"
+        
+        for item in field_items:
+            cell = item["cell"]
+            label = item["label"]
             check = check_by_cell.get(cell)
             if check:
                 check["problems"].append(message)
-                if check["status"] == "ok":
+                if level == "warning" and check["status"] == "ok":
                     check["status"] = "warning"
-            warnings.append(_mapping_health_issue("warning", cell, check.get("label") if check else "", field_key, message))
+            if level == "warning":
+                warnings.append(_mapping_health_issue(level, cell, label, field_key, message))
 
     for target_cell, cells in target_usage.items():
         if len(cells) <= 1:

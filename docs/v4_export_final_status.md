@@ -1843,3 +1843,54 @@ Next-stage recommendation:
 - Do not expand taxonomy immediately for this profile; first collect several real trial transcripts and compare field gaps.
 - `V4-FIELD-CATALOG-DOMAIN03` is useful, but should be driven by the gap list above rather than broad taxonomy expansion.
 - Best next task: `V4-REAL-TRIAL-OBSERVABILITY01`, focused on saving per-order field hit/miss/export-readback telemetry for real trials.
+
+
+## V4-VALIDATOR-SMART-DUPLICATE01
+
+```text
+SMART_DUPLICATE_VALIDATION: IMPLEMENTED
+```
+
+Scope:
+- Modified `_build_mapping_health_report()` in `app/routes/v4.py`.
+- No export changes.
+- No AI parser changes.
+- No workspace changes.
+
+Problem:
+- Original validator flagged all duplicate `field_key` as WARNING.
+- Many legitimate shared fields like `packaging.container_type`, `batch_marking.requirement` were incorrectly flagged.
+
+Smart Duplicate Validation Rules:
+
+Case 1: Shared Field (INFO level)
+- Multiple cells with same field_key.
+- Same semantic cluster OR same section/group OR same domain prefix (e.g., packaging.*).
+- Message: "共享字段：{field_key} 被 {n} 个相关单元格使用。"
+- Does NOT increment warnings_count.
+
+Case 2: True Duplicate (WARNING level)
+- Multiple cells with same field_key.
+-明显跨 section 或跨无关语义域。
+- Message: "field_key 重复：{field_key} 被 {n} 个配置项使用。"
+- Increments warnings_count.
+
+Case 3: Skipped
+- `show_in_workspace=false` fields are not counted in duplicate detection.
+- Hidden helper fields are excluded.
+
+Implementation:
+- Modified `field_usage` to track cell, label, section, and semantic_type per field_key.
+- Added `_is_same_section_or_semantic()` helper function.
+- Check logic: same section -> same semantic_type -> same domain prefix (dotted field_key).
+- INFO-level messages are still added to cell problems but not to warnings list.
+
+Expected Impact:
+- `packaging.container_type` in multiple related cells -> INFO (shared field).
+- `batch_marking.requirement` in multiple related cells -> INFO (shared field).
+- Same field_key in completely different sections -> WARNING (true duplicate).
+
+Benefit:
+- Reduces false positive "字段标识重复" warnings in real business templates.
+- Preserves true duplicate detection for configuration errors.
+- Maintains backward compatibility - no API changes.
