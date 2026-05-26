@@ -2238,7 +2238,7 @@ Scope:
 Recommendation:
 - V4 页面目前维护两套独立的 validator 逻辑：
   1. 后端 `/api/v4/template-profiles/{profile_id}/mapping-health` 中的 `_build_mapping_health_report()`
-  2. 前端 `static/v4_template_settings.html` 中的 `validateConfiguration()` / `renderMappingHealthReport()`
+  2. 前端 `static/v4_template_settings.html` 中的 `validateCurrentMappingConfiguration()`
 - 两套逻辑已通过 V4-VALIDATOR-FRONTEND-SYNC01 同步了 field_key 重复检测和 append 模式识别。
 - 但仍然存在维护成本：每次修改规则需要同时改两个地方。
 
@@ -2257,5 +2257,8 @@ Option C: 移除前端 validator，只展示后端结果
 - Cons: 需要确认后端 API 响应时间可接受
 
 Recommendation:
-- Option C 是最小改动路径：后端 validator 已完整，前端 validator 是历史遗留。
-- 但需先验证后端 `/mapping-health` API 在页面场景下的响应时间。
+- 不建议直接执行 Option C。
+- 原因：前端 validator 当前仍承担"未保存草稿配置"的即时检查能力。
+- 推荐路线是先做 Option B 的变体：新增后端 draft validator endpoint，让前端把当前页面草稿配置 POST 给后端统一校验。
+- 后端 validator 成为权威规则来源，前端只负责收集草稿和展示结果。
+- 在 draft validator 闭环验证通过后，再考虑清理前端重复复杂判断。
