@@ -1,5 +1,5 @@
 {
-  "version": "v4-field-catalog-002",
+  "version": "v4-field-catalog-003",
   "description": "V4字段标识库",
   "domains": [
     {
@@ -10,12 +10,78 @@
           "key": "customer_name",
           "field_key": "customer_name",
           "label": "客户名称",
-          "aliases": ["客户名称", "客户公司", "客户", "公司名称", "customer name", "customer company"],
-          "keywords": ["客户名称", "客户公司", "客户", "customer"],
-          "ai_extract_hint": "客户名称 / 客户公司",
+          "aliases": ["客户名称", "客户公司", "客户名", "公司名称", "customer name", "customer company"],
+          "keywords": ["客户名称", "客户公司", "客户名", "公司名称", "customer name", "customer company"],
+          "ai_extract_hint": "客户名称 / 客户公司 / 公司名称",
           "type": "text",
           "enabled": true,
           "priority": 90
+        },
+        {
+          "key": "customer_type",
+          "field_key": "customer_type",
+          "label": "客户性质",
+          "aliases": ["客户性质", "客户类型", "客户类别", "客户属性", "客户分类", "客户等级", "customer type", "customer category", "customer nature"],
+          "keywords": ["客户性质", "客户类型", "客户类别", "客户属性", "客户分类", "客户等级", "customer type", "customer category", "customer nature"],
+          "ai_extract_hint": "客户性质 / 客户类型 / 客户类别",
+          "type": "text",
+          "enabled": true,
+          "priority": 89
+        },
+        {
+          "key": "customer_contact",
+          "field_key": "customer_contact",
+          "label": "客户联系人",
+          "aliases": ["客户联系人", "联系人", "联系人员", "contact person", "customer contact"],
+          "keywords": ["客户联系人", "联系人", "联系人员", "contact person", "customer contact"],
+          "ai_extract_hint": "客户联系人 / 联系人",
+          "type": "text",
+          "enabled": true,
+          "priority": 78
+        },
+        {
+          "key": "customer_address",
+          "field_key": "customer_address",
+          "label": "客户地址",
+          "aliases": ["客户地址", "收货地址", "地址", "customer address", "shipping address"],
+          "keywords": ["客户地址", "收货地址", "地址", "customer address", "shipping address"],
+          "ai_extract_hint": "客户地址 / 收货地址",
+          "type": "text",
+          "enabled": true,
+          "priority": 76
+        },
+        {
+          "key": "salesperson",
+          "field_key": "salesperson",
+          "label": "负责人",
+          "aliases": ["负责人", "业务员", "跟单员", "销售", "salesperson", "owner"],
+          "keywords": ["负责人", "业务员", "跟单员", "销售", "salesperson", "owner"],
+          "ai_extract_hint": "负责人 / 业务员 / 跟单员",
+          "type": "text",
+          "enabled": true,
+          "priority": 75
+        },
+        {
+          "key": "document_number",
+          "field_key": "document_number",
+          "label": "文档编号",
+          "aliases": ["文档编号", "文件编号", "单据编号", "document number", "doc no"],
+          "keywords": ["文档编号", "文件编号", "单据编号", "document number", "doc no"],
+          "ai_extract_hint": "文档编号 / 文件编号 / 单据编号",
+          "type": "text",
+          "enabled": true,
+          "priority": 74
+        },
+        {
+          "key": "order_code",
+          "field_key": "order_code",
+          "label": "订单编号",
+          "aliases": ["订单编号", "订单号", "订单代码", "order number", "order code", "order no"],
+          "keywords": ["订单编号", "订单号", "订单代码", "order number", "order code", "order no"],
+          "ai_extract_hint": "订单编号 / 订单号",
+          "type": "text",
+          "enabled": true,
+          "priority": 73
         },
         {
           "key": "order_date",

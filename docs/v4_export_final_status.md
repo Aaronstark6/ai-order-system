@@ -2431,3 +2431,57 @@ FRONTEND_FALLBACK_LABEL01A: COMMENT_STYLE_FIXED
 未修改后端。
 未删除本地 validator。
 未删除 isFrontendBusinessSharedField()。
+
+---
+V4-FIELD-CATALOG-BASIC01
+
+FIELD_CATALOG_BASIC01: IMPLEMENTED
+
+修改内容：
+补充基础字段库，解决 customer_name 过宽导致的基础字段误识别问题。
+
+背景：
+当前 customer_name 字段包含"客户"这种泛关键词，容易把"客户性质""客户类型""客户地址"等误识别为 customer_name。
+
+本次新增字段：
+customer_type
+customer_contact
+customer_address
+salesperson
+document_number
+order_code
+
+本次收窄字段：
+customer_name
+
+收窄内容：
+删除 customer_name 中单独的"客户"和单独的"customer"关键词。
+保留"客户名称""客户公司""客户名""公司名称"等明确名称类关键词。
+
+semantic fallback 调整：
+在 _slugify_semantic_field_key() 中新增 customer_type / customer_contact / customer_address / salesperson / document_number / order_code 的优先匹配。
+customer_type 等基础字段优先于 customer_name。
+customer_name 不再通过单独"客户"泛匹配。
+
+范围：
+未修改 validator。
+未修改前端。
+未修改导出。
+未修改 AI parser。
+未修改 Workspace。
+未修改 profile。
+未修改 rules。
+未修改模板文件。
+
+目的：
+这是通用基础字段增强，不是定制品订单模板特例。
+
+预期效果：
+客户名称 → customer_name
+客户性质 → customer_type
+客户类型 → customer_type
+客户联系人 → customer_contact
+客户地址 → customer_address
+负责人 / 业务员 → salesperson
+文档编号 → document_number
+订单编号 → order_code
