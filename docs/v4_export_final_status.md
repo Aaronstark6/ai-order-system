@@ -2105,3 +2105,41 @@ Optimization suggestions:
 - P2: Show staged loading states: profile selected -> configuration loaded -> visual grid loaded -> health loaded.
 - P2: Debounce rapid profile switch events and disable the selector while a switch is in flight.
 - P2: If templates grow further, virtualize visual-grid rows/columns; this is not the current primary bottleneck but will help large grids.
+
+---
+
+## V4-VALIDATOR-FRONTEND-SYNC01
+
+```
+FRONTEND_VALIDATOR_SYNC_RESULT: PASS
+```
+
+Root cause:
+- The Template Settings "配置检查" panel used a frontend-only validator in `static/v4_template_settings.html`.
+- Backend `mapping-health` had already downgraded legitimate shared business fields, but the frontend duplicate `fieldUsage` check still warned whenever the same `fieldKey` appeared more than once.
+
+Change:
+- Synced only the frontend `field_key` duplicate check.
+- Added frontend shared-business-field rules for `packaging.`, `batch_marking.`, and `labeling.`.
+- Same-row or adjacent-row option groups are no longer surfaced as duplicate warnings.
+- Append/composite writes sharing one target cell are also treated as shared business fields.
+
+Real template verification:
+- Profile: `定制品订单模板`
+- Misreported duplicate warnings removed:
+  - `packaging.container_type`: `B14 / C14 / D14`
+  - `packaging.container_fill`: `B17 / C17`
+  - `packaging.bottle_seal_method`: `B18 / C18 / D18 / D19`
+  - `batch_marking.requirement`: `B22 / C22 / D22 / E22`
+- True duplicate warnings preserved:
+  - `customer_name`: `B5 / C20 / E5` remained a warning before applying suggestions; after applying suggestions, `B5` and `E5` became `skip`, so the real page no longer had an active `customer_name` duplicate.
+  - `product_name`: `B8 / E10 / F10`
+
+Regression:
+- Console errors: `0`
+- Backend `mapping-health`: unaffected; no backend code changed.
+- Save attempt was blocked by an existing unrelated error: `G10` missing target write cell. No template profile file was modified.
+- `py_compile`: passed for `app/routes/v4.py` and `app/v4_excel_executor.py`.
+
+Follow-up:
+- Recommend `V4-VALIDATOR-UNIFY-AUDIT01` to audit whether the page can eventually use one backend validator instead of maintaining parallel frontend/backend duplicate logic.

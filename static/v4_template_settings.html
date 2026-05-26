@@ -2783,6 +2783,36 @@
             return Boolean(point && point.col >= 1 && point.col <= 16384 && point.row >= 1 && point.row <= 1048576);
         }
 
+        function cellRowNumber(cell) {
+            const match = normalizeCell(cell).match(/^[A-Z]{1,3}([1-9][0-9]*)$/);
+            if (!match) return null;
+            const row = Number(match[1]);
+            return Number.isFinite(row) ? row : null;
+        }
+
+        function isFrontendBusinessSharedField(fieldKey, usage) {
+            const key = String(fieldKey || "").trim();
+            if (!key.startsWith("packaging.") && !key.startsWith("batch_marking.") && !key.startsWith("labeling.")) {
+                return false;
+            }
+            if (!Array.isArray(usage) || usage.length < 2) return false;
+
+            const rows = usage.map((item) => cellRowNumber(item.cell));
+            if (rows.some((row) => row === null)) return false;
+            if (Math.max(...rows) - Math.min(...rows) <= 1) return true;
+
+            const appendWriteModes = new Set([
+                "append_after_colon",
+                "append_value",
+                "append_text",
+                "append_line",
+                "write_composite",
+            ]);
+            const targetCells = new Set(usage.map((item) => normalizeCell(item.targetCell)).filter(Boolean));
+            const writeModes = usage.map((item) => String(item.writeMode || "").trim());
+            return targetCells.size === 1 && writeModes.length > 0 && writeModes.every((mode) => appendWriteModes.has(mode));
+        }
+
         function validateCurrentMappingConfiguration(preferredItems = null) {
             const items = collectValidationConfigurationItems(preferredItems);
             const errors = [];
@@ -2824,12 +2854,20 @@
                 if (fieldKey && writeMode !== "skip") {
                     const key = fieldKey.toLowerCase();
                     if (!fieldUsage[key]) fieldUsage[key] = [];
-                    fieldUsage[key].push({ cell, fieldKey });
+                    fieldUsage[key].push({
+                        cell,
+                        fieldKey,
+                        writeMode,
+                        intentType,
+                        targetCell,
+                        showInWorkspace,
+                    });
                 }
             });
 
-            Object.values(fieldUsage).forEach((usage) => {
+            Object.entries(fieldUsage).forEach(([fieldKey, usage]) => {
                 if (usage.length <= 1) return;
+                if (isFrontendBusinessSharedField(fieldKey, usage)) return;
                 const cells = usage.map((item) => item.cell).join("、");
                 usage.forEach((item) => {
                     addIssue(warnings, item.cell, "字段标识重复", `字段标识 ${item.fieldKey} 被多个非 skip 单元格使用：${cells}`);
