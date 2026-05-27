@@ -2987,3 +2987,36 @@ IMPLEMENTED
 未修改 Validator。
 未修改 Export。
 未修改 Workspace。
+
+---
+## V4-SECTION-MANUAL-ASSIGN01B
+
+状态：
+IMPLEMENTED
+
+目标：
+修复字段所属分区保存后丢失的问题。
+
+根因：
+前端已收集 section_key。
+后端 _normalize_template_configuration_items() 未保存 section_key。
+因此保存后刷新页面，字段无法停留在人工选择的分区。
+
+修改：
+_normalize_template_configuration_items() 写入 section_key。
+字段归属现在随每个 template_configuration item 保存。
+
+范围：
+未修改前端。
+未修改保存接口。
+未修改模板分析。
+未修改 Field Catalog。
+未修改 Validator。
+未修改 Export。
+未修改 Workspace。
+
+验证目标：
+修改某字段所属分区。
+保存配置。
+刷新页面。
+该字段应留在人工选择的新分区。

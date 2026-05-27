@@ -254,6 +254,7 @@ def _normalize_template_configuration_items(items):
             "label": str(item.get("label") or "").strip(),
             "show_in_workspace": bool(item.get("show_in_workspace", True)),
             "display_order": int(item.get("display_order") or index),
+            "section_key": str(item.get("section_key") or item.get("manual_section_key") or "").strip(),
             "candidate_field_key": str(item.get("candidate_field_key") or item.get("field_key") or "").strip(),
             "candidate_field_label": str(item.get("candidate_field_label") or item.get("field_label") or "").strip(),
             "candidate_confidence": float(item.get("candidate_confidence") or 0),
