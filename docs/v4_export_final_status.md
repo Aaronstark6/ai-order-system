@@ -3178,3 +3178,35 @@ groupWorkspaceBusinessSections 不再重新业务分类，而是保留 schema se
 确认订单信息确认区分区名称与配置中心一致。
 配置中心新增分区、改名、移动字段后，刷新 /v4-order-workspace 应同步显示。
 字段数量和导出检查仍正常显示。
+
+---
+## V4-WORKSPACE-SECTION-SYNC01A
+
+状态：
+IMPLEMENTED
+
+目标：
+修复 /v4-order-workspace 初始配置预览不读取人工分区的问题。
+
+根因：
+V4-WORKSPACE-SECTION-SYNC01 只修复了 buildWorkspaceSchema() 路径。
+但页面未 AI 解析前的配置预览走 buildConfigurationPreviewSections()。
+该函数仍按 sectionKeyForConfiguredCell() 从 layout 推断分区，没有读取 config.section_key。
+
+修改：
+buildConfigurationPreviewSections() 优先读取 template_configuration item 的 section_key。
+通过 workspaceSectionMeta() 使用 section_configuration 的 section_label 和 section_order。
+只有 config.section_key 不存在时才 fallback 到 layout 分区。
+
+范围：
+未修改后端。
+未修改导出链路。
+未修改配置中心。
+未修改 static/index.html。
+未修改 AI 解析链路。
+
+验证目标：
+打开 /v4-order-workspace。
+不点击 AI解析。
+确认初始配置预览分区与配置中心一致。
+配置中心新增分区、改名、移动字段后，刷新 /v4-order-workspace 可同步显示。

@@ -2868,17 +2868,26 @@
                 if (!config || config.show_in_workspace === false) return;
                 const normalizedCell = normalizeConfigCell(cell);
                 if (!normalizedCell) return;
-                const sectionKey = sectionKeyForConfiguredCell(normalizedCell);
-                if (!grouped[sectionKey]) {
-                    grouped[sectionKey] = [];
-                    sectionKeys.push(sectionKey);
+                const configuredSectionKey = String(config.section_key || config.manual_section_key || "").trim();
+                const sectionKey = configuredSectionKey || sectionKeyForConfiguredCell(normalizedCell);
+                const sectionMeta = workspaceSectionMeta(sectionKey, sectionTitle(sectionKey), sectionKeys.length + 1);
+
+                if (!grouped[sectionMeta.key]) {
+                    grouped[sectionMeta.key] = [];
+                    if (!sectionKeys.includes(sectionMeta.key)) {
+                        sectionKeys.push(sectionMeta.key);
+                    }
                 }
+
                 const order = Number(config.display_order);
-                grouped[sectionKey].push({
+                grouped[sectionMeta.key].push({
                     cell: normalizedCell,
                     display_cell: normalizedCell,
                     label: typeof config.label === "string" && config.label.trim() ? config.label.trim() : normalizedCell,
-                    section: sectionTitle(sectionKey),
+                    section: sectionMeta.title,
+                    section_key: sectionMeta.key,
+                    section_title: sectionMeta.title,
+                    section_order: sectionMeta.order,
                     workspaceOrder: Number.isFinite(order) && order > 0 ? order : null,
                 });
             });
@@ -2904,8 +2913,22 @@
             });
 
             return sectionKeys
-                .map(key => ({ key, title: sectionTitle(key), items: grouped[key] || [] }))
-                .filter(section => section.items.length);
+                .map((key, index) => {
+                    const meta = workspaceSectionMeta(key, sectionTitle(key), index + 1);
+                    return {
+                        key: meta.key,
+                        title: meta.title,
+                        order: meta.order,
+                        items: grouped[meta.key] || grouped[key] || [],
+                    };
+                })
+                .filter(section => section.items.length)
+                .sort((left, right) => {
+                    const leftOrder = Number(left.order || 999999);
+                    const rightOrder = Number(right.order || 999999);
+                    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+                    return String(left.title || "").localeCompare(String(right.title || ""), "zh-CN");
+                });
         }
 
         function buildWorkspaceFieldSections(workspaceFields, parsedValues) {
