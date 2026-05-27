@@ -2666,3 +2666,25 @@ mapping_candidates 仅作为重新读取模板后的候选建议返回，不自�
 新建映射并上传模板后的状态，与点击"彻底刷新映射"后的状态一致。
 点击"彻底刷新映射"后，不应因为自动保存候选项而新增 field_key 重复 warning。
 如果用户需要生成正式配置，应继续使用"应用自动识别建议"或手工配置后保存。
+
+---
+## V4-VALIDATOR-FALLBACK-ALIGN01
+
+状态：
+IMPLEMENTED
+
+目标：
+明确前端本地 validator 仅作为后端 validate-draft 不可用时的兜底检查。
+
+原则：
+后端 validate-draft / mapping-health 是正式配置检查来源。
+前端 fallback validator 只用于网络失败或后端异常时的临时参考。
+fallback 不应被视为完整配置检查结果。
+
+范围：
+未修改后端 validator。
+未修改 mapping-health 规则。
+未修改 Field Catalog。
+未修改 Profile。
+未修改模板分析。
+未修改模板文件。

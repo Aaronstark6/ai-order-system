@@ -3147,6 +3147,7 @@
             }
 
             const hasErrors = result.errors.length > 0;
+            const isFallback = result.source === "frontend-fallback";
             area.innerHTML = `
                 <div class="validation-header">
                     <div>
@@ -3158,6 +3159,11 @@
                         <span class="validation-pill warning">警告 ${result.warnings.length}</span>
                     </div>
                 </div>
+                ${isFallback ? `
+                    <div class="validation-banner warning">
+                        当前为前端兜底检查：后端配置检查不可用，结果仅供临时参考。
+                    </div>
+                ` : ""}
                 <div class="validation-banner ${hasErrors ? "error" : "success"}">
                     ${hasErrors ? "存在错误，请先修正后再保存。" : "当前配置可以保存。"}
                 </div>
