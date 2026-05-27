@@ -3381,6 +3381,22 @@
                 }
             });
             const groups = {};
+            Object.entries(saved).forEach(([savedKey, sectionConfig], savedIndex) => {
+                const key = String(savedKey || "").trim();
+                if (!key) return;
+                if (groups[key]) return;
+                const savedOrder = Number(sectionConfig?.section_order);
+                groups[key] = {
+                    key,
+                    title: String(sectionConfig?.section_label || key || "人工分区"),
+                    sectionLabel: String(sectionConfig?.section_label || key || "人工分区"),
+                    sectionOrder: Number.isFinite(savedOrder) && savedOrder > 0 ? savedOrder : 900000 + savedIndex,
+                    startRow: 999999,
+                    startCol: 999999,
+                    rows: [],
+                    manualSection: true,
+                };
+            });
             rows.forEach((row, index) => {
                 const key = row.manualSectionKey || row.sectionKey || "other";
                 if (!groups[key]) {
@@ -3398,6 +3414,7 @@
                         startRow: Number(layout.startRow || 999999),
                         startCol: Number(layout.startCol || 999999),
                         rows: [],
+                        manualSection: Boolean(saved[key]),
                     };
                 }
                 groups[key].rows.push(row);
@@ -3628,10 +3645,76 @@
         function renderConfigViewToolbar() {
             return `
                 <div class="business-config-toolbar">
+                    <button type="button" onclick="addManualConfigSection()">新增分区</button>
                     <button type="button" class="${configViewMode === "table" ? "active" : "ghost"}" onclick="switchConfigViewMode('table')">表格模式</button>
                     <button type="button" class="${configViewMode === "business" ? "active" : "ghost"}" onclick="switchConfigViewMode('business')">业务表单模式</button>
                 </div>
             `;
+        }
+
+        function manualSectionKeyFromName(name) {
+            const raw = String(name || "").trim() || "人工分区";
+            const base = raw
+                .toLowerCase()
+                .replace(/\s+/g, "_")
+                .replace(/[^\w\u4e00-\u9fa5.-]+/g, "_")
+                .replace(/^_+|_+$/g, "");
+            return `manual_${base || "section"}_${Date.now()}`;
+        }
+
+        function addManualConfigSection() {
+            if (!selectedMappingId) {
+                setStatus("请先选择映射。", "warning");
+                return;
+            }
+            const name = window.prompt("请输入新分区名称：", "新分区");
+            const label = String(name || "").trim();
+            if (!label) return;
+            const cached = configByMappingId[selectedMappingId] || {};
+            const saved = cached.savedSectionConfiguration && typeof cached.savedSectionConfiguration === "object"
+                ? { ...cached.savedSectionConfiguration }
+                : {};
+            const key = manualSectionKeyFromName(label);
+            const existingOrders = Object.values(saved)
+                .map(item => Number(item?.section_order || 0))
+                .filter(value => Number.isFinite(value) && value > 0);
+            const nextOrder = existingOrders.length ? Math.max(...existingOrders) + 1 : 999;
+            saved[key] = {
+                section_key: key,
+                section_label: label,
+                section_order: nextOrder,
+                manual_section: true,
+            };
+            cached.savedSectionConfiguration = saved;
+            configByMappingId[selectedMappingId] = cached;
+            businessSectionCollapsed[key] = false;
+            setUnsavedChanges(true);
+            renderConfig();
+            renderConfigurationValidation();
+        }
+
+        function deleteManualConfigSection(sectionKey) {
+            const key = String(sectionKey || "").trim();
+            if (!key || !selectedMappingId) return;
+            const { configSections } = currentConfigRenderModel();
+            const target = configSections.find(section => String(section.key || "") === key);
+            const rowCount = Array.isArray(target?.rows) ? target.rows.length : 0;
+            if (rowCount > 0) {
+                window.alert("该分区内还有字段。请先把字段移动到其它分区，再删除该分区。");
+                return;
+            }
+            if (!window.confirm("确认删除这个空分区吗？")) return;
+            const cached = configByMappingId[selectedMappingId] || {};
+            const saved = cached.savedSectionConfiguration && typeof cached.savedSectionConfiguration === "object"
+                ? { ...cached.savedSectionConfiguration }
+                : {};
+            delete saved[key];
+            cached.savedSectionConfiguration = saved;
+            configByMappingId[selectedMappingId] = cached;
+            delete businessSectionCollapsed[key];
+            setUnsavedChanges(true);
+            renderConfig();
+            renderConfigurationValidation();
         }
 
         function currentConfigRenderModel() {
@@ -3701,13 +3784,13 @@
         function renderBusinessConfigView(configSections) {
             const safeSections = Array.isArray(configSections) ? configSections : [];
             const sectionsHtml = safeSections
-                .filter(section => Array.isArray(section.rows) && section.rows.length)
                 .map(section => {
                     const sectionKey = String(section.key || "other");
                     const rows = section.rows;
                     const collapsed = businessSectionCollapsed[sectionKey] !== false;
                     const sectionLabel = section.sectionLabel || section.title || "其他字段";
                     const sectionOrder = Number(section.sectionOrder || 0);
+                    const canDeleteSection = Array.isArray(rows) && rows.length === 0;
                     return `
                         <div class="business-config-section config-section" data-section-key="${escapeHtml(sectionKey)}">
                             <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
@@ -3717,9 +3800,10 @@
                                     <input data-section-field="order" type="hidden" value="${escapeHtml(sectionOrder)}">
                                 </span>
                                 <span class="mapping-section-count">${rows.length}</span>
+                                ${canDeleteSection ? `<button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>` : ""}
                             </div>
                             <div class="business-config-body ${collapsed ? "collapsed" : ""}">
-                                ${rows.map(row => `
+                                ${rows.length ? rows.map(row => `
                                     <div class="business-config-row" data-config-row ${renderConfigRowDataAttributes(row)}>
                                         <div class="business-config-label">
                                             ${escapeHtml(row.configLabel || row.candidateFieldLabel || row.candidateFieldKey || row.cell || "-")}
@@ -3732,14 +3816,16 @@
                                             ${renderSectionAssignmentControl(row, safeSections)}
                                         </div>
                                     </div>
-                                `).join("")}
+                                `).join("") : `
+                                    <div class="config-empty">该分区暂无字段。可在其它字段行的“所属分区”中选择此分区。</div>
+                                `}
                             </div>
                         </div>
                     `;
                 }).join("");
             return `
                 ${renderConfigViewToolbar()}
-                <div class="business-config-grid">${sectionsHtml || '<div class="config-empty">当前没有可配置字段。</div>'}</div>
+                <div class="business-config-grid">${sectionsHtml || '<div class="config-empty">当前没有可配置字段。可点击“新增分区”创建人工分区。</div>'}</div>
                 <div class="config-actions">
                     <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
                 </div>
@@ -3751,13 +3837,13 @@
             const safeSections = Array.isArray(configSections) ? configSections : [];
 
             const rowsHtml = safeSections
-                .filter(section => Array.isArray(section.rows) && section.rows.length)
                 .map(section => {
                     const sectionKey = String(section.key || "other");
                     const rows = section.rows;
                     const collapsed = businessSectionCollapsed[sectionKey] !== false;
                     const sectionLabel = section.sectionLabel || section.title || "其他字段";
                     const sectionOrder = Number(section.sectionOrder || 0);
+                    const canDeleteSection = Array.isArray(rows) && rows.length === 0;
                     return `
                     <div class="mapping-section-card config-section" data-section-key="${escapeHtml(sectionKey)}">
                         <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
@@ -3767,6 +3853,7 @@
                                 <input data-section-field="order" type="hidden" value="${escapeHtml(sectionOrder)}">
                             </span>
                             <span class="mapping-section-count">${rows.length}</span>
+                            ${canDeleteSection ? `<button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>` : ""}
                         </div>
                         <div class="mapping-section-body ${collapsed ? "collapsed" : ""}">
                             <table class="config-table">
@@ -3781,7 +3868,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${rows.map((row) => `
+                                    ${rows.length ? rows.map((row) => `
                                         <tr ${row.cell ? renderConfigRowDataAttributes(row) : ""}>
                                             <td>${escapeHtml(row.cell || "-")}</td>
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
@@ -3830,7 +3917,11 @@
                                                 </details>
                                             </td>
                                         </tr>
-                                    `).join("")}
+                                    `).join("") : `
+                                        <tr>
+                                            <td colspan="6" class="config-empty">该分区暂无字段。可在其它字段行的“所属分区”中选择此分区。</td>
+                                        </tr>
+                                    `}
                                 </tbody>
                             </table>
                         </div>
@@ -3840,7 +3931,7 @@
 
             area.innerHTML = `
                 ${renderConfigViewToolbar()}
-                ${rowsHtml || '<div class="config-empty">当前没有可配置字段。</div>'}
+                ${rowsHtml || '<div class="config-empty">当前没有可配置字段。可点击“新增分区”创建人工分区。</div>'}
                 <div class="config-actions">
                     <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
                 </div>

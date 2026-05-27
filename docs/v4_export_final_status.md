@@ -3020,3 +3020,43 @@ _normalize_template_configuration_items() 写入 section_key。
 保存配置。
 刷新页面。
 该字段应留在人工选择的新分区。
+
+---
+## V4-SECTION-MANUAL-MANAGE01
+
+状态：
+IMPLEMENTED
+
+目标：
+补全人工分区管理能力。
+
+背景：
+此前已经支持分区改名、字段移动到已有分区、section_key 持久化。
+但缺少新增分区和删除分区入口。
+
+修改：
+新增“新增分区”按钮。
+支持创建空人工分区。
+buildConfigSections 会保留 savedSectionConfiguration 中的空分区。
+空分区可以删除。
+有字段的分区不允许删除，避免误删字段归属。
+新增分区会进入字段“所属分区”下拉框。
+
+范围：
+未修改后端。
+未修改保存接口。
+未修改 Field Catalog。
+未修改模板分析。
+未修改 Validator。
+未修改 Export。
+未修改 Workspace。
+
+验证目标：
+点击新增分区。
+输入分区名。
+保存配置。
+刷新页面后新分区仍存在。
+把字段移动到新分区。
+保存并刷新后字段仍在新分区。
+空分区可以删除。
+有字段的分区不能删除。
