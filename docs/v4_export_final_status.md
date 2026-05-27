@@ -2722,3 +2722,34 @@ IMPLEMENTED
 把某个配置项的字段标识改成不存在的值，例如 abc_wrong_key。
 点击配置检查或保存后，应该出现 warning：
 field_key 不在字段库中：abc_wrong_key
+
+---
+## V4-SUGGESTION-SEMANTIC-ALIGN01
+
+状态：
+IMPLEMENTED
+
+目标：
+将"从字段库重新识别"明确改为"刷新字段库建议"。
+
+审计结论：
+后端 regenerate-field-catalog-candidates 只重新分析模板并返回 mapping_candidates。
+该接口不保存 profile。
+不修改 template_configuration。
+不修改 section_configuration。
+不修改人工配置。
+不清空 savedConfiguration。
+
+最终语义：
+刷新字段库建议只影响建议层。
+应用自动识别建议才会把建议写入配置层。
+彻底刷新映射才会清空配置并重建映射状态。
+
+范围：
+未修改后端。
+未修改 Field Catalog。
+未修改模板分析。
+未修改 Workspace。
+未修改 Export。
+未修改彻底刷新映射。
+未修改应用自动识别建议。

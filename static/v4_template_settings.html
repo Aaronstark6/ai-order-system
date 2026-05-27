@@ -2421,8 +2421,8 @@
                 ? `可应用自动识别建议：${stats.applicable}项`
                 : "请先选择映射";
             const detailText = stats.hasCandidates
-                ? `字段库候选共 ${stats.total} 项，应用后仍需点击“保存配置”。`
-                : "根据当前模板内容和字段库重新生成字段建议，不会自动覆盖已锁定人工配置。";
+                ? `字段库建议共 ${stats.total} 项；刷新建议不会修改已保存配置。`
+                : "可根据当前模板内容和字段库重新生成建议；不会修改已保存配置或人工配置。";
             area.innerHTML = `
                 <div class="semantic-control-status">
                     <strong>自动识别建议状态</strong>
@@ -2431,7 +2431,7 @@
                 </div>
                 <div class="semantic-control-actions">
                     <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>应用自动识别建议</button>
-                    <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>从字段库重新识别</button>
+                    <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>刷新字段库建议</button>
                     <button type="button" class="danger" onclick="fullRefreshCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>彻底刷新映射</button>
                     <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
                 </div>
@@ -2439,9 +2439,9 @@
             const reanalyzeButton = area.querySelector('button[onclick="reanalyzeCurrentMapping()"]');
             if (reanalyzeButton) {
                 reanalyzeButton.dataset.action = "reanalyze";
-                reanalyzeButton.textContent = "从字段库重新识别";
+                reanalyzeButton.textContent = "刷新字段库建议";
             }
-            setActionButtonsBusy("reanalyze", isReanalyzingMapping, "字段库识别中...");
+            setActionButtonsBusy("reanalyze", isReanalyzingMapping, "刷新字段库建议中...");
         }
 
         async function reanalyzeCurrentMapping() {
@@ -2449,7 +2449,7 @@
                 setStatus("请先选择映射。", "warning");
                 return;
             }
-            setStatus("正在根据字段库重新识别当前模板...", "info");
+            setStatus("正在刷新字段库建议；不会修改已保存配置或人工配置...", "info");
             const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/regenerate-field-catalog-candidates`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -2470,7 +2470,7 @@
             renderConfig();
             renderSemanticControlBar();
             const stats = getSemanticRecommendationStats();
-            setStatus(`字段库重新识别完成：${stats.total} 项建议，${stats.applicable} 项可应用。`, "success");
+            setStatus(`字段库建议刷新完成：${stats.total} 项建议，${stats.applicable} 项可应用。已保存配置未被修改。`, "success");
         }
 
         async function fullRefreshCurrentMapping() {
@@ -3798,14 +3798,14 @@
             }
             if (isReanalyzingMapping) return;
             isReanalyzingMapping = true;
-            setActionButtonsBusy("reanalyze", true, "字段库识别中...");
-            setStatus("字段库识别中...", "info");
+            setActionButtonsBusy("reanalyze", true, "刷新字段库建议中...");
+            setStatus("正在刷新字段库建议中...", "info");
             try {
                 await baseReanalyzeCurrentMapping();
                 const stats = getSemanticRecommendationStats();
-                setStatus(`字段库重新识别完成，发现 ${stats.total} 项建议，其中 ${stats.applicable} 项可应用。`, "success");
+                setStatus(`字段库建议刷新完成，发现 ${stats.total} 项建议，其中 ${stats.applicable} 项可应用。已保存配置未被修改。`, "success");
             } catch (error) {
-                setStatus(`字段库重新识别失败：${error.message || "未知错误"}`, "error");
+                setStatus(`字段库建议刷新失败：${error.message || "未知错误"}`, "error");
             } finally {
                 isReanalyzingMapping = false;
                 setActionButtonsBusy("reanalyze", false);
