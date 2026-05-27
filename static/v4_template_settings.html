@@ -2432,6 +2432,7 @@
                 <div class="semantic-control-actions">
                     <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>应用自动识别建议</button>
                     <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>从字段库重新识别</button>
+                    <button type="button" class="danger" onclick="fullRefreshCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>彻底刷新映射</button>
                     <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
                 </div>
             `;
@@ -2470,6 +2471,55 @@
             renderSemanticControlBar();
             const stats = getSemanticRecommendationStats();
             setStatus(`字段库重新识别完成：${stats.total} 项建议，${stats.applicable} 项可应用。`, "success");
+        }
+
+        async function fullRefreshCurrentMapping() {
+            if (!selectedMappingId) {
+                setStatus("请先选择映射。", "warning");
+                return;
+            }
+
+            const confirmed = confirm(
+                "确定要彻底刷新当前映射吗？\n\n此操作会清空当前映射已保存的字段配置，并基于当前模板和最新字段库重新生成。\n\n会保留映射名称和已上传模板文件。\n\n如果已经有大量人工调整，请先不要执行。"
+            );
+            if (!confirmed) return;
+
+            setStatus("正在彻底刷新当前映射...", "info");
+
+            const result = await fetchJson(`/api/v4/template-profiles/${encodeURIComponent(selectedMappingId)}/full-refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+            });
+
+            if (!result || result.success === false) {
+                setStatus(result?.error || "彻底刷新映射失败。", "error");
+                return;
+            }
+
+            const analysis = result.template_analysis && typeof result.template_analysis === "object" ? result.template_analysis : {};
+            const structure = analysis.template_structure && typeof analysis.template_structure === "object" ? analysis.template_structure : {};
+            configByMappingId[selectedMappingId] = {
+                ...(configByMappingId[selectedMappingId] || {}),
+                labels: Array.isArray(result.template_labels) ? result.template_labels : [],
+                structureLabels: Array.isArray(structure.labels) ? structure.labels : [],
+                sections: Array.isArray(result.layout_sections) ? result.layout_sections : [],
+                analysis,
+                candidates: Array.isArray(result.mapping_candidates) ? result.mapping_candidates : [],
+                savedConfiguration: result.template_configuration && typeof result.template_configuration === "object" ? result.template_configuration : {},
+                savedSectionConfiguration: result.section_configuration && typeof result.section_configuration === "object" ? result.section_configuration : {},
+                excelFeatureFlags: result.excel_feature_flags && typeof result.excel_feature_flags === "object" ? result.excel_feature_flags : {},
+            };
+
+            setUnsavedChanges(false);
+            await loadVisualGrid(selectedMappingId);
+            await loadMappingHealth(selectedMappingId, false);
+            renderConfig();
+            renderVisualWorkbench();
+            renderConfigurationValidation();
+            renderSemanticControlBar();
+
+            const count = Number(result?.summary?.template_configuration_count || 0);
+            setStatus(`彻底刷新映射完成：已生成 ${count} 个配置项。`, "success");
         }
 
         function openAdvancedDiagnostics() {

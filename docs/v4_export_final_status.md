@@ -2577,3 +2577,52 @@ user_edited=true 不覆盖。
 负责人/业务员 原为 customer_name 时，可升级为 salesperson。
 文档编号 原为 customer_name 时，可升级为 document_number。
 订单编号 原为 customer_name 时，可升级为 order_code。
+
+---
+V4-PROFILE-FULL-REFRESH01
+
+PROFILE_FULL_REFRESH01: IMPLEMENTED
+
+修改内容：
+新增"彻底刷新映射"能力。
+
+新增后端接口：
+POST /api/v4/template-profiles/{profile_id}/full-refresh
+
+新增前端按钮：
+彻底刷新映射
+
+功能语义：
+保留当前映射名和已上传模板文件。
+清空旧 template_configuration。
+清空旧 section_configuration。
+基于当前模板和最新字段库重新分析。
+生成新的 template_configuration。
+保存到当前 profile。
+
+与"从字段库重新识别"的区别：
+从字段库重新识别：
+- 只刷新 candidates
+- 不覆盖旧 savedConfiguration
+- 适合保守更新
+
+彻底刷新映射：
+- 清空旧配置
+- 重建配置
+- 适合字段库升级后旧映射质量较差的场景
+
+保护：
+前端必须弹窗确认。
+不会自动执行。
+不会删除模板文件。
+不会删除 profile。
+不会改映射名。
+
+范围：
+未修改 AI parser。
+未修改导出。
+未修改 validator 主逻辑。
+未修改字段库。
+未修改 profile 管理基础函数。
+未修改模板文件。
+未删除旧按钮。

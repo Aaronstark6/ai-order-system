@@ -4475,6 +4475,173 @@ def api_v4_template_profile_regenerate_field_catalog_candidates(profile_id: str)
         }
 
 
+@router.post("/api/v4/template-profiles/{profile_id}/full-refresh")
+def api_v4_template_profile_full_refresh(profile_id: str):
+    from app.v4_template_analysis import analyze_template
+
+    logger.info("V4 template profile full refresh requested: profile_id=%s", profile_id)
+
+    profile = load_template_profile(profile_id)
+    if not profile:
+        return {
+            "success": False,
+            "error": "Template Profile 不存在",
+            "profile_id": profile_id,
+            "template_configuration": {},
+            "section_configuration": {},
+            "mapping_candidates": [],
+        }
+
+    template_file_path = str(profile.get("template_file_path") or "").strip()
+    if not template_file_path:
+        return {
+            "success": False,
+            "error": "当前映射尚未绑定模板文件。",
+            "profile_id": profile.get("profile_id") or profile_id,
+            "template_configuration": {},
+            "section_configuration": {},
+            "mapping_candidates": [],
+        }
+
+    try:
+        bound_template_path = _resolve_bound_template_file_path(template_file_path)
+        analysis = analyze_template(bound_template_path)
+        layout_result = build_layout_sections_from_template_analysis(analysis)
+        layout_sections = layout_result.get("layout_sections", [])
+        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
+
+        template_configuration = {}
+        display_order = 0
+
+        for candidate in mapping_candidates:
+            if not isinstance(candidate, dict):
+                continue
+
+            cell = str(candidate.get("cell") or "").strip().upper()
+            if not cell:
+                continue
+
+            confidence = float(candidate.get("confidence") or candidate.get("semantic_confidence") or 0)
+            if candidate.get("semantic_promoted") is not True or confidence < 0.70:
+                continue
+
+            write_mode = str(candidate.get("write_mode") or "skip").strip()
+            intent_type = str(candidate.get("intent_type") or "unknown").strip()
+            if write_mode in {"skip", "none"} or intent_type in {"title", "section_header", "note_instruction", "attachment_hint", "image_area", "readonly_example"}:
+                continue
+
+            display_order += 1
+            label = str(
+                candidate.get("field_label")
+                or candidate.get("label")
+                or candidate.get("label_text")
+                or candidate.get("cell")
+                or ""
+            ).strip()
+
+            template_configuration[cell] = {
+                "cell": cell,
+                "label": label,
+                "show_in_workspace": True,
+                "display_order": display_order,
+                "candidate_field_key": str(candidate.get("field_key") or "").strip(),
+                "candidate_field_label": str(candidate.get("field_label") or label or "").strip(),
+                "candidate_confidence": confidence,
+                "candidate_source": str(candidate.get("source") or "").strip(),
+                "candidate_reason": str(candidate.get("candidate_reason") or "").strip(),
+                "confidence_breakdown": candidate.get("confidence_breakdown") if isinstance(candidate.get("confidence_breakdown"), dict) else {},
+                "intent_type": intent_type,
+                "write_mode": write_mode,
+                "label_cell": str(candidate.get("label_cell") or candidate.get("cell") or "").strip().upper(),
+                "target_cell": str(candidate.get("target_cell") or "").strip().upper(),
+                "option_value": str(candidate.get("option_value") or "").strip(),
+                "intent_confidence": float(candidate.get("intent_confidence") or candidate.get("semantic_confidence") or 0),
+                "intent_reason": str(candidate.get("intent_reason") or candidate.get("semantic_reason") or "").strip(),
+                "ai_extract_hint": str(candidate.get("ai_extract_hint") or label or "").strip(),
+                "field_type": str(candidate.get("field_type") or "text").strip() or "text",
+                "semantic_type": str(candidate.get("semantic_type") or "").strip(),
+                "semantic_region_id": str(candidate.get("semantic_region_id") or "").strip(),
+                "semantic_confidence": float(candidate.get("semantic_confidence") or 0),
+                "semantic_reason": str(candidate.get("semantic_reason") or "").strip(),
+                "semantic_promoted": bool(candidate.get("semantic_promoted")),
+                "manual_override": False,
+                "user_edited": False,
+            }
+
+        refreshed_profile = dict(profile)
+        render_config = refreshed_profile.get("render_config") if isinstance(refreshed_profile.get("render_config"), dict) else {}
+        render_config = dict(render_config)
+        render_config["template_configuration"] = template_configuration
+        render_config["section_configuration"] = {}
+        refreshed_profile["render_config"] = render_config
+
+        saved_profile = save_template_profile(refreshed_profile)
+        runtime_report = _build_mapping_health_report(saved_profile)
+
+        return {
+            "success": True,
+            "profile_id": saved_profile.get("profile_id") or profile_id,
+            "message": "映射已彻底刷新",
+            "profile": saved_profile,
+            "has_template_file": True,
+            "layout_sections": layout_sections,
+            "layout_summary": layout_result.get("summary", {}),
+            "template_analysis": analysis if isinstance(analysis, dict) else {},
+            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
+            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
+            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
+            "template_configuration": template_configuration,
+            "section_configuration": {},
+            "runtime_mapping_source": _get_runtime_mapping_source(saved_profile),
+            "excel_feature_flags": _get_excel_feature_flags(saved_profile),
+            "mapping_candidates": mapping_candidates,
+            "mapping_health": runtime_report,
+            "summary": {
+                "template_configuration_count": len(template_configuration),
+                "mapping_candidates_count": len(mapping_candidates),
+                "field_catalog_candidates_count": sum(
+                    1 for item in mapping_candidates
+                    if isinstance(item, dict) and str(item.get("source") or "").startswith("field_catalog")
+                ),
+                "applicable_candidates_count": sum(
+                    1 for item in mapping_candidates
+                    if isinstance(item, dict)
+                    and item.get("semantic_promoted") is True
+                    and float(item.get("confidence") or 0) >= 0.70
+                ),
+            },
+        }
+
+    except (BadZipFile, InvalidFileException) as exc:
+        return {
+            "success": False,
+            "error": f"Excel 模板格式无效：{exc}",
+            "profile_id": profile.get("profile_id") or profile_id,
+            "template_configuration": {},
+            "section_configuration": {},
+            "mapping_candidates": [],
+        }
+    except (OSError, ValueError) as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "profile_id": profile.get("profile_id") or profile_id,
+            "template_configuration": {},
+            "section_configuration": {},
+            "mapping_candidates": [],
+        }
+    except Exception as exc:
+        logger.exception("V4 template profile full refresh failed")
+        return {
+            "success": False,
+            "error": str(exc) or "彻底刷新映射失败",
+            "profile_id": profile.get("profile_id") or profile_id,
+            "template_configuration": {},
+            "section_configuration": {},
+            "mapping_candidates": [],
+        }
+
+
 @router.get("/api/v4/template-profiles/{profile_id}/visual-grid")
 def api_v4_template_profile_visual_grid(profile_id: str):
     from app.v4_template_analysis import analyze_template
