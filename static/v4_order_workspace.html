@@ -1373,6 +1373,19 @@
             return getSectionConfiguration()[sectionKey] || null;
         }
 
+        function workspaceSectionMeta(sectionKey, fallbackTitle, fallbackOrder) {
+            const key = String(sectionKey || "").trim() || "other";
+            const sectionConfig = getSectionConfig(key);
+            const configuredOrder = Number(sectionConfig && sectionConfig.section_order);
+            return {
+                key,
+                title: String(sectionConfig && sectionConfig.section_label || fallbackTitle || key || "其他信息"),
+                order: Number.isFinite(configuredOrder) && configuredOrder > 0
+                    ? configuredOrder
+                    : Number(fallbackOrder || 999),
+            };
+        }
+
         function getItemTemplateConfiguration(item) {
             const configuration = getTemplateConfiguration();
             const cell = normalizeConfigCell(item.cell);
@@ -1387,6 +1400,9 @@
                     ...item,
                     workspaceVisible: true,
                     workspaceOrder: null,
+                    section_key: String(item.section_key || item.manual_section_key || item.section || "").trim(),
+                    section_title: String(item.section_title || "").trim(),
+                    section_order: Number(item.section_order || 0),
                 };
             }
 
@@ -1394,11 +1410,15 @@
             return {
                 ...item,
                 label: typeof config.label === "string" && config.label.trim() ? config.label.trim() : item.label,
+                field_key: config.field_key || config.candidate_field_key || item.field_key || "",
                 workspaceVisible: config.show_in_workspace !== false,
                 workspaceOrder: Number.isFinite(order) && order > 0 ? order : null,
                 field_type: config.field_type || item.field_type,
                 image_fit: config.image_fit || item.image_fit,
                 image_anchor_cell: config.image_anchor_cell || item.image_anchor_cell || config.target_cell || item.cell,
+                section_key: String(config.section_key || config.manual_section_key || item.section_key || item.manual_section_key || item.section || "").trim(),
+                section_title: String(config.section_title || item.section_title || "").trim(),
+                section_order: Number(config.section_order || item.section_order || 0),
             };
         }
 
@@ -1433,6 +1453,9 @@
                 option_value: field.option_value || "",
                 ai_extract_hint: field.ai_extract_hint || "",
                 section: field.section || "",
+                section_key: String(field.section_key || field.manual_section_key || "").trim(),
+                section_title: String(field.section_title || "").trim(),
+                section_order: Number(field.section_order || 0),
                 workspaceOrder: Number.isFinite(displayOrder) && displayOrder > 0 ? displayOrder : null,
                 source: "Visual Mapping",
                 row_offset: Number(field.row_offset || 0),
@@ -1884,7 +1907,11 @@
                         source: field.source || "Visual Mapping",
                     },
                 };
-                const section = inferBusinessSection(field);
+                const configuredSectionKey = String(field.section_key || field.manual_section_key || "").trim();
+                const fallbackSection = inferBusinessSection(field);
+                const section = configuredSectionKey
+                    ? workspaceSectionMeta(configuredSectionKey, field.section_title || fallbackSection.title, field.section_order || fallbackSection.order)
+                    : fallbackSection;
                 base.section_key = section.key;
                 base.section_title = section.title;
                 base.section_order = section.order;
@@ -2244,24 +2271,26 @@
         }
 
         function groupWorkspaceBusinessSections(sections) {
-            const groupedFields = {};
-            (Array.isArray(sections) ? sections : []).forEach(section => {
-                const fields = Array.isArray(section.fields) ? section.fields : (section.items || []);
-                fields.forEach(field => {
-                    const sectionKey = detectWorkspaceSection(field);
-                    if (!groupedFields[sectionKey]) {
-                        groupedFields[sectionKey] = [];
-                    }
-                    groupedFields[sectionKey].push(field);
+            const safeSections = Array.isArray(sections) ? sections : [];
+            return safeSections
+                .map((section, index) => {
+                    const key = String(section.key || "").trim() || `section_${index + 1}`;
+                    const fields = Array.isArray(section.fields) ? section.fields : (section.items || []);
+                    const meta = workspaceSectionMeta(key, section.title || section.label || key, section.order || index + 1);
+                    return {
+                        key: meta.key,
+                        title: meta.title,
+                        order: meta.order,
+                        fields,
+                    };
+                })
+                .filter(section => Array.isArray(section.fields) && section.fields.length)
+                .sort((left, right) => {
+                    const leftOrder = Number(left.order || 999999);
+                    const rightOrder = Number(right.order || 999999);
+                    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+                    return String(left.title || "").localeCompare(String(right.title || ""), "zh-CN");
                 });
-            });
-            return WORKSPACE_SECTION_RULES
-                .map(section => ({
-                    key: section.key,
-                    title: section.label,
-                    fields: groupedFields[section.key] || [],
-                }))
-                .filter(section => section.fields.length);
         }
 
         function workspaceSourceBadge(item) {

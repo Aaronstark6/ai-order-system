@@ -3145,3 +3145,36 @@ V4-WORKSPACE-PROFILE-MIGRATION01B
 选择映射后，订单信息确认区按配置中心分区显示。
 配置中心新增分区、改名、移动字段后，首页刷新后同步显示。
 点击生成 Excel 时出现 V4 导出迁移提示，不再误走 legacy 导出链路。
+
+---
+## V4-WORKSPACE-SECTION-SYNC01
+
+状态：
+IMPLEMENTED
+
+目标：
+让 /v4-order-workspace 页面按配置中心分区显示字段。
+
+根因：
+V4-WORKSPACE-PROFILE-MIGRATION01A 修改的是 static/index.html。
+实际工作页是 /v4-order-workspace，对应 static/v4_order_workspace.html。
+该页面仍使用 detectWorkspaceSection() 和 WORKSPACE_SECTION_RULES 重新按业务语义分区，导致配置中心分区无法同步到工作页。
+
+修改：
+normalizeWorkspaceField 保留 section_key / section_title / section_order。
+applyTemplateConfiguration 从 template_configuration 读取 section_key。
+buildWorkspaceSchema 优先使用字段 section_key。
+groupWorkspaceBusinessSections 不再重新业务分类，而是保留 schema sections，并按 section_configuration 的 section_label / section_order 显示。
+
+范围：
+未修改后端。
+未修改导出链路。
+未修改配置中心。
+未修改 static/index.html。
+未删除旧 WORKSPACE_SECTION_RULES。
+
+验证目标：
+打开 /v4-order-workspace。
+确认订单信息确认区分区名称与配置中心一致。
+配置中心新增分区、改名、移动字段后，刷新 /v4-order-workspace 应同步显示。
+字段数量和导出检查仍正常显示。
