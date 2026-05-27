@@ -2384,6 +2384,7 @@
                     semanticPromoted: Boolean(item.semantic_promoted ?? candidate.semantic_promoted ?? false),
                     manualOverride: Boolean(item.manual_override || item.user_edited),
                     userEdited: Boolean(item.user_edited),
+                    manualSectionKey: String(item.section_key || item.manual_section_key || ""),
                 };
             });
         }
@@ -2846,6 +2847,7 @@
                 const showInput = row.querySelector("input[data-config-field='show']");
                 const orderInput = row.querySelector("input[data-config-field='order']");
                 const fieldKeyInput = row.querySelector("input[data-config-field='field_key']");
+                const sectionKeyInput = row.querySelector("[data-config-field='section_key']");
                 const debugRow = row.nextElementSibling && row.nextElementSibling.classList.contains("debug-row")
                     ? row.nextElementSibling
                     : null;
@@ -2863,6 +2865,7 @@
                     cell, label: labelInput ? labelInput.value.trim() : (labelSelect ? labelSelect.value.trim() : ""),
                     show_in_workspace: showInput ? showInput.checked : true,
                     display_order: orderInput ? Number(orderInput.value || 0) : 0,
+                    section_key: sectionKeyInput ? sectionKeyInput.value.trim() : (row.dataset.sectionKey || ""),
                     candidate_field_key: fieldKeyInput ? fieldKeyInput.value.trim() : "",
                     candidate_field_label: row.dataset.candidateFieldLabel || "",
                     candidate_confidence: Number(row.dataset.candidateConfidence || 0),
@@ -3379,7 +3382,7 @@
             });
             const groups = {};
             rows.forEach((row, index) => {
-                const key = row.sectionKey || "other";
+                const key = row.manualSectionKey || row.sectionKey || "other";
                 if (!groups[key]) {
                     const layout = layoutByKey[key] || {};
                     const section = layout.section || {};
@@ -3405,6 +3408,33 @@
                 if (left.sectionOrder !== right.sectionOrder) return left.sectionOrder - right.sectionOrder;
                 return String(left.title || "").localeCompare(String(right.title || ""), "zh-CN");
             });
+        }
+
+        function buildSectionSelectOptions(configSections, selectedKey) {
+            const safeSections = Array.isArray(configSections) ? configSections : [];
+            const seen = new Set();
+            return safeSections
+                .filter(section => section && section.key)
+                .filter(section => {
+                    const key = String(section.key || "");
+                    if (!key || seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                })
+                .map(section => {
+                    const key = String(section.key || "");
+                    const label = String(section.sectionLabel || section.title || key);
+                    return `<option value="${escapeHtml(key)}" ${key === selectedKey ? "selected" : ""}>${escapeHtml(label)}</option>`;
+                }).join("");
+        }
+
+        function renderSectionAssignmentControl(row, configSections) {
+            const currentKey = String(row.manualSectionKey || row.sectionKey || "other");
+            return `
+                <select data-config-field="section_key" onchange="markConfigurationRowEdited(this); renderConfig();">
+                    ${buildSectionSelectOptions(configSections, currentKey)}
+                </select>
+            `;
         }
 
         function collectEditableSectionConfiguration() {
@@ -3630,7 +3660,7 @@
 
         function renderConfigRowDataAttributes(row) {
             if (!row.cell) return "";
-            return `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-table-col-offset="${Number(row.tableColOffset || 0)}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-field-type="${escapeHtml(row.fieldType || "text")}" data-image-fit="${escapeHtml(row.imageFit || "contain")}" data-image-anchor-cell="${escapeHtml(row.imageAnchorCell || row.targetCell || row.cell || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}"`;
+            return `data-cell="${escapeHtml(normalizeCell(row.cell))}" data-candidate-field-label="${escapeHtml(row.candidateFieldLabel || "")}" data-candidate-confidence="${escapeHtml(row.candidateConfidence || 0)}" data-candidate-source="${escapeHtml(row.candidateSource || "")}" data-candidate-reason="${escapeHtml(row.candidateReason || "")}" data-confidence-breakdown="${escapeHtml(JSON.stringify(row.confidenceBreakdown || {}))}" data-intent-type="${escapeHtml(row.intentType || "")}" data-write-mode="${escapeHtml(row.writeMode || "")}" data-label-cell="${escapeHtml(row.labelCell || "")}" data-target-cell="${escapeHtml(row.targetCell || "")}" data-option-value="${escapeHtml(row.optionValue || "")}" data-table-col-offset="${Number(row.tableColOffset || 0)}" data-intent-confidence="${escapeHtml(row.intentConfidence || 0)}" data-intent-reason="${escapeHtml(row.intentReason || "")}" data-field-type="${escapeHtml(row.fieldType || "text")}" data-image-fit="${escapeHtml(row.imageFit || "contain")}" data-image-anchor-cell="${escapeHtml(row.imageAnchorCell || row.targetCell || row.cell || "")}" data-semantic-type="${escapeHtml(row.semanticType || "")}" data-semantic-region-id="${escapeHtml(row.semanticRegionId || "")}" data-semantic-confidence="${escapeHtml(row.semanticConfidence || 0)}" data-semantic-reason="${escapeHtml(row.semanticReason || "")}" data-semantic-promoted="${row.semanticPromoted ? "true" : "false"}" data-manual-override="${row.manualOverride ? "true" : "false"}" data-user-edited="${row.userEdited ? "true" : "false"}" data-section-key="${escapeHtml(row.manualSectionKey || row.sectionKey || "")}"`;
         }
 
         function renderBusinessConfigEditor(row) {
@@ -3696,7 +3726,11 @@
                                             <small>${escapeHtml(row.candidateFieldKey ? friendlyFieldKeyLabel(row.candidateFieldKey) : (row.intentType || "-"))}</small>
                                         </div>
                                         <div class="business-config-editor">${renderBusinessConfigEditor(row)}${renderBusinessSemanticPanel(row)}${renderBusinessConfigHiddenFields(row)}</div>
-                                        <div class="business-config-cell">${escapeHtml(row.cell || "-")}</div>
+                                        <div class="business-config-cell">
+                                            <div>${escapeHtml(row.cell || "-")}</div>
+                                            <div class="small">所属分区</div>
+                                            ${renderSectionAssignmentControl(row, safeSections)}
+                                        </div>
                                     </div>
                                 `).join("")}
                             </div>
@@ -3742,6 +3776,7 @@
                                         <th class="field-col">字段名</th>
                                         <th class="key-col">字段标识</th>
                                         <th class="show-col">显示</th>
+                                        <th class="action-col">所属分区</th>
                                         <th class="action-col">详情</th>
                                     </tr>
                                 </thead>
@@ -3752,10 +3787,11 @@
                                             <td><input class="field-input" data-config-field="label" type="text" value="${escapeHtml(row.configLabel || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td class="show-col"><input class="show-checkbox" data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${row.cell ? "" : "disabled"}></td>
+                                            <td class="action-col">${renderSectionAssignmentControl(row, safeSections)}</td>
                                             <td class="action-col"><button class="small" type="button">详情</button></td>
                                         </tr>
                                         <tr class="debug-row" style="display:none;">
-                                            <td colspan="5">
+                                            <td colspan="6">
                                                 <details class="debug-details" open>
                                                     <summary>智能推荐详情</summary>
                                                     ${renderSemanticAnalysisPanel(row, { title: "AI识别结果" })}

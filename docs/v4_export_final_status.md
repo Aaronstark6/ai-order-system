@@ -2924,3 +2924,37 @@ renderTableConfigView 改为直接渲染 configSections。
 配置区主分区更接近模板结构和 Excel 从上到下的空间顺序。
 用户仍可人工修改分区名称。
 后续如需彻底支持字段归属人工移动，可继续做 V4-SECTION-MANUAL-ASSIGN01。
+
+---
+## V4-SECTION-MANUAL-ASSIGN01
+
+状态：
+IMPLEMENTED
+
+目标：
+允许用户人工调整字段所属分区。
+
+设计：
+系统默认按 configSections / layout_sections 显示配置分区。
+每个字段行新增"所属分区"选择。
+用户可以把字段移动到当前已有分区。
+字段归属保存到每个配置 item 的 section_key。
+buildConfigSections 优先使用 item.section_key，再使用原始 row.sectionKey。
+
+范围：
+未修改后端。
+未修改 Field Catalog。
+未修改模板分析。
+未修改 Validator。
+未修改 Export。
+未修改 Workspace。
+未修改保存接口。
+仅修改前端配置页渲染和 item 收集字段。
+
+验证目标：
+打开模板设置页。
+把某个字段的所属分区改到另一个分区。
+点击保存配置。
+刷新页面后，该字段仍出现在人工选择的分区中。
+配置检查仍正常。
+保存后导出链路不应受影响。
