@@ -3094,3 +3094,54 @@ IMPLEMENTED
 点击有字段分区的删除按钮，提示先移动字段。
 空分区可以删除。
 三角和分区名在同一行。
+
+---
+## V4-WORKSPACE-PROFILE-MIGRATION01A
+
+状态：
+IMPLEMENTED
+
+目标：
+将首页订单工作台的字段显示模型从 legacy profile 迁移到 V4 Template Profile。
+
+问题：
+配置中心已经使用 V4 Profile：
+v4/template_profiles/*.json
+render_config.template_configuration
+render_config.section_configuration
+
+但首页仍使用 legacy profile：
+/api/template-profiles
+data/template_profiles.json
+profile.mappings
+profile.mapping_order
+visibleFields
+renderForm()
+
+导致配置中心的分区改名、新增分区、字段移动无法同步到首页订单工作台。
+
+修改：
+首页 loadProfiles() 改读 /api/v4/template-profiles。
+选择映射时调用 /api/v4/set-current-template-profile。
+visibleFields 改由 V4 render_config.template_configuration 生成。
+新增 workspaceSections。
+renderForm() 按 V4 section_configuration + item.section_key 分区显示字段。
+分区名、顺序、字段归属与配置中心保持一致。
+
+范围：
+只修改首页显示模型。
+未修改后端。
+未修改配置中心。
+未修改 AI 解析接口。
+未修改导出链路。
+为避免旧导出链路继续误用 legacy profile，本阶段首页生成 Excel 按钮会提示等待 V4 导出链路迁移。
+
+下一步：
+V4-WORKSPACE-PROFILE-MIGRATION01B
+将首页生成 Excel 迁移到 V4 confirmed workspace/export 链路。
+
+验证目标：
+首页模板下拉显示 V4 模板映射。
+选择映射后，订单信息确认区按配置中心分区显示。
+配置中心新增分区、改名、移动字段后，首页刷新后同步显示。
+点击生成 Excel 时出现 V4 导出迁移提示，不再误走 legacy 导出链路。
