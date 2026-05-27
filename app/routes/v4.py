@@ -4758,15 +4758,37 @@ def api_v4_template_profile_validate_draft(profile_id: str, payload: Any = Body(
     draft_excel_feature_flags = payload.get("excel_feature_flags")
 
     temp_profile = dict(profile)
+    existing_render_config = profile.get("render_config") if isinstance(profile.get("render_config"), dict) else {}
+    temp_profile["render_config"] = dict(existing_render_config)
 
     if isinstance(draft_template_configuration, dict):
-        temp_profile["template_configuration"] = draft_template_configuration
+        temp_profile["render_config"]["template_configuration"] = draft_template_configuration
 
     if isinstance(draft_section_configuration, dict):
-        temp_profile["section_configuration"] = draft_section_configuration
+        temp_profile["render_config"]["section_configuration"] = draft_section_configuration
 
     if isinstance(draft_excel_feature_flags, dict):
         temp_profile["excel_feature_flags"] = draft_excel_feature_flags
+
+    runtime_configuration = _template_configuration_from_profile(temp_profile)
+    draft_count = len(draft_template_configuration) if isinstance(draft_template_configuration, dict) else 0
+    runtime_count = len(runtime_configuration)
+
+    logger.info(
+        "V4 validate-draft using render_config config: profile_id=%s draft_template_configuration_count=%d runtime_template_configuration_count=%d render_config_exists=%s",
+        profile_id,
+        draft_count,
+        runtime_count,
+        "true"
+    )
+
+    if draft_count != runtime_count:
+        logger.warning(
+            "V4 validate-draft configuration source mismatch: profile_id=%s draft_count=%d runtime_count=%d",
+            profile_id,
+            draft_count,
+            runtime_count
+        )
 
     report = _build_mapping_health_report(temp_profile)
 
