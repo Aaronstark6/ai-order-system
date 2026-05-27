@@ -2626,3 +2626,43 @@ POST /api/v4/template-profiles/{profile_id}/full-refresh
 未修改 profile 管理基础函数。
 未修改模板文件。
 未删除旧按钮。
+
+---
+## V4-PROFILE-FULL-REFRESH01B
+
+PROFILE_FULL_REFRESH01B: IMPLEMENTED
+
+修复目标：
+彻底刷新映射必须等价于删除当前映射后重新建立同名映射并重新绑定同一个模板。
+
+最终语义：
+只保留映射身份和已上传模板信息。
+清空旧 template_configuration。
+清空旧 section_configuration。
+清空旧 excel_feature_flags。
+清空旧人工编辑标记。
+清空旧 savedConfiguration。
+清空旧自动生成配置。
+重新读取模板，但不自动保存候选项为正式配置。
+
+关键修复：
+新增 overwrite_template_profile(profile)，用于覆盖写入 profile json，避免 save_template_profile() 的 merge 行为保留旧字段。
+full-refresh endpoint 改为保存 clean_profile，而不是在旧 profile 上增量修改。
+返回 template_configuration={}。
+返回 section_configuration={}。
+mapping_candidates 仅作为重新读取模板后的候选建议返回，不自动写入正式配置。
+
+范围：
+未修改字段库。
+未修改模板分析。
+未修改前端按钮。
+未修改 validator。
+未修改 mapping-health。
+未修改模板文件。
+未修改 Workspace。
+未修改 Export。
+
+验证目标：
+新建映射并上传模板后的状态，与点击"彻底刷新映射"后的状态一致。
+点击"彻底刷新映射"后，不应因为自动保存候选项而新增 field_key 重复 warning。
+如果用户需要生成正式配置，应继续使用"应用自动识别建议"或手工配置后保存。

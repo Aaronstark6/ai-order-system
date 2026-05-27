@@ -54,6 +54,7 @@ from app.v4_template_profiles import (
     get_current_template_profile,
     list_template_profiles,
     load_template_profile,
+    overwrite_template_profile,
     save_template_profile,
     validate_template_profile,
 )
@@ -4510,72 +4511,37 @@ def api_v4_template_profile_full_refresh(profile_id: str):
         layout_sections = layout_result.get("layout_sections", [])
         mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
 
-        template_configuration = {}
-        display_order = 0
+        clean_profile = {
+            "profile_id": profile.get("profile_id") or profile_id,
+            "profile_name": profile.get("profile_name") or profile.get("profile_id") or profile_id,
+            "schema_version": profile.get("schema_version") or "v4.1",
+            "layout_hash": profile.get("layout_hash") or "",
+            "template_name": profile.get("template_name") or "",
+            "template_filename": profile.get("template_filename") or "",
+            "template_file_path": template_file_path,
+            "template_note": profile.get("template_note") or "",
+            "structured_mapping_file": profile.get("structured_mapping_file") or "",
+            "table_mapping_file": profile.get("table_mapping_file") or "",
+            "block_rules_file": profile.get("block_rules_file") or "",
+            "created_at": profile.get("created_at") or "",
+            "render_config": {
+                "html_theme": "dark",
+                "excel_mode": "standard",
+            },
+        }
 
-        for candidate in mapping_candidates:
-            if not isinstance(candidate, dict):
-                continue
+        saved_profile = overwrite_template_profile(clean_profile)
 
-            cell = str(candidate.get("cell") or "").strip().upper()
-            if not cell:
-                continue
+        state = get_pipeline_state()
+        current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+        if current_profile.get("profile_id") == saved_profile.get("profile_id"):
+            state = set_current_profile(saved_profile)
+            state = _clear_mapping_runtime_state()
+            try:
+                state = set_current_template(str(bound_template_path))
+            except Exception:
+                state = set_current_template(None)
 
-            confidence = float(candidate.get("confidence") or candidate.get("semantic_confidence") or 0)
-            if candidate.get("semantic_promoted") is not True or confidence < 0.70:
-                continue
-
-            write_mode = str(candidate.get("write_mode") or "skip").strip()
-            intent_type = str(candidate.get("intent_type") or "unknown").strip()
-            if write_mode in {"skip", "none"} or intent_type in {"title", "section_header", "note_instruction", "attachment_hint", "image_area", "readonly_example"}:
-                continue
-
-            display_order += 1
-            label = str(
-                candidate.get("field_label")
-                or candidate.get("label")
-                or candidate.get("label_text")
-                or candidate.get("cell")
-                or ""
-            ).strip()
-
-            template_configuration[cell] = {
-                "cell": cell,
-                "label": label,
-                "show_in_workspace": True,
-                "display_order": display_order,
-                "candidate_field_key": str(candidate.get("field_key") or "").strip(),
-                "candidate_field_label": str(candidate.get("field_label") or label or "").strip(),
-                "candidate_confidence": confidence,
-                "candidate_source": str(candidate.get("source") or "").strip(),
-                "candidate_reason": str(candidate.get("candidate_reason") or "").strip(),
-                "confidence_breakdown": candidate.get("confidence_breakdown") if isinstance(candidate.get("confidence_breakdown"), dict) else {},
-                "intent_type": intent_type,
-                "write_mode": write_mode,
-                "label_cell": str(candidate.get("label_cell") or candidate.get("cell") or "").strip().upper(),
-                "target_cell": str(candidate.get("target_cell") or "").strip().upper(),
-                "option_value": str(candidate.get("option_value") or "").strip(),
-                "intent_confidence": float(candidate.get("intent_confidence") or candidate.get("semantic_confidence") or 0),
-                "intent_reason": str(candidate.get("intent_reason") or candidate.get("semantic_reason") or "").strip(),
-                "ai_extract_hint": str(candidate.get("ai_extract_hint") or label or "").strip(),
-                "field_type": str(candidate.get("field_type") or "text").strip() or "text",
-                "semantic_type": str(candidate.get("semantic_type") or "").strip(),
-                "semantic_region_id": str(candidate.get("semantic_region_id") or "").strip(),
-                "semantic_confidence": float(candidate.get("semantic_confidence") or 0),
-                "semantic_reason": str(candidate.get("semantic_reason") or "").strip(),
-                "semantic_promoted": bool(candidate.get("semantic_promoted")),
-                "manual_override": False,
-                "user_edited": False,
-            }
-
-        refreshed_profile = dict(profile)
-        render_config = refreshed_profile.get("render_config") if isinstance(refreshed_profile.get("render_config"), dict) else {}
-        render_config = dict(render_config)
-        render_config["template_configuration"] = template_configuration
-        render_config["section_configuration"] = {}
-        refreshed_profile["render_config"] = render_config
-
-        saved_profile = save_template_profile(refreshed_profile)
         runtime_report = _build_mapping_health_report(saved_profile)
 
         return {
@@ -4590,14 +4556,15 @@ def api_v4_template_profile_full_refresh(profile_id: str):
             "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
             "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
             "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
-            "template_configuration": template_configuration,
+            "template_configuration": {},
             "section_configuration": {},
             "runtime_mapping_source": _get_runtime_mapping_source(saved_profile),
             "excel_feature_flags": _get_excel_feature_flags(saved_profile),
             "mapping_candidates": mapping_candidates,
             "mapping_health": runtime_report,
+            "pipeline_state": state,
             "summary": {
-                "template_configuration_count": len(template_configuration),
+                "template_configuration_count": 0,
                 "mapping_candidates_count": len(mapping_candidates),
                 "field_catalog_candidates_count": sum(
                     1 for item in mapping_candidates

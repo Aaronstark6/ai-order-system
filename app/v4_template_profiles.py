@@ -196,6 +196,37 @@ def save_template_profile(profile):
     return merged
 
 
+def overwrite_template_profile(profile):
+    if not isinstance(profile, dict):
+        raise ValueError("profile 必须是 object")
+
+    profile_id = _safe_profile_id(profile.get("profile_id"))
+    now_text = _now_text()
+
+    clean_profile = deepcopy(profile)
+    clean_profile["profile_id"] = profile_id
+    clean_profile["profile_name"] = str(clean_profile.get("profile_name") or profile_id).strip()
+    clean_profile["schema_version"] = str(clean_profile.get("schema_version") or "v4.1").strip() or "v4.1"
+    clean_profile["template_file_path"] = str(clean_profile.get("template_file_path") or "").strip()
+    clean_profile["created_at"] = str(clean_profile.get("created_at") or now_text)
+    clean_profile["updated_at"] = now_text
+
+    default_paths = _default_rule_paths_for_profile(profile_id)
+    for key, value in default_paths.items():
+        if not str(clean_profile.get(key) or "").strip():
+            clean_profile[key] = value
+
+    render_config = clean_profile.get("render_config")
+    if not isinstance(render_config, dict):
+        clean_profile["render_config"] = {
+            "html_theme": "dark",
+            "excel_mode": "standard",
+        }
+
+    _write_profile_file(_profile_path(profile_id), clean_profile)
+    return clean_profile
+
+
 def create_template_profile(payload):
     payload = payload if isinstance(payload, dict) else {}
     profile_id = _safe_profile_id(
