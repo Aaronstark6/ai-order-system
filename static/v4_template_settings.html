@@ -461,6 +461,33 @@
         .mapping-section-count{
             color:#64748b;
         }
+        .section-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .section-title-left {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            flex: 1;
+        }
+        .section-title-right {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .section-title-input {
+            min-width: 180px;
+            max-width: 320px;
+            height: 34px;
+        }
+        .section-title-row .mapping-section-toggle {
+            flex-shrink: 0;
+        }
 
         .debug-details {
             background: #fafbfd;
@@ -3700,7 +3727,7 @@
             const target = configSections.find(section => String(section.key || "") === key);
             const rowCount = Array.isArray(target?.rows) ? target.rows.length : 0;
             if (rowCount > 0) {
-                window.alert("该分区内还有字段。请先把字段移动到其它分区，再删除该分区。");
+                window.alert(`该分区内还有 ${rowCount} 个字段。请先把这些字段移动到其它分区，再删除该分区。`);
                 return;
             }
             if (!window.confirm("确认删除这个空分区吗？")) return;
@@ -3790,17 +3817,19 @@
                     const collapsed = businessSectionCollapsed[sectionKey] !== false;
                     const sectionLabel = section.sectionLabel || section.title || "其他字段";
                     const sectionOrder = Number(section.sectionOrder || 0);
-                    const canDeleteSection = Array.isArray(rows) && rows.length === 0;
+                    const rowCount = Array.isArray(rows) ? rows.length : 0;
                     return `
                         <div class="business-config-section config-section" data-section-key="${escapeHtml(sectionKey)}">
-                            <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
-                                <span>
+                            <div class="mapping-section-title section-title-row" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
+                                <span class="section-title-left">
                                     <span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>
-                                    <input data-section-field="label" type="text" value="${escapeHtml(sectionLabel)}" onclick="event.stopPropagation()" oninput="setUnsavedChanges(true)">
+                                    <input class="section-title-input" data-section-field="label" type="text" value="${escapeHtml(sectionLabel)}" onclick="event.stopPropagation()" oninput="setUnsavedChanges(true)">
                                     <input data-section-field="order" type="hidden" value="${escapeHtml(sectionOrder)}">
                                 </span>
-                                <span class="mapping-section-count">${rows.length}</span>
-                                ${canDeleteSection ? `<button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>` : ""}
+                                <span class="section-title-right">
+                                    <span class="mapping-section-count">${rowCount}</span>
+                                    <button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>
+                                </span>
                             </div>
                             <div class="business-config-body ${collapsed ? "collapsed" : ""}">
                                 ${rows.length ? rows.map(row => `
@@ -3843,17 +3872,19 @@
                     const collapsed = businessSectionCollapsed[sectionKey] !== false;
                     const sectionLabel = section.sectionLabel || section.title || "其他字段";
                     const sectionOrder = Number(section.sectionOrder || 0);
-                    const canDeleteSection = Array.isArray(rows) && rows.length === 0;
+                    const rowCount = Array.isArray(rows) ? rows.length : 0;
                     return `
                     <div class="mapping-section-card config-section" data-section-key="${escapeHtml(sectionKey)}">
-                        <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
-                            <span>
+                        <div class="mapping-section-title section-title-row" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
+                            <span class="section-title-left">
                                 <span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>
-                                <input data-section-field="label" type="text" value="${escapeHtml(sectionLabel)}" onclick="event.stopPropagation()" oninput="setUnsavedChanges(true)">
+                                <input class="section-title-input" data-section-field="label" type="text" value="${escapeHtml(sectionLabel)}" onclick="event.stopPropagation()" oninput="setUnsavedChanges(true)">
                                 <input data-section-field="order" type="hidden" value="${escapeHtml(sectionOrder)}">
                             </span>
-                            <span class="mapping-section-count">${rows.length}</span>
-                            ${canDeleteSection ? `<button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>` : ""}
+                            <span class="section-title-right">
+                                <span class="mapping-section-count">${rowCount}</span>
+                                <button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>
+                            </span>
                         </div>
                         <div class="mapping-section-body ${collapsed ? "collapsed" : ""}">
                             <table class="config-table">
