@@ -1444,11 +1444,15 @@
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             await loadMappingConfiguration(selectedMappingId);
             await loadVisualGrid(selectedMappingId);
+            const autoApplyResult = autoApplySemanticDraftConfiguration("模板上传");
             await loadMappingHealth(selectedMappingId, false);
             updateCurrentState();
             renderConfig();
+            renderVisualWorkbench();
+            renderConfigurationValidation();
             setInlineStatus("模板已上传。");
-            setStatus("模板已上传并完成分析。", "success");
+            const autoStats = autoApplyResult.stats || {};
+            setStatus(`模板已上传并完成分析：已自动应用 ${Number(autoStats.applied_count || 0)} 项建议为配置草稿；人工配置跳过 ${Number(autoStats.skipped_manual_count || 0)} 项。请检查后保存配置。`, "success");
         }
 
         async function deleteTemplateFile() {
@@ -2418,11 +2422,11 @@
             const stats = getSemanticRecommendationStats();
             const enabled = Boolean(selectedMappingId && stats.hasVisualGrid && stats.applicable);
             const statusText = selectedMappingId
-                ? `可应用自动识别建议：${stats.applicable}项`
+                ? `当前字段库建议：${stats.applicable}项可用于配置草稿`
                 : "请先选择映射";
             const detailText = stats.hasCandidates
-                ? `字段库建议共 ${stats.total} 项；刷新建议不会修改已保存配置。`
-                : "可根据当前模板内容和字段库重新生成建议；不会修改已保存配置或人工配置。";
+                ? `系统会自动把高可信建议应用为配置草稿；仍需人工检查并保存。`
+                : "可根据当前模板内容和字段库重新生成建议；系统会自动生成配置草稿。";
             area.innerHTML = `
                 <div class="semantic-control-status">
                     <strong>自动识别建议状态</strong>
@@ -2430,7 +2434,7 @@
                     <span>${escapeHtml(detailText)}</span>
                 </div>
                 <div class="semantic-control-actions">
-                    <button type="button" class="secondary" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>应用自动识别建议</button>
+                    <button type="button" class="ghost" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>重新应用建议</button>
                     <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>刷新字段库建议</button>
                     <button type="button" class="danger" onclick="fullRefreshCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>彻底刷新映射</button>
                     <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
@@ -2466,11 +2470,15 @@
                 candidates: Array.isArray(result.mapping_candidates) ? result.mapping_candidates : [],
             };
             await loadVisualGrid(selectedMappingId);
+            const autoApplyResult = autoApplySemanticDraftConfiguration("刷新字段库建议");
             await loadMappingHealth(selectedMappingId, false);
             renderConfig();
+            renderVisualWorkbench();
+            renderConfigurationValidation();
             renderSemanticControlBar();
             const stats = getSemanticRecommendationStats();
-            setStatus(`字段库建议刷新完成：${stats.total} 项建议，${stats.applicable} 项可应用。已保存配置未被修改。`, "success");
+            const autoStats = autoApplyResult.stats || {};
+            setStatus(`字段库建议刷新完成：${stats.total} 项建议，${stats.applicable} 项可用；已自动应用 ${Number(autoStats.applied_count || 0)} 项为配置草稿，人工配置跳过 ${Number(autoStats.skipped_manual_count || 0)} 项。请检查后保存配置。`, "success");
         }
 
         async function fullRefreshCurrentMapping() {
@@ -2512,14 +2520,15 @@
 
             setUnsavedChanges(false);
             await loadVisualGrid(selectedMappingId);
+            const autoApplyResult = autoApplySemanticDraftConfiguration("彻底刷新映射");
             await loadMappingHealth(selectedMappingId, false);
             renderConfig();
             renderVisualWorkbench();
             renderConfigurationValidation();
             renderSemanticControlBar();
 
-            const count = Number(result?.summary?.template_configuration_count || 0);
-            setStatus(`彻底刷新映射完成：已生成 ${count} 个配置项。`, "success");
+            const autoStats = autoApplyResult.stats || {};
+            setStatus(`彻底刷新映射完成：已清空旧配置，并自动应用 ${Number(autoStats.applied_count || 0)} 项建议为配置草稿。请检查后保存配置。`, "success");
         }
 
         function openAdvancedDiagnostics() {
@@ -2700,6 +2709,33 @@
             return { draft, stats };
         }
 
+        function autoApplySemanticDraftConfiguration(sourceLabel = "自动应用") {
+            if (!selectedMappingId || !hasSemanticCandidates(selectedMappingId)) {
+                return {
+                    applied: false,
+                    stats: {
+                        applied_count: 0,
+                        skipped_manual_count: 0,
+                        skipped_low_confidence_count: 0,
+                        skipped_no_candidate_count: 0,
+                    },
+                };
+            }
+
+            const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
+            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object" ? { ...cached.savedConfiguration } : {};
+            const { draft, stats } = buildSemanticDraftConfiguration(selectedMappingId);
+
+            Object.entries(draft).forEach(([cell, item]) => {
+                const key = normalizeCell(cell);
+                if (key) savedConfiguration[key] = { ...(savedConfiguration[key] || {}), ...item };
+            });
+
+            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
+            setUnsavedChanges(stats.applied_count > 0 || stats.skipped_manual_count > 0 || stats.skipped_low_confidence_count > 0);
+            return { applied: true, stats };
+        }
+
         async function applySemanticDraftConfiguration() {
             if (!selectedMappingId) {
                 setStatus("请先选择映射。", "warning");
@@ -2709,7 +2745,7 @@
                 setStatus("当前没有可应用的自动识别建议。", "warning");
                 return;
             }
-            if (!confirm("确定要把自动识别建议应用为草稿配置吗？已有人工配置会尽量保留。")) return;
+            if (!confirm("确定要重新应用当前字段库建议吗？\n\n系统会重新把高可信建议写入配置草稿。\n\n默认不会覆盖人工修改项。")) return;
             const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
             const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object" ? { ...cached.savedConfiguration } : {};
             const { draft, stats } = buildSemanticDraftConfiguration(selectedMappingId);
@@ -2723,7 +2759,7 @@
             renderVisualWorkbench();
             renderConfigurationValidation();
             await loadMappingHealth(selectedMappingId, false);
-            setStatus(`已应用自动识别建议：${stats.applied_count} 项；保留人工配置：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后点击保存配置。`, "warning");
+            setStatus(`已重新应用字段库建议：${stats.applied_count} 项；人工配置跳过：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后保存配置。`, "warning");
         }
 
         async function applyCurrentCellSemanticDraftConfiguration() {
