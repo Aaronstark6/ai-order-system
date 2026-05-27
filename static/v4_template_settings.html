@@ -2435,7 +2435,7 @@
                 <div class="semantic-control-actions">
                     <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>刷新字段库建议</button>
                     <button type="button" class="danger" onclick="fullRefreshCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>彻底刷新映射</button>
-                    <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
+                    <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>${document.body.classList.contains("show-developer-tools") ? "关闭高级诊断" : "高级诊断"}</button>
                 </div>
             `;
             const reanalyzeButton = area.querySelector('button[onclick="reanalyzeCurrentMapping()"]');
@@ -2530,12 +2530,16 @@
         }
 
         function openAdvancedDiagnostics() {
-            document.body.classList.add("show-developer-tools");
-            mappingHealthExpanded = true;
+            const shouldShow = !document.body.classList.contains("show-developer-tools");
+            document.body.classList.toggle("show-developer-tools", shouldShow);
+            mappingHealthExpanded = shouldShow;
             renderExcelFeatureFlagsPanel();
             renderMappingHealth();
-            const panel = document.getElementById("mappingHealthPanel");
-            if (panel) panel.scrollIntoView({ block: "start", behavior: "smooth" });
+            renderSemanticControlBar();
+            if (shouldShow) {
+                const panel = document.getElementById("mappingHealthPanel");
+                if (panel) panel.scrollIntoView({ block: "start", behavior: "smooth" });
+            }
         }
 
         function semanticDraftShowInWorkspace(candidate) {

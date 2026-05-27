@@ -2841,3 +2841,25 @@ autoApplySemanticDraftConfiguration()
 未修改 Export。
 未修改自动应用逻辑。
 仅删除用户入口按钮。
+
+---
+## V4-ADVANCED-DIAGNOSTICS-TOGGLE01
+
+状态：
+IMPLEMENTED
+
+目标：
+高级诊断按钮支持打开和关闭。
+
+说明：
+配置检查用于检查当前页面草稿配置是否可以安全保存。
+高级诊断用于展示开发/排错信息，例如 mapping health、feature flags 和内部状态。
+高级诊断不是普通用户主流程。
+
+范围：
+未修改后端。
+未修改配置检查。
+未修改 mapping-health 规则。
+未修改 Field Catalog。
+未修改模板分析。
+仅修改高级诊断前端开关行为。
