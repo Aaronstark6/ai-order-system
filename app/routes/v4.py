@@ -3147,6 +3147,7 @@ def _workspace_field_sort_key(item):
 
 def _build_workspace_fields_from_profile(profile):
     configuration = _template_configuration_from_profile(profile)
+    section_configuration = _section_configuration_from_profile(profile)
     catalog_labels = get_field_catalog_labels()
     workspace_fields = []
     hidden_intents = {"title", "section_header", "note_instruction", "readonly_example"}
@@ -3193,6 +3194,24 @@ def _build_workspace_fields_from_profile(profile):
         )
         workspace_domain = _workspace_domain_for_field_key(field_key)
         workspace_order = _workspace_field_order(field_key, sort_key(item))
+        section_key = str(item.get("section_key") or item.get("manual_section_key") or item.get("section") or workspace_domain or "other").strip()
+        section_config = section_configuration.get(section_key) if isinstance(section_configuration, dict) else {}
+        section_config = section_config if isinstance(section_config, dict) else {}
+        try:
+            section_order = int(section_config.get("section_order") or 0)
+        except (TypeError, ValueError):
+            section_order = 0
+        if section_order <= 0:
+            section_order = _WORKSPACE_DOMAIN_ORDER.get(workspace_domain, _WORKSPACE_DOMAIN_ORDER["other"])
+
+        section_title = (
+            str(section_config.get("section_label") or "").strip()
+            or str(item.get("section_title") or "").strip()
+            or str(item.get("section") or "").strip()
+            or section_key
+            or workspace_domain
+            or "其他信息"
+        )
         workspace_fields.append(
             {
                 "cell": target_cell or normalized_source_cell,
@@ -3205,7 +3224,10 @@ def _build_workspace_fields_from_profile(profile):
                 "write_mode": write_mode,
                 "option_value": str(item.get("option_value") or "").strip(),
                 "ai_extract_hint": str(item.get("ai_extract_hint") or "").strip(),
-                "section": str(item.get("section") or item.get("section_key") or "").strip(),
+                "section": section_title,
+                "section_key": section_key,
+                "section_title": section_title,
+                "section_order": section_order,
                 "display_order": sort_key(item),
                 "field_type": field_type,
                 "image_fit": str(item.get("image_fit") or "contain").strip(),
@@ -3215,7 +3237,13 @@ def _build_workspace_fields_from_profile(profile):
             }
         )
 
-    workspace_fields.sort(key=_workspace_field_sort_key)
+    workspace_fields.sort(key=lambda item: (
+        int(item.get("section_order") or 999999),
+        int(item.get("workspace_order") or 999999),
+        int(item.get("display_order") or 999999),
+        str(item.get("field_key") or ""),
+        str(item.get("cell") or ""),
+    ))
     return workspace_fields
 
 

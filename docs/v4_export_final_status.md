@@ -3210,3 +3210,51 @@ buildConfigurationPreviewSections() 优先读取 template_configuration item 的
 不点击 AI解析。
 确认初始配置预览分区与配置中心一致。
 配置中心新增分区、改名、移动字段后，刷新 /v4-order-workspace 可同步显示。
+
+---
+## V4-WORKSPACE-SECTION-SYNC01B
+
+状态：
+IMPLEMENTED
+
+目标：
+修复 /v4-order-workspace 无法同步配置中心人工分区的根因。
+
+根因：
+/v4-order-workspace 实际使用后端返回的 workspace_fields。
+workspace_fields 由 _build_workspace_fields_from_profile(profile) 生成。
+此前该函数只输出 section，没有输出 section_key / section_title / section_order。
+前端无法读取配置中心保存的人工分区信息，因此仍 fallback 到旧分区逻辑。
+
+修改：
+_build_workspace_fields_from_profile() 读取 render_config.section_configuration。
+每个 workspace field 输出：
+section
+section_key
+section_title
+section_order
+
+section_title 和 section_order 优先来自 section_configuration。
+没有对应 section_configuration 时使用 workspace_domain fallback。
+
+影响范围：
+current-template-profile
+set-current-template-profile
+template-layout
+parse-chat-to-order-object
+parse-chat-run-pipeline
+
+这些链路都会拿到带人工分区信息的 workspace_fields。
+
+范围：
+未修改前端。
+未修改配置中心。
+未修改导出逻辑。
+未修改 Field Catalog。
+未修改模板分析。
+
+验证目标：
+打开 /v4-order-workspace。
+确认工作页分区名称与配置中心一致。
+配置中心新增分区、改名、移动字段后，保存并刷新工作页，应同步显示。
+AI 解析前预览和 AI 解析后字段区都应使用同一套分区信息。
