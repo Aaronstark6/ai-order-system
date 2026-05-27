@@ -3258,3 +3258,37 @@ parse-chat-run-pipeline
 确认工作页分区名称与配置中心一致。
 配置中心新增分区、改名、移动字段后，保存并刷新工作页，应同步显示。
 AI 解析前预览和 AI 解析后字段区都应使用同一套分区信息。
+
+---
+## V4-WORKSPACE-CLEANUP-REVERT01
+
+状态：
+IMPLEMENTED
+
+目标：
+回滚误改的旧首页 static/index.html。
+
+审计结论：
+当前实际使用的 V4 订单工作页是 /v4-order-workspace。
+对应文件是 static/v4_order_workspace.html。
+此前 V4-WORKSPACE-PROFILE-MIGRATION01A 修改的是 static/index.html，不是当前 V4 主工作页。
+
+风险：
+static/index.html 的误改会影响旧首页入口，并且曾临时阻断旧首页生成 Excel。
+这不是当前 V4 工作台分区同步问题的正确修复点。
+
+处理：
+将 static/index.html 恢复到 89580c1 版本。
+保留 app/routes/v4.py 的 V4-WORKSPACE-SECTION-SYNC01B。
+保留 static/v4_order_workspace.html 的 V4-WORKSPACE-SECTION-SYNC01 / 01A。
+
+范围：
+未修改 app/routes/v4.py。
+未修改 static/v4_order_workspace.html。
+未修改配置中心。
+未修改导出链路。
+未修改模板数据。
+
+验证目标：
+/v4-order-workspace 分区同步仍正常。
+旧首页 static/index.html 不再包含 V4-WORKSPACE-PROFILE-MIGRATION01A 的临时导出阻断逻辑。

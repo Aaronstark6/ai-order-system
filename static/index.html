@@ -782,7 +782,6 @@
     ]);
     let allFields = [];
     let visibleFields = [];
-    let workspaceSections = [];
     let profiles = [];
     let parsedData = {};
     let appSettings = {
@@ -803,173 +802,6 @@
     let currentIngredientInitialsMessage = "";
     let descriptionIsComposing = false;
     let chatCopyTipTimer = null;
-
-    function getProfileId(profile) {
-        return String(profile && (profile.profile_id || profile.id) || "").trim();
-    }
-
-    function getProfileName(profile) {
-        return String(profile && (profile.profile_name || profile.name || profile.profile_id || profile.id) || "").trim();
-    }
-
-    function getProfileTemplateName(profile) {
-        return String(profile && (profile.template_filename || profile.template_display_name || profile.template_name || profile.template_file || "") || "").trim();
-    }
-
-    function getProfileTemplatePath(profile) {
-        return String(profile && (profile.template_file_path || profile.template_file || "") || "").trim();
-    }
-
-    function getProfileRenderConfig(profile) {
-        const renderConfig = profile && profile.render_config && typeof profile.render_config === "object" ? profile.render_config : {};
-        return renderConfig;
-    }
-
-    function getProfileTemplateConfiguration(profile) {
-        const renderConfig = getProfileRenderConfig(profile);
-        const configuration = renderConfig.template_configuration && typeof renderConfig.template_configuration === "object"
-            ? renderConfig.template_configuration
-            : {};
-        return configuration;
-    }
-
-    function getProfileSectionConfiguration(profile) {
-        const renderConfig = getProfileRenderConfig(profile);
-        const sectionConfiguration = renderConfig.section_configuration && typeof renderConfig.section_configuration === "object"
-            ? renderConfig.section_configuration
-            : {};
-        return sectionConfiguration;
-    }
-
-    function normalizeWorkspaceFieldKey(item, sourceCell) {
-        return String(item.field_key || item.candidate_field_key || sourceCell || "").trim();
-    }
-
-    function normalizeWorkspaceFieldLabel(item, sourceCell) {
-        return String(item.label || item.candidate_field_label || item.field_label || item.ai_extract_hint || item.field_key || item.candidate_field_key || sourceCell || "").trim();
-    }
-
-    function shouldShowWorkspaceConfigItem(item) {
-        if (!item || typeof item !== "object") {
-            return false;
-        }
-        if (item.show_in_workspace === false) {
-            return false;
-        }
-        const fieldKey = String(item.field_key || item.candidate_field_key || "").trim();
-        if (!fieldKey) {
-            return false;
-        }
-        if (DOC_SECTION_KEYS.includes(fieldKey)) {
-            return false;
-        }
-        const writeMode = String(item.write_mode || "").trim();
-        const intentType = String(item.intent_type || "").trim();
-        const fieldType = String(item.field_type || item.type || "").trim();
-        if (fieldType === "image") {
-            return false;
-        }
-        if (["skip", "none"].includes(writeMode)) {
-            return false;
-        }
-        if (["title", "section_header", "note_instruction", "image_area", "attachment_hint", "readonly_example"].includes(intentType)) {
-            return false;
-        }
-        return true;
-    }
-
-    function buildV4WorkspaceSections(profile) {
-        const templateConfiguration = getProfileTemplateConfiguration(profile);
-        const sectionConfiguration = getProfileSectionConfiguration(profile);
-        const groups = {};
-
-        Object.entries(sectionConfiguration).forEach(([rawKey, sectionConfig], index) => {
-            const key = String(rawKey || "").trim();
-            if (!key) {
-                return;
-            }
-            const order = Number(sectionConfig && sectionConfig.section_order);
-            groups[key] = {
-                key,
-                title: String(sectionConfig && sectionConfig.section_label || key || "未命名分区"),
-                order: Number.isFinite(order) && order > 0 ? order : 900000 + index,
-                fields: [],
-            };
-        });
-
-        Object.entries(templateConfiguration).forEach(([sourceCell, rawItem], index) => {
-            const item = rawItem && typeof rawItem === "object" ? rawItem : {};
-            if (!shouldShowWorkspaceConfigItem(item)) {
-                return;
-            }
-            const sectionKey = String(item.section_key || item.manual_section_key || "other").trim() || "other";
-            const sectionConfig = sectionConfiguration[sectionKey] && typeof sectionConfiguration[sectionKey] === "object"
-                ? sectionConfiguration[sectionKey]
-                : {};
-            if (!groups[sectionKey]) {
-                const order = Number(sectionConfig.section_order);
-                groups[sectionKey] = {
-                    key: sectionKey,
-                    title: String(sectionConfig.section_label || item.section || "其他信息"),
-                    order: Number.isFinite(order) && order > 0 ? order : 999000 + index,
-                    fields: [],
-                };
-            }
-
-            const fieldKey = normalizeWorkspaceFieldKey(item, sourceCell);
-            const label = normalizeWorkspaceFieldLabel(item, sourceCell);
-            const fieldType = String(item.field_type || item.type || "").trim();
-            const writeMode = String(item.write_mode || "").trim();
-            const intentType = String(item.intent_type || "").trim();
-            const inputType = fieldType || (
-                /日期|date/i.test(label + " " + fieldKey)
-                    ? "date"
-                    : /数量|quantity|qty|amount|number/i.test(label + " " + fieldKey)
-                        ? "number"
-                        : /要求|描述|备注|说明|other|note|description/i.test(label + " " + fieldKey)
-                            ? "textarea"
-                            : "text"
-            );
-
-            groups[sectionKey].fields.push({
-                key: fieldKey,
-                label,
-                type: inputType,
-                source_cell: String(sourceCell || "").trim(),
-                target_cell: String(item.target_cell || item.cell || "").trim(),
-                display_order: Number(item.display_order || index + 1),
-                write_mode: writeMode,
-                intent_type: intentType,
-                section_key: sectionKey,
-                section_title: groups[sectionKey].title,
-                config: item,
-            });
-        });
-
-        const sections = Object.values(groups)
-            .filter(section => Array.isArray(section.fields) && section.fields.length > 0)
-            .sort((a, b) => {
-                const ao = Number(a.order || 999999);
-                const bo = Number(b.order || 999999);
-                if (ao !== bo) {
-                    return ao - bo;
-                }
-                return String(a.title || "").localeCompare(String(b.title || ""), "zh-Hans-CN");
-            });
-
-        sections.forEach(section => {
-            section.fields.sort((a, b) => {
-                const ao = Number(a.display_order || 999999);
-                const bo = Number(b.display_order || 999999);
-                if (ao !== bo) {
-                    return ao - bo;
-                }
-                return String(a.label || "").localeCompare(String(b.label || ""), "zh-Hans-CN");
-            });
-        });
-
-        return sections;
-    }
 
     function showMessageCopyTip() {
         const tip = document.getElementById("messageCopyTip");
@@ -1184,11 +1016,11 @@
     }
 
     async function loadProfiles() {
-        const response = await fetch("/api/v4/template-profiles");
+        const response = await fetch("/api/template-profiles");
         const result = await response.json();
 
         if (!result.success) {
-            alert("V4 模板映射加载失败");
+            alert("模板映射加载失败");
             return;
         }
 
@@ -1199,13 +1031,12 @@
 
         profiles.forEach(profile => {
             const option = document.createElement("option");
-            option.value = getProfileId(profile);
-            option.textContent = getProfileName(profile);
+            option.value = profile.id;
+            option.textContent = profile.name;
             select.appendChild(option);
         });
 
-        select.onchange = async function () {
-            await setCurrentV4Profile();
+        select.onchange = function () {
             updateProfileTips();
             updateVisibleFields();
             renderDocumentNoSection(parsedData);
@@ -1219,43 +1050,10 @@
         };
 
         if (profiles.length > 0) {
-            select.value = getProfileId(profiles[0]);
-            await setCurrentV4Profile();
+            select.value = profiles[0].id;
         }
 
         updateProfileTips();
-    }
-
-    async function setCurrentV4Profile() {
-        const profile = getSelectedProfile();
-        const profileId = getProfileId(profile);
-        if (!profileId) {
-            workspaceSections = [];
-            return;
-        }
-
-        try {
-            const response = await fetch("/api/v4/set-current-template-profile", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    profile_id: profileId
-                })
-            });
-            const result = await response.json();
-            if (result.success && result.profile) {
-                const index = profiles.findIndex(item => getProfileId(item) === profileId);
-                if (index >= 0) {
-                    profiles[index] = result.profile;
-                }
-            }
-        } catch (error) {
-            console.warn("设置 V4 当前模板映射失败", error);
-        }
-
-        updateVisibleFields();
     }
 
     async function loadAppSettings() {
@@ -1272,7 +1070,7 @@
 
     function getSelectedProfile() {
         const profileId = document.getElementById("profileSelect").value;
-        return profiles.find(p => getProfileId(p) === profileId) || null;
+        return profiles.find(p => p.id === profileId) || null;
     }
 
     function stripDocumentDefaultFields(data) {
@@ -1449,12 +1247,33 @@
 
         if (!profile) {
             visibleFields = [];
-            workspaceSections = [];
             return;
         }
 
-        workspaceSections = buildV4WorkspaceSections(profile);
-        visibleFields = workspaceSections.flatMap(section => section.fields || []);
+        const usedKeys = new Set();
+        const docKeySet = new Set(DOC_SECTION_KEYS);
+
+        const mappings = profile.mappings || {};
+        Object.keys(mappings).forEach(key => usedKeys.add(key));
+
+        const mappingOrder = Array.isArray(profile.mapping_order) ? profile.mapping_order : [];
+        const orderIndex = new Map(mappingOrder.map((key, index) => [key, index]));
+
+        visibleFields = allFields.filter(
+            field => usedKeys.has(field.key) && !docKeySet.has(field.key)
+        ).sort((a, b) => {
+            const aMapped = mappings[a.key] ? 0 : 1;
+            const bMapped = mappings[b.key] ? 0 : 1;
+            if (aMapped !== bMapped) {
+                return aMapped - bMapped;
+            }
+            const aOrder = orderIndex.has(a.key) ? orderIndex.get(a.key) : 9999;
+            const bOrder = orderIndex.has(b.key) ? orderIndex.get(b.key) : 9999;
+            if (aOrder !== bOrder) {
+                return aOrder - bOrder;
+            }
+            return allFields.findIndex(field => field.key === a.key) - allFields.findIndex(field => field.key === b.key);
+        });
     }
 
     function updateProfileTips() {
@@ -1466,9 +1285,8 @@
             return;
         }
 
-        const templateText = getProfileTemplatePath(profile) ? "已上传" : "未上传模板";
-        const templateName = getProfileTemplateName(profile);
-        tips.innerText = `当前映射：${getProfileName(profile)}；模板状态：${templateText}${templateName ? "；模板：" + templateName : ""}`;
+        const templateText = profile.template_file ? "已上传" : "未上传模板";
+        tips.innerText = `当前映射：${profile.name}；模板状态：${templateText}`;
     }
 
     function getTodayISODate() {
@@ -2009,77 +1827,61 @@
             return;
         }
 
-        if (!Array.isArray(workspaceSections) || workspaceSections.length === 0) {
-            form.innerHTML = `<div class="empty-form">当前 V4 模板映射还没有可显示字段，请先到模板映射管理中保存配置。</div>`;
+        if (visibleFields.length === 0) {
+            form.innerHTML = `<div class="empty-form">当前模板映射还没有选择任何字段，请先到配置中心设置。</div>`;
             return;
         }
 
         const profile = getSelectedProfile();
         const mappingDefaults = profile && profile.mapping_defaults ? profile.mapping_defaults : {};
 
-        workspaceSections.forEach(section => {
-            const sectionTitle = document.createElement("h3");
-            sectionTitle.className = "section-title";
-            sectionTitle.innerText = section.title || "未命名分区";
-            form.appendChild(sectionTitle);
+        const title = document.createElement("h3");
+        title.className = "section-title";
+        title.innerText = "普通字段确认";
+        form.appendChild(title);
 
-            const grid = document.createElement("div");
-            grid.className = "normal-fields-grid";
-            form.appendChild(grid);
+        const grid = document.createElement("div");
+        grid.className = "normal-fields-grid";
+        form.appendChild(grid);
 
-            (section.fields || []).forEach(field => {
-                const item = document.createElement("div");
-                item.className = "normal-field-item";
+        visibleFields.forEach(field => {
+            const item = document.createElement("div");
+            item.className = "normal-field-item";
 
-                const label = document.createElement("label");
-                label.innerHTML = `
-                    ${escapeHtml(field.label || field.key)}
-                    <span class="field-key">(${escapeHtml(field.key)})</span>
-                `;
+            const label = document.createElement("label");
 
-                let input;
-                const inputType = String(field.type || "").trim();
-                if (inputType === "textarea") {
-                    input = document.createElement("textarea");
-                    input.rows = 3;
+            label.innerHTML = `
+                ${field.label}
+                <span class="field-key">(${field.key})</span>
+            `;
+
+            const input = document.createElement("input");
+            input.id = "field_" + field.key;
+            input.name = field.key;
+            input.type = getInputType(field.type);
+
+            let raw = data[field.key];
+            if (raw === null || raw === undefined || String(raw).trim() === "") {
+                const dv = mappingDefaults[field.key];
+                if (dv != null && String(dv).trim() !== "") {
+                    raw = dv;
                 } else {
-                    input = document.createElement("input");
-                    input.type = getInputType(inputType);
+                    raw = "";
                 }
+            }
+            if (input.type === "date" || isCompactDateFieldKey(field.key)) {
+                input.value = formatDateInputValue(raw);
+            } else {
+                input.value = raw !== null && raw !== undefined ? String(raw) : "";
+            }
 
-                input.id = "field_" + field.key;
-                input.name = field.key;
-                input.dataset.fieldKey = field.key;
-                input.dataset.sourceCell = field.source_cell || "";
-                input.dataset.targetCell = field.target_cell || "";
-                input.dataset.sectionKey = field.section_key || "";
-                input.dataset.writeMode = field.write_mode || "";
-                input.dataset.intentType = field.intent_type || "";
+            input.oninput = function () {
+                refreshDescriptionFromCurrentFields();
+            };
 
-                let raw = data[field.key];
-                if (raw === null || raw === undefined || String(raw).trim() === "") {
-                    const dv = mappingDefaults[field.key];
-                    if (dv != null && String(dv).trim() !== "") {
-                        raw = dv;
-                    } else {
-                        raw = "";
-                    }
-                }
-
-                if (input.type === "date" || isCompactDateFieldKey(field.key)) {
-                    input.value = formatDateInputValue(raw);
-                } else {
-                    input.value = raw !== null && raw !== undefined ? String(raw) : "";
-                }
-
-                input.oninput = function () {
-                    refreshDescriptionFromCurrentFields();
-                };
-
-                item.appendChild(label);
-                item.appendChild(input);
-                grid.appendChild(item);
-            });
+            item.appendChild(label);
+            item.appendChild(input);
+            grid.appendChild(item);
         });
     }
 
@@ -2902,13 +2704,10 @@
         }
 
         const profile = getSelectedProfile();
-        if (!profile || !getProfileTemplatePath(profile)) {
-            submitResult.innerHTML = `<p class="error">请先在模板映射管理中上传当前映射的 Excel 模板</p>`;
+        if (!profile || !profile.template_file) {
+            submitResult.innerHTML = `<p class="error">请先在配置中心上传当前映射的 Excel 模板</p>`;
             return;
         }
-
-        submitResult.innerHTML = `<p class="sync-error">当前首页已切换为 V4 模板映射显示模型。Excel 导出将在 V4-WORKSPACE-PROFILE-MIGRATION01B 中迁移到 V4 导出链路。本次请先验证字段分区显示与配置中心一致。</p>`;
-        return;
 
         const descSettings = profile.description_settings || {};
         const descriptionWarning = descSettings.enabled === true && !descSettings.template_name
