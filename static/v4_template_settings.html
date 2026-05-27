@@ -3364,7 +3364,18 @@
             const layoutByKey = {};
             layoutSections.forEach((section, index) => {
                 const key = readSectionKey(section);
-                if (!layoutByKey[key]) { layoutByKey[key] = { section, naturalOrder: Number(section?.order || index + 1) }; }
+                const bounds = section?.bounds && typeof section.bounds === "object" ? section.bounds : {};
+                const startRow = Number(bounds.start_row || bounds.min_row || 0);
+                const startCol = Number(bounds.start_col || bounds.min_col || 0);
+                const naturalOrder = Number(section?.order || index + 1);
+                if (!layoutByKey[key]) {
+                    layoutByKey[key] = {
+                        section,
+                        naturalOrder,
+                        startRow: Number.isFinite(startRow) && startRow > 0 ? startRow : 999999,
+                        startCol: Number.isFinite(startCol) && startCol > 0 ? startCol : 999999,
+                    };
+                }
             });
             const groups = {};
             rows.forEach((row, index) => {
@@ -3381,12 +3392,16 @@
                             ? sectionConfig.section_label
                             : (row.section || readSectionName(section) || "其他字段"),
                         sectionOrder: Number.isFinite(savedOrder) && savedOrder > 0 ? savedOrder : Number(layout.naturalOrder || index + 1),
+                        startRow: Number(layout.startRow || 999999),
+                        startCol: Number(layout.startCol || 999999),
                         rows: [],
                     };
                 }
                 groups[key].rows.push(row);
             });
             return Object.values(groups).sort((left, right) => {
+                if (left.startRow !== right.startRow) return left.startRow - right.startRow;
+                if (left.startCol !== right.startCol) return left.startCol - right.startCol;
                 if (left.sectionOrder !== right.sectionOrder) return left.sectionOrder - right.sectionOrder;
                 return String(left.title || "").localeCompare(String(right.title || ""), "zh-CN");
             });

@@ -2863,3 +2863,29 @@ IMPLEMENTED
 未修改 Field Catalog。
 未修改模板分析。
 仅修改高级诊断前端开关行为。
+
+---
+## V4-SECTION-ORDER-UX01
+
+状态：
+IMPLEMENTED
+
+目标：
+优化模板配置区分组排序，使分区更接近 Excel 模板从上到下、从左到右的阅读顺序。
+
+审计结论：
+当前配置区不是单纯按字段库分类。
+前端已使用 labels、structureLabels、layout_sections、savedConfiguration、mapping_candidates 构建配置行。
+分区由 row.sectionKey 和 layout_sections 共同决定。
+此前排序主要依赖 section_order / naturalOrder / title，用户可能感觉分区顺序跳跃。
+
+修改原则：
+不修改后端。
+不修改模板分析。
+不修改 Field Catalog。
+不修改分组来源。
+仅在前端 buildConfigSections 中优先使用 layout section bounds.start_row / start_col 排序。
+
+预期效果：
+配置分区顺序更接近 Excel 空间布局。
+用户按表格从上到下检查配置时更自然。
