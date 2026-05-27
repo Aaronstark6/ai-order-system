@@ -2889,3 +2889,38 @@ IMPLEMENTED
 预期效果：
 配置分区顺序更接近 Excel 空间布局。
 用户按表格从上到下检查配置时更自然。
+
+---
+## V4-UNIVERSAL-SECTION-MODEL01
+
+状态：
+IMPLEMENTED
+
+目标：
+将模板配置区主渲染模型从硬编码业务分区切换为 configSections / layout_sections 分区。
+
+问题：
+此前配置页虽然已经构建 configSections，但 renderBusinessConfigView 和 renderTableConfigView 会再次调用 groupRowsByBusinessSection(configSections)，并按 SECTION_RULES 固定业务分区渲染。
+这导致页面分区以文档、客户、产品、配方、包装、生产等语义分类为主，不符合用户按 Excel 表格从上到下检查配置的习惯。
+
+修改：
+renderBusinessConfigView 改为直接渲染 configSections。
+renderTableConfigView 改为直接渲染 configSections。
+每个分区保留 section_label 和 section_order 的人工配置入口。
+字段语义仍显示在行内辅助信息中。
+
+范围：
+未修改后端。
+未修改模板分析。
+未修改 Field Catalog。
+未修改 Validator。
+未修改 Export。
+未修改 Workspace。
+未修改保存接口。
+未删除 SECTION_RULES。
+未删除旧 fallback 函数。
+
+预期效果：
+配置区主分区更接近模板结构和 Excel 从上到下的空间顺序。
+用户仍可人工修改分区名称。
+后续如需彻底支持字段归属人工移动，可继续做 V4-SECTION-MANUAL-ASSIGN01。

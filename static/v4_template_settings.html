@@ -3669,16 +3669,23 @@
         }
 
         function renderBusinessConfigView(configSections) {
-            const groupedMappings = groupRowsByBusinessSection(configSections);
-            const sectionsHtml = SECTION_RULES
-                .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
+            const safeSections = Array.isArray(configSections) ? configSections : [];
+            const sectionsHtml = safeSections
+                .filter(section => Array.isArray(section.rows) && section.rows.length)
                 .map(section => {
-                    const rows = groupedMappings[section.key];
-                    const collapsed = businessSectionCollapsed[section.key] !== false;
+                    const sectionKey = String(section.key || "other");
+                    const rows = section.rows;
+                    const collapsed = businessSectionCollapsed[sectionKey] !== false;
+                    const sectionLabel = section.sectionLabel || section.title || "其他字段";
+                    const sectionOrder = Number(section.sectionOrder || 0);
                     return `
-                        <div class="business-config-section">
-                            <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(section.key)}')">
-                                <span><span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>${section.label}</span>
+                        <div class="business-config-section config-section" data-section-key="${escapeHtml(sectionKey)}">
+                            <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
+                                <span>
+                                    <span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>
+                                    <input data-section-field="label" type="text" value="${escapeHtml(sectionLabel)}" onclick="event.stopPropagation()" oninput="setUnsavedChanges(true)">
+                                    <input data-section-field="order" type="hidden" value="${escapeHtml(sectionOrder)}">
+                                </span>
                                 <span class="mapping-section-count">${rows.length}</span>
                             </div>
                             <div class="business-config-body ${collapsed ? "collapsed" : ""}">
@@ -3698,7 +3705,7 @@
                 }).join("");
             return `
                 ${renderConfigViewToolbar()}
-                <div class="business-config-grid">${sectionsHtml}</div>
+                <div class="business-config-grid">${sectionsHtml || '<div class="config-empty">当前没有可配置字段。</div>'}</div>
                 <div class="config-actions">
                     <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
                 </div>
@@ -3707,17 +3714,24 @@
 
         function renderTableConfigView(configSections) {
             const area = document.getElementById("templateConfigArea");
-            const groupedMappings = groupRowsByBusinessSection(configSections);
+            const safeSections = Array.isArray(configSections) ? configSections : [];
 
-            const rowsHtml = SECTION_RULES
-                .filter(section => groupedMappings[section.key] && groupedMappings[section.key].length)
+            const rowsHtml = safeSections
+                .filter(section => Array.isArray(section.rows) && section.rows.length)
                 .map(section => {
-                    const rows = groupedMappings[section.key];
-                    const collapsed = businessSectionCollapsed[section.key] !== false;
+                    const sectionKey = String(section.key || "other");
+                    const rows = section.rows;
+                    const collapsed = businessSectionCollapsed[sectionKey] !== false;
+                    const sectionLabel = section.sectionLabel || section.title || "其他字段";
+                    const sectionOrder = Number(section.sectionOrder || 0);
                     return `
-                    <div class="mapping-section-card">
-                        <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(section.key)}')">
-                            <span><span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>${section.label}</span>
+                    <div class="mapping-section-card config-section" data-section-key="${escapeHtml(sectionKey)}">
+                        <div class="mapping-section-title" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
+                            <span>
+                                <span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>
+                                <input data-section-field="label" type="text" value="${escapeHtml(sectionLabel)}" onclick="event.stopPropagation()" oninput="setUnsavedChanges(true)">
+                                <input data-section-field="order" type="hidden" value="${escapeHtml(sectionOrder)}">
+                            </span>
                             <span class="mapping-section-count">${rows.length}</span>
                         </div>
                         <div class="mapping-section-body ${collapsed ? "collapsed" : ""}">
@@ -3781,16 +3795,16 @@
                                             </td>
                                         </tr>
                                     `).join("")}
-                                    </tbody>
-                                </table>
-                            </div>
+                                </tbody>
+                            </table>
                         </div>
+                    </div>
                     `;
                 }).join("");
 
             area.innerHTML = `
                 ${renderConfigViewToolbar()}
-                ${rowsHtml}
+                ${rowsHtml || '<div class="config-empty">当前没有可配置字段。</div>'}
                 <div class="config-actions">
                     <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
                 </div>
