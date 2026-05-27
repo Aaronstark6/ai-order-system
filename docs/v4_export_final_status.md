@@ -2688,3 +2688,37 @@ fallback 不应被视为完整配置检查结果。
 未修改 Profile。
 未修改模板分析。
 未修改模板文件。
+
+---
+## V4-VALIDATOR-FIELD-KEY-LEGALITY01
+
+状态：
+IMPLEMENTED
+
+目标：
+配置检查新增 field_key 合法性 warning。
+
+原因：
+此前 mapping-health 会检查 field_key 是否为空、target_cell 是否为空、target_cell 格式、option_value、重复 field_key、重复 target_cell，但不会检查 field_key 是否存在于 Field Catalog。
+因此用户手动把字段标识改错后，保存后可能没有 warning。
+
+原则：
+人工修改优先级最高，但人工修改不等于免检。
+用户可以手动修改 field_key。
+如果 field_key 不在 Field Catalog 中，mapping-health 应提示 warning。
+当前不设为 error，为后续自定义字段保留空间。
+
+范围：
+未修改 Field Catalog。
+未修改模板分析。
+未修改前端。
+未修改导出。
+未修改 Workspace。
+未修改自动识别建议。
+未修改人工配置优先级。
+仅增加后端 mapping-health / validate-draft 的 field_key 合法性 warning。
+
+验证目标：
+把某个配置项的字段标识改成不存在的值，例如 abc_wrong_key。
+点击配置检查或保存后，应该出现 warning：
+field_key 不在字段库中：abc_wrong_key

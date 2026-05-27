@@ -2836,6 +2836,11 @@ def _build_mapping_health_report(profile):
     ai_contract = _build_ai_extraction_contract_from_workspace_fields(workspace_fields)
     ai_summary = _ai_extraction_contract_summary(ai_contract)
     runtime_mapping_source = _get_runtime_mapping_source(profile)
+    allowed_field_keys = {
+        str(item.get("field_key") or "").strip()
+        for item in flatten_field_catalog()
+        if isinstance(item, dict) and item.get("enabled") is not False and str(item.get("field_key") or "").strip()
+    }
     required_target_write_modes = {
         "write_right_cell",
         "write_below_cell",
@@ -2887,6 +2892,8 @@ def _build_mapping_health_report(profile):
         else:
             if show_in_workspace and not field_key:
                 add_problem(problems, errors, "error", cell, label, field_key, "show_in_workspace=true 但 field_key 为空，AI 和工作页无法稳定使用。")
+            if show_in_workspace and field_key and allowed_field_keys and field_key not in allowed_field_keys:
+                add_problem(problems, warnings, "warning", cell, label, field_key, f"field_key 不在字段库中：{field_key}")
             if write_mode in required_target_write_modes and not target_cell:
                 add_problem(problems, errors, "error", cell, label, field_key, f"write_mode={write_mode} 需要 target_cell。")
             if target_cell and not excel_cell_re.match(target_cell):
