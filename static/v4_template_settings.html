@@ -2420,13 +2420,12 @@
             const area = document.getElementById("semanticControlBar");
             if (!area) return;
             const stats = getSemanticRecommendationStats();
-            const enabled = Boolean(selectedMappingId && stats.hasVisualGrid && stats.applicable);
             const statusText = selectedMappingId
-                ? `当前字段库建议：${stats.applicable}项可用于配置草稿`
+                ? `当前字段库建议：${stats.applicable}项`
                 : "请先选择映射";
             const detailText = stats.hasCandidates
-                ? `系统会自动把高可信建议应用为配置草稿；仍需人工检查并保存。`
-                : "可根据当前模板内容和字段库重新生成建议；系统会自动生成配置草稿。";
+                ? `系统会自动生成配置草稿；请检查后保存配置。`
+                : "上传模板或刷新字段库建议后，系统会自动生成配置草稿。";
             area.innerHTML = `
                 <div class="semantic-control-status">
                     <strong>自动识别建议状态</strong>
@@ -2434,7 +2433,6 @@
                     <span>${escapeHtml(detailText)}</span>
                 </div>
                 <div class="semantic-control-actions">
-                    <button type="button" class="ghost" onclick="applySemanticDraftConfiguration()" ${enabled ? "" : "disabled"}>重新应用建议</button>
                     <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>刷新字段库建议</button>
                     <button type="button" class="danger" onclick="fullRefreshCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>彻底刷新映射</button>
                     <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>高级诊断</button>
