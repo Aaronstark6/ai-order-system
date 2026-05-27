@@ -2958,3 +2958,32 @@ buildConfigSections 优先使用 item.section_key，再使用原始 row.sectionK
 刷新页面后，该字段仍出现在人工选择的分区中。
 配置检查仍正常。
 保存后导出链路不应受影响。
+
+---
+## V4-SECTION-MANUAL-ASSIGN01A
+
+状态：
+IMPLEMENTED
+
+目标：
+优化字段所属分区选择的前端交互。
+
+问题：
+所属分区 select 在 onchange 时立即调用 renderConfig()，会导致页面立刻重渲染，可能造成跳动和焦点丢失。
+
+修改：
+所属分区变更后只调用 markConfigurationRowEdited() 和 renderConfigurationValidation()。
+不再立即重渲染配置区。
+
+效果：
+用户选择字段所属分区后，当前编辑状态保持稳定。
+保存后刷新页面时，字段会根据已保存 section_key 进入对应分区。
+
+范围：
+未修改后端。
+未修改保存结构。
+未修改 Field Catalog。
+未修改模板分析。
+未修改 Validator。
+未修改 Export。
+未修改 Workspace。

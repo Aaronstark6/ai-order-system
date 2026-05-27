@@ -3431,7 +3431,7 @@
         function renderSectionAssignmentControl(row, configSections) {
             const currentKey = String(row.manualSectionKey || row.sectionKey || "other");
             return `
-                <select data-config-field="section_key" onchange="markConfigurationRowEdited(this); renderConfig();">
+                <select data-config-field="section_key" onchange="markConfigurationRowEdited(this); renderConfigurationValidation();">
                     ${buildSectionSelectOptions(configSections, currentKey)}
                 </select>
             `;
