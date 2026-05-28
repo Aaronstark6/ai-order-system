@@ -1002,6 +1002,30 @@
             .sticky-save-bar button { width: auto; }
             .template-operation-layout { grid-template-columns: 1fr; }
         }
+        .visual-bulk-panel {
+            background: #fff7e6;
+            border: 1px solid #ffd591;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            padding: 12px;
+        }
+        .visual-bulk-title {
+            color: #ad4e00;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .visual-bulk-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .visual-bulk-help {
+            color: #8a6100;
+            font-size: 12px;
+            line-height: 1.5;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -2094,6 +2118,7 @@
             }
             const config = getVisualCellEffectiveConfig(cell);
             area.innerHTML = `
+                ${renderVisualBulkSectionPanel(config)}
                 <div class="visual-detail-title">单元格配置</div>
                 <div class="visual-detail-field">
                     <label><input data-visual-detail-field="manual_override" type="checkbox" ${config.manual_override ? "checked" : ""}> 锁定人工配置</label>
@@ -2261,53 +2286,38 @@
             const selectedPreview = selectedCells.slice(0, 12).join("、");
             const moreText = selectedCells.length > 12 ? ` 等 ${selectedCells.length} 个` : "";
             return `
-                &lt;div class="visual-bulk-panel"&gt;
-                    &lt;div class="visual-bulk-title"&gt;批量分区：已选择 ${selectedCells.length} 个单元格&lt;/div&gt;
-                    &lt;div class="visual-bulk-actions"&gt;
-                        &lt;select id="visualBulkSectionSelect" ${disabled}&gt;
+                <div class="visual-bulk-panel">
+                    <div class="visual-bulk-title">批量分区：已选择 ${selectedCells.length} 个单元格</div>
+                    <div class="visual-bulk-actions">
+                        <select id="visualBulkSectionSelect" ${disabled}>
                             ${buildSectionSelectOptions(safeSections, selectedSectionKey)}
-                        &lt;/select&gt;
-                        &lt;button type="button" class="secondary" onclick="bulkAssignSelectedVisualCellsToSection()" ${disabled}&gt;批量加入分区&lt;/button&gt;
-                    &lt;/div&gt;
-                    &lt;div class="visual-bulk-help"&gt;
+                        </select>
+                        <button type="button" class="secondary" onclick="bulkAssignSelectedVisualCellsToSection()" ${disabled}>批量加入分区</button>
+                    </div>
+                    <div class="visual-bulk-help">
                         普通点击 = 单选；Ctrl / Shift / Cmd 点击 = 多选或取消选择。${selectedCells.length ? ` 当前选择：${escapeHtml(selectedPreview + moreText)}` : ""}
-                    &lt;/div&gt;
-                &lt;/div&gt;
+                    </div>
+                </div>
             `;
         }
 
         function bulkAssignSelectedVisualCellsToSection() {
-            if (!selectedMappingId) {
-                setStatus("请先选择映射。", "warning");
-                return;
-            }
+            if (!selectedMappingId) return setStatus("请先选择映射。", "warning");
             const selectedCells = Array.from(selectedVisualCells);
-            if (!selectedCells.length) {
-                setStatus("请先选择单元格。", "warning");
-                return;
-            }
+            if (!selectedCells.length) return setStatus("请先选择单元格。", "warning");
             const targetSectionKey = String(document.getElementById("visualBulkSectionSelect")?.value || "").trim();
-            if (!targetSectionKey) {
-                setStatus("请选择目标分区。", "warning");
-                return;
-            }
+            if (!targetSectionKey) return setStatus("请选择目标分区。", "warning");
             const cached = configByMappingId[selectedMappingId] || { savedConfiguration: {} };
             const savedConfiguration = { ...(cached.savedConfiguration || {}) };
             selectedCells.forEach((cellRef) => {
-                savedConfiguration[cellRef] = {
-                    ...(savedConfiguration[cellRef] || {}),
-                    section_key: targetSectionKey,
-                    manual_section_key: targetSectionKey,
-                    manual_override: true,
-                    user_edited: true
-                };
+                savedConfiguration[cellRef] = { ...(savedConfiguration[cellRef] || {}), section_key: targetSectionKey, manual_section_key: targetSectionKey, manual_override: true, user_edited: true };
             });
             configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
             setUnsavedChanges(true);
             renderConfig();
             renderVisualWorkbench();
             renderConfigurationValidation();
-            setStatus(`已将 ${selectedCells.length} 个单元格加入目标分区。请点击“保存配置”完成保存。`, "warning");
+            setStatus(`已将 ${selectedCells.length} 个单元格加入目标分区。请点击"保存配置"完成保存。`, "warning");
         }
 
         function renderVisualWorkbench() {
