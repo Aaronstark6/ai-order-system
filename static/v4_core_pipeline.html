@@ -186,7 +186,6 @@
                 <button class="btn-primary" type="button" onclick="runCorePipeline()">执行 Core Pipeline</button>
                 <button class="btn-secondary" type="button" onclick="generateRenderPreview()">生成 Render Preview</button>
                 <a class="btn-download" href="/v4-render-preview" target="_blank" rel="noopener">查看 Render Preview</a>
-                
                 <button class="btn-secondary" type="button" onclick="resetPipelineState()">重置 State</button>
                 <a id="downloadLink" class="btn-download" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
             </div>
@@ -218,31 +217,7 @@
             </div>
         </section>
 
-        <section class="panel">
-            <div class="panel-header"><div class="panel-title">V4 Chat Workspace</div></div>
-            <div class="panel-body">
-                <textarea id="chatTextInput" placeholder="粘贴客户聊天内容，例如：客户：我要做50000瓶固体饮料，客户名称Anna，日期2026-05-18，草莓味，使用赤藓糖醇。"></textarea>
-                <div class="actions">
-                    <button class="btn-primary" type="button" onclick="parseChatExportExcel()">一键 Chat → Excel</button>
-                    <a id="chatWorkspaceDownloadLink" class="btn-download" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
-                </div>
-                <div id="chatWorkspaceStatus" class="message warning">等待输入聊天内容</div>
-                <div class="state-grid">
-                    <div class="state-item">
-                        <div class="label">Order Object 摘要</div>
-                        <div id="chatOrderObjectSummary" class="value">尚未生成</div>
-                    </div>
-                    <div class="state-item">
-                        <div class="label">Pipeline 摘要</div>
-                        <div id="chatPipelineSummary" class="value">尚未执行</div>
-                    </div>
-                    <div class="state-item">
-                        <div class="label">Export 摘要</div>
-                        <div id="chatExportSummary" class="value">尚未导出</div>
-                    </div>
-                </div>
-            </div>
-        </section>
+        
 
         <section class="panel debug-panel">
             <div class="panel-header"><div class="panel-title">当前 Pipeline State</div></div>
@@ -789,101 +764,9 @@
             }
         }
 
-        function renderChatWorkspaceResult(result) {
-            const parseResult = result.parse_result || {};
-            const orderObject = parseResult.order_object || {};
-            const customer = orderObject.customer || {};
-            const order = orderObject.order || {};
-            const product = orderObject.product || {};
-            const pipelineResult = result.pipeline_result || {};
-            const pipelineOperations = pipelineResult.operations || {};
-            const renderPreview = result.render_preview || {};
-            const exportResult = result.export_result || {};
-            const downloadUrl = exportResult.download_url || "";
-            const mappingCounts = pipelineResult.mapping_counts || {};
-            const structuredOperations = pipelineResult.structured_operations || pipelineOperations.structured || [];
-            const tableOperations = pipelineResult.table_operations || pipelineOperations.tables || [];
-            const blockOperations = pipelineResult.block_operations || pipelineOperations.blocks || [];
-            const processedOperations = pipelineResult.processed_operations || pipelineOperations.processed || [];
-            const warnings = Array.isArray(exportResult.warnings) ? exportResult.warnings : [];
+        
 
-            document.getElementById("chatOrderObjectSummary").innerHTML = `
-                customer.name: ${escapeHtml(customer.name || "-")}<br>
-                order.quantity: ${escapeHtml(order.quantity || "-")}<br>
-                order.order_date: ${escapeHtml(order.order_date || "-")}<br>
-                product.product_type: ${escapeHtml(product.product_type || "-")}
-            `;
-            document.getElementById("chatPipelineSummary").innerHTML = `
-                mapping_counts: ${escapeHtml(JSON.stringify(mappingCounts))}<br>
-                structured_operations: ${countItems(structuredOperations)}<br>
-                table_operations: ${countItems(tableOperations)}<br>
-                block_operations: ${countItems(blockOperations)}<br>
-                processed_operations: ${countItems(processedOperations)}<br>
-                render_preview.cells: ${countItems(renderPreview.cells || renderPreview.cell_preview)}<br>
-                render_preview.tables: ${countItems(renderPreview.table_preview)}<br>
-                render_preview.blocks: ${countItems(renderPreview.block_preview)}<br>
-                render_preview.skipped: ${countItems(renderPreview.skipped_preview)}
-            `;
-            document.getElementById("chatExportSummary").innerHTML = `
-                filename: ${escapeHtml(exportResult.filename || "-")}<br>
-                operations_written: ${escapeHtml(exportResult.operations_written ?? 0)}<br>
-                warnings: ${warnings.length}
-            `;
-
-            const downloadLink = document.getElementById("chatWorkspaceDownloadLink");
-            downloadLink.href = downloadUrl || "#";
-            downloadLink.style.display = downloadUrl ? "inline-flex" : "none";
-        }
-
-        async function parseChatExportExcel() {
-            const chatText = document.getElementById("chatTextInput").value.trim();
-            const status = document.getElementById("chatWorkspaceStatus");
-            const downloadLink = document.getElementById("chatWorkspaceDownloadLink");
-
-            if (!chatText) {
-                status.textContent = "请输入聊天内容";
-                status.className = "message warning";
-                return;
-            }
-            if (!currentTemplateFile) {
-                status.textContent = "请先上传 Excel 模板";
-                status.className = "message warning";
-                return;
-            }
-
-            status.textContent = "正在执行 Chat → Excel...";
-            status.className = "message warning";
-            downloadLink.style.display = "none";
-
-            try {
-                const formData = new FormData();
-                formData.append("template_file", currentTemplateFile);
-                formData.append("chat_text", chatText);
-
-                const response = await fetch("/api/v4/parse-chat-export-excel", {
-                    method: "POST",
-                    body: formData
-                });
-                const result = await response.json();
-                document.getElementById("debugJson").textContent = JSON.stringify(result, null, 2);
-
-                if (!response.ok || !result.success) {
-                    status.textContent = result.error || "Chat → Excel 失败";
-                    status.className = "message error";
-                    return;
-                }
-
-                latestRunResult = result;
-                renderState(result.pipeline_state || {});
-                renderChatWorkspaceResult(result);
-                document.getElementById("debugJson").textContent = JSON.stringify(result, null, 2);
-                status.textContent = `Chat → Excel 完成，写入 ${result.export_result?.operations_written || 0} 个 operation`;
-                status.className = "message success";
-            } catch (error) {
-                status.textContent = error.message || "Chat → Excel 失败";
-                status.className = "message error";
-            }
-        }
+        
 
         async function refreshPipelineState() {
             try {
