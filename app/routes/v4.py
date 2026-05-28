@@ -6609,67 +6609,15 @@ def api_v4_export_confirmed_excel(
         }
 @router.post("/api/v4/core-pipeline/export-excel")
 def api_v4_core_pipeline_export_excel():
-    from app.v4_excel_executor import execute_processed_operations_to_excel
-    from app.v4_render_preview import build_render_preview
-    from app.v4_render_targets import render_preview_to_html
-
-    logger.info("V4 core pipeline export Excel requested")
-    template_path = None
-    template_source = ""
-    try:
-        state = get_pipeline_state()
-        processed_operations = state.get("pipeline", {}).get("processed_operations", [])
-        if not processed_operations:
-            run_result = api_v4_core_pipeline_run()
-            if not run_result.get("success"):
-                return {
-                    "success": False,
-                    "error": run_result.get("error", "请先执行核心流水线"),
-                    "pipeline_state": get_pipeline_state(),
-                }
-            processed_operations = run_result.get("processed_operations", [])
-
-        template_path, _, template_source = _resolve_export_template_source()
-        result = execute_processed_operations_to_excel(template_path, processed_operations)
-        if not result.get("success"):
-            return {
-                "success": False,
-                "error": result.get("error", "Excel 导出失败"),
-                "warnings": result.get("warnings", []),
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        state = merge_mapping_safety(result.get("mapping_safety", {}))
-        merged_safety = state.get("mapping_safety", {})
-        preview = build_render_preview(processed_operations, merged_safety, template_path)
-        state = set_render_preview(preview)
-        html_result = render_preview_to_html(state.get("render_preview", {}))
-        if html_result.get("success"):
-            state = set_render_targets({"html_preview": html_result.get("html", "")})
-        state = set_excel_result(result.get("filename"))
-        return {
-            "success": True,
-            "filename": result.get("filename", ""),
-            "download_url": result.get("download_url", ""),
-            "operations_written": result.get("operations_written", 0),
-            "warnings": result.get("warnings", []),
-            "template_source": template_source,
-            "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
-            "pipeline_state": state,
-        }
-    except ValueError as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except Exception as exc:
-        logger.exception("V4 core pipeline export Excel failed")
-        return {
-            "success": False,
-            "error": str(exc) or "Excel 导出失败",
-            "pipeline_state": get_pipeline_state(),
-        }
+    logger.warning("Deprecated V4 core pipeline export endpoint blocked")
+    return {
+        "success": False,
+        "stage": "deprecated_export_entrypoint_disabled",
+        "error": "旧导出入口已禁用。请使用 /api/v4/export-confirmed-excel，以人工确认数据 confirmed_cells 作为唯一导出事实源。",
+        "message": "Core Pipeline 页面仅保留调试用途，不再允许直接导出 Excel。",
+        "replacement_endpoint": "/api/v4/export-confirmed-excel",
+        "pipeline_state": get_pipeline_state(),
+    }
 @router.post("/api/v4/render-preview/build")
 def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
     from app.v4_render_preview import build_render_preview

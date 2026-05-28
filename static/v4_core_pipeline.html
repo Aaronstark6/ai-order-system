@@ -173,6 +173,7 @@
             <div>
                 <div id="statusText" class="status">正在加载 Pipeline State...</div>
                 <div id="templateName" class="status">当前模板：未选择</div>
+                <div class="status">提示：本页面仅用于 Core Pipeline 调试与 Render Preview，不再提供 Excel 导出。正式导出请使用 /v4-order-workspace 的“确认生成 Excel”。</div>
                 <div class="mode-toggle" style="margin-top:8px;">
                     <button id="productModeButton" class="mode-pill active" type="button" onclick="setWorkspaceMode('product')">Product Mode</button>
                     <button id="debugModeButton" class="mode-pill" type="button" onclick="setWorkspaceMode('debug')">Debug Mode</button>
@@ -185,7 +186,7 @@
                 <button class="btn-primary" type="button" onclick="runCorePipeline()">执行 Core Pipeline</button>
                 <button class="btn-secondary" type="button" onclick="generateRenderPreview()">生成 Render Preview</button>
                 <a class="btn-download" href="/v4-render-preview" target="_blank" rel="noopener">查看 Render Preview</a>
-                <button class="btn-primary" type="button" onclick="exportExcel()">导出 Excel</button>
+                
                 <button class="btn-secondary" type="button" onclick="resetPipelineState()">重置 State</button>
                 <a id="downloadLink" class="btn-download" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
             </div>
@@ -923,30 +924,7 @@
             }
         }
 
-        async function exportExcel() {
-            if (!currentTemplateFile) {
-                setStatus("请先上传 Excel 模板");
-                return;
-            }
-            setStatus("正在导出 Excel...");
-            try {
-                const formData = new FormData();
-                formData.append("template_file", currentTemplateFile);
-                const response = await fetch("/api/v4/core-pipeline/export-excel", { method: "POST", body: formData });
-                const result = await response.json();
-                renderState(result.pipeline_state || {});
-                if (!response.ok || !result.success) {
-                    setStatus(result.error || "Excel 导出失败");
-                    return;
-                }
-                const downloadLink = document.getElementById("downloadLink");
-                downloadLink.href = result.download_url;
-                downloadLink.style.display = "inline-flex";
-                setStatus(`Excel 已生成，写入 ${result.operations_written || 0} 个 operation`);
-            } catch (error) {
-                setStatus(error.message || "Excel 导出失败");
-            }
-        }
+        
 
         async function generateRenderPreview() {
             const processedOperations = currentPipelineState?.pipeline?.processed_operations || [];
