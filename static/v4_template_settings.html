@@ -1118,6 +1118,7 @@
         let configViewMode = "table";
         let businessSectionCollapsed = {};
         let selectedVisualCell = "";
+        let selectedVisualCells = new Set();
         let hasUnsavedChanges = false;
         let isSavingConfiguration = false;
         let isReanalyzingMapping = false;
@@ -2216,6 +2217,30 @@
             setStatus("已应用到当前单元格，请点击页面下方“保存配置”完成保存。", "warning");
         }
 
+        function handleVisualCellClick(event, cellRef) {
+            const normalizedCell = normalizeCell(cellRef);
+            if (!normalizedCell) {
+                return;
+            }
+
+            const isMultiSelect = Boolean(event && (event.ctrlKey || event.metaKey || event.shiftKey));
+            if (!isMultiSelect) {
+                selectedVisualCells = new Set([normalizedCell]);
+                selectVisualCell(normalizedCell);
+                return;
+            }
+
+            const nextSelection = new Set(selectedVisualCells || []);
+            if (nextSelection.has(normalizedCell) && nextSelection.size > 1) {
+                nextSelection.delete(normalizedCell);
+            } else {
+                nextSelection.add(normalizedCell);
+            }
+
+            selectedVisualCells = nextSelection;
+            selectVisualCell(normalizedCell);
+        }
+
         function selectVisualCell(cellRef) {
             selectedVisualCell = cellRef || "";
             renderVisualWorkbench();
@@ -2272,7 +2297,7 @@
                     const contentStyle = visualCellContentStyle(cell);
                     const contentClass = cell.wrap_text ? "wrap-text" : "no-wrap";
                     const displayText = escapeHtml(cell.display_value || "");
-                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}"><div class="visual-cell-content ${contentClass}" style="${contentStyle}">${displayText}</div></td>`);
+                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="handleVisualCellClick(event, '${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}"><div class="visual-cell-content ${contentClass}" style="${contentStyle}">${displayText}</div></td>`);
                 }
                 bodyRows.push(`<tr style="height:${rowHeight}px"><th class="row-head" style="height:${rowHeight}px">${row}</th>${tds.join("")}</tr>`);
             }
