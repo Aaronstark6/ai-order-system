@@ -1242,6 +1242,32 @@
         function getMappingName(mapping) { return mapping?.profile_name || mapping?.template_name || "未命名映射"; }
         function getTemplateFilename(mapping) { return mapping?.template_filename || ""; }
 
+        function getInitialPreferredMappingId() {
+            const params = new URLSearchParams(window.location.search || "");
+            const queryProfileId = String(params.get("profile_id") || params.get("mapping_id") || "").trim();
+            if (queryProfileId) {
+                return queryProfileId;
+            }
+            try {
+                return String(window.localStorage.getItem(LAST_SELECTED_MAPPING_STORAGE_KEY) || "").trim();
+            } catch (_) {
+                return "";
+            }
+        }
+
+        function rememberSelectedMappingId(mappingId) {
+            const value = String(mappingId || "").trim();
+            try {
+                if (value) {
+                    window.localStorage.setItem(LAST_SELECTED_MAPPING_STORAGE_KEY, value);
+                } else {
+                    window.localStorage.removeItem(LAST_SELECTED_MAPPING_STORAGE_KEY);
+                }
+            } catch (_) {
+                // localStorage may be unavailable in restricted browser modes.
+            }
+        }
+
         function updateCurrentState() {
             document.getElementById("currentMappingName").textContent = selectedMapping ? getMappingName(selectedMapping) : "未选择";
             document.getElementById("currentTemplateFile").textContent = getTemplateFilename(selectedMapping) || "未上传";
@@ -1252,6 +1278,7 @@
             if (!mappings.length) {
                 select.innerHTML = '<option value="">暂无映射</option>';
                 selectedMappingId = "";
+                rememberSelectedMappingId("");
                 selectedMapping = null;
                 updateCurrentState();
                 selectedVisualCell = "";
@@ -1386,11 +1413,14 @@
             setStatus("正在加载映射...", "info");
             const result = await fetchJson("/api/v4/template-profiles");
             mappings = Array.isArray(result.profiles) ? result.profiles : [];
-            if (preferredId && mappings.some((item) => getMappingId(item) === preferredId)) {
-                selectedMappingId = preferredId;
-            } else if (!selectedMappingId || !mappings.some((item) => getMappingId(item) === selectedMappingId)) {
-                selectedMappingId = getMappingId(mappings[0]) || "";
+            const rememberedId = getInitialPreferredMappingId();
+            const candidateId = String(preferredId || rememberedId || selectedMappingId || "").trim();
+            if (candidateId && mappings.some((item) => getMappingId(item) === candidateId)) {
+                selectedMappingId = candidateId;
+            } else {
+                selectedMappingId = mappings.length ? getMappingId(mappings[0]) || "" : "";
             }
+            rememberSelectedMappingId(selectedMappingId);
             setSelectOptions();
             if (selectedMappingId) {
                 await selectMapping(selectedMappingId, false);
@@ -1402,6 +1432,7 @@
 
         async function selectMapping(mappingId, showLoading = true) {
             selectedMappingId = mappingId || "";
+            rememberSelectedMappingId(selectedMappingId);
             document.getElementById("mappingSelect").value = selectedMappingId;
             if (!selectedMappingId) {
                 selectedMapping = null;
@@ -1428,6 +1459,13 @@
             updateCurrentState();
             renderConfig();
             setUnsavedChanges(false);
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set("profile_id", selectedMappingId);
+                window.history.replaceState({}, "", url.toString());
+            } catch (_) {
+                // Ignore URL sync failures.
+            }
             if (showLoading) setStatus("已切换映射。", "success");
         }
 
@@ -1447,6 +1485,7 @@
             });
             input.value = "";
             const newId = getMappingId(result.profile);
+            rememberSelectedMappingId(newId);
             configByMappingId[newId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
             visualGridByMappingId[newId] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板。" };
             await loadMappings(newId);
@@ -1804,6 +1843,7 @@
             "unknown": "未知"
         };
 
+        const LAST_SELECTED_MAPPING_STORAGE_KEY = "v4_template_settings_last_selected_mapping_id";
         const WRITE_MODE_LABELS = {
             "none": "无",
             "write_right_cell": "写入右侧单元格",
@@ -4069,7 +4109,8 @@
         };
 
         window.addEventListener("DOMContentLoaded", () => {
-            loadFieldCatalog().then(() => loadMappings()).catch((error) => {
+            const preferredMappingId = getInitialPreferredMappingId();
+            loadFieldCatalog().then(() => loadMappings(preferredMappingId)).catch((error) => {
                 setStatus(error.message || "映射加载失败", "error");
                 updateCurrentState();
                 renderConfig();
