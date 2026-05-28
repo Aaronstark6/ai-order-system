@@ -3334,3 +3334,29 @@ IMPLEMENTED
 确认下载链接正常。
 确认 readback audit 正常显示。
 确认后端不会在导出阶段再次触发 AI 解析。
+
+---
+## V4-EXPORT-CONFIRMED-AS-SOURCE01A
+
+状态：
+IMPLEMENTED
+
+目标：
+清理 confirmed_cells 直接导出后的无效变量残留。
+
+修改：
+删除 api_v4_export_confirmed_excel 中无效的 pipeline_e2e_result = None。
+
+原因：
+V4-EXPORT-CONFIRMED-AS-SOURCE01 已经让 /api/v4/export-confirmed-excel 不再二次调用 AI/Pipeline。
+该变量已经没有意义，保留会造成导出链路语义误解。
+
+范围：
+未修改导出逻辑。
+未修改前端。
+未修改 Excel executor。
+未修改 AI 解析链路。
+未修改配置中心。
+
+验证：
+python -m py_compile app/routes/v4.py

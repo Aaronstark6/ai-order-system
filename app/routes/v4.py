@@ -6449,7 +6449,6 @@ def api_v4_export_confirmed_excel(
     template_path = None
     template_source = ""
     try:
-        pipeline_e2e_result = None
         confirmed_has_items = any(isinstance(item, dict) for item in confirmed_cells)
         if not confirmed_has_items:
             return {
