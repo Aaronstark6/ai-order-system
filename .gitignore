@@ -11,6 +11,7 @@ dist/
 
 # V4 runtime uploads
 data/v4_template_uploads/
+data/v4_template_cache/
 
 # V4 runtime generated template profiles and profile rules
 v4/rules/profiles/
