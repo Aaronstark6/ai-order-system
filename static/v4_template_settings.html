@@ -739,6 +739,10 @@
             outline: 2px solid #0050b3;
             outline-offset: -2px;
         }
+        .visual-cell.active-selected {
+            outline: 3px solid #fa8c16;
+            outline-offset: -3px;
+        }
         .visual-cell.merged-cell { background-clip: padding-box; }
         .visual-detail {
             background: #fafbfd;
@@ -2246,6 +2250,66 @@
             renderVisualWorkbench();
         }
 
+        function renderVisualBulkSectionPanel(activeConfig = {}) {
+            const selectedCells = Array.from(selectedVisualCells);
+            const { configSections } = currentConfigRenderModel();
+            const safeSections = Array.isArray(configSections) ? configSections : [];
+            const currentSectionKey = String(activeConfig.section_key || activeConfig.manual_section_key || "");
+            const fallbackSectionKey = safeSections.length ? String(safeSections[0].key || "") : "";
+            const selectedSectionKey = currentSectionKey || fallbackSectionKey;
+            const disabled = selectedCells.length && safeSections.length ? "" : "disabled";
+            const selectedPreview = selectedCells.slice(0, 12).join("、");
+            const moreText = selectedCells.length > 12 ? ` 等 ${selectedCells.length} 个` : "";
+            return `
+                &lt;div class="visual-bulk-panel"&gt;
+                    &lt;div class="visual-bulk-title"&gt;批量分区：已选择 ${selectedCells.length} 个单元格&lt;/div&gt;
+                    &lt;div class="visual-bulk-actions"&gt;
+                        &lt;select id="visualBulkSectionSelect" ${disabled}&gt;
+                            ${buildSectionSelectOptions(safeSections, selectedSectionKey)}
+                        &lt;/select&gt;
+                        &lt;button type="button" class="secondary" onclick="bulkAssignSelectedVisualCellsToSection()" ${disabled}&gt;批量加入分区&lt;/button&gt;
+                    &lt;/div&gt;
+                    &lt;div class="visual-bulk-help"&gt;
+                        普通点击 = 单选；Ctrl / Shift / Cmd 点击 = 多选或取消选择。${selectedCells.length ? ` 当前选择：${escapeHtml(selectedPreview + moreText)}` : ""}
+                    &lt;/div&gt;
+                &lt;/div&gt;
+            `;
+        }
+
+        function bulkAssignSelectedVisualCellsToSection() {
+            if (!selectedMappingId) {
+                setStatus("请先选择映射。", "warning");
+                return;
+            }
+            const selectedCells = Array.from(selectedVisualCells);
+            if (!selectedCells.length) {
+                setStatus("请先选择单元格。", "warning");
+                return;
+            }
+            const targetSectionKey = String(document.getElementById("visualBulkSectionSelect")?.value || "").trim();
+            if (!targetSectionKey) {
+                setStatus("请选择目标分区。", "warning");
+                return;
+            }
+            const cached = configByMappingId[selectedMappingId] || { savedConfiguration: {} };
+            const savedConfiguration = { ...(cached.savedConfiguration || {}) };
+            selectedCells.forEach((cellRef) => {
+                savedConfiguration[cellRef] = {
+                    ...(savedConfiguration[cellRef] || {}),
+                    section_key: targetSectionKey,
+                    manual_section_key: targetSectionKey,
+                    manual_override: true,
+                    user_edited: true
+                };
+            });
+            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
+            setUnsavedChanges(true);
+            renderConfig();
+            renderVisualWorkbench();
+            renderConfigurationValidation();
+            setStatus(`已将 ${selectedCells.length} 个单元格加入目标分区。请点击“保存配置”完成保存。`, "warning");
+        }
+
         function renderVisualWorkbench() {
             const gridArea = document.getElementById("visualGridArea");
             if (!gridArea) return;
@@ -2283,6 +2347,8 @@
                     const mergeSize = mergeLookup.start[cellRef] || {};
                     const rowspan = Number(mergeSize.rowspan || 1);
                     const colspan = Number(mergeSize.colspan || 1);
+                    const isPrimarySelected = selectedVisualCell === cellRef;
+                    const isMultiSelected = Boolean(selectedVisualCells && selectedVisualCells.has(cellRef));
                     const classes = [
                         "visual-cell",
                         hasText ? "has-text" : "",
@@ -2290,7 +2356,8 @@
                         intentClass,
                         !isVisualIntentLayerVisible(intentClass) ? "intent-filtered" : "",
                         cell.is_merged ? "merged-cell" : "",
-                        selectedVisualCell === cellRef ? "selected" : "",
+                        isMultiSelected ? "selected" : "",
+                        isPrimarySelected ? "active-selected" : "",
                     ].filter(Boolean).join(" ");
                     const spanAttrs = `${rowspan > 1 ? ` rowspan="${rowspan}"` : ""}${colspan > 1 ? ` colspan="${colspan}"` : ""}`;
                     const cellStyle = [`height:${rowHeight}px`, visualCellStyle(cell)].filter(Boolean).join(";");
