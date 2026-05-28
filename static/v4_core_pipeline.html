@@ -187,7 +187,7 @@
                 <button class="btn-secondary" type="button" onclick="generateRenderPreview()">生成 Render Preview</button>
                 <a class="btn-download" href="/v4-render-preview" target="_blank" rel="noopener">查看 Render Preview</a>
                 <button class="btn-secondary" type="button" onclick="resetPipelineState()">重置 State</button>
-                <a id="downloadLink" class="btn-download" href="#" target="_blank" rel="noopener" style="display:none;">下载 Excel</a>
+                
             </div>
         </section>
 
@@ -843,7 +843,6 @@
                     throw new Error(result.error || "Pipeline State 重置失败");
                 }
                 latestRunResult = null;
-                document.getElementById("downloadLink").style.display = "none";
                 currentTemplateFile = null;
                 document.getElementById("templateFileInput").value = "";
                 document.getElementById("templateName").textContent = "当前模板：未选择";
