@@ -7757,6 +7757,32 @@ def api_v4_example_excel_rule_preview(example_name: str, template_key: str = "")
         }
 
 
+def _example_debug_export_boundary_payload():
+    return {
+        "scope": "example_debug_only",
+        "production_export": False,
+        "boundary_warning": "This endpoint is for V4 example/debug export only. Production order export must use /api/v4/export-confirmed-excel with confirmed_cells as the only source of truth.",
+        "production_endpoint": "/api/v4/export-confirmed-excel",
+    }
+
+
+# ---------------------------------------------------------------------------
+# V4 example/debug export boundary
+#
+# The routes below are intentionally kept for V4 example validation,
+# template rule debugging, and historical executor checks.
+# They are not production order export routes.
+#
+# Production order export must go through:
+#   /api/v4/export-confirmed-excel
+#
+# Production source of truth:
+#   confirmed_cells from /v4-order-workspace
+#
+# Do not reuse these example/debug export routes for /v4-order-workspace.
+# ---------------------------------------------------------------------------
+
+
 @router.post("/api/v4/examples/{example_name}/export-rule-excel")
 def api_v4_example_export_rule_excel(example_name: str, template_key: str = ""):
     if not str(template_key or "").strip():
@@ -7828,6 +7854,7 @@ def api_v4_example_export_rule_excel(example_name: str, template_key: str = ""):
         )
         return {
             "success": True,
+            **_example_debug_export_boundary_payload(),
             "output_path": str(output_path),
             "filename": filename,
             "operations_written": executor_result.get("operations_written", 0),
@@ -7933,6 +7960,7 @@ def api_v4_example_export_template_rule_excel(example_name: str, payload: Any = 
         )
         return {
             "success": True,
+            **_example_debug_export_boundary_payload(),
             "filename": filename,
             "output_path": str(output_path),
             "operations_written": executor_result.get("operations_written", 0),
@@ -7998,6 +8026,7 @@ def api_v4_example_export_template_rule_excel_with_preview(example_name: str, pa
             result.get("operations_written", 0),
             len(result.get("warnings", [])),
         )
+        result.update(_example_debug_export_boundary_payload())
         return result
     except Exception as exc:
         logger.exception(
@@ -8047,6 +8076,7 @@ def api_v4_example_export_ai_template_excel(example_name: str, payload: Any = Bo
             result.get("operations_written", 0),
             len(result.get("warnings", [])),
         )
+        result.update(_example_debug_export_boundary_payload())
         return result
     except Exception as exc:
         logger.exception("V4 example export AI template Excel failed: example_name=%s", example_name)
@@ -8084,6 +8114,14 @@ def api_v4_example_export_ai_template_excel_cn(example_name: str, payload: Any =
                 example_name,
                 result.get("错误", ""),
             )
+        result.update(
+            {
+                "范围": "仅限示例调试导出",
+                "生产导出": False,
+                "边界警告": "该接口仅用于 V4 示例/调试导出。正式订单导出必须使用 /api/v4/export-confirmed-excel，并以 confirmed_cells 作为唯一事实源。",
+                "生产接口": "/api/v4/export-confirmed-excel",
+            }
+        )
         return result
     except Exception as exc:
         logger.exception("V4 example export AI template Excel CN failed: example_name=%s", example_name)
@@ -8131,6 +8169,14 @@ def api_v4_example_export_batch_ai_excel(example_name: str, payload: Any = Body(
                 example_name,
                 result.get("错误", ""),
             )
+        result.update(
+            {
+                "范围": "仅限示例调试批量导出",
+                "生产导出": False,
+                "边界警告": "该接口仅用于 V4 示例/调试批量导出。正式订单导出必须使用 /api/v4/export-confirmed-excel，并以 confirmed_cells 作为唯一事实源。",
+                "生产接口": "/api/v4/export-confirmed-excel",
+            }
+        )
         return result
     except Exception as exc:
         logger.exception("V4 example export batch AI Excel failed: example_name=%s", example_name)
@@ -8229,6 +8275,7 @@ def api_v4_example_export_debug_excel(example_name: str):
         )
         return {
             "success": True,
+            **_example_debug_export_boundary_payload(),
             "output_path": export_result.get("output_path", ""),
             "filename": export_result.get("filename", ""),
         }
