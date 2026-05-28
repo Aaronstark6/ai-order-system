@@ -739,35 +739,6 @@
             outline: 2px solid #0050b3;
             outline-offset: -2px;
         }
-        .visual-cell.active-selected {
-            outline: 3px solid #fa8c16;
-            outline-offset: -3px;
-        }
-        .visual-bulk-panel {
-            background: #fff7e6;
-            border: 1px solid #ffd591;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            padding: 12px;
-        }
-        .visual-bulk-title {
-            color: #ad4e00;
-            font-size: 14px;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-        .visual-bulk-actions {
-            align-items: center;
-            display: grid;
-            gap: 8px;
-            grid-template-columns: minmax(160px, 1fr) auto;
-        }
-        .visual-bulk-help {
-            color: #8a6100;
-            font-size: 12px;
-            line-height: 1.5;
-            margin-top: 8px;
-        }
         .visual-cell.merged-cell { background-clip: padding-box; }
         .visual-detail {
             background: #fafbfd;
@@ -1147,7 +1118,6 @@
         let configViewMode = "table";
         let businessSectionCollapsed = {};
         let selectedVisualCell = "";
-        let selectedVisualCells = new Set();
         let hasUnsavedChanges = false;
         let isSavingConfiguration = false;
         let isReanalyzingMapping = false;
@@ -1382,7 +1352,7 @@
         }
 
         async function loadVisualGrid(mappingId) {
-            clearVisualSelection();
+            selectedVisualCell = "";
             if (!mappingId) {
                 visualGridByMappingId[mappingId || ""] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板。" };
                 renderVisualWorkbench();
@@ -1467,7 +1437,7 @@
             if (!selectedMappingId) {
                 selectedMapping = null;
                 updateCurrentState();
-                clearVisualSelection();
+                selectedVisualCell = "";
                 renderVisualWorkbench();
                 renderConfig();
                 renderMappingHealth();
@@ -1560,7 +1530,7 @@
             mappings = mappings.map((item) => getMappingId(item) === selectedMappingId ? selectedMapping : item);
             configByMappingId[selectedMappingId] = { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
             visualGridByMappingId[selectedMappingId] = { rows: 0, cols: 0, cells: [], merges: [], message: "当前映射尚未绑定模板。" };
-            clearVisualSelection();
+            selectedVisualCell = "";
             updateCurrentState();
             renderVisualWorkbench();
             renderConfig();
@@ -2119,7 +2089,6 @@
             }
             const config = getVisualCellEffectiveConfig(cell);
             area.innerHTML = `
-                ${renderVisualBulkSectionPanel(config)}
                 <div class="visual-detail-title">单元格配置</div>
                 <div class="visual-detail-field">
                     <label><input data-visual-detail-field="manual_override" type="checkbox" ${config.manual_override ? "checked" : ""}> 锁定人工配置</label>
@@ -2247,146 +2216,12 @@
             setStatus("已应用到当前单元格，请点击页面下方“保存配置”完成保存。", "warning");
         }
 
-        
-
-        function selectedVisualCellsList() {
-            return Array.from(selectedVisualCells || [])
-                .map(normalizeCell)
-                .filter(Boolean);
-        }
-
-        function isVisualCellSelected(cellRef) {
-            const key = normalizeCell(cellRef);
-            return Boolean(key && selectedVisualCells && selectedVisualCells.has(key));
-        }
-
-        function setSingleVisualSelection(cellRef) {
-            const key = normalizeCell(cellRef);
-            selectedVisualCell = key;
-            selectedVisualCells = key ? new Set([key]) : new Set();
-        }
-
-        function clearVisualSelection() {
-            selectedVisualCell = "";
-            selectedVisualCells = new Set();
-        }
-
-        function renderVisualBulkSectionPanel(activeConfig = {}) {
-            const selectedCells = selectedVisualCellsList();
-            const { configSections } = currentConfigRenderModel();
-            const safeSections = Array.isArray(configSections) ? configSections : [];
-            const currentSectionKey = String(activeConfig.section_key || activeConfig.manual_section_key || "");
-            const fallbackSectionKey = safeSections.length ? String(safeSections[0].key || "") : "";
-            const selectedSectionKey = currentSectionKey || fallbackSectionKey;
-            const disabled = selectedCells.length && safeSections.length ? "" : "disabled";
-            const selectedPreview = selectedCells.slice(0, 12).join("、");
-            const moreText = selectedCells.length > 12 ? ` 等 ${selectedCells.length} 个` : "";
-
-            return `
-                <div class="visual-bulk-panel">
-                    <div class="visual-bulk-title">批量分区：已选择 ${selectedCells.length} 个单元格</div>
-                    <div class="visual-bulk-actions">
-                        <select id="visualBulkSectionSelect" ${disabled}>
-                            ${buildSectionSelectOptions(safeSections, selectedSectionKey)}
-                        </select>
-                        <button type="button" class="secondary" onclick="bulkAssignSelectedVisualCellsToSection()" ${disabled}>批量加入分区</button>
-                    </div>
-                    <div class="visual-bulk-help">
-                        普通点击 = 单选；Ctrl / Shift / Cmd 点击 = 多选或取消选择。${selectedCells.length ? ` 当前选择：${escapeHtml(selectedPreview + moreText)}` : ""}
-                    </div>
-                </div>
-            `;
-        }
-
-        function bulkAssignSelectedVisualCellsToSection() {
-            if (!selectedMappingId) {
-                setStatus("请先选择映射。", "warning");
-                return;
-            }
-
-            const selectedCells = selectedVisualCellsList();
-            if (!selectedCells.length) {
-                setStatus("请先在可视化模板中选择一个或多个单元格。", "warning");
-                return;
-            }
-
-            const targetSectionKey = String(document.getElementById("visualBulkSectionSelect")?.value || "").trim();
-            if (!targetSectionKey) {
-                setStatus("请选择目标分区。", "warning");
-                return;
-            }
-
-            const cached = configByMappingId[selectedMappingId] || {
-                labels: [],
-                structureLabels: [],
-                sections: [],
-                analysis: {},
-                candidates: [],
-                savedConfiguration: {},
-                savedSectionConfiguration: {},
-            };
-
-            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object"
-                ? { ...cached.savedConfiguration }
-                : {};
-
-            collectEditableConfiguration().forEach((item) => {
-                const key = normalizeCell(item.cell);
-                if (!key) return;
-                savedConfiguration[key] = { ...(savedConfiguration[key] || {}), ...item };
-            });
-
-            selectedCells.forEach((cellRef, index) => {
-                const visualCell = findVisualCell(cellRef) || { cell: cellRef };
-                const effective = getVisualCellEffectiveConfig(visualCell) || { cell: cellRef };
-                const previous = savedConfiguration[cellRef] && typeof savedConfiguration[cellRef] === "object"
-                    ? savedConfiguration[cellRef]
-                    : {};
-                savedConfiguration[cellRef] = {
-                    ...effective,
-                    ...previous,
-                    cell: cellRef,
-                    section_key: targetSectionKey,
-                    manual_section_key: targetSectionKey,
-                    manual_override: true,
-                    user_edited: true,
-                    display_order: Number(previous.display_order || effective.display_order || Object.keys(savedConfiguration).length + index + 1),
-                };
-            });
-
-            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
-            setUnsavedChanges(true);
-            renderConfig();
-            renderVisualWorkbench();
-            renderConfigurationValidation();
-            setStatus(`已将 ${selectedCells.length} 个单元格加入目标分区。请点击"保存配置"完成保存。`, "warning");
-        }
-
-        function selectVisualCell(eventOrCellRef, maybeCellRef = "") {
-            const hasEvent = eventOrCellRef && typeof eventOrCellRef === "object" && Object.prototype.hasOwnProperty.call(eventOrCellRef, "ctrlKey");
-            const event = hasEvent ? eventOrCellRef : null;
-            const cellRef = normalizeCell(hasEvent ? maybeCellRef : eventOrCellRef);
-            if (!cellRef) return;
-
-            const isMultiSelect = Boolean(event && (event.ctrlKey || event.metaKey || event.shiftKey));
-            if (!isMultiSelect) {
-                setSingleVisualSelection(cellRef);
-                renderVisualWorkbench();
-                return;
-            }
-
-            const nextSelection = new Set(selectedVisualCells || []);
-            if (nextSelection.has(cellRef) && nextSelection.size > 1) {
-                nextSelection.delete(cellRef);
-            } else {
-                nextSelection.add(cellRef);
-            }
-
-            selectedVisualCells = nextSelection;
-            selectedVisualCell = cellRef;
+        function selectVisualCell(cellRef) {
+            selectedVisualCell = cellRef || "";
             renderVisualWorkbench();
         }
-function renderVisualWorkbench() {
+
+        function renderVisualWorkbench() {
             const gridArea = document.getElementById("visualGridArea");
             if (!gridArea) return;
             const grid = getCurrentVisualGrid();
@@ -2397,7 +2232,6 @@ function renderVisualWorkbench() {
             if (!rows || !cols || !cells.length) {
                 gridArea.className = "config-empty";
                 gridArea.innerHTML = escapeHtml(message || "当前映射尚未绑定模板。");
-                clearVisualSelection();
                 renderVisualDetail(null);
                 return;
             }
@@ -2431,15 +2265,14 @@ function renderVisualWorkbench() {
                         intentClass,
                         !isVisualIntentLayerVisible(intentClass) ? "intent-filtered" : "",
                         cell.is_merged ? "merged-cell" : "",
-                        isVisualCellSelected(cellRef) ? "selected" : "",
-                        selectedVisualCell === cellRef ? "active-selected" : "",
+                        selectedVisualCell === cellRef ? "selected" : "",
                     ].filter(Boolean).join(" ");
                     const spanAttrs = `${rowspan > 1 ? ` rowspan="${rowspan}"` : ""}${colspan > 1 ? ` colspan="${colspan}"` : ""}`;
                     const cellStyle = [`height:${rowHeight}px`, visualCellStyle(cell)].filter(Boolean).join(";");
                     const contentStyle = visualCellContentStyle(cell);
                     const contentClass = cell.wrap_text ? "wrap-text" : "no-wrap";
                     const displayText = escapeHtml(cell.display_value || "");
-                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="selectVisualCell(event, '${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}"><div class="visual-cell-content ${contentClass}" style="${contentStyle}">${displayText}</div></td>`);
+                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="selectVisualCell('${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}"><div class="visual-cell-content ${contentClass}" style="${contentStyle}">${displayText}</div></td>`);
                 }
                 bodyRows.push(`<tr style="height:${rowHeight}px"><th class="row-head" style="height:${rowHeight}px">${row}</th>${tds.join("")}</tr>`);
             }
@@ -3450,7 +3283,7 @@ function renderVisualWorkbench() {
         function selectValidationCell(cell) {
             const cellRef = normalizeCell(cell);
             if (!cellRef) return;
-            setSingleVisualSelection(cellRef);
+            selectedVisualCell = cellRef;
             renderVisualWorkbench();
             const target = document.querySelector(`.visual-cell[title='${CSS.escape(cellRef)}']`);
             if (target) target.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
