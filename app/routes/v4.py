@@ -6428,13 +6428,6 @@ def api_v4_export_confirmed_excel(
     logger.info("V4 confirmed cells export requested")
 
     text = str(chat_text or "").strip()
-    if not text:
-        return {
-            "success": False,
-            "stage": "input",
-            "error": "chat_text 不能为空",
-            "pipeline_state": get_pipeline_state(),
-        }
 
     try:
         confirmed_cells = json.loads(str(confirmed_cells_json or "[]"))
@@ -6456,46 +6449,26 @@ def api_v4_export_confirmed_excel(
     template_path = None
     template_source = ""
     try:
-        pipeline_e2e_result = api_v4_parse_chat_run_pipeline({"chat_text": text})
-        if not pipeline_e2e_result.get("success"):
-            return {
-                "success": False,
-                "stage": pipeline_e2e_result.get("stage", "parse_chat_run_pipeline"),
-                "error": pipeline_e2e_result.get("error", "Chat 到 Pipeline 执行失败"),
-                "pipeline_e2e_result": pipeline_e2e_result,
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        pipeline_result = pipeline_e2e_result.get("pipeline_result", {})
-        processed_operations = pipeline_result.get("processed_operations", [])
-        if not isinstance(processed_operations, list):
-            return {
-                "success": False,
-                "stage": "processed_operations",
-                "error": "暂无 processed operations，无法导出 Excel",
-                "pipeline_e2e_result": pipeline_e2e_result,
-                "pipeline_state": get_pipeline_state(),
-            }
+        pipeline_e2e_result = None
         confirmed_has_items = any(isinstance(item, dict) for item in confirmed_cells)
-        if not processed_operations and not confirmed_has_items:
+        if not confirmed_has_items:
             return {
                 "success": False,
-                "stage": "processed_operations",
-                "error": "鏆傛棤 processed operations 鎴?confirmed cells锛屾棤娉曞鍑?Excel",
-                "pipeline_e2e_result": pipeline_e2e_result,
+                "stage": "confirmed_cells",
+                "error": "暂无人工确认数据，无法导出 Excel",
                 "pipeline_state": get_pipeline_state(),
             }
 
         profile = _current_template_profile_for_export()
-        runtime_mapping_source = _get_runtime_mapping_source(profile)
         excel_feature_flags = _get_excel_feature_flags(profile)
+        runtime_mapping_source = _get_runtime_mapping_source(profile)
         template_path, _, template_source = _resolve_export_template_source()
 
         text_confirmed_cells, image_confirmed_cells = _split_confirmed_cells_for_excel_export(confirmed_cells)
 
         use_operation_image_export = True
         override_result = _override_operations_with_confirmed_cells(
-            processed_operations,
+            [],
             confirmed_cells,
             profile=profile,
             template_path=template_path,
@@ -6508,8 +6481,7 @@ def api_v4_export_confirmed_excel(
             return {
                 "success": False,
                 "stage": "processed_operations",
-                "error": "鏆傛棤鍙墽琛岀殑 processed operations 鎴?confirmed cells锛屾棤娉曞鍑?Excel",
-                "pipeline_e2e_result": pipeline_e2e_result,
+                "error": "无有效的 processed operations 或 confirmed cells，无法导出 Excel",
                 "confirmed_override_count": confirmed_override_count,
                 "confirmed_added_count": confirmed_added_count,
                 "write_mode_summary": write_mode_summary,
@@ -6523,7 +6495,6 @@ def api_v4_export_confirmed_excel(
                 "stage": "excel_export",
                 "error": export_result.get("error", "Excel 导出失败"),
                 "warnings": export_result.get("warnings", []),
-                "pipeline_e2e_result": pipeline_e2e_result,
                 "confirmed_override_count": confirmed_override_count,
                 "confirmed_added_count": confirmed_added_count,
                 "write_mode_summary": write_mode_summary,
@@ -6574,7 +6545,7 @@ def api_v4_export_confirmed_excel(
                 "errors": [],
             }
 
-        set_pipeline_result(overridden_operations, pipeline_result.get("stages", []))
+        set_pipeline_result(overridden_operations, [])
         state = merge_mapping_safety(export_result.get("mapping_safety", {}))
         merged_safety = state.get("mapping_safety", {})
         preview = build_render_preview(overridden_operations, merged_safety, template_path)
@@ -6587,7 +6558,7 @@ def api_v4_export_confirmed_excel(
             state = set_render_targets({"html_preview": html_preview})
 
         state = set_excel_result(export_result.get("filename"))
-        response_pipeline_result = dict(pipeline_result)
+        response_pipeline_result = {"source": "confirmed_cells"}
         response_pipeline_result["processed_operations"] = overridden_operations
         response_pipeline_result["confirmed_override_count"] = confirmed_override_count
         response_pipeline_result["confirmed_added_count"] = confirmed_added_count
@@ -6604,7 +6575,7 @@ def api_v4_export_confirmed_excel(
             "excel_feature_flags": excel_feature_flags,
             "image_export_summary": image_export_summary,
             "export_readback_audit": export_readback_audit,
-            "parse_result": pipeline_e2e_result.get("parse_result", {}),
+            "parse_result": {},
             "pipeline_result": response_pipeline_result,
             "export_result": {
                 "filename": export_result.get("filename", ""),

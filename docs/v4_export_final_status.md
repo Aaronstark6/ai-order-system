@@ -3292,3 +3292,45 @@ static/index.html 的误改会影响旧首页入口，并且曾临时阻断旧�
 验证目标：
 /v4-order-workspace 分区同步仍正常。
 旧首页 static/index.html 不再包含 V4-WORKSPACE-PROFILE-MIGRATION01A 的临时导出阻断逻辑。
+
+---
+## V4-EXPORT-CONFIRMED-AS-SOURCE01
+
+状态：
+IMPLEMENTED
+
+目标：
+将 /api/v4/export-confirmed-excel 改为以工作页人工确认结果 confirmed_cells 为唯一导出事实源。
+
+背景：
+此前导出时会重新调用 api_v4_parse_chat_run_pipeline({"chat_text": text})。
+这会导致导出阶段二次 AI 解析，并把人工确认值作为覆盖层叠加到 processed_operations 上。
+该设计不符合用户认知：用户在工作页人工确认后的数据，应该就是最终导出事实源。
+
+修改：
+/api/v4/export-confirmed-excel 不再二次调用 AI/Pipeline。
+不再基于 processed_operations 覆盖。
+改为使用 confirmed_cells 直接生成 Excel operations。
+复用现有 _override_operations_with_confirmed_cells([], confirmed_cells, profile, template_path)。
+继续复用 execute_processed_operations_to_excel。
+继续保留图片导出 summary。
+继续保留 readback audit。
+继续更新 pipeline_state / render_preview / excel_result。
+
+范围：
+未修改前端。
+未修改配置中心。
+未修改 Template Profile。
+未修改 Excel executor。
+未修改 AI 解析链路本身。
+
+验证目标：
+打开 /v4-order-workspace。
+输入聊天并 AI解析。
+人工修改一个字段。
+点击生成 Excel。
+确认导出的 Excel 使用人工修改后的值。
+确认导出成功消息中人工确认覆盖/新增数量合理。
+确认下载链接正常。
+确认 readback audit 正常显示。
+确认后端不会在导出阶段再次触发 AI 解析。
