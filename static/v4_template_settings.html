@@ -435,57 +435,6 @@
         }
         .debug-label { color: #667085; font-size: 11px; margin-bottom: 2px; }
         .debug-value { color: #1d2939; font-size: 12px; word-break: break-all; }
-        .semantic-analysis-panel {
-            background: #fff;
-            border: 1px solid #e6eaf0;
-            border-radius: 6px;
-            padding: 10px;
-        }
-        .semantic-analysis-title {
-            align-items: center;
-            color: #1d2939;
-            display: flex;
-            font-size: 14px;
-            font-weight: 700;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        .semantic-analysis-grid {
-            display: grid;
-            gap: 8px;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        }
-        .semantic-analysis-item {
-            background: #fafbfd;
-            border: 1px solid #edf0f4;
-            border-radius: 4px;
-            padding: 8px 10px;
-        }
-        .semantic-analysis-label {
-            color: #667085;
-            font-size: 11px;
-            margin-bottom: 3px;
-        }
-        .semantic-analysis-value {
-            color: #1d2939;
-            font-size: 12px;
-            line-height: 1.45;
-            word-break: break-word;
-        }
-        .semantic-technical-details {
-            border-top: 1px solid #edf0f4;
-            margin-top: 10px;
-            padding-top: 8px;
-        }
-        .semantic-technical-details summary {
-            color: #475467;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 700;
-        }
-        .semantic-technical-details .semantic-analysis-grid {
-            margin-top: 8px;
-        }
         .visual-workbench {
             border: 1px solid #e6eaf0;
             border-radius: 8px;
@@ -2004,81 +1953,6 @@
             };
         }
 
-        function renderSemanticAnalysisItem(label, value) {
-            return `
-                <div class="semantic-analysis-item">
-                    <div class="semantic-analysis-label">${escapeHtml(label)}</div>
-                    <div class="semantic-analysis-value">${escapeHtml(value || "-")}</div>
-                </div>
-            `;
-        }
-
-        function renderSemanticAnalysisPanel(source, options = {}) {
-            const data = normalizeSemanticAnalysisData(source);
-            const title = options.title || "AI识别结果";
-            const mainItems = [
-                ["AI识别类型", SEMANTIC_TYPE_LABELS[data.semantic_type] || data.semantic_type || "-"],
-                ["建议字段", formatSemanticFieldName(data)],
-                ["AI置信度", formatConfidence(data.semantic_confidence || data.candidate_confidence)],
-                ["AI判断依据", data.semantic_reason || data.candidate_reason || "-"],
-                ["AI提取提示", data.ai_extract_hint || "-"],
-            ];
-            const technicalItems = [
-                ["模板区域", data.semantic_region_id || data.section || "-"],
-                ["semantic source", data.candidate_source || "-"],
-                ["analysis source", data.type || data.intent_type || "-"],
-                ["raw semantic info", [
-                    `semantic_type=${data.semantic_type || "-"}`,
-                    `semantic_confidence=${formatConfidence(data.semantic_confidence)}`,
-                    `semantic_reason=${data.semantic_reason || "-"}`,
-                ].join("；")],
-                ["candidate internal data", [
-                    `candidate_field_key=${data.candidate_field_key || "-"}`,
-                    `candidate_confidence=${formatConfidence(data.candidate_confidence)}`,
-                    `candidate_reason=${data.candidate_reason || "-"}`,
-                    `confidence_breakdown=${formatConfidenceBreakdown(data.confidence_breakdown)}`,
-                    `label_cell=${data.label_cell || "-"}`,
-                    `target_cell=${data.target_cell || "-"}`,
-                    `write_mode=${data.write_mode || "-"}`,
-                    `intent_confidence=${formatConfidence(data.intent_confidence)}`,
-                    `intent_reason=${data.intent_reason || "-"}`,
-                ].join("；")],
-            ];
-            return `
-                <div class="semantic-analysis-panel" data-semantic-renderer="shared">
-                    <div class="semantic-analysis-title">
-                        ${escapeHtml(title)}
-                        ${data.semantic_promoted ? '<span class="semantic-badge">自动识别建议</span>' : ""}
-                    </div>
-                    <div class="semantic-analysis-grid">
-                        ${mainItems.map(([label, value]) => renderSemanticAnalysisItem(label, value)).join("")}
-                    </div>
-                    <details class="semantic-technical-details">
-                        <summary>查看技术详情</summary>
-                        <div class="semantic-analysis-grid">
-                            ${technicalItems.map(([label, value]) => renderSemanticAnalysisItem(label, value)).join("")}
-                        </div>
-                    </details>
-                </div>
-            `;
-        }
-
-        function hasSemanticAnalysisData(source) {
-            const data = normalizeSemanticAnalysisData(source);
-            return Boolean(
-                data.semantic_type
-                || data.semantic_reason
-                || data.semantic_region_id
-                || data.candidate_field_key
-                || data.candidate_reason
-                || data.ai_extract_hint
-            );
-        }
-
-        function renderBusinessSemanticPanel(row) {
-            return hasSemanticAnalysisData(row) ? renderSemanticAnalysisPanel(row, { title: "AI识别结果" }) : "";
-        }
-
         function renderVisualDetail(cell) {
             const area = document.getElementById("visualCellDetail");
             if (!area) return;
@@ -2090,26 +1964,6 @@
             area.innerHTML = `
                 ${renderVisualBulkSectionPanel(config)}
                 <div class="visual-detail-title">单元格配置</div>
-                <div class="visual-detail-field">
-                    <label><input data-visual-detail-field="manual_override" type="checkbox" ${config.manual_override ? "checked" : ""}> 锁定人工配置</label>
-                    <div class="small">锁定后，全局“应用自动识别建议”不会覆盖此单元格。</div>
-                </div>
-                <div class="visual-detail-field">
-                    <label>单元格</label>
-                    <input class="visual-readonly" data-visual-detail-field="cell" type="text" value="${escapeHtml(config.cell || "")}" readonly>
-                </div>
-                <div class="visual-detail-field">
-                    <label>识别文本</label>
-                    <input class="visual-readonly" data-visual-detail-field="text" type="text" value="${escapeHtml(config.display_value || config.value || "")}" readonly>
-                </div>
-                <div class="visual-detail-field">
-                    <label>当前意图</label>
-                    <input class="visual-readonly" type="text" value="${escapeHtml(INTENT_LABELS[config.intent_type] || config.intent_type || "未知")}" readonly>
-                </div>
-                <div class="visual-detail-section">
-                    ${renderSemanticAnalysisPanel(config, { title: "AI识别结果" })}
-                    <div class="small">AI识别建议已自动写入配置草稿；如有错误，请在下方人工修改后点击"应用编辑到配置"。</div>
-                </div>
                 <div class="visual-detail-field">
                     <label>字段名</label>
                     <input data-visual-detail-field="label" type="text" value="${escapeHtml(config.label || config.candidate_field_label || "")}">
@@ -2184,7 +2038,7 @@
                 semantic_confidence: Number(previous.semantic_confidence ?? effective.semantic_confidence ?? 0),
                 semantic_reason: previous.semantic_reason || effective.semantic_reason || "",
                 semantic_promoted: Boolean(previous.semantic_promoted ?? effective.semantic_promoted ?? false),
-                manual_override: readChecked("manual_override"),
+                manual_override: true,
                 user_edited: true,
                 intent_type: readValue("intent_type").trim(),
                 write_mode: readValue("write_mode").trim(),
@@ -3309,16 +3163,6 @@
             renderConfigurationValidation();
             await loadMappingHealth(selectedMappingId, false);
             setStatus(`已重新应用字段库建议：${stats.applied_count} 项；人工配置跳过：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后保存配置。`, "warning");
-        }
-
-        function formatConfidenceBreakdown(breakdown) {
-            const data = breakdown && typeof breakdown === "object" ? breakdown : {};
-            const labels = { keyword: "keyword", section: "section", neighbor: "neighbor", reading_order: "reading", semantic: "semantic" };
-            const parts = Object.entries(labels).map(([key, label]) => {
-                const value = Number(data[key] || 0);
-                return value > 0 ? `${label}:${value.toFixed(2)}` : "";
-            }).filter(Boolean);
-            return parts.join(" / ") || "-";
         }
 
         const INTENT_TYPE_OPTIONS = [
@@ -4512,7 +4356,7 @@
                                             <td colspan="6">
                                                 <details class="debug-details" open>
                                                     <summary>智能推荐详情</summary>
-                                                    ${renderSemanticAnalysisPanel(row, { title: "AI识别结果" })}
+
                                                     <div class="small" style="margin-top:10px;">系统自动判断仅供参考，可人工修正。</div>
                                                     <div class="debug-grid" style="margin-top:10px;">
                                                         <div class="debug-item">
