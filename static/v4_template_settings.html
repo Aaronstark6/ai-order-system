@@ -3693,7 +3693,7 @@
                             ${safeItems.map((item) => `
                                 <button class="validation-item ${className}" type="button" onclick="selectHealthCell('${escapeHtml(item.cell || "")}')">
                                     <span class="validation-item-cell">${escapeHtml(item.cell || "-")}</span>
-                                    <span class="validation-item-type">${escapeHtml(className === "error" ? "错误" : "字段标识重复")}</span>
+                                    <span class="validation-item-type">${escapeHtml(item.field_key || item.label || "-")}</span>
                                     <span class="validation-item-message">${escapeHtml(item.message || "")}</span>
                                 </button>
                             `).join("")}
@@ -3777,7 +3777,7 @@
                             ${safeChecks.map((item) => `
                                 <button class="validation-item ${escapeHtml(item.status === "ok" || item.status === "skipped" ? "passed" : "warning")}" type="button" onclick="selectHealthCell('${escapeHtml(item.cell || item.source_cell || "")}')">
                                     <span class="validation-item-cell">${escapeHtml(item.cell || item.source_cell || "-")}</span>
-                                    <span class="validation-item-type">${escapeHtml(item.status === "ok" ? "可用" : (item.status === "skipped" ? "已跳过" : "检查项"))}</span>
+                                    <span class="validation-item-type">${escapeHtml(item.label || item.field_key || item.status || "-")}</span>
                                     <span class="validation-item-message">${escapeHtml((Array.isArray(item.problems) && item.problems.length) ? item.problems.join("；") : (item.status === "skipped" ? "已跳过" : "链路正常"))}</span>
                                 </button>
                             `).join("")}
