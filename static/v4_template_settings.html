@@ -2403,13 +2403,16 @@
                 return;
             }
 
+            const newSectionOrder = Object.keys(existingSectionConfiguration).length + 1;
             const savedSectionConfiguration = {
                 ...existingSectionConfiguration,
                 [newSectionKey]: {
                     key: newSectionKey,
+                    section_label: sectionName,
+                    section_order: newSectionOrder,
                     name: sectionName,
                     title: sectionName,
-                    order: Object.keys(existingSectionConfiguration).length + 1,
+                    order: newSectionOrder,
                     source: "manual",
                     user_created: true,
                 },
@@ -3678,11 +3681,12 @@
                 const key = String(savedKey || "").trim();
                 if (!key) return;
                 if (groups[key]) return;
-                const savedOrder = Number(sectionConfig?.section_order);
+                const savedLabel = String(sectionConfig?.section_label || sectionConfig?.title || sectionConfig?.name || key || "人工分区");
+                const savedOrder = Number(sectionConfig?.section_order || sectionConfig?.order);
                 groups[key] = {
                     key,
-                    title: String(sectionConfig?.section_label || key || "人工分区"),
-                    sectionLabel: String(sectionConfig?.section_label || key || "人工分区"),
+                    title: savedLabel,
+                    sectionLabel: savedLabel,
                     sectionOrder: Number.isFinite(savedOrder) && savedOrder > 0 ? savedOrder : 900000 + savedIndex,
                     startRow: 999999,
                     startCol: 999999,
