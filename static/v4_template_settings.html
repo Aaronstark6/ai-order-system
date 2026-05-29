@@ -887,6 +887,23 @@
             padding-top: 10px;
         }
         .validation-group + .validation-group { margin-top: 10px; }
+        .validation-group.validation-group-card {
+            border: 1px solid #edf0f4;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .validation-group.validation-group-alt {
+            background: #fafafa;
+        }
+        .validation-group.validation-group-normal {
+            background: #ffffff;
+        }
+        .validation-group-subtitle {
+            color: #667085;
+            font-size: 12px;
+            font-weight: 400;
+            margin-left: 6px;
+        }
         .validation-group-title {
             color: #475467;
             font-size: 13px;
@@ -3785,30 +3802,104 @@
             return { errors, warnings, passed };
         }
 
+        function extractValidationIssueGroupKey(item) {
+            const message = String(item?.message || "");
+
+            const duplicateMatch =
+                message.match(/字段标识重复[:：]?\s*([A-Za-z0-9_.-]+)/i) ||
+                message.match(/字段标识\s+([A-Za-z0-9_.-]+)\s+被/i);
+
+            if (duplicateMatch && duplicateMatch[1]) {
+                return `duplicate:${duplicateMatch[1]}`;
+            }
+
+            const missingMatch =
+                message.match(/字段标识不在字段库中[:：]?\s*([A-Za-z0-9_.-]+)/i);
+
+            if (missingMatch && missingMatch[1]) {
+                return `missing:${missingMatch[1]}`;
+            }
+
+            if (item?.field_key) {
+                return `field:${item.field_key}`;
+            }
+
+            return `message:${message}`;
+        }
+
+        function buildValidationIssueGroupTitle(groupItems, fallbackTitle) {
+            const first = groupItems[0] || {};
+
+            const message = String(first.message || "");
+
+            const duplicateMatch =
+                message.match(/字段标识重复[:：]?\s*([A-Za-z0-9_.-]+)/i) ||
+                message.match(/字段标识\s+([A-Za-z0-9_.-]+)\s+被/i);
+
+            if (duplicateMatch && duplicateMatch[1]) {
+                return `重复字段：${duplicateMatch[1]}`;
+            }
+
+            const missingMatch =
+                message.match(/字段标识不在字段库中[:：]?\s*([A-Za-z0-9_.-]+)/i);
+
+            if (missingMatch && missingMatch[1]) {
+                return `字段库缺失：${missingMatch[1]}`;
+            }
+
+            if (first.field_key) {
+                return `字段问题：${first.field_key}`;
+            }
+
+            return String(fallbackTitle || "配置问题");
+        }
+
+        function groupValidationItems(items) {
+            const groups = [];
+            const indexByKey = new Map();
+            (Array.isArray(items) ? items : []).forEach((item) => {
+                const key = extractValidationIssueGroupKey(item);
+                if (!indexByKey.has(key)) {
+                    indexByKey.set(key, groups.length);
+                    groups.push({ key, items: [] });
+                }
+                groups[indexByKey.get(key)].items.push(item);
+            });
+            return groups;
+        }
+
         function renderValidationGroup(title, className, items) {
-            if (!items.length) return `
+            const safeItems = Array.isArray(items) ? items : [];
+            if (!safeItems.length) return `
                 <div class="validation-group">
                     <div class="validation-group-title">${escapeHtml(title)}</div>
                     <div class="validation-empty">暂无</div>
                 </div>
             `;
-            return `
-                <div class="validation-group">
-                    <div class="validation-group-title">${escapeHtml(title)}</div>
-                    <div class="validation-list">
-                        ${items.map((item) => `
-                            <button class="validation-item ${className}" type="button" onclick="selectValidationCell('${escapeHtml(item.cell)}')">
-                                <span class="validation-item-cell">${escapeHtml(item.cell || "-")}</span>
-                                <span class="validation-item-type">${escapeHtml(item.type || "-")}</span>
-                                <span class="validation-item-message">${escapeHtml(item.message || "")}</span>
-                            </button>
-                        `).join("")}
+
+            const groups = groupValidationItems(safeItems);
+            return groups.map((group, groupIndex) => {
+                const groupItems = group.items || [];
+                const groupClass = groupIndex % 2 === 0 ? "validation-group-alt" : "validation-group-normal";
+                const groupTitle = buildValidationIssueGroupTitle(groupItems, title);
+                return `
+                    <div class="validation-group validation-group-card ${groupClass}">
+                        <div class="validation-group-title">
+                            ${escapeHtml(groupTitle)}
+                            <span class="validation-group-subtitle">${escapeHtml(title)} · ${groupItems.length}项</span>
+                        </div>
+                        <div class="validation-list">
+                            ${groupItems.map((item) => `
+                                <button class="validation-item ${className}" type="button" onclick="selectValidationCell('${escapeHtml(item.cell)}')">
+                                    <span class="validation-item-cell">${escapeHtml(item.cell || "-")}</span>
+                                    <span class="validation-item-type">${escapeHtml(item.type || "-")}</span>
+                                    <span class="validation-item-message">${escapeHtml(item.message || "")}</span>
+                                </button>
+                            `).join("")}
+                        </div>
                     </div>
-                </div>
-            `;
-            panel.querySelectorAll("input[data-excel-feature-flag]").forEach((input) => {
-                input.addEventListener("change", () => setUnsavedChanges(true));
-            });
+                `;
+            }).join("");
         }
 
         async function renderConfigurationValidation(validation = null) {
