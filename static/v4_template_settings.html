@@ -2292,13 +2292,55 @@
                         <select id="visualBulkSectionSelect" ${disabled}>
                             ${buildSectionSelectOptions(safeSections, selectedSectionKey)}
                         </select>
-                        <button type="button" class="secondary" onclick="bulkAssignSelectedVisualCellsToSection()" ${disabled}>批量加入分区</button>
+                        <button type="button" class="secondary" onclick="bulkAssignSelectedVisualCellsToSection()" ${disabled}>加入已有分区</button>
+                    </div>
+                    <div class="visual-bulk-actions" style="margin-top:8px;">
+                        <input id="visualBulkNewSectionName" type="text" placeholder="输入新分区名称，例如：包装信息" ${selectedCells.length ? "" : "disabled"}>
+                        <button type="button" class="secondary" onclick="bulkCreateSectionAndAssignSelectedVisualCells()" ${selectedCells.length ? "" : "disabled"}>创建新分区并加入</button>
                     </div>
                     <div class="visual-bulk-help">
                         普通点击 = 单选；Ctrl / Shift / Cmd 点击 = 多选或取消选择。${selectedCells.length ? ` 当前选择：${escapeHtml(selectedPreview + moreText)}` : ""}
                     </div>
                 </div>
             `;
+        }
+
+        function slugifyVisualSectionName(name) {
+            const raw = String(name || "").trim();
+            if (!raw) {
+                return "";
+            }
+            const ascii = raw
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "_")
+                .replace(/^_+|_+$/g, "");
+            if (ascii) {
+                return `manual_${ascii}`;
+            }
+            let hash = 0;
+            for (let index = 0; index < raw.length; index += 1) {
+                hash = ((hash << 5) - hash) + raw.charCodeAt(index);
+                hash |= 0;
+            }
+            return `manual_section_${Math.abs(hash)}`;
+        }
+
+        function buildUniqueVisualSectionKey(sectionName, existingSections = []) {
+            const baseKey = slugifyVisualSectionName(sectionName);
+            if (!baseKey) {
+                return "";
+            }
+            const usedKeys = new Set((Array.isArray(existingSections) ? existingSections : [])
+                .map((section) => String(section?.key || "").trim())
+                .filter(Boolean));
+            if (!usedKeys.has(baseKey)) {
+                return baseKey;
+            }
+            let index = 2;
+            while (usedKeys.has(`${baseKey}_${index}`)) {
+                index += 1;
+            }
+            return `${baseKey}_${index}`;
         }
 
         function bulkAssignSelectedVisualCellsToSection() {
@@ -2318,6 +2360,88 @@
             renderVisualWorkbench();
             renderConfigurationValidation();
             setStatus(`已将 ${selectedCells.length} 个单元格加入目标分区。请点击"保存配置"完成保存。`, "warning");
+        }
+
+        function bulkCreateSectionAndAssignSelectedVisualCells() {
+            if (!selectedMappingId) {
+                setStatus("请先选择映射。", "warning");
+                return;
+            }
+
+            const selectedCells = Array.from(selectedVisualCells || []).map(normalizeCell).filter(Boolean);
+            if (!selectedCells.length) {
+                setStatus("请先选择单元格。", "warning");
+                return;
+            }
+
+            const input = document.getElementById("visualBulkNewSectionName");
+            const sectionName = String(input?.value || "").trim();
+            if (!sectionName) {
+                setStatus("请输入新分区名称。", "warning");
+                if (input) input.focus();
+                return;
+            }
+
+            const cached = configByMappingId[selectedMappingId] || {
+                labels: [],
+                structureLabels: [],
+                sections: [],
+                analysis: {},
+                candidates: [],
+                savedConfiguration: {},
+                savedSectionConfiguration: {},
+            };
+
+            const existingSectionConfiguration = cached.savedSectionConfiguration && typeof cached.savedSectionConfiguration === "object"
+                ? cached.savedSectionConfiguration
+                : {};
+            const existingSections = Object.values(existingSectionConfiguration);
+            const newSectionKey = buildUniqueVisualSectionKey(sectionName, existingSections);
+
+            if (!newSectionKey) {
+                setStatus("无法生成新分区标识，请换一个分区名称。", "warning");
+                return;
+            }
+
+            const savedSectionConfiguration = {
+                ...existingSectionConfiguration,
+                [newSectionKey]: {
+                    key: newSectionKey,
+                    name: sectionName,
+                    title: sectionName,
+                    order: Object.keys(existingSectionConfiguration).length + 1,
+                    source: "manual",
+                    user_created: true,
+                },
+            };
+
+            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object"
+                ? { ...cached.savedConfiguration }
+                : {};
+
+            selectedCells.forEach((cellRef) => {
+                savedConfiguration[cellRef] = {
+                    ...(savedConfiguration[cellRef] || {}),
+                    cell: cellRef,
+                    section_key: newSectionKey,
+                    manual_section_key: newSectionKey,
+                    manual_override: true,
+                    user_edited: true,
+                };
+            });
+
+            configByMappingId[selectedMappingId] = {
+                ...cached,
+                savedConfiguration,
+                savedSectionConfiguration,
+            };
+
+            if (input) input.value = "";
+            setUnsavedChanges(true);
+            renderConfig();
+            renderVisualWorkbench();
+            renderConfigurationValidation();
+            setStatus(`已创建新分区"${sectionName}"，并加入 ${selectedCells.length} 个单元格。请点击"保存配置"完成保存。`, "warning");
         }
 
         function renderVisualWorkbench() {
