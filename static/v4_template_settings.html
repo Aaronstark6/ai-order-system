@@ -1101,14 +1101,10 @@
                 <div class="visual-workbench-title">可视化模板配置</div>
                 <div id="semanticControlBar" class="semantic-control-bar">
                     <div class="semantic-control-status">
-                        <strong>自动识别建议</strong>
-                        <span>可应用自动识别建议：0项</span>
+                        <strong>自动识别建议状态</strong>
+                        <span>正在加载字段库建议...</span>
                     </div>
-                    <div class="semantic-control-actions">
-                        <button type="button" class="secondary" disabled>应用自动识别建议</button>
-                        <button type="button" class="ghost" disabled>重新分析</button>
-                        <button type="button" class="ghost" disabled>高级诊断</button>
-                    </div>
+                    <div class="semantic-control-actions" aria-hidden="true"></div>
                 </div>
                 <div class="visual-legend" aria-label="单元格意图图例">
                     <label class="visual-legend-item"><input type="checkbox" data-intent-layer="fill-field" checked onchange="toggleVisualIntentLayer(this)"><span class="visual-legend-mark fill-field"></span>可填写字段</label>
