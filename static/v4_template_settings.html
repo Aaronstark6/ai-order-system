@@ -1026,6 +1026,15 @@
             line-height: 1.5;
             margin-top: 8px;
         }
+        .section-drag-handle {
+            cursor: grab;
+            padding: 0 4px;
+            font-size: 16px;
+            user-select: none;
+        }
+        .section-drag-handle:active {
+            cursor: grabbing;
+        }
     </style>
 </head>
 <body>
@@ -1147,6 +1156,7 @@
         let businessSectionCollapsed = {};
         let selectedVisualCell = "";
         let selectedVisualCells = new Set();
+        let draggingSectionKey = null;
         let hasUnsavedChanges = false;
         let isSavingConfiguration = false;
         let isReanalyzingMapping = false;
@@ -2279,30 +2289,97 @@
             const selectedCells = Array.from(selectedVisualCells);
             const { configSections } = currentConfigRenderModel();
             const safeSections = Array.isArray(configSections) ? configSections : [];
-            const currentSectionKey = String(activeConfig.section_key || activeConfig.manual_section_key || "");
-            const fallbackSectionKey = safeSections.length ? String(safeSections[0].key || "") : "";
-            const selectedSectionKey = currentSectionKey || fallbackSectionKey;
-            const disabled = selectedCells.length && safeSections.length ? "" : "disabled";
+            const disabled = selectedCells.length ? "" : "disabled";
             const selectedPreview = selectedCells.slice(0, 12).join("、");
             const moreText = selectedCells.length > 12 ? ` 等 ${selectedCells.length} 个` : "";
             return `
                 <div class="visual-bulk-panel">
                     <div class="visual-bulk-title">批量分区：已选择 ${selectedCells.length} 个单元格</div>
                     <div class="visual-bulk-actions">
-                        <select id="visualBulkSectionSelect" ${disabled}>
-                            ${buildSectionSelectOptions(safeSections, selectedSectionKey)}
-                        </select>
-                        <button type="button" class="secondary" onclick="bulkAssignSelectedVisualCellsToSection()" ${disabled}>加入已有分区</button>
-                    </div>
-                    <div class="visual-bulk-actions" style="margin-top:8px;">
-                        <input id="visualBulkNewSectionName" type="text" placeholder="输入新分区名称，例如：包装信息" ${selectedCells.length ? "" : "disabled"}>
-                        <button type="button" class="secondary" onclick="bulkCreateSectionAndAssignSelectedVisualCells()" ${selectedCells.length ? "" : "disabled"}>创建新分区并加入</button>
+                        <input
+                            id="visualBulkSectionComboInput"
+                            list="visualBulkSectionOptions"
+                            placeholder="输入或选择分区名称"
+                            ${disabled}
+                        />
+                        <datalist id="visualBulkSectionOptions">
+                            ${
+                                safeSections.map((section) => {
+                                    const label = escapeHtml(
+                                        String(
+                                            section.sectionLabel
+                                            || section.title
+                                            || section.name
+                                            || section.key
+                                            || ""
+                                        )
+                                    );
+                                    return `<option value="${label}"></option>`;
+                                }).join("")
+                            }
+                        </datalist>
+                        <button
+                            type="button"
+                            class="secondary"
+                            onclick="bulkProcessSelectedCells()"
+                            ${disabled}
+                        >
+                            加入/创建
+                        </button>
                     </div>
                     <div class="visual-bulk-help">
                         普通点击 = 单选；Ctrl / Shift / Cmd 点击 = 多选或取消选择。${selectedCells.length ? ` 当前选择：${escapeHtml(selectedPreview + moreText)}` : ""}
                     </div>
                 </div>
             `;
+        }
+
+        function bulkProcessSelectedCells() {
+            const input = document.getElementById("visualBulkSectionComboInput");
+            const rawValue = String(input?.value || "").trim();
+            if (!rawValue) {
+                return setStatus("请输入或选择分区名称。", "warning");
+            }
+
+            const { configSections } = currentConfigRenderModel();
+            const safeSections = Array.isArray(configSections) ? configSections : [];
+
+            const matchedSection = safeSections.find((section) => {
+                const label = String(section.sectionLabel || section.title || section.name || "").trim();
+                const key = String(section.key || "").trim();
+                return label === rawValue || key === rawValue;
+            });
+
+            if (matchedSection) {
+                const selectShim = document.createElement("input");
+                selectShim.value = String(matchedSection.key || "");
+                selectShim.id = "visualBulkSectionSelect";
+
+                const existing = document.getElementById("visualBulkSectionSelect");
+                if (existing) {
+                    existing.remove();
+                }
+
+                document.body.appendChild(selectShim);
+                bulkAssignSelectedVisualCellsToSection();
+                selectShim.remove();
+                return;
+            }
+
+            const existingInput = document.getElementById("visualBulkNewSectionName");
+            if (!existingInput) {
+                const hiddenInput = document.createElement("input");
+                hiddenInput.type = "hidden";
+                hiddenInput.id = "visualBulkNewSectionName";
+                hiddenInput.value = rawValue;
+                document.body.appendChild(hiddenInput);
+                bulkCreateSectionAndAssignSelectedVisualCells();
+                hiddenInput.remove();
+                return;
+            }
+
+            existingInput.value = rawValue;
+            bulkCreateSectionAndAssignSelectedVisualCells();
         }
 
         function slugifyVisualSectionName(name) {
@@ -2445,6 +2522,71 @@
             renderVisualWorkbench();
             renderConfigurationValidation();
             setStatus(`已创建新分区"${sectionName}"，并加入 ${selectedCells.length} 个单元格。请点击"保存配置"完成保存。`, "warning");
+        }
+
+        function handleSectionDragStart(event, key) {
+            draggingSectionKey = key;
+            event.dataTransfer.effectAllowed = "move";
+        }
+
+        function handleSectionDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+        }
+
+        function handleSectionDrop(event, targetKey) {
+            event.preventDefault();
+            if (!draggingSectionKey || draggingSectionKey === targetKey || !selectedMappingId) return;
+
+            const cached = configByMappingId[selectedMappingId] || {};
+            const savedSectionConfig = cached.savedSectionConfiguration && typeof cached.savedSectionConfiguration === "object"
+                ? cached.savedSectionConfiguration
+                : {};
+
+            if (!savedSectionConfig[draggingSectionKey]) {
+                draggingSectionKey = null;
+                return;
+            }
+
+            // 获取配置的键并按照现有的 section_order 排序
+            let keys = Object.keys(savedSectionConfig);
+            keys.sort((a, b) => {
+                const orderA = Number(savedSectionConfig[a]?.section_order || savedSectionConfig[a]?.order || 999);
+                const orderB = Number(savedSectionConfig[b]?.section_order || savedSectionConfig[b]?.order || 999);
+                return orderA - orderB;
+            });
+
+            const sourceIndex = keys.indexOf(draggingSectionKey);
+            const targetIndex = keys.indexOf(targetKey);
+
+            if (sourceIndex === -1 || targetIndex === -1) {
+                draggingSectionKey = null;
+                return;
+            }
+
+            // 移除源元素并插入到目标位置
+            const [movedKey] = keys.splice(sourceIndex, 1);
+            keys.splice(targetIndex, 0, movedKey);
+
+            // 重新分配 section_order
+            const newSavedSectionConfig = {};
+            let order = 1;
+            for (const key of keys) {
+                newSavedSectionConfig[key] = {
+                    ...savedSectionConfig[key],
+                    section_order: order,
+                    order: order,
+                };
+                order++;
+            }
+
+            cached.savedSectionConfiguration = newSavedSectionConfig;
+            configByMappingId[selectedMappingId] = cached;
+            setUnsavedChanges(true);
+            renderConfig();
+            renderConfigurationValidation();
+
+            draggingSectionKey = null;
         }
 
         function renderVisualWorkbench() {
@@ -4089,7 +4231,7 @@
                     const sectionOrder = Number(section.sectionOrder || 0);
                     const rowCount = Array.isArray(rows) ? rows.length : 0;
                     return `
-                        <div class="business-config-section config-section" data-section-key="${escapeHtml(sectionKey)}">
+                        <div class="business-config-section config-section" draggable="true" data-section-key="${escapeHtml(sectionKey)}" ondragstart="handleSectionDragStart(event, '${escapeHtml(sectionKey)}')" ondragover="handleSectionDragOver(event)" ondrop="handleSectionDrop(event, '${escapeHtml(sectionKey)}')">
                             <div class="mapping-section-title section-title-row" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
                                 <span class="section-title-left">
                                     <span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>
@@ -4098,6 +4240,7 @@
                                 </span>
                                 <span class="section-title-right">
                                     <span class="mapping-section-count">${rowCount}</span>
+                                    <span class="section-drag-handle" draggable="true" ondragstart="handleSectionDragStart(event, '${escapeHtml(sectionKey)}')">☰</span>
                                     <button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>
                                 </span>
                             </div>
@@ -4144,7 +4287,7 @@
                     const sectionOrder = Number(section.sectionOrder || 0);
                     const rowCount = Array.isArray(rows) ? rows.length : 0;
                     return `
-                    <div class="mapping-section-card config-section" data-section-key="${escapeHtml(sectionKey)}">
+                    <div class="mapping-section-card config-section" draggable="true" data-section-key="${escapeHtml(sectionKey)}" ondragstart="handleSectionDragStart(event, '${escapeHtml(sectionKey)}')" ondragover="handleSectionDragOver(event)" ondrop="handleSectionDrop(event, '${escapeHtml(sectionKey)}')">
                         <div class="mapping-section-title section-title-row" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
                             <span class="section-title-left">
                                 <span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>
@@ -4153,6 +4296,7 @@
                             </span>
                             <span class="section-title-right">
                                 <span class="mapping-section-count">${rowCount}</span>
+                                <span class="section-drag-handle" draggable="true" ondragstart="handleSectionDragStart(event, '${escapeHtml(sectionKey)}')">☰</span>
                                 <button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>
                             </span>
                         </div>
