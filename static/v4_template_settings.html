@@ -3446,16 +3446,23 @@
                 ...warnings.map((item) => normalizeCell(item?.cell)).filter(Boolean),
             ]);
 
+            function normalizeValidationMessage(message) {
+                return String(message || "")
+                    .replaceAll("field_key 重复", "字段标识重复")
+                    .replaceAll("field_key 不在字段库中", "字段标识不在字段库中")
+                    .replaceAll("field_key", "字段标识");
+            }
+
             const normalizedErrors = errors.map((item) => ({
                 cell: normalizeCell(item?.cell),
                 type: item?.type || item?.status || item?.label || "错误",
-                message: item?.message || "",
+                message: normalizeValidationMessage(item?.message),
             }));
 
             const normalizedWarnings = warnings.map((item) => ({
                 cell: normalizeCell(item?.cell),
                 type: item?.type || item?.status || item?.label || "警告",
-                message: item?.message || "",
+                message: normalizeValidationMessage(item?.message),
             }));
 
             const passed = checks
@@ -3524,8 +3531,25 @@
             const issueCells = new Set();
             const fieldUsage = {};
 
+            function getIssueDisplayType(cell, fallbackType) {
+                const cellRef = normalizeCell(cell);
+                const matched = items.find((item) => normalizeCell(item?.cell) === cellRef) || {};
+                return String(
+                    matched.label
+                    || matched.candidate_field_label
+                    || matched.field_label
+                    || fallbackType
+                    || "配置问题"
+                ).trim();
+            }
+
             function addIssue(bucket, cell, type, message) {
-                const issue = { cell, type, message };
+                const issue = {
+                    cell,
+                    type: getIssueDisplayType(cell, type),
+                    issue_type: type,
+                    message,
+                };
                 bucket.push(issue);
                 issueCells.add(cell);
             }
