@@ -743,6 +743,27 @@
             outline: 3px solid #fa8c16;
             outline-offset: -3px;
         }
+        .visual-box-select-rect {
+            background: rgba(22, 119, 255, 0.12);
+            border: 1px solid rgba(22, 119, 255, 0.75);
+            box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.18);
+            display: none;
+            left: 0;
+            pointer-events: none;
+            position: fixed;
+            top: 0;
+            z-index: 9999;
+        }
+        .visual-box-select-rect.visible {
+            display: block;
+        }
+        .visual-grid-wrap.box-selecting {
+            cursor: crosshair;
+            user-select: none;
+        }
+        .visual-grid-wrap.box-selecting .visual-cell {
+            cursor: crosshair;
+        }
         .visual-cell.merged-cell { background-clip: padding-box; }
         .visual-detail {
             background: #fafbfd;
@@ -1151,6 +1172,15 @@
         let businessSectionCollapsed = {};
         let selectedVisualCell = "";
         let selectedVisualCells = new Set();
+        let visualBoxSelectState = {
+            active: false,
+            moved: false,
+            startX: 0,
+            startY: 0,
+            currentX: 0,
+            currentY: 0,
+            originCell: "",
+        };
         let draggingSectionKey = null;
         let hasUnsavedChanges = false;
         let isSavingConfiguration = false;
@@ -2251,7 +2281,136 @@
             setStatus("已应用到当前单元格，请点击页面下方“保存配置”完成保存。", "warning");
         }
 
+        function getVisualBoxSelectRectElement() {
+            let element = document.getElementById("visualBoxSelectRect");
+            if (!element) {
+                element = document.createElement("div");
+                element.id = "visualBoxSelectRect";
+                element.className = "visual-box-select-rect";
+                document.body.appendChild(element);
+            }
+            return element;
+        }
+
+        function resetVisualBoxSelectRect() {
+            const rect = document.getElementById("visualBoxSelectRect");
+            if (rect) {
+                rect.classList.remove("visible");
+                rect.style.left = "0px";
+                rect.style.top = "0px";
+                rect.style.width = "0px";
+                rect.style.height = "0px";
+            }
+            const gridArea = document.getElementById("visualGridArea");
+            if (gridArea) {
+                gridArea.classList.remove("box-selecting");
+            }
+        }
+
+        function updateVisualBoxSelectRect() {
+            const rect = getVisualBoxSelectRectElement();
+            const left = Math.min(visualBoxSelectState.startX, visualBoxSelectState.currentX);
+            const top = Math.min(visualBoxSelectState.startY, visualBoxSelectState.currentY);
+            const width = Math.abs(visualBoxSelectState.currentX - visualBoxSelectState.startX);
+            const height = Math.abs(visualBoxSelectState.currentY - visualBoxSelectState.startY);
+            rect.style.left = `${left}px`;
+            rect.style.top = `${top}px`;
+            rect.style.width = `${width}px`;
+            rect.style.height = `${height}px`;
+            rect.classList.toggle("visible", width > 3 || height > 3);
+        }
+
+        function rectanglesIntersect(left, top, right, bottom, targetRect) {
+            return !(targetRect.right < left || targetRect.left > right || targetRect.bottom < top || targetRect.top > bottom);
+        }
+
+        function collectVisualCellsInBoxSelection() {
+            const left = Math.min(visualBoxSelectState.startX, visualBoxSelectState.currentX);
+            const top = Math.min(visualBoxSelectState.startY, visualBoxSelectState.currentY);
+            const right = Math.max(visualBoxSelectState.startX, visualBoxSelectState.currentX);
+            const bottom = Math.max(visualBoxSelectState.startY, visualBoxSelectState.currentY);
+            return Array.from(document.querySelectorAll("#visualGridArea .visual-cell"))
+                .filter((element) => {
+                    const cellRef = normalizeCell(element.getAttribute("data-cell-ref") || element.getAttribute("title") || "");
+                    if (!cellRef) return false;
+                    const rect = element.getBoundingClientRect();
+                    return rectanglesIntersect(left, top, right, bottom, rect);
+                })
+                .map((element) => normalizeCell(element.getAttribute("data-cell-ref") || element.getAttribute("title") || ""))
+                .filter(Boolean);
+        }
+
+        function finishVisualBoxSelect(event) {
+            if (!visualBoxSelectState.active) return;
+            const wasMoved = visualBoxSelectState.moved;
+            const originCell = visualBoxSelectState.originCell;
+            visualBoxSelectState.active = false;
+            visualBoxSelectState.moved = false;
+            visualBoxSelectState.originCell = "";
+            document.removeEventListener("mousemove", handleVisualBoxSelectMouseMove);
+            document.removeEventListener("mouseup", finishVisualBoxSelect);
+            resetVisualBoxSelectRect();
+
+            if (!wasMoved) {
+                return;
+            }
+
+            const cells = collectVisualCellsInBoxSelection();
+            if (!cells.length) {
+                return;
+            }
+
+            const shouldAddToExisting = Boolean(event && (event.ctrlKey || event.metaKey || event.shiftKey));
+            const nextSelection = shouldAddToExisting ? new Set(selectedVisualCells || []) : new Set();
+            cells.forEach((cell) => nextSelection.add(cell));
+            selectedVisualCells = nextSelection;
+            selectedVisualCell = cells[cells.length - 1] || originCell || selectedVisualCell || "";
+            renderVisualWorkbench();
+        }
+
+        function handleVisualBoxSelectMouseMove(event) {
+            if (!visualBoxSelectState.active) return;
+            visualBoxSelectState.currentX = event.clientX;
+            visualBoxSelectState.currentY = event.clientY;
+            const dx = Math.abs(visualBoxSelectState.currentX - visualBoxSelectState.startX);
+            const dy = Math.abs(visualBoxSelectState.currentY - visualBoxSelectState.startY);
+            if (dx > 4 || dy > 4) {
+                visualBoxSelectState.moved = true;
+                const gridArea = document.getElementById("visualGridArea");
+                if (gridArea) {
+                    gridArea.classList.add("box-selecting");
+                }
+            }
+            if (visualBoxSelectState.moved) {
+                updateVisualBoxSelectRect();
+                event.preventDefault();
+            }
+        }
+
+        function handleVisualCellMouseDown(event, cellRef) {
+            if (!event || event.button !== 0) return;
+            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            const normalizedCell = normalizeCell(cellRef);
+            if (!normalizedCell) return;
+            visualBoxSelectState = {
+                active: true,
+                moved: false,
+                startX: event.clientX,
+                startY: event.clientY,
+                currentX: event.clientX,
+                currentY: event.clientY,
+                originCell: normalizedCell,
+            };
+            document.addEventListener("mousemove", handleVisualBoxSelectMouseMove);
+            document.addEventListener("mouseup", finishVisualBoxSelect);
+        }
+
         function handleVisualCellClick(event, cellRef) {
+            if (visualBoxSelectState.moved) {
+                event?.preventDefault?.();
+                return;
+            }
+
             const normalizedCell = normalizeCell(cellRef);
             if (!normalizedCell) {
                 return;
@@ -2638,7 +2797,7 @@
                     const contentStyle = visualCellContentStyle(cell);
                     const contentClass = cell.wrap_text ? "wrap-text" : "no-wrap";
                     const displayText = escapeHtml(cell.display_value || "");
-                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" onclick="handleVisualCellClick(event, '${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}"><div class="visual-cell-content ${contentClass}" style="${contentStyle}">${displayText}</div></td>`);
+                    tds.push(`<td class="${classes}"${spanAttrs} style="${cellStyle}" data-cell-ref="${escapeHtml(cellRef)}" onmousedown="handleVisualCellMouseDown(event, '${escapeHtml(cellRef)}')" onclick="handleVisualCellClick(event, '${escapeHtml(cellRef)}')" title="${escapeHtml(cellRef)}"><div class="visual-cell-content ${contentClass}" style="${contentStyle}">${displayText}</div></td>`);
                 }
                 bodyRows.push(`<tr style="height:${rowHeight}px"><th class="row-head" style="height:${rowHeight}px">${row}</th>${tds.join("")}</tr>`);
             }
