@@ -357,84 +357,6 @@
         .config-table .action-col { min-width: 60px; text-align: center; }
         .field-input, .candidate-input { min-width: 120px; }
         .show-checkbox { min-height: auto; width: auto; }
-        .business-config-toolbar {
-            align-items: center;
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-            margin: 0 0 14px;
-        }
-        .business-config-toolbar button {
-            min-height: 34px;
-            padding: 7px 12px;
-        }
-        .business-config-toolbar button.active {
-            background: #1d2939;
-            border-color: #1d2939;
-            color: #fff;
-        }
-        .business-config-grid {
-            display: grid;
-            gap: 14px;
-        }
-        .business-config-section {
-            background: #fff;
-            border: 1px solid #e4e7ec;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .business-config-row {
-            align-items: center;
-            border-top: 1px solid #edf0f4;
-            display: grid;
-            gap: 12px;
-            grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1.2fr) 76px;
-            padding: 12px 14px;
-        }
-        .business-config-row:first-child { border-top: 0; }
-        .business-config-label {
-            color: #1d2939;
-            font-size: 13px;
-            font-weight: 700;
-            min-width: 0;
-        }
-        .business-config-label small {
-            color: #667085;
-            display: block;
-            font-size: 12px;
-            font-weight: 400;
-            margin-top: 3px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .business-config-editor {
-            min-width: 0;
-        }
-        .business-config-editor input,
-        .business-config-editor select {
-            min-height: 36px;
-            width: 100%;
-        }
-        .business-config-editor .semantic-analysis-panel {
-            margin-top: 8px;
-        }
-        .business-config-cell {
-            background: #f8fafc;
-            border: 1px solid #e4e7ec;
-            border-radius: 999px;
-            color: #475467;
-            font-size: 12px;
-            font-weight: 700;
-            justify-self: end;
-            padding: 5px 9px;
-            text-align: center;
-            white-space: nowrap;
-        }
-        .business-config-hidden-fields {
-            display: none;
-        }
-
         .mapping-section-card{
             margin-bottom:20px;
             border:1px solid #e5e7eb;
@@ -454,8 +376,7 @@
             color: #667085;
             margin-right: 8px;
         }
-        .mapping-section-body.collapsed,
-        .business-config-body.collapsed {
+        .mapping-section-body.collapsed {
             display: none;
         }
         .mapping-section-count{
@@ -1030,10 +951,6 @@
             .visual-workbench-body { grid-template-columns: 1fr; }
             .validation-item { grid-template-columns: 1fr; }
             .mapping-health-header { align-items: stretch; flex-direction: column; }
-            .business-config-toolbar { justify-content: stretch; }
-            .business-config-toolbar button { flex: 1; }
-            .business-config-row { grid-template-columns: 1fr; }
-            .business-config-cell { justify-self: start; }
             .sticky-save-bar {
                 bottom: 12px;
                 left: 12px;
@@ -1187,8 +1104,7 @@
         let visualGridByMappingId = {};
         let mappingHealthByMappingId = {};
         let mappingHealthExpanded = false;
-        let configViewMode = "table";
-        let businessSectionCollapsed = {};
+
         let selectedVisualCell = "";
         let selectedVisualCells = new Set();
         let visualBoxSelectState = {
@@ -4361,26 +4277,6 @@
             return "other";
         }
 
-        function toggleBusinessSection(sectionKey) {
-            businessSectionCollapsed[sectionKey] = !businessSectionCollapsed[sectionKey];
-            renderConfig();
-        }
-
-        function switchConfigViewMode(mode) {
-            configViewMode = mode === "business" ? "business" : "table";
-            renderConfig();
-        }
-
-        function renderConfigViewToolbar() {
-            return `
-                <div class="business-config-toolbar">
-                    <button type="button" onclick="addManualConfigSection()">新增分区</button>
-                    <button type="button" class="${configViewMode === "table" ? "active" : "ghost"}" onclick="switchConfigViewMode('table')">表格模式</button>
-                    <button type="button" class="${configViewMode === "business" ? "active" : "ghost"}" onclick="switchConfigViewMode('business')">业务表单模式</button>
-                </div>
-            `;
-        }
-
         function manualSectionKeyFromName(name) {
             const raw = String(name || "").trim() || "人工分区";
             const base = raw
@@ -4416,7 +4312,6 @@
             };
             cached.savedSectionConfiguration = saved;
             configByMappingId[selectedMappingId] = cached;
-            businessSectionCollapsed[key] = false;
             setUnsavedChanges(true);
             renderConfig();
             renderConfigurationValidation();
@@ -4465,7 +4360,23 @@
             renderVisualWorkbench();
             renderConfigurationValidation();
             renderSemanticControlBar();
-            setStatus(`已删除单元格配置：${cell}。请点击“保存配置”完成保存。`, "warning");
+            setStatus(`已删除单元格配置：${cell}。请点击"保存配置"完成保存。`, "warning");
+        }
+
+        function toggleConfigSection(sectionKey) {
+            const body = document.querySelector(`.mapping-section-body[data-section-key='${sectionKey}']`);
+            if (!body) return;
+
+            const collapsed = body.classList.contains('collapsed');
+            if (collapsed) {
+                body.classList.remove('collapsed');
+                const title = document.querySelector(`.mapping-section-title[data-section-key='${sectionKey}'] .mapping-section-toggle`);
+                if (title) title.textContent = '▼';
+            } else {
+                body.classList.add('collapsed');
+                const title = document.querySelector(`.mapping-section-title[data-section-key='${sectionKey}'] .mapping-section-toggle`);
+                if (title) title.textContent = '▶';
+            }
         }
 
         function deleteManualConfigSection(sectionKey) {
@@ -4528,7 +4439,6 @@
                 savedConfiguration,
             };
 
-            delete businessSectionCollapsed[key];
             setUnsavedChanges(true);
             renderConfig();
             renderVisualWorkbench();
@@ -4584,82 +4494,9 @@
             return `<input data-config-field="label" type="text" value="${escapeHtml(currentValue)}" ${disabled}>`;
         }
 
-        function renderBusinessConfigHiddenFields(row) {
-            const disabled = row.cell ? "" : "disabled";
-            const imageFieldsHtml = isImageFieldsEnabled() ? `
-                    <input data-config-field="field_type" type="hidden" value="${escapeHtml(row.fieldType || "text")}" ${disabled}>
-                    <input data-config-field="image_fit" type="hidden" value="${escapeHtml(row.imageFit || "contain")}" ${disabled}>
-                    <input data-config-field="image_anchor_cell" type="hidden" value="${escapeHtml(row.imageAnchorCell || row.targetCell || row.cell || "")}" ${disabled}>
-            ` : "";
-            return `
-                <div class="business-config-hidden-fields">
-                    <input data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${disabled}>
-                    <input data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${disabled}>
-                    <input data-config-field="intent_type" type="hidden" value="${escapeHtml(row.intentType || "unknown")}" ${disabled}>
-                    <input data-config-field="write_mode" type="hidden" value="${escapeHtml(row.writeMode || "skip")}" ${disabled}>
-                    <input data-config-field="target_cell" type="hidden" value="${escapeHtml(row.targetCell || "")}" ${disabled}>
-                    <input data-config-field="option_value" type="hidden" value="${escapeHtml(row.optionValue || "")}" ${disabled}>
-                    <input data-config-field="ai_extract_hint" type="hidden" value="${escapeHtml(row.aiExtractHint || "")}" ${disabled}>
-                    <input data-config-field="order" type="hidden" value="${escapeHtml(row.displayOrder || 1)}" ${disabled}>
-                    ${imageFieldsHtml}
-                </div>
-            `;
-        }
 
-        function renderBusinessConfigView(configSections) {
-            const safeSections = Array.isArray(configSections) ? configSections : [];
-            const sectionsHtml = safeSections
-                .map(section => {
-                    const sectionKey = String(section.key || "other");
-                    const rows = section.rows;
-                    const collapsed = businessSectionCollapsed[sectionKey] !== false;
-                    const sectionLabel = section.sectionLabel || section.title || "其他字段";
-                    const sectionOrder = Number(section.sectionOrder || 0);
-                    const rowCount = Array.isArray(rows) ? rows.length : 0;
-                    return `
-                        <div class="business-config-section config-section" draggable="true" data-section-key="${escapeHtml(sectionKey)}" ondragstart="handleSectionDragStart(event, '${escapeHtml(sectionKey)}')" ondragover="handleSectionDragOver(event)" ondrop="handleSectionDrop(event, '${escapeHtml(sectionKey)}')">
-                            <div class="mapping-section-title section-title-row" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
-                                <span class="section-title-left">
-                                    <span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>
-                                    <input class="section-title-input" data-section-field="label" type="text" value="${escapeHtml(sectionLabel)}" onclick="event.stopPropagation()" oninput="setUnsavedChanges(true)">
-                                    <input data-section-field="order" type="hidden" value="${escapeHtml(sectionOrder)}">
-                                </span>
-                                <span class="section-title-right">
-                                    <span class="mapping-section-count">${rowCount}</span>
-                                    <span class="section-drag-handle" draggable="true" ondragstart="handleSectionDragStart(event, '${escapeHtml(sectionKey)}')">☰</span>
-                                    <button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>
-                                </span>
-                            </div>
-                            <div class="business-config-body ${collapsed ? "collapsed" : ""}">
-                                ${rows.length ? rows.map(row => `
-                                    <div class="business-config-row" data-config-row ${renderConfigRowDataAttributes(row)}>
-                                        <div class="business-config-label">
-                                            ${escapeHtml(row.configLabel || row.candidateFieldLabel || row.candidateFieldKey || row.cell || "-")}
-                                            <small>${escapeHtml(row.candidateFieldKey ? friendlyFieldKeyLabel(row.candidateFieldKey) : (row.intentType || "-"))}</small>
-                                        </div>
-                                        <div class="business-config-editor">${renderBusinessConfigEditor(row)}${renderBusinessSemanticPanel(row)}${renderBusinessConfigHiddenFields(row)}</div>
-                                        <div class="business-config-cell">
-                                            <div>${escapeHtml(row.cell || "-")}</div>
-                                            <div class="small">所属分区</div>
-                                            ${renderSectionAssignmentControl(row, safeSections)}
-                                            <button class="small danger" type="button" onclick="event.stopPropagation(); deleteBusinessConfigCell('${escapeHtml(row.cell || "")}')">删除单元格</button>
-                                        </div>
-                                    </div>
-                                `).join("") : `
-                                    <div class="config-empty">该分区暂无字段。可在其它字段行的“所属分区”中选择此分区。</div>
-                                `}
-                            </div>
-                        </div>
-                    `;
-                }).join("");
-            return `
-                ${renderConfigViewToolbar()}
-                <div class="business-config-grid">${sectionsHtml || '<div class="config-empty">当前没有可配置字段。可点击“新增分区”创建人工分区。</div>'}</div>
-                <div class="config-actions">
-                    <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
-                </div>
-            `;
-        }
+
+
 
         function renderTableConfigView(configSections) {
             const area = document.getElementById("templateConfigArea");
@@ -4669,15 +4506,14 @@
                 .map(section => {
                     const sectionKey = String(section.key || "other");
                     const rows = section.rows;
-                    const collapsed = businessSectionCollapsed[sectionKey] !== false;
                     const sectionLabel = section.sectionLabel || section.title || "其他字段";
                     const sectionOrder = Number(section.sectionOrder || 0);
                     const rowCount = Array.isArray(rows) ? rows.length : 0;
                     return `
                     <div class="mapping-section-card config-section" draggable="true" data-section-key="${escapeHtml(sectionKey)}" ondragstart="handleSectionDragStart(event, '${escapeHtml(sectionKey)}')" ondragover="handleSectionDragOver(event)" ondrop="handleSectionDrop(event, '${escapeHtml(sectionKey)}')">
-                        <div class="mapping-section-title section-title-row" onclick="toggleBusinessSection('${escapeHtml(sectionKey)}')">
+                        <div class="mapping-section-title section-title-row" data-section-key="${escapeHtml(sectionKey)}" onclick="toggleConfigSection('${escapeHtml(sectionKey)}')">
                             <span class="section-title-left">
-                                <span class="mapping-section-toggle">${collapsed ? "▶" : "▼"}</span>
+                                <span class="mapping-section-toggle">▶</span>
                                 <input class="section-title-input" data-section-field="label" type="text" value="${escapeHtml(sectionLabel)}" onclick="event.stopPropagation()" oninput="setUnsavedChanges(true)">
                                 <input data-section-field="order" type="hidden" value="${escapeHtml(sectionOrder)}">
                             </span>
@@ -4687,7 +4523,7 @@
                                 <button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>
                             </span>
                         </div>
-                        <div class="mapping-section-body ${collapsed ? "collapsed" : ""}">
+                        <div class="mapping-section-body collapsed" data-section-key="${escapeHtml(sectionKey)}">
                             <table class="config-table">
                                 <thead>
                                     <tr>
@@ -4765,7 +4601,6 @@
                 }).join("");
 
             area.innerHTML = `
-                ${renderConfigViewToolbar()}
                 ${rowsHtml || '<div class="config-empty">当前没有可配置字段。可点击“新增分区”创建人工分区。</div>'}
                 <div class="config-actions">
                     <button type="button" onclick="saveTemplateConfiguration()">保存配置</button>
@@ -4805,17 +4640,6 @@
             }
 
             area.className = "";
-            if (configViewMode === "business") {
-                area.innerHTML = renderBusinessConfigView(configSections);
-                normalizeRepeatedSaveButtons(area);
-                area.querySelectorAll("[data-config-field]").forEach((input) => {
-                    input.addEventListener("input", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
-                    input.addEventListener("change", () => { markConfigurationRowEdited(input); renderConfigurationValidation(); });
-                });
-                renderConfigurationValidation();
-                return;
-            }
-
             renderTableConfigView(configSections);
             normalizeRepeatedSaveButtons(area);
         }
