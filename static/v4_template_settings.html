@@ -760,6 +760,8 @@
         .visual-grid-wrap.box-selecting {
             cursor: crosshair;
             user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
         }
         .visual-grid-wrap.box-selecting .visual-cell {
             cursor: crosshair;
@@ -2342,6 +2344,8 @@
 
         function finishVisualBoxSelect(event) {
             if (!visualBoxSelectState.active) return;
+
+            event?.preventDefault?.();
             const wasMoved = visualBoxSelectState.moved;
             const originCell = visualBoxSelectState.originCell;
             visualBoxSelectState.active = false;
@@ -2360,9 +2364,22 @@
                 return;
             }
 
-            const shouldAddToExisting = Boolean(event && (event.ctrlKey || event.metaKey || event.shiftKey));
-            const nextSelection = shouldAddToExisting ? new Set(selectedVisualCells || []) : new Set();
-            cells.forEach((cell) => nextSelection.add(cell));
+            const isShiftAccumulationMode = Boolean(
+                event &&
+                event.shiftKey &&
+                !event.ctrlKey &&
+                !event.metaKey &&
+                !event.altKey
+            );
+
+            const nextSelection = isShiftAccumulationMode
+                ? new Set(selectedVisualCells || [])
+                : new Set();
+
+            cells.forEach((cell) => {
+                nextSelection.add(cell);
+            });
+
             selectedVisualCells = nextSelection;
             selectedVisualCell = cells[cells.length - 1] || originCell || selectedVisualCell || "";
             renderVisualWorkbench();
@@ -2370,6 +2387,8 @@
 
         function handleVisualBoxSelectMouseMove(event) {
             if (!visualBoxSelectState.active) return;
+
+            event.preventDefault();
             visualBoxSelectState.currentX = event.clientX;
             visualBoxSelectState.currentY = event.clientY;
             const dx = Math.abs(visualBoxSelectState.currentX - visualBoxSelectState.startX);
@@ -2389,7 +2408,9 @@
 
         function handleVisualCellMouseDown(event, cellRef) {
             if (!event || event.button !== 0) return;
-            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+
+            event.preventDefault();
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
             const normalizedCell = normalizeCell(cellRef);
             if (!normalizedCell) return;
             visualBoxSelectState = {
