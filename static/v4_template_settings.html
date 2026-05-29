@@ -4422,28 +4422,124 @@
             renderConfigurationValidation();
         }
 
-        function deleteManualConfigSection(sectionKey) {
-            const key = String(sectionKey || "").trim();
-            if (!key || !selectedMappingId) return;
-            const { configSections } = currentConfigRenderModel();
-            const target = configSections.find(section => String(section.key || "") === key);
-            const rowCount = Array.isArray(target?.rows) ? target.rows.length : 0;
-            if (rowCount > 0) {
-                window.alert(`该分区内还有 ${rowCount} 个字段。请先把这些字段移动到其它分区，再删除该分区。`);
+        function deleteBusinessConfigCell(cellRef) {
+            const cell = normalizeCell(cellRef);
+            if (!cell || !selectedMappingId) {
                 return;
             }
-            if (!window.confirm("确认删除这个空分区吗？")) return;
+
             const cached = configByMappingId[selectedMappingId] || {};
-            const saved = cached.savedSectionConfiguration && typeof cached.savedSectionConfiguration === "object"
+            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object"
+                ? { ...cached.savedConfiguration }
+                : {};
+
+            if (!savedConfiguration[cell]) {
+                setStatus(`未找到 ${cell} 的配置项。`, "warning");
+                return;
+            }
+
+            const label = String(savedConfiguration[cell]?.label || savedConfiguration[cell]?.candidate_field_label || cell || "");
+            if (!confirm(`确认删除单元格配置【${cell} ${label}】？\n\n只会删除这个单元格的配置，不会删除模板、字段库或分区。`)) {
+                return;
+            }
+
+            delete savedConfiguration[cell];
+
+            configByMappingId[selectedMappingId] = {
+                ...cached,
+                savedConfiguration,
+            };
+
+            if (selectedVisualCell === cell) {
+                selectedVisualCell = "";
+            }
+
+            if (selectedVisualCells && selectedVisualCells.has(cell)) {
+                const nextSelection = new Set(selectedVisualCells);
+                nextSelection.delete(cell);
+                selectedVisualCells = nextSelection;
+            }
+
+            setUnsavedChanges(true);
+            renderConfig();
+            renderVisualWorkbench();
+            renderConfigurationValidation();
+            renderSemanticControlBar();
+            setStatus(`已删除单元格配置：${cell}。请点击“保存配置”完成保存。`, "warning");
+        }
+
+        function deleteManualConfigSection(sectionKey) {
+            const key = String(sectionKey || "").trim();
+            if (!key || !selectedMappingId) {
+                return;
+            }
+
+            const { configSections } = currentConfigRenderModel();
+            const safeSections = Array.isArray(configSections) ? configSections : [];
+            const target = safeSections.find((section) => String(section.key || "") === key);
+            const sectionLabel = String(
+                target?.sectionLabel
+                || target?.title
+                || target?.name
+                || key
+            );
+
+            const rows = Array.isArray(target?.rows) ? target.rows : [];
+            const rowCount = rows.length;
+
+            const confirmMessage = rowCount > 0
+                ? `确认删除分区【${sectionLabel}】？\n\n该分区下 ${rowCount} 个字段不会删除。\n这些字段将自动移动到未分区状态。\n\n删除后请点击“保存配置”完成保存。`
+                : `确认删除空分区【${sectionLabel}】？\n\n删除后请点击“保存配置”完成保存。`;
+
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            const cached = configByMappingId[selectedMappingId] || {};
+            const savedSectionConfiguration = cached.savedSectionConfiguration && typeof cached.savedSectionConfiguration === "object"
                 ? { ...cached.savedSectionConfiguration }
                 : {};
-            delete saved[key];
-            cached.savedSectionConfiguration = saved;
-            configByMappingId[selectedMappingId] = cached;
+            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object"
+                ? { ...cached.savedConfiguration }
+                : {};
+
+            delete savedSectionConfiguration[key];
+
+            Object.entries(savedConfiguration).forEach(([cell, item]) => {
+                if (!item || typeof item !== "object") {
+                    return;
+                }
+
+                const itemSectionKey = String(item.section_key || item.manual_section_key || "").trim();
+                if (itemSectionKey !== key) {
+                    return;
+                }
+
+                savedConfiguration[cell] = {
+                    ...item,
+                    section_key: "",
+                    manual_section_key: "",
+                };
+            });
+
+            configByMappingId[selectedMappingId] = {
+                ...cached,
+                savedSectionConfiguration,
+                savedConfiguration,
+            };
+
             delete businessSectionCollapsed[key];
             setUnsavedChanges(true);
             renderConfig();
+            renderVisualWorkbench();
             renderConfigurationValidation();
+            renderSemanticControlBar();
+
+            const statusText = rowCount > 0
+                ? `已删除分区【${sectionLabel}】，${rowCount} 个字段已移动到未分区。请点击“保存配置”完成保存。`
+                : `已删除空分区【${sectionLabel}】。请点击“保存配置”完成保存。`;
+
+            setStatus(statusText, "warning");
         }
 
         function currentConfigRenderModel() {
@@ -4546,6 +4642,7 @@
                                             <div>${escapeHtml(row.cell || "-")}</div>
                                             <div class="small">所属分区</div>
                                             ${renderSectionAssignmentControl(row, safeSections)}
+                                            <button class="small danger" type="button" onclick="event.stopPropagation(); deleteBusinessConfigCell('${escapeHtml(row.cell || "")}')">删除单元格</button>
                                         </div>
                                     </div>
                                 `).join("") : `
@@ -4610,7 +4707,10 @@
                                             <td><input class="candidate-input" data-config-field="field_key" type="text" value="${escapeHtml(row.candidateFieldKey || "")}" ${row.cell ? "" : "disabled"}></td>
                                             <td class="show-col"><input class="show-checkbox" data-config-field="show" type="checkbox" ${row.showInWorkspace ? "checked" : ""} ${row.cell ? "" : "disabled"}></td>
                                             <td class="action-col">${renderSectionAssignmentControl(row, safeSections)}</td>
-                                            <td class="action-col"><button class="small" type="button">详情</button></td>
+                                            <td class="action-col">
+    <button class="small" type="button" data-debug-toggle="true">详情</button>
+    <button class="small danger" type="button" onclick="event.stopPropagation(); deleteBusinessConfigCell('${escapeHtml(row.cell || "")}')">删除单元格</button>
+</td>
                                         </tr>
                                         <tr class="debug-row" style="display:none;">
                                             <td colspan="6">
@@ -4672,7 +4772,7 @@
                 </div>
             `;
 
-            area.querySelectorAll("button.small").forEach((btn) => {
+            area.querySelectorAll("button.small[data-debug-toggle='true']").forEach((btn) => {
                 btn.addEventListener("click", () => {
                     const tr = btn.closest("tr");
                     const debugRow = tr.nextElementSibling;
