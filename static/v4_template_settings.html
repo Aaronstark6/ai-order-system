@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -2108,7 +2108,7 @@
                 </div>
                 <div class="visual-detail-section">
                     ${renderSemanticAnalysisPanel(config, { title: "AI识别结果" })}
-                    <button type="button" class="secondary" onclick="applyCurrentCellSemanticDraftConfiguration()" ${config.semantic_promoted ? "" : "disabled"}>应用到当前单元格</button>
+                    <div class="small">AI识别建议已自动写入配置草稿；如有错误，请在下方人工修改后点击"应用编辑到配置"。</div>
                 </div>
                 <div class="visual-detail-field">
                     <label>字段名</label>
@@ -2213,7 +2213,7 @@
             setUnsavedChanges(true);
             renderConfig();
             renderVisualWorkbench();
-            setStatus("已应用到当前单元格，请点击页面下方“保存配置”完成保存。", "warning");
+            setStatus("已应用编辑到配置，请点击页面下方“保存配置”完成保存。", "warning");
         }
 
         function getVisualBoxSelectRectElement() {
@@ -3309,46 +3309,6 @@
             renderConfigurationValidation();
             await loadMappingHealth(selectedMappingId, false);
             setStatus(`已重新应用字段库建议：${stats.applied_count} 项；人工配置跳过：${stats.skipped_manual_count} 项；低可信跳过：${stats.skipped_low_confidence_count} 项。请检查后保存配置。`, "warning");
-        }
-
-        async function applyCurrentCellSemanticDraftConfiguration() {
-            if (!selectedMappingId || !selectedVisualCell) {
-                setStatus("请先选择一个单元格。", "warning");
-                return;
-            }
-            const cellRef = normalizeCell(selectedVisualCell);
-            const candidate = getCachedCandidateForCell(cellRef);
-            if (!candidate || candidate.semantic_promoted !== true) {
-                setStatus("当前单元格没有可应用的自动识别建议。", "warning");
-                return;
-            }
-            const confidence = Number(candidate.confidence || candidate.semantic_confidence || 0);
-            if (confidence < 0.70) {
-                setStatus("当前单元格自动识别建议可信度较低，未自动应用。", "warning");
-                return;
-            }
-            const cached = configByMappingId[selectedMappingId] || { labels: [], structureLabels: [], sections: [], analysis: {}, candidates: [], savedConfiguration: {}, savedSectionConfiguration: {} };
-            const savedConfiguration = cached.savedConfiguration && typeof cached.savedConfiguration === "object" ? { ...cached.savedConfiguration } : {};
-            collectEditableConfiguration().forEach((item) => {
-                const key = normalizeCell(item.cell);
-                if (key) savedConfiguration[key] = { ...(savedConfiguration[key] || {}), ...item };
-            });
-            const area = document.getElementById("visualCellDetail");
-            const locked = Boolean(area?.querySelector("[data-visual-detail-field='manual_override']")?.checked);
-            const visualCell = findVisualCell(cellRef) || {};
-            const existing = savedConfiguration[cellRef] && typeof savedConfiguration[cellRef] === "object" ? savedConfiguration[cellRef] : {};
-            savedConfiguration[cellRef] = {
-                ...buildSemanticDraftItem(candidate, visualCell, existing, Object.keys(savedConfiguration).length + 1),
-                manual_override: locked,
-                user_edited: true,
-            };
-            configByMappingId[selectedMappingId] = { ...cached, savedConfiguration };
-            setUnsavedChanges(true);
-            renderConfig();
-            renderVisualWorkbench();
-            renderConfigurationValidation();
-            await loadMappingHealth(selectedMappingId, false);
-            setStatus("已将自动识别建议应用到当前单元格。请检查后点击保存配置。", "warning");
         }
 
         function formatConfidenceBreakdown(breakdown) {
@@ -4712,3 +4672,4 @@
     </script>
 </body>
 </html>
+
