@@ -3448,13 +3448,13 @@
 
             const normalizedErrors = errors.map((item) => ({
                 cell: normalizeCell(item?.cell),
-                type: item?.field_key || item?.label || "错误",
+                type: item?.type || item?.status || item?.label || "错误",
                 message: item?.message || "",
             }));
 
             const normalizedWarnings = warnings.map((item) => ({
                 cell: normalizeCell(item?.cell),
-                type: item?.field_key || item?.label || "警告",
+                type: item?.type || item?.status || item?.label || "警告",
                 message: item?.message || "",
             }));
 
