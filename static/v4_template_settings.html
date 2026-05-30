@@ -808,15 +808,6 @@
             color: #667085;
             font-size: 13px;
         }
-        .developer-only-panel {
-            display: none;
-        }
-        body.show-developer-tools .developer-only-panel {
-            display: grid;
-        }
-        body.show-developer-tools .excel-feature-panel.developer-only-panel {
-            display: block;
-        }
         .mapping-health-panel {
             background: #fff;
             border: 1px solid #e4e7ec;
@@ -825,9 +816,6 @@
             gap: 12px;
             margin: 14px 0;
             padding: 14px;
-        }
-        .mapping-health-panel.developer-only-panel {
-            display: none;
         }
         .mapping-health-header {
             align-items: center;
@@ -1027,12 +1015,16 @@
                     </div>
                 </div>
             </div>
-            <div id="excelFeatureFlagsPanel" class="excel-feature-panel developer-only-panel"></div>
             <div id="templateConfigArea" class="config-empty">
                 当前映射尚未生成模板配置。上传模板后，系统会分析模板结构，并在这里显示可填写单元格。
             </div>
             <div id="configurationValidation" class="validation-panel"></div>
-            <div id="mappingHealthPanel" class="mapping-health-panel developer-only-panel"></div>
+            <details id="configurationAdvancedDetails" class="configuration-advanced-details">
+                <summary>高级明细</summary>
+                <div class="small">用于排查配置、映射健康和 Excel 功能开关；日常使用通常无需展开。</div>
+                <div id="mappingHealthPanel" class="mapping-health-panel"></div>
+                <div id="excelFeatureFlagsPanel" class="excel-feature-panel"></div>
+            </details>
         </section>
     </main>
 
@@ -2904,7 +2896,6 @@
                 <div class="semantic-control-actions">
                     <button type="button" class="ghost" onclick="reanalyzeCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>刷新字段库建议</button>
                     <button type="button" class="danger" onclick="fullRefreshCurrentMapping()" ${selectedMappingId ? "" : "disabled"}>彻底刷新映射</button>
-                    <button type="button" class="ghost" onclick="openAdvancedDiagnostics()" ${selectedMappingId ? "" : "disabled"}>${document.body.classList.contains("show-developer-tools") ? "关闭高级诊断" : "高级诊断"}</button>
                 </div>
             `;
             const reanalyzeButton = area.querySelector('button[onclick="reanalyzeCurrentMapping()"]');
@@ -2996,19 +2987,6 @@
 
             const autoStats = autoApplyResult.stats || {};
             setStatus(`彻底刷新映射完成：已清空旧配置，并自动应用 ${Number(autoStats.applied_count || 0)} 项建议为配置草稿。请检查后保存配置。`, "success");
-        }
-
-        function openAdvancedDiagnostics() {
-            const shouldShow = !document.body.classList.contains("show-developer-tools");
-            document.body.classList.toggle("show-developer-tools", shouldShow);
-            mappingHealthExpanded = shouldShow;
-            renderExcelFeatureFlagsPanel();
-            renderMappingHealth();
-            renderSemanticControlBar();
-            if (shouldShow) {
-                const panel = document.getElementById("mappingHealthPanel");
-                if (panel) panel.scrollIntoView({ block: "start", behavior: "smooth" });
-            }
         }
 
         function semanticDraftShowInWorkspace(candidate) {
@@ -3817,10 +3795,9 @@
                     </div>
                 </div>
                 <div class="mapping-health-summary">
-                    <div class="mapping-health-metric"><span>配置项</span><strong>${Number(summary.total_config_items || 0)}</strong></div>
+                    <div class="mapping-health-metric"><span>原始配置项</span><strong>${Number(summary.total_config_items || 0)}</strong></div>
                     <div class="mapping-health-metric"><span>AI字段</span><strong>${Number(summary.ai_contract_fields || 0)}</strong></div>
                     <div class="mapping-health-metric"><span>工作页字段</span><strong>${Number(summary.workspace_fields || 0)}</strong></div>
-                    <div class="mapping-health-metric"><span>可导出字段</span><strong>${Number(summary.export_ready_fields || 0)}</strong></div>
                 </div>
                 ${renderRuntimeMappingSource(runtimeSource)}
             `;
@@ -3868,10 +3845,6 @@
                 ${renderMappingHealthHeader(summary)}
                 ${mappingHealthExpanded ? `
                     <div class="mapping-health-details">
-                        <div class="mapping-health-problems">
-                            ${renderMappingHealthProblemGroup("错误列表", "error", result.errors || [])}
-                            ${renderMappingHealthProblemGroup("警告列表", "warning", result.warnings || [])}
-                        </div>
                         ${renderMappingHealthCheckDetails(result.checks || [])}
                     </div>
                 ` : ""}
