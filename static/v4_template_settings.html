@@ -3987,7 +3987,7 @@
                 <div class="excel-feature-grid">
                     ${EXCEL_FEATURE_FLAG_LABELS.map(([key, label]) => `
                         <label class="excel-feature-item">
-                            <input type="checkbox" data-excel-feature-flag="${escapeHtml(key)}" ${flags[key] ? "checked" : ""} ${disabled}>
+                            <input type="checkbox" data-excel-feature-flag="${escapeHtml(key)}" onchange="setUnsavedChanges(true)" ${flags[key] ? "checked" : ""} ${disabled}>
                             <span>${escapeHtml(label)}</span>
                         </label>
                     `).join("")}
