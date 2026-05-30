@@ -1045,6 +1045,7 @@
         let visualGridByMappingId = {};
         let mappingHealthByMappingId = {};
         let mappingHealthExpanded = false;
+        const expandedConfigSectionKeys = new Set();
 
         let selectedVisualCell = "";
         let selectedVisualCells = new Set();
@@ -4212,15 +4213,15 @@
             const body = document.querySelector(`.mapping-section-body[data-section-key='${sectionKey}']`);
             if (!body) return;
 
-            const collapsed = body.classList.contains('collapsed');
-            if (collapsed) {
-                body.classList.remove('collapsed');
-                const title = document.querySelector(`.mapping-section-title[data-section-key='${sectionKey}'] .mapping-section-toggle`);
-                if (title) title.textContent = '▼';
-            } else {
-                body.classList.add('collapsed');
+            const isCollapsed = body.classList.toggle('collapsed');
+            if (isCollapsed) {
                 const title = document.querySelector(`.mapping-section-title[data-section-key='${sectionKey}'] .mapping-section-toggle`);
                 if (title) title.textContent = '▶';
+                expandedConfigSectionKeys.delete(String(sectionKey || "").trim());
+            } else {
+                const title = document.querySelector(`.mapping-section-title[data-section-key='${sectionKey}'] .mapping-section-toggle`);
+                if (title) title.textContent = '▼';
+                expandedConfigSectionKeys.add(String(sectionKey || "").trim());
             }
         }
 
@@ -4373,7 +4374,7 @@
                                 <button type="button" class="small danger" onclick="event.stopPropagation(); deleteManualConfigSection('${escapeHtml(sectionKey)}')">删除分区</button>
                             </span>
                         </div>
-                        <div class="mapping-section-body collapsed" data-section-key="${escapeHtml(sectionKey)}">
+                        <div class="mapping-section-body ${expandedConfigSectionKeys.has(sectionKey) ? "" : "collapsed"}" data-section-key="${escapeHtml(sectionKey)}">
                             <table class="config-table">
                                 <thead>
                                     <tr>
