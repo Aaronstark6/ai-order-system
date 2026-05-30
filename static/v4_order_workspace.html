@@ -874,18 +874,14 @@
                 <h3>选择模板</h3>
                 <div class="profile-grid">
                     <div>
-                        <label for="v4ProfileSelect">模板</label>
                         <select id="v4ProfileSelect"></select>
                     </div>
                 </div>
-                <div id="v4ProfileStatus" class="status info">正在加载模板...</div>
-                <div class="small"><a href="/v4-template-settings">当前映射字段不对？进入配置中心调整</a></div>
             </div>
 
             <div class="section confirmation-section-wrap">
                 <h3>订单信息确认</h3>
                 <div id="v4ConfirmationArea" class="confirmation-area">
-                    <div class="native-template-hint">AI解析后会自动填入表单，可直接修改确认。</div>
                     <div class="status warning">请先粘贴聊天内容并点击 AI解析。</div>
                 </div>
             </div>
@@ -980,6 +976,11 @@
 
         function setStatus(elementId, text, type = "info") {
             const element = document.getElementById(elementId);
+
+            if (!element) {
+                return;
+            }
+
             element.textContent = text;
             element.className = `status ${type}`;
         }
@@ -3099,7 +3100,6 @@
             }
 
             area.innerHTML = `
-                <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
                 ${groupWorkspaceBusinessSections(previewSections).map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
@@ -3348,7 +3348,6 @@
                 const visibleSections = sections.filter((section) => !isHiddenOtherSectionKey(section?.key || section?.section_key));
 
             document.getElementById("v4ConfirmationArea").innerHTML = `
-                <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
                 ${groupWorkspaceBusinessSections(visibleSections).map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
@@ -3361,7 +3360,6 @@
             const visibleSemanticSections = semanticSections.filter((section) => !isHiddenOtherSectionKey(section?.key || section?.section_key));
 
             document.getElementById("v4ConfirmationArea").innerHTML = `
-                <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
                 ${groupWorkspaceBusinessSections(visibleSemanticSections).map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
