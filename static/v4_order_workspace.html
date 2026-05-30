@@ -958,6 +958,10 @@
             return JSON.stringify(String(value ?? "")).replace(/</g, "\\u003c");
         }
 
+        function isHiddenOtherSectionKey(sectionKey) {
+            return String(sectionKey || "").trim() === "other";
+        }
+
         function normalizeExcelFeatureFlags(flags) {
             const source = flags && typeof flags === "object" ? flags : {};
             return Object.fromEntries(
@@ -1438,6 +1442,15 @@
             const label = String(field.label || field.candidate_field_label || field.field_label || fieldKey).trim() || fieldKey;
             const displayOrder = Number(field.display_order || 0);
             const cellMeta = sourceCell && sourceCell !== cell ? `${sourceCell} → ${cell}` : cell;
+            const hiddenWorkspaceSectionKey = String(
+                field.section_key ||
+                field.manual_section_key ||
+                field.section ||
+                ""
+            ).trim();
+            const isHiddenWorkspaceSection =
+                hiddenWorkspaceSectionKey === "other" ||
+                hiddenWorkspaceSectionKey === "debug_other";
             return {
                 cell,
                 display_cell: cell,
@@ -1457,6 +1470,7 @@
                 section_title: String(field.section_title || "").trim(),
                 section_order: Number(field.section_order || 0),
                 workspaceOrder: Number.isFinite(displayOrder) && displayOrder > 0 ? displayOrder : null,
+                workspaceVisible: !isHiddenWorkspaceSection,
                 source: "Visual Mapping",
                 row_offset: Number(field.row_offset || 0),
                 col_offset: Number(field.col_offset || field.table_col_offset || field.column_offset || 0),
@@ -1505,7 +1519,7 @@
                 return { key: "options", title: "选择字段确认" };
             }
             if (intentType === "unknown") {
-                return { key: "other", title: "其他字段确认" };
+                return null;
             }
             if (intentType.includes("table") || writeMode.includes("table") || writeMode.includes("row_field")) {
                 return { key: "product", title: "产品规格确认" };
@@ -1570,7 +1584,8 @@
         function optionGroupKey(field) {
             const fieldKey = String(field.field_key || "").trim();
             if (fieldKey) return `field:${fieldKey}`;
-            const section = String(field.section || businessGroupForField(field).key || "options").trim();
+            const group = businessGroupForField(field);
+            const section = String(field.section || (group ? group.key : "options") || "options").trim();
             const row = rowIndexFromCell(field.source_cell || field.cell) || "row";
             return `row:${section}:${row}`;
         }
@@ -1830,13 +1845,13 @@
             const writeMode = String(field?.write_mode || "");
             const labelKey = `${field?.label || ""} ${field?.field_key || ""}`.toLowerCase();
             const row = rowIndexFromCell(field?.source_cell || field?.cell);
-            if (intentType === "unknown") return WORKSPACE_SECTION_BY_KEY.debug_other;
+            if (intentType === "unknown") return null;
             if (["option_checkbox", "option_text_choice"].includes(intentType) || labelKey.includes("标签") || labelKey.includes("批号")) return WORKSPACE_SECTION_BY_KEY.labeling;
             if (labelKey.includes("包装") || labelKey.includes("要求")) return WORKSPACE_SECTION_BY_KEY.packaging;
             if (intentType.includes("table") || writeMode.includes("table") || writeMode.includes("row_field") || labelKey.includes("规格") || labelKey.includes("数量")) return WORKSPACE_SECTION_BY_KEY.specification;
             if (labelKey.includes("产品") || labelKey.includes("product") || labelKey.includes("品名")) return WORKSPACE_SECTION_BY_KEY.product_info;
             if ((row && row <= 8) || labelKey.includes("客户") || labelKey.includes("日期") || labelKey.includes("编号") || labelKey.includes("customer") || labelKey.includes("date")) return WORKSPACE_SECTION_BY_KEY.basic_info;
-            return WORKSPACE_SECTION_BY_KEY.other;
+            return null;
         }
 
         function isWorkspaceFieldRequired(field) {
@@ -1909,12 +1924,18 @@
                 };
                 const configuredSectionKey = String(field.section_key || field.manual_section_key || "").trim();
                 const fallbackSection = inferBusinessSection(field);
-                const section = configuredSectionKey
-                    ? workspaceSectionMeta(configuredSectionKey, field.section_title || fallbackSection.title, field.section_order || fallbackSection.order)
-                    : fallbackSection;
-                base.section_key = section.key;
-                base.section_title = section.title;
-                base.section_order = section.order;
+                if (!fallbackSection) {
+                    base.section_key = "";
+                    base.section_title = "";
+                    base.section_order = 999999;
+                } else {
+                    const section = configuredSectionKey
+                        ? workspaceSectionMeta(configuredSectionKey, field.section_title || fallbackSection.title, field.section_order || fallbackSection.order)
+                        : fallbackSection;
+                    base.section_key = section.key;
+                    base.section_title = section.title;
+                    base.section_order = section.order;
+                }
 
                 if (type === "single_choice") {
                     const groupKey = optionGroupKey(field);
@@ -3301,7 +3322,9 @@
             const sections = buildConfirmationSections(cells);
             if (!sections.length) return false;
 
-            confirmedCells = sections.flatMap(section => section.items.map(item => ({
+            const visibleSections = sections.filter((section) => !isHiddenOtherSectionKey(section?.key || section?.section_key));
+
+            confirmedCells = visibleSections.flatMap(section => section.items.map(item => ({
                 cell: item.cell,
                 display_cell: item.display_cell,
                 source: item.source,
@@ -3311,7 +3334,7 @@
             originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
             window.originalConfirmedCells = originalConfirmedCells;
 
-            document.getElementById("v4ConfirmationArea").innerHTML = sections.map(renderConfirmationSection).join("");
+            document.getElementById("v4ConfirmationArea").innerHTML = visibleSections.map(renderConfirmationSection).join("");
             syncConfirmedCellsFromInputs();
             return true;
         }
@@ -3322,9 +3345,11 @@
                 const sections = buildWorkspaceFieldSections(workspaceFields, getParsedFieldValues(result));
                 if (!sections.length) return false;
 
+                const visibleSections = sections.filter((section) => !isHiddenOtherSectionKey(section?.key || section?.section_key));
+
             document.getElementById("v4ConfirmationArea").innerHTML = `
                 <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
-                ${groupWorkspaceBusinessSections(sections).map(renderBusinessFormSection).join("")}
+                ${groupWorkspaceBusinessSections(visibleSections).map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
             return true;
@@ -3333,9 +3358,11 @@
             const semanticSections = getSemanticWorkspaceSections(result);
             if (!semanticSections.length) return false;
 
+            const visibleSemanticSections = semanticSections.filter((section) => !isHiddenOtherSectionKey(section?.key || section?.section_key));
+
             document.getElementById("v4ConfirmationArea").innerHTML = `
                 <div class="preview-notice">AI解析后会自动填入表单，可直接修改确认。</div>
-                ${groupWorkspaceBusinessSections(semanticSections).map(renderBusinessFormSection).join("")}
+                ${groupWorkspaceBusinessSections(visibleSemanticSections).map(renderBusinessFormSection).join("")}
             `;
             initializeConfirmedCellsSnapshotFromInputs();
             return true;

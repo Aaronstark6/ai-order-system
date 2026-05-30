@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -1288,9 +1288,13 @@
             const structure = analysis.template_structure && typeof analysis.template_structure === "object" ? analysis.template_structure : {};
             const labels = Array.isArray(result.template_labels) ? result.template_labels : (Array.isArray(analysis.labels) ? analysis.labels : []);
             const structureLabels = Array.isArray(structure.labels) ? structure.labels : [];
-            const sections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
+            const layoutSections = Array.isArray(result.layout_sections) ? result.layout_sections : [];
             const savedConfiguration = result.template_configuration && typeof result.template_configuration === "object" ? result.template_configuration : {};
-            const savedSectionConfiguration = result.section_configuration && typeof result.section_configuration === "object" ? result.section_configuration : {};
+            const savedSectionConfiguration = ensureSavedSectionConfigurationFromLayoutSections(
+                result.section_configuration,
+                layoutSections
+            );
+            const sections = Object.values(savedSectionConfiguration);
             const runtimeMappingSource = result.runtime_mapping_source && typeof result.runtime_mapping_source === "object" ? result.runtime_mapping_source : null;
             const candidates = Array.isArray(result.mapping_candidates) ? result.mapping_candidates : [];
             const excelFeatureFlags = normalizeExcelFeatureFlags(result.excel_feature_flags || result.profile?.excel_feature_flags);
@@ -1538,6 +1542,70 @@
         function readType(item) { return item?.type || item?.field_type || item?.label_type || item?.kind || ""; }
         function readSectionName(section) { return section?.title || section?.section_name || section?.name || section?.source_region_name || section?.section_key || ""; }
         function readSectionKey(section) { return section?.section_key || section?.semantic_type || section?.key || section?.title || section?.source_region_name || "other"; }
+
+        function isHiddenOtherSectionKey(sectionKey) {
+            return String(sectionKey || "").trim() === "other";
+        }
+
+        function ensureSavedSectionConfigurationFromLayoutSections(savedSectionConfiguration, layoutSections) {
+            const normalizedSaved = (
+                savedSectionConfiguration &&
+                typeof savedSectionConfiguration === "object" &&
+                !Array.isArray(savedSectionConfiguration)
+            )
+                ? savedSectionConfiguration
+                : {};
+
+            if (Object.keys(normalizedSaved).length > 0) {
+                return normalizedSaved;
+            }
+
+            const initialized = {};
+            const sections = Array.isArray(layoutSections) ? layoutSections : [];
+
+            sections.forEach((section, index) => {
+                if (!section || typeof section !== "object") {
+                    return;
+                }
+
+                const rawKey = String(
+                    section.section_key ||
+                    section.key ||
+                    section.id ||
+                    section.name ||
+                    section.title ||
+                    ""
+                ).trim();
+
+                const rawName = String(
+                    section.name ||
+                    section.title ||
+                    section.label ||
+                    section.section_label ||
+                    section.section_name ||
+                    rawKey ||
+                    ""
+                ).trim();
+
+                const key = rawKey || rawName;
+                if (!key) {
+                    return;
+                }
+
+                initialized[key] = {
+                    ...section,
+                    section_key: key,
+                    section_label: rawName || key,
+                    name: rawName || key,
+                    title: rawName || key,
+                    section_order: Number(section.section_order || section.display_order || section.order || index + 1),
+                    display_order: Number(section.display_order || section.section_order || section.order || index + 1),
+                    rows: Array.isArray(section.rows) ? section.rows : [],
+                };
+            });
+
+            return initialized;
+        }
 
         function cellToPoint(cell) {
             const match = String(cell || "").trim().match(/^([A-Z]+)(\d+)$/i);
@@ -4203,7 +4271,7 @@
             const rowCount = rows.length;
 
             const confirmMessage = rowCount > 0
-                ? `确认删除分区【${sectionLabel}】？\n\n该分区下 ${rowCount} 个字段不会删除。\n这些字段将自动移动到未分区状态。\n\n删除后请点击“保存配置”完成保存。`
+                ? `确认删除分区【${sectionLabel}】？\n\n该分区下 ${rowCount} 个字段不会删除。\n这些字段将自动移出该分区，字段本身不会删除。\n\n删除后请点击“保存配置”完成保存。`
                 : `确认删除空分区【${sectionLabel}】？\n\n删除后请点击“保存配置”完成保存。`;
 
             if (!confirm(confirmMessage)) {
@@ -4250,7 +4318,7 @@
             renderSemanticControlBar();
 
             const statusText = rowCount > 0
-                ? `已删除分区【${sectionLabel}】，${rowCount} 个字段已移动到未分区。请点击“保存配置”完成保存。`
+                ? `已删除分区【${sectionLabel}】，${rowCount} 个字段已移出该分区。请点击“保存配置”完成保存。`
                 : `已删除空分区【${sectionLabel}】。请点击“保存配置”完成保存。`;
 
             setStatus(statusText, "warning");
@@ -4260,7 +4328,11 @@
             const cached = selectedMappingId ? configByMappingId[selectedMappingId] : null;
             const labels = Array.isArray(cached?.labels) ? cached.labels : (Array.isArray(selectedMapping?.template_labels) ? selectedMapping.template_labels : []);
             const structureLabels = Array.isArray(cached?.structureLabels) ? cached.structureLabels : [];
-            const sections = Array.isArray(cached?.sections) ? cached.sections : (Array.isArray(selectedMapping?.layout_sections) ? selectedMapping.layout_sections : []);
+            const savedSectionConfiguration = ensureSavedSectionConfigurationFromLayoutSections(
+                cached?.savedSectionConfiguration,
+                cached?.sections || []
+            );
+            const sections = Object.values(savedSectionConfiguration);
             const baseRows = appendSavedConfigurationRows(buildConfigRows(labels, structureLabels, sections), cached?.savedConfiguration);
             const rows = applySavedConfiguration(baseRows, cached?.savedConfiguration, cached?.candidates);
             const configSections = buildConfigSections(rows, sections, cached?.savedSectionConfiguration);
@@ -4305,8 +4377,9 @@
         function renderTableConfigView(configSections) {
             const area = document.getElementById("templateConfigArea");
             const safeSections = Array.isArray(configSections) ? configSections : [];
+            const visibleConfigSections = safeSections.filter((section) => !isHiddenOtherSectionKey(section?.key || section?.section_key));
 
-            const rowsHtml = safeSections
+            const rowsHtml = visibleConfigSections
                 .map(section => {
                     const sectionKey = String(section.key || "other");
                     const rows = section.rows;
