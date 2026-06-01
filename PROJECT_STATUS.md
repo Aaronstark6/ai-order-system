@@ -1,5 +1,38 @@
 # AI Order System — PROJECT STATUS
 
+## 当前开发模式
+
+V4 六阶段开发路线
+
+### 当前阶段
+
+阶段1：完善中层全部能力
+
+### 当前步骤
+
+步骤1：冻结中层规范（完成）
+
+步骤2：补文档模型（进行中）
+
+2.1 semantic_summary统一审计
+
+### 阶段原则
+
+- 不跨阶段
+- 不重造轮子
+- 不提前接运行层
+- 不处理旧代码
+- 小步推进
+- 基于现实代码
+
+---
+
+## Historical Status / 历史状态
+
+旧实验路线已迁移到历史状态文档。详见 `docs/project_status.md`。
+
+---
+
 ## Current Branch
 
 v4-core-codex-rebuild

@@ -49,6 +49,16 @@ ai-order-system/
 - `app/runtime_paths.py`：处理开发环境和打包环境下的基础路径。
 - `app/logger.py`：统一日志工具。
 
+## V4 中层核心模块
+
+中层模块负责将 AI 解析结果转换为可渲染的工作区字段。
+
+- `app/v4_document_intelligence.py`：文档智能分析，提取结构化字段
+- `app/v4_document_intelligence_builder.py`：文档智能构建器，组装解析流程
+- `app/v4_ai_contract_builder.py`：AI 合同构建器，生成可执行的合同规则
+- `app/v4_workspace_builder.py`：工作区构建器，生成前端工作区字段
+- `app/v4_export_strategy_builder.py`：导出策略构建器，生成 Excel 导出规则
+
 ## V4 相关文件职责
 
 - `app/v4_schema.py`：读取和保存 V4 Product Schema。
