@@ -198,6 +198,109 @@ def build_condition_metadata(
     }
 
 
+def normalize_condition_logic(value=None):
+    value_dict = normalize_dict(value)
+    logic = value_dict.get("logic", "AND")
+    if logic not in ["AND", "OR", "NOT"]:
+        logic = "AND"
+    return {
+        "logic": logic,
+        "conditions": normalize_list(value_dict.get("conditions")),
+    }
+
+
+def build_condition_logic(
+    applies_to=None,
+    depends_on=None,
+    operator="equals",
+    value=None,
+    action="visible",
+    logic="AND",
+    conditions=None,
+):
+    if logic not in ["AND", "OR", "NOT"]:
+        logic = "AND"
+    return {
+        "applies_to": normalize_list(applies_to),
+        "depends_on": normalize_list(depends_on),
+        "operator": operator or "equals",
+        "value": value,
+        "action": action or "visible",
+        "logic": logic,
+        "conditions": normalize_list(conditions),
+    }
+
+
+def build_condition_logic_from_when_then(
+    when=None,
+    then=None,
+    otherwise=None,
+    applies_to=None,
+    depends_on=None,
+    operator="equals",
+    value=None,
+    action="visible",
+    logic="AND",
+    conditions=None,
+):
+    when_dict = normalize_dict(when)
+    then_dict = normalize_dict(then)
+    else_dict = normalize_dict(otherwise)
+
+    normalized_depends_on = normalize_list(depends_on)
+    normalized_applies_to = normalize_list(applies_to)
+
+    if not normalized_depends_on:
+        normalized_depends_on = normalize_list(
+            when_dict.get("depends_on")
+            or when_dict.get("field")
+            or when_dict.get("field_key")
+            or when_dict.get("source")
+        )
+
+    if not normalized_applies_to:
+        normalized_applies_to = normalize_list(
+            then_dict.get("applies_to")
+            or then_dict.get("field")
+            or then_dict.get("field_key")
+            or then_dict.get("target")
+        )
+
+    resolved_operator = (
+        when_dict.get("operator")
+        or when_dict.get("op")
+        or operator
+        or "equals"
+    )
+
+    resolved_value = (
+        when_dict.get("value")
+        if "value" in when_dict
+        else value
+    )
+
+    resolved_action = (
+        then_dict.get("action")
+        or then_dict.get("effect")
+        or action
+        or "visible"
+    )
+
+    merged_conditions = normalize_list(conditions)
+    if not merged_conditions and when_dict:
+        merged_conditions = [when_dict]
+
+    return build_condition_logic(
+        applies_to=normalized_applies_to,
+        depends_on=normalized_depends_on,
+        operator=resolved_operator,
+        value=resolved_value,
+        action=resolved_action,
+        logic=logic,
+        conditions=merged_conditions,
+    )
+
+
 def normalize_metadata(value=None):
     value_dict = normalize_dict(value)
     return build_metadata(
@@ -481,6 +584,13 @@ def build_condition_node(
     confidence=0,
     metadata=None,
     source=None,
+    applies_to=None,
+    depends_on=None,
+    operator="equals",
+    value=None,
+    action="visible",
+    logic="AND",
+    conditions=None,
 ):
     shared_contract = build_node_shared_contract(
         label=node_id,
@@ -491,12 +601,26 @@ def build_condition_node(
         include_condition_metadata=True,
     )
 
+    condition_logic = build_condition_logic_from_when_then(
+        when=when,
+        then=then,
+        otherwise=else_,
+        applies_to=applies_to,
+        depends_on=depends_on,
+        operator=operator,
+        value=value,
+        action=action,
+        logic=logic,
+        conditions=conditions,
+    )
+
     return {
         "node_type": NODE_TYPE_CONDITION,
         "node_id": normalize_text(node_id),
         "when": normalize_dict(when),
         "then": normalize_dict(then),
         "else": normalize_dict(else_),
+        "condition_logic": condition_logic,
         "confidence": confidence,
         "source": _normalize_node_source(source),
         **shared_contract,
