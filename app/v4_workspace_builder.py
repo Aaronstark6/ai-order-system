@@ -84,6 +84,73 @@ def _condition_metadata(node):
     return {}
 
 
+def _visual_logic(node):
+    if not isinstance(node, dict):
+        return {}
+
+    visual_logic = node.get("visual_logic")
+    if isinstance(visual_logic, dict):
+        return visual_logic
+    return {}
+
+
+def _visual_coordinates(node):
+    visual_logic = _visual_logic(node)
+    coordinates = visual_logic.get("coordinates")
+    if isinstance(coordinates, dict):
+        return coordinates
+
+    visual_metadata = node.get("visual_metadata")
+    if isinstance(visual_metadata, dict):
+        return {
+            "source_cell": visual_metadata.get("source_cell", ""),
+            "target_cell": visual_metadata.get("target_cell", ""),
+            "row": visual_metadata.get("row"),
+            "col": visual_metadata.get("col"),
+            "page": visual_metadata.get("page"),
+            "bbox": visual_metadata.get("bbox", {}),
+        }
+
+    return {
+        "source_cell": node.get("source_cell", ""),
+        "target_cell": node.get("target_cell", ""),
+        "row": None,
+        "col": None,
+        "page": None,
+        "bbox": {},
+    }
+
+
+def _condition_logic(node):
+    if not isinstance(node, dict):
+        return {}
+
+    condition_logic = node.get("condition_logic")
+    if isinstance(condition_logic, dict):
+        return condition_logic
+    return {}
+
+
+def _choice_logic(node):
+    if not isinstance(node, dict):
+        return {}
+
+    choice_logic = node.get("choice_logic")
+    if isinstance(choice_logic, dict):
+        return choice_logic
+    return {}
+
+
+def _table_logic(node):
+    if not isinstance(node, dict):
+        return {}
+
+    table_logic = node.get("table_logic")
+    if isinstance(table_logic, dict):
+        return table_logic
+    return {}
+
+
 def _links(model):
     if not isinstance(model, dict):
         return []
@@ -265,6 +332,8 @@ def build_workspace_section_from_section_node(node):
 def _base_workspace_field(model, node):
     section = resolve_workspace_section(model, node)
     extra = _metadata_extra(node)
+    coordinates = _visual_coordinates(node)
+    visibility = resolve_workspace_visibility(node)
     return {
         "node_id": _node_id(node),
         "field_key": "",
@@ -274,16 +343,23 @@ def _base_workspace_field(model, node):
         "section_title": section.get("section_title", "其他字段"),
         "section_order": section.get("section_order", 999999),
         "section_node_id": section.get("section_node_id", ""),
-        "source_cell": normalize_text(node.get("source_cell")),
-        "target_cell": normalize_text(node.get("target_cell")),
+        "source_cell": normalize_text(coordinates.get("source_cell", "")),
+        "target_cell": normalize_text(coordinates.get("target_cell", "")),
         "write_mode": normalize_text(extra.get("write_mode")),
         "intent_type": normalize_text(extra.get("intent_type")),
         "ai_extract_hint": "",
+        "required": bool(node.get("required", False)),
+        "editable": bool(
+            node.get("editable", True)
+        ),
         "display_order": _safe_number(
             node.get("display_order", node.get("row", 0)), default=0
         ),
-        "visibility": resolve_workspace_visibility(node),
+        "visibility": visibility,
         "metadata": normalize_dict(node.get("metadata")),
+        "semantic_summary": _semantic_summary(node),
+        "visual_metadata": _visual_metadata(node),
+        "condition_metadata": _condition_metadata(node),
     }
 
 
@@ -303,6 +379,8 @@ def build_workspace_field_from_field_node(model, node):
             "label": label,
             "field_type": normalize_text(node.get("field_type")) or "text",
             "ai_extract_hint": normalize_text(node.get("ai_extract_hint")) or label,
+            "visual_logic": _visual_logic(node),
+            "condition_logic": _condition_logic(node),
         }
     )
     return field
@@ -326,6 +404,7 @@ def build_workspace_field_from_choice_group_node(model, node):
             "options": normalize_list(node.get("options")),
             "selection_mode": normalize_text(node.get("selection_mode")) or "single",
             "render_hint": resolve_choice_render_hint(node),
+            "choice_logic": _choice_logic(node),
         }
     )
     return field
@@ -348,8 +427,11 @@ def build_workspace_field_from_table_node(model, node):
             "label": label,
             "field_type": "table",
             "columns": normalize_list(node.get("columns")),
+            "rows": normalize_list(node.get("rows")),
+            "cells": normalize_list(node.get("cells")),
             "data_region": normalize_dict(node.get("data_region")),
             "table_rendering": build_table_rendering_hint(node),
+            "table_logic": _table_logic(node),
         }
     )
     return field
