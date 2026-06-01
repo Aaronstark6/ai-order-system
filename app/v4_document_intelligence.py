@@ -198,6 +198,106 @@ def build_condition_metadata(
     }
 
 
+def normalize_metadata(value=None):
+    value_dict = normalize_dict(value)
+    return build_metadata(
+        origin=value_dict.get("origin", ""),
+        raw=value_dict.get("raw"),
+        notes=value_dict.get("notes", []),
+        extra=value_dict.get("extra", {}),
+    )
+
+
+def normalize_semantic_summary(value=None):
+    value_dict = normalize_dict(value)
+    return build_semantic_summary(
+        label=value_dict.get("label", ""),
+        description=value_dict.get("description", ""),
+        intent_type=value_dict.get("intent_type", ""),
+        write_mode=value_dict.get("write_mode", ""),
+        field_type=value_dict.get("field_type", ""),
+        node_role=value_dict.get("node_role", ""),
+        source_cell=value_dict.get("source_cell", ""),
+        target_cell=value_dict.get("target_cell", ""),
+    )
+
+
+def normalize_visual_metadata(value=None):
+    value_dict = normalize_dict(value)
+    return build_visual_metadata(
+        source_cell=value_dict.get("source_cell", ""),
+        target_cell=value_dict.get("target_cell", ""),
+        row=value_dict.get("row"),
+        col=value_dict.get("col"),
+        region=value_dict.get("region", ""),
+        page=value_dict.get("page"),
+        bbox=value_dict.get("bbox", {}),
+    )
+
+
+def normalize_condition_metadata(value=None):
+    value_dict = normalize_dict(value)
+    return build_condition_metadata(
+        visibility=value_dict.get("visibility", ""),
+        validation=value_dict.get("validation", ""),
+        trigger=value_dict.get("trigger", ""),
+        operator=value_dict.get("operator", ""),
+        value=value_dict.get("value"),
+        rule=value_dict.get("rule", ""),
+    )
+
+
+def build_node_shared_contract(
+    label="",
+    description="",
+    field_type="",
+    source_cell="",
+    target_cell="",
+    metadata=None,
+    visual_metadata=None,
+    condition_metadata=None,
+    include_visual_metadata=False,
+    include_condition_metadata=False,
+):
+    normalized_metadata = normalize_metadata(metadata)
+    shared_contract = {
+        "metadata": normalized_metadata,
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=label,
+            description=description,
+            field_type=field_type,
+            source_cell=source_cell,
+            target_cell=target_cell,
+            metadata=normalized_metadata,
+        ),
+    }
+
+    if include_visual_metadata:
+        default_visual_metadata = build_visual_metadata(
+            source_cell=source_cell,
+            target_cell=target_cell,
+        )
+        merged_visual_metadata = {
+            **default_visual_metadata,
+            **normalize_dict(visual_metadata),
+        }
+        shared_contract["visual_metadata"] = normalize_visual_metadata(
+            merged_visual_metadata
+        )
+
+    if include_condition_metadata:
+        default_condition_metadata = build_condition_metadata()
+        merged_condition_metadata = {
+            **default_condition_metadata,
+            **normalize_dict(condition_metadata),
+        }
+        shared_contract["condition_metadata"] = normalize_condition_metadata(
+            merged_condition_metadata
+        )
+
+    return shared_contract
+
+
 def build_empty_document_intelligence_model():
     return {
         "schema_version": SCHEMA_VERSION,
@@ -248,6 +348,17 @@ def build_field_node(
     metadata=None,
     source=None,
 ):
+    shared_contract = build_node_shared_contract(
+        label=label,
+        description=ai_extract_hint,
+        field_type=field_type,
+        source_cell=source_cell,
+        target_cell=target_cell,
+        metadata=metadata,
+        include_visual_metadata=True,
+        include_condition_metadata=True,
+    )
+
     return {
         "node_type": NODE_TYPE_FIELD,
         "node_id": normalize_text(node_id),
@@ -259,22 +370,9 @@ def build_field_node(
         "field_type": normalize_text(field_type),
         "required": bool(required),
         "ai_extract_hint": normalize_text(ai_extract_hint),
-        "semantic_summary": build_semantic_summary_from_metadata(
-            label=label,
-            description=ai_extract_hint,
-            field_type=field_type,
-            source_cell=source_cell,
-            target_cell=target_cell,
-            metadata=metadata,
-        ),
-        "visual_metadata": build_visual_metadata(
-            source_cell=source_cell,
-            target_cell=target_cell,
-        ),
-        "condition_metadata": build_condition_metadata(),
         "confidence": confidence,
-        "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
+        **shared_contract,
     }
 
 
@@ -289,23 +387,24 @@ def build_section_node(
     metadata=None,
     source=None,
 ):
+    shared_contract = build_node_shared_contract(
+        label=label,
+        description=label,
+        field_type="section",
+        metadata=metadata,
+    )
+
     return {
         "node_type": NODE_TYPE_SECTION,
         "node_id": normalize_text(node_id),
         "section_key": normalize_text(section_key),
         "label": normalize_text(label),
-        "semantic_summary": build_semantic_summary_from_metadata(
-            label=label,
-            description=label,
-            field_type="section",
-            metadata=metadata,
-        ),
         "bounds": normalize_dict(bounds),
         "parent_section_id": normalize_text(parent_section_id),
         "order": order,
         "confidence": confidence,
-        "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
+        **shared_contract,
     }
 
 
@@ -320,24 +419,25 @@ def build_table_node(
     metadata=None,
     source=None,
 ):
+    shared_contract = build_node_shared_contract(
+        label=label,
+        description=label,
+        field_type="table",
+        metadata=metadata,
+        include_visual_metadata=True,
+    )
+
     return {
         "node_type": NODE_TYPE_TABLE,
         "node_id": normalize_text(node_id),
         "label": normalize_text(label),
-        "semantic_summary": build_semantic_summary_from_metadata(
-            label=label,
-            description=label,
-            field_type="table",
-            metadata=metadata,
-        ),
-        "visual_metadata": build_visual_metadata(),
         "section_id": normalize_text(section_id),
         "header_cells": normalize_list(header_cells),
         "data_region": normalize_dict(data_region),
         "columns": normalize_list(columns),
         "confidence": confidence,
-        "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
+        **shared_contract,
     }
 
 
@@ -352,23 +452,24 @@ def build_choice_group_node(
     metadata=None,
     source=None,
 ):
+    shared_contract = build_node_shared_contract(
+        label=label,
+        description=label,
+        field_type="choice_group",
+        metadata=metadata,
+    )
+
     return {
         "node_type": NODE_TYPE_CHOICE_GROUP,
         "node_id": normalize_text(node_id),
         "field_key": normalize_text(field_key),
         "label": normalize_text(label),
-        "semantic_summary": build_semantic_summary_from_metadata(
-            label=label,
-            description=label,
-            field_type="choice_group",
-            metadata=metadata,
-        ),
         "selection_mode": normalize_text(selection_mode),
         "options": normalize_list(options),
         "section_id": normalize_text(section_id),
         "confidence": confidence,
-        "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
+        **shared_contract,
     }
 
 
@@ -381,24 +482,24 @@ def build_condition_node(
     metadata=None,
     source=None,
 ):
+    shared_contract = build_node_shared_contract(
+        label=node_id,
+        description="condition",
+        field_type="condition",
+        metadata=metadata,
+        condition_metadata=build_condition_metadata(trigger=node_id),
+        include_condition_metadata=True,
+    )
+
     return {
         "node_type": NODE_TYPE_CONDITION,
         "node_id": normalize_text(node_id),
-        "semantic_summary": build_semantic_summary_from_metadata(
-            label=node_id,
-            description="condition",
-            field_type="condition",
-            metadata=metadata,
-        ),
-        "condition_metadata": build_condition_metadata(
-            trigger=node_id,
-        ),
         "when": normalize_dict(when),
         "then": normalize_dict(then),
         "else": normalize_dict(else_),
         "confidence": confidence,
-        "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
+        **shared_contract,
     }
 
 
@@ -413,24 +514,25 @@ def build_object_node(
     metadata=None,
     source=None,
 ):
+    shared_contract = build_node_shared_contract(
+        label=label,
+        description=object_type,
+        field_type=object_type,
+        source_cell=cell,
+        metadata=metadata,
+    )
+
     return {
         "node_type": NODE_TYPE_OBJECT,
         "node_id": normalize_text(node_id),
         "object_type": normalize_text(object_type),
         "label": normalize_text(label),
-        "semantic_summary": build_semantic_summary_from_metadata(
-            label=label,
-            description=object_type,
-            field_type=object_type,
-            source_cell=cell,
-            metadata=metadata,
-        ),
         "cell": normalize_text(cell),
         "region": normalize_dict(region),
         "section_id": normalize_text(section_id),
         "confidence": confidence,
-        "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
+        **shared_contract,
     }
 
 
@@ -445,32 +547,27 @@ def build_visual_semantic_node(
     metadata=None,
     source=None,
 ):
+    shared_contract = build_node_shared_contract(
+        label=label,
+        description=semantic_type,
+        field_type="visual",
+        source_cell=cell,
+        metadata=metadata,
+        visual_metadata=build_visual_metadata(source_cell=cell),
+        include_visual_metadata=True,
+    )
+
     return {
         "node_type": NODE_TYPE_VISUAL,
         "node_id": normalize_text(node_id),
         "semantic_type": normalize_text(semantic_type),
         "label": normalize_text(label),
-        "semantic_summary": build_semantic_summary_from_metadata(
-            label=label,
-            description=semantic_type,
-            field_type="visual",
-            source_cell=cell,
-            metadata=metadata,
-        ),
-        "visual_metadata": build_visual_metadata(
-            source_cell=cell,
-            region="",
-            row=None,
-            col=None,
-            page=None,
-            bbox=None,
-        ),
         "cell": normalize_text(cell),
         "region": normalize_dict(region),
         "style": normalize_dict(style),
         "confidence": confidence,
-        "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
+        **shared_contract,
     }
 
 
@@ -483,25 +580,27 @@ def build_runtime_policy_node(
     metadata=None,
     source=None,
 ):
+    shared_contract = build_node_shared_contract(
+        label=policy_type,
+        description=action,
+        field_type="runtime_policy",
+        metadata=metadata,
+        condition_metadata=build_condition_metadata(
+            rule=policy_type,
+            validation=action,
+        ),
+        include_condition_metadata=True,
+    )
+
     return {
         "node_type": NODE_TYPE_RUNTIME_POLICY,
         "node_id": normalize_text(node_id),
         "policy_type": normalize_text(policy_type),
         "source_node_id": normalize_text(source_node_id),
         "action": normalize_text(action),
-        "semantic_summary": build_semantic_summary_from_metadata(
-            label=policy_type,
-            description=action,
-            field_type="runtime_policy",
-            metadata=metadata,
-        ),
-        "condition_metadata": build_condition_metadata(
-            rule=policy_type,
-            validation=action,
-        ),
         "condition_node_id": normalize_text(condition_node_id),
-        "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
+        **shared_contract,
     }
 
 
