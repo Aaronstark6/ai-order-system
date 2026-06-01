@@ -301,6 +301,118 @@ def build_condition_logic_from_when_then(
     )
 
 
+def build_choice_option(
+    option_id="",
+    label="",
+    value=None,
+    aliases=None,
+    description="",
+    selected=False,
+    disabled=False,
+    metadata=None,
+    condition_logic=None,
+):
+    resolved_label = str(label or value or option_id or "").strip()
+    resolved_value = value if value is not None else resolved_label
+    resolved_option_id = str(option_id or resolved_value or resolved_label).strip()
+
+    return {
+        "option_id": resolved_option_id,
+        "label": resolved_label,
+        "value": resolved_value,
+        "aliases": normalize_list(aliases),
+        "description": description or "",
+        "selected": bool(selected),
+        "disabled": bool(disabled),
+        "metadata": normalize_metadata(metadata),
+        "condition_logic": normalize_dict(condition_logic),
+    }
+
+
+def normalize_choice_options(options=None):
+    if options is None:
+        return []
+
+    if isinstance(options, dict):
+        normalized_options = []
+        for key, value in options.items():
+            if isinstance(value, dict):
+                option_data = normalize_dict(value)
+                normalized_options.append(
+                    build_choice_option(
+                        option_id=option_data.get("option_id", key),
+                        label=option_data.get("label", key),
+                        value=option_data.get("value", key),
+                        aliases=option_data.get("aliases"),
+                        description=option_data.get("description", ""),
+                        selected=option_data.get("selected", False),
+                        disabled=option_data.get("disabled", False),
+                        metadata=option_data.get("metadata"),
+                        condition_logic=option_data.get("condition_logic"),
+                    )
+                )
+            else:
+                normalized_options.append(
+                    build_choice_option(
+                        option_id=key,
+                        label=key,
+                        value=value,
+                    )
+                )
+        return normalized_options
+
+    normalized_options = []
+    for item in normalize_list(options):
+        if isinstance(item, dict):
+            option_data = normalize_dict(item)
+            normalized_options.append(
+                build_choice_option(
+                    option_id=option_data.get("option_id", option_data.get("value", option_data.get("label", ""))),
+                    label=option_data.get("label", option_data.get("value", "")),
+                    value=option_data.get("value", option_data.get("label", "")),
+                    aliases=option_data.get("aliases"),
+                    description=option_data.get("description", ""),
+                    selected=option_data.get("selected", False),
+                    disabled=option_data.get("disabled", False),
+                    metadata=option_data.get("metadata"),
+                    condition_logic=option_data.get("condition_logic"),
+                )
+            )
+        else:
+            normalized_options.append(
+                build_choice_option(
+                    option_id=str(item),
+                    label=str(item),
+                    value=item,
+                )
+            )
+    return normalized_options
+
+
+def build_choice_logic(
+    selection_mode="single",
+    required=False,
+    default_value=None,
+    allowed_values=None,
+    disabled_values=None,
+    options=None,
+):
+    if selection_mode not in ["single", "multiple"]:
+        selection_mode = "single"
+
+    normalized_options = normalize_choice_options(options)
+    option_values = [option.get("value") for option in normalized_options]
+
+    return {
+        "selection_mode": selection_mode,
+        "required": bool(required),
+        "default_value": default_value,
+        "allowed_values": normalize_list(allowed_values) or option_values,
+        "disabled_values": normalize_list(disabled_values),
+        "option_count": len(normalized_options),
+    }
+
+
 def normalize_metadata(value=None):
     value_dict = normalize_dict(value)
     return build_metadata(
@@ -554,6 +666,10 @@ def build_choice_group_node(
     confidence=0,
     metadata=None,
     source=None,
+    required=False,
+    default_value=None,
+    allowed_values=None,
+    disabled_values=None,
 ):
     shared_contract = build_node_shared_contract(
         label=label,
@@ -562,13 +678,25 @@ def build_choice_group_node(
         metadata=metadata,
     )
 
+    normalized_options = normalize_choice_options(options)
+
+    choice_logic = build_choice_logic(
+        selection_mode=selection_mode,
+        required=required,
+        default_value=default_value,
+        allowed_values=allowed_values,
+        disabled_values=disabled_values,
+        options=normalized_options,
+    )
+
     return {
         "node_type": NODE_TYPE_CHOICE_GROUP,
         "node_id": normalize_text(node_id),
         "field_key": normalize_text(field_key),
         "label": normalize_text(label),
         "selection_mode": normalize_text(selection_mode),
-        "options": normalize_list(options),
+        "options": normalized_options,
+        "choice_logic": choice_logic,
         "section_id": normalize_text(section_id),
         "confidence": confidence,
         "source": _normalize_node_source(source),
