@@ -98,6 +98,73 @@ def _condition_metadata(node):
     return {}
 
 
+def _visual_logic(node):
+    if not isinstance(node, dict):
+        return {}
+
+    visual_logic = node.get("visual_logic")
+    if isinstance(visual_logic, dict):
+        return visual_logic
+    return {}
+
+
+def _visual_coordinates(node):
+    visual_logic = _visual_logic(node)
+    coordinates = visual_logic.get("coordinates")
+    if isinstance(coordinates, dict):
+        return coordinates
+
+    visual_metadata = node.get("visual_metadata")
+    if isinstance(visual_metadata, dict):
+        return {
+            "source_cell": visual_metadata.get("source_cell", ""),
+            "target_cell": visual_metadata.get("target_cell", ""),
+            "row": visual_metadata.get("row"),
+            "col": visual_metadata.get("col"),
+            "page": visual_metadata.get("page"),
+            "bbox": visual_metadata.get("bbox", {}),
+        }
+
+    return {
+        "source_cell": node.get("source_cell", ""),
+        "target_cell": node.get("target_cell", ""),
+        "row": None,
+        "col": None,
+        "page": None,
+        "bbox": {},
+    }
+
+
+def _condition_logic(node):
+    if not isinstance(node, dict):
+        return {}
+
+    condition_logic = node.get("condition_logic")
+    if isinstance(condition_logic, dict):
+        return condition_logic
+    return {}
+
+
+def _choice_logic(node):
+    if not isinstance(node, dict):
+        return {}
+
+    choice_logic = node.get("choice_logic")
+    if isinstance(choice_logic, dict):
+        return choice_logic
+    return {}
+
+
+def _table_logic(node):
+    if not isinstance(node, dict):
+        return {}
+
+    table_logic = node.get("table_logic")
+    if isinstance(table_logic, dict):
+        return table_logic
+    return {}
+
+
 def _links(model):
     if not isinstance(model, dict):
         return []
@@ -268,6 +335,22 @@ def build_export_operation_from_node(model, node):
     write_mode = resolve_write_mode_for_node(model, node)
     op_type = normalize_export_op_type(write_mode, node_type)
     target_cell = resolve_target_cell_for_node(model, node)
+    metadata = {
+        "node_type": node_type,
+        "raw_node": node,
+    }
+    if node_type == NODE_TYPE_FIELD:
+        metadata.update(
+            {
+                "visual_logic": _visual_logic(node),
+                "visual_coordinates": _visual_coordinates(node),
+                "condition_logic": _condition_logic(node),
+            }
+        )
+    elif node_type == NODE_TYPE_CHOICE_GROUP:
+        metadata["choice_logic"] = _choice_logic(node)
+    elif node_type == NODE_TYPE_TABLE:
+        metadata["table_logic"] = _table_logic(node)
 
     return {
         "op_id": f"export.{node_id}",
@@ -278,10 +361,7 @@ def build_export_operation_from_node(model, node):
         "target_cell": target_cell,
         "write_mode": write_mode,
         "value_source": field_key,
-        "metadata": {
-            "node_type": node_type,
-            "raw_node": node,
-        },
+        "metadata": metadata,
     }
 
 
