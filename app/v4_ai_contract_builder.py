@@ -76,6 +76,18 @@ def _visual_metadata(node):
     return {}
 
 
+def _condition_metadata(node):
+    if not isinstance(node, dict):
+        return {}
+
+    metadata = node.get("condition_metadata")
+
+    if isinstance(metadata, dict):
+        return normalize_dict(metadata)
+
+    return {}
+
+
 def _confidence(node):
     if not isinstance(node, dict):
         return 0

@@ -180,6 +180,24 @@ def build_visual_metadata(
     }
 
 
+def build_condition_metadata(
+    visibility="",
+    validation="",
+    trigger="",
+    operator="",
+    value=None,
+    rule="",
+):
+    return {
+        "visibility": normalize_text(visibility),
+        "validation": normalize_text(validation),
+        "trigger": normalize_text(trigger),
+        "operator": normalize_text(operator),
+        "value": value,
+        "rule": normalize_text(rule),
+    }
+
+
 def build_empty_document_intelligence_model():
     return {
         "schema_version": SCHEMA_VERSION,
@@ -253,6 +271,7 @@ def build_field_node(
             source_cell=source_cell,
             target_cell=target_cell,
         ),
+        "condition_metadata": build_condition_metadata(),
         "confidence": confidence,
         "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
@@ -371,6 +390,9 @@ def build_condition_node(
             field_type="condition",
             metadata=metadata,
         ),
+        "condition_metadata": build_condition_metadata(
+            trigger=node_id,
+        ),
         "when": normalize_dict(when),
         "then": normalize_dict(then),
         "else": normalize_dict(else_),
@@ -472,6 +494,10 @@ def build_runtime_policy_node(
             description=action,
             field_type="runtime_policy",
             metadata=metadata,
+        ),
+        "condition_metadata": build_condition_metadata(
+            rule=policy_type,
+            validation=action,
         ),
         "condition_node_id": normalize_text(condition_node_id),
         "metadata": normalize_dict(metadata),
