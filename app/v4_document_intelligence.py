@@ -160,6 +160,26 @@ def build_semantic_summary_from_metadata(
     )
 
 
+def build_visual_metadata(
+    source_cell="",
+    target_cell="",
+    row=None,
+    col=None,
+    region="",
+    page=None,
+    bbox=None,
+):
+    return {
+        "source_cell": normalize_text(source_cell),
+        "target_cell": normalize_text(target_cell),
+        "row": row,
+        "col": col,
+        "region": normalize_text(region),
+        "page": page,
+        "bbox": normalize_dict(bbox),
+    }
+
+
 def build_empty_document_intelligence_model():
     return {
         "schema_version": SCHEMA_VERSION,
@@ -229,6 +249,10 @@ def build_field_node(
             target_cell=target_cell,
             metadata=metadata,
         ),
+        "visual_metadata": build_visual_metadata(
+            source_cell=source_cell,
+            target_cell=target_cell,
+        ),
         "confidence": confidence,
         "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
@@ -287,6 +311,7 @@ def build_table_node(
             field_type="table",
             metadata=metadata,
         ),
+        "visual_metadata": build_visual_metadata(),
         "section_id": normalize_text(section_id),
         "header_cells": normalize_list(header_cells),
         "data_region": normalize_dict(data_region),
@@ -409,6 +434,14 @@ def build_visual_semantic_node(
             field_type="visual",
             source_cell=cell,
             metadata=metadata,
+        ),
+        "visual_metadata": build_visual_metadata(
+            source_cell=cell,
+            region="",
+            row=None,
+            col=None,
+            page=None,
+            bbox=None,
         ),
         "cell": normalize_text(cell),
         "region": normalize_dict(region),

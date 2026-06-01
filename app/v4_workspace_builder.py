@@ -61,6 +61,17 @@ def _semantic_summary(node):
     return {}
 
 
+def _visual_metadata(node):
+    if not isinstance(node, dict):
+        return {}
+
+    visual = node.get("visual_metadata")
+    if isinstance(visual, dict):
+        return normalize_dict(visual)
+
+    return {}
+
+
 def _links(model):
     if not isinstance(model, dict):
         return []
