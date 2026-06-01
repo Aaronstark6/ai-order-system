@@ -88,6 +88,61 @@ def _condition_metadata(node):
     return {}
 
 
+def _visual_logic(node):
+    visual_logic = node.get("visual_logic")
+    if isinstance(visual_logic, dict):
+        return visual_logic
+    return {}
+
+
+def _visual_coordinates(node):
+    visual_logic = _visual_logic(node)
+    coordinates = visual_logic.get("coordinates")
+    if isinstance(coordinates, dict):
+        return coordinates
+
+    visual_metadata = node.get("visual_metadata")
+    if isinstance(visual_metadata, dict):
+        return {
+            "source_cell": visual_metadata.get("source_cell", ""),
+            "target_cell": visual_metadata.get("target_cell", ""),
+            "row": visual_metadata.get("row"),
+            "col": visual_metadata.get("col"),
+            "page": visual_metadata.get("page"),
+            "bbox": visual_metadata.get("bbox", {}),
+        }
+
+    return {
+        "source_cell": node.get("source_cell", ""),
+        "target_cell": node.get("target_cell", ""),
+        "row": None,
+        "col": None,
+        "page": None,
+        "bbox": {},
+    }
+
+
+def _condition_logic(node):
+    condition_logic = node.get("condition_logic")
+    if isinstance(condition_logic, dict):
+        return condition_logic
+    return {}
+
+
+def _choice_logic(node):
+    choice_logic = node.get("choice_logic")
+    if isinstance(choice_logic, dict):
+        return choice_logic
+    return {}
+
+
+def _table_logic(node):
+    table_logic = node.get("table_logic")
+    if isinstance(table_logic, dict):
+        return table_logic
+    return {}
+
+
 def _confidence(node):
     if not isinstance(node, dict):
         return 0
@@ -291,6 +346,7 @@ def collect_table_fields_from_document_model(model):
                 "source": "document_intelligence",
                 "extract_priority": "normal",
                 "table_columns": table_columns,
+                "table_logic": _table_logic(node),
             }
         )
     return table_fields
@@ -343,8 +399,9 @@ def build_ai_field_from_field_node(node, model=None):
     if not write_mode:
         write_mode = normalize_text(summary.get("write_mode")) or normalize_text(metadata_extra.get("write_mode"))
 
-    target_cell = normalize_text(node.get("target_cell"))
-    source_cell = normalize_text(node.get("source_cell"))
+    coordinates = _visual_coordinates(node)
+    target_cell = normalize_text(coordinates.get("target_cell", ""))
+    source_cell = normalize_text(coordinates.get("source_cell", ""))
     cell = target_cell or source_cell
 
     return {
@@ -366,6 +423,8 @@ def build_ai_field_from_field_node(node, model=None):
         "extract_priority": resolve_extract_priority(
             node, runtime_policy=runtime_policy
         ),
+        "visual_logic": _visual_logic(node),
+        "condition_logic": _condition_logic(node),
     }
 
 
@@ -413,6 +472,7 @@ def build_option_group_from_choice_group_node(node):
         "label": label,
         "options": options,
         "option_metadata": option_metadata,
+        "choice_logic": _choice_logic(node),
     }
 
 
