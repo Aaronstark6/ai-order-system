@@ -65,6 +65,16 @@ def _metadata_extra(node):
     return {}
 
 
+def _semantic_summary(node):
+    if not isinstance(node, dict):
+        return {}
+
+    summary = node.get("semantic_summary")
+    if isinstance(summary, dict):
+        return normalize_dict(summary)
+    return {}
+
+
 def _links(model):
     if not isinstance(model, dict):
         return []
@@ -163,7 +173,8 @@ def resolve_write_mode_for_node(model, node):
             return policy_type
 
     extra = _metadata_extra(node)
-    write_mode = normalize_text(extra.get("write_mode"))
+    summary = _semantic_summary(node)
+    write_mode = normalize_text(summary.get("write_mode")) or normalize_text(extra.get("write_mode"))
     if write_mode:
         return write_mode
 

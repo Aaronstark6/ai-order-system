@@ -51,6 +51,16 @@ def _metadata_extra(node):
     return {}
 
 
+def _semantic_summary(node):
+    if not isinstance(node, dict):
+        return {}
+
+    summary = node.get("semantic_summary")
+    if isinstance(summary, dict):
+        return normalize_dict(summary)
+    return {}
+
+
 def _links(model):
     if not isinstance(model, dict):
         return []
@@ -102,8 +112,9 @@ def resolve_workspace_visibility(node):
         return "hidden"
 
     extra = _metadata_extra(node)
-    write_mode = normalize_text(extra.get("write_mode"))
-    intent_type = normalize_text(extra.get("intent_type"))
+    summary = _semantic_summary(node)
+    write_mode = normalize_text(summary.get("write_mode")) or normalize_text(extra.get("write_mode"))
+    intent_type = normalize_text(summary.get("intent_type")) or normalize_text(extra.get("intent_type"))
     if write_mode in {"skip", "none"}:
         return "hidden"
     if write_mode == "readonly":
@@ -199,7 +210,8 @@ def resolve_workspace_section(model, node):
 
     section_node_id = _node_id(section)
     section_key = normalize_text(section.get("section_key")) or section_node_id
-    section_title = normalize_text(section.get("label")) or section_key
+    section_summary = _semantic_summary(section)
+    section_title = normalize_text(section_summary.get("label")) or normalize_text(section.get("label")) or section_key
     return {
         "section_key": section_key or fallback["section_key"],
         "section_title": section_title or fallback["section_title"],
@@ -217,7 +229,8 @@ def build_workspace_section_from_section_node(node):
     if not section_key:
         return {}
 
-    section_title = normalize_text(node.get("label")) or section_key
+    summary = _semantic_summary(node)
+    section_title = normalize_text(summary.get("label")) or normalize_text(node.get("label")) or section_key
     return {
         "section_key": section_key,
         "section_title": section_title,

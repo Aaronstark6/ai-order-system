@@ -113,6 +113,53 @@ def build_metadata(origin="", raw=None, notes=None, extra=None):
     }
 
 
+def build_semantic_summary(
+    label="",
+    description="",
+    intent_type="",
+    write_mode="",
+    field_type="",
+    node_role="",
+    source_cell="",
+    target_cell="",
+):
+    return {
+        "label": normalize_text(label),
+        "description": normalize_text(description),
+        "intent_type": normalize_text(intent_type),
+        "write_mode": normalize_text(write_mode),
+        "field_type": normalize_text(field_type),
+        "node_role": normalize_text(node_role),
+        "source_cell": normalize_text(source_cell),
+        "target_cell": normalize_text(target_cell),
+    }
+
+
+def build_semantic_summary_from_metadata(
+    label="",
+    description="",
+    field_type="",
+    source_cell="",
+    target_cell="",
+    metadata=None,
+):
+    metadata_dict = normalize_dict(metadata)
+    extra = metadata_dict.get("extra")
+    if not isinstance(extra, dict):
+        extra = {}
+
+    return build_semantic_summary(
+        label=label,
+        description=description,
+        intent_type=extra.get("intent_type", ""),
+        write_mode=extra.get("write_mode", ""),
+        field_type=field_type,
+        node_role=extra.get("role", ""),
+        source_cell=source_cell,
+        target_cell=target_cell,
+    )
+
+
 def build_empty_document_intelligence_model():
     return {
         "schema_version": SCHEMA_VERSION,
@@ -174,6 +221,14 @@ def build_field_node(
         "field_type": normalize_text(field_type),
         "required": bool(required),
         "ai_extract_hint": normalize_text(ai_extract_hint),
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=label,
+            description=ai_extract_hint,
+            field_type=field_type,
+            source_cell=source_cell,
+            target_cell=target_cell,
+            metadata=metadata,
+        ),
         "confidence": confidence,
         "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),
@@ -196,6 +251,12 @@ def build_section_node(
         "node_id": normalize_text(node_id),
         "section_key": normalize_text(section_key),
         "label": normalize_text(label),
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=label,
+            description=label,
+            field_type="section",
+            metadata=metadata,
+        ),
         "bounds": normalize_dict(bounds),
         "parent_section_id": normalize_text(parent_section_id),
         "order": order,
@@ -220,6 +281,12 @@ def build_table_node(
         "node_type": NODE_TYPE_TABLE,
         "node_id": normalize_text(node_id),
         "label": normalize_text(label),
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=label,
+            description=label,
+            field_type="table",
+            metadata=metadata,
+        ),
         "section_id": normalize_text(section_id),
         "header_cells": normalize_list(header_cells),
         "data_region": normalize_dict(data_region),
@@ -246,6 +313,12 @@ def build_choice_group_node(
         "node_id": normalize_text(node_id),
         "field_key": normalize_text(field_key),
         "label": normalize_text(label),
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=label,
+            description=label,
+            field_type="choice_group",
+            metadata=metadata,
+        ),
         "selection_mode": normalize_text(selection_mode),
         "options": normalize_list(options),
         "section_id": normalize_text(section_id),
@@ -267,6 +340,12 @@ def build_condition_node(
     return {
         "node_type": NODE_TYPE_CONDITION,
         "node_id": normalize_text(node_id),
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=node_id,
+            description="condition",
+            field_type="condition",
+            metadata=metadata,
+        ),
         "when": normalize_dict(when),
         "then": normalize_dict(then),
         "else": normalize_dict(else_),
@@ -292,6 +371,13 @@ def build_object_node(
         "node_id": normalize_text(node_id),
         "object_type": normalize_text(object_type),
         "label": normalize_text(label),
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=label,
+            description=object_type,
+            field_type=object_type,
+            source_cell=cell,
+            metadata=metadata,
+        ),
         "cell": normalize_text(cell),
         "region": normalize_dict(region),
         "section_id": normalize_text(section_id),
@@ -317,6 +403,13 @@ def build_visual_semantic_node(
         "node_id": normalize_text(node_id),
         "semantic_type": normalize_text(semantic_type),
         "label": normalize_text(label),
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=label,
+            description=semantic_type,
+            field_type="visual",
+            source_cell=cell,
+            metadata=metadata,
+        ),
         "cell": normalize_text(cell),
         "region": normalize_dict(region),
         "style": normalize_dict(style),
@@ -341,6 +434,12 @@ def build_runtime_policy_node(
         "policy_type": normalize_text(policy_type),
         "source_node_id": normalize_text(source_node_id),
         "action": normalize_text(action),
+        "semantic_summary": build_semantic_summary_from_metadata(
+            label=policy_type,
+            description=action,
+            field_type="runtime_policy",
+            metadata=metadata,
+        ),
         "condition_node_id": normalize_text(condition_node_id),
         "metadata": normalize_dict(metadata),
         "source": _normalize_node_source(source),

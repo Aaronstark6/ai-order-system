@@ -55,6 +55,16 @@ def _metadata_extra(node):
     return {}
 
 
+def _semantic_summary(node):
+    if not isinstance(node, dict):
+        return {}
+
+    summary = node.get("semantic_summary")
+    if isinstance(summary, dict):
+        return normalize_dict(summary)
+    return {}
+
+
 def _confidence(node):
     if not isinstance(node, dict):
         return 0
@@ -282,10 +292,15 @@ def build_ai_field_from_field_node(node, model=None):
     if not field_key:
         return {}
 
-    label = normalize_text(node.get("label")) or field_key
-    field_type = normalize_text(node.get("field_type")) or "text"
+    summary = _semantic_summary(node)
+    label = normalize_text(summary.get("label")) or normalize_text(node.get("label")) or field_key
+    field_type = normalize_text(summary.get("field_type")) or normalize_text(node.get("field_type")) or "text"
     required = _safe_bool(node.get("required"))
-    ai_extract_hint = normalize_text(node.get("ai_extract_hint")) or label
+    ai_extract_hint = (
+        normalize_text(summary.get("description"))
+        or normalize_text(node.get("ai_extract_hint"))
+        or label
+    )
     if isinstance(model, dict):
         section = resolve_section_label_for_node(model, node)
         runtime_policy = resolve_runtime_policy_for_node(model, node)
@@ -294,7 +309,7 @@ def build_ai_field_from_field_node(node, model=None):
         runtime_policy = {}
 
     metadata_extra = _metadata_extra(node)
-    intent_type = normalize_text(metadata_extra.get("intent_type"))
+    intent_type = normalize_text(summary.get("intent_type")) or normalize_text(metadata_extra.get("intent_type"))
     write_mode = ""
     runtime_policy_id = ""
     if isinstance(runtime_policy, dict) and runtime_policy:
@@ -303,7 +318,7 @@ def build_ai_field_from_field_node(node, model=None):
             runtime_policy.get("policy_type")
         )
     if not write_mode:
-        write_mode = normalize_text(metadata_extra.get("write_mode"))
+        write_mode = normalize_text(summary.get("write_mode")) or normalize_text(metadata_extra.get("write_mode"))
 
     target_cell = normalize_text(node.get("target_cell"))
     source_cell = normalize_text(node.get("source_cell"))
@@ -354,7 +369,8 @@ def build_option_group_from_choice_group_node(node):
     if not field_key:
         return {}
 
-    label = normalize_text(node.get("label")) or field_key
+    summary = _semantic_summary(node)
+    label = normalize_text(summary.get("label")) or normalize_text(node.get("label")) or field_key
     options = []
     option_metadata = []
     seen_options = set()
