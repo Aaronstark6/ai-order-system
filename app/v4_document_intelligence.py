@@ -180,6 +180,130 @@ def build_visual_metadata(
     }
 
 
+def build_visual_coordinates(
+    source_cell="",
+    target_cell="",
+    row=None,
+    col=None,
+    page=None,
+    bbox=None,
+):
+    return {
+        "source_cell": source_cell or "",
+        "target_cell": target_cell or "",
+        "row": row,
+        "col": col,
+        "page": page,
+        "bbox": normalize_dict(bbox),
+    }
+
+
+def build_visual_layout(
+    region="",
+    orientation="",
+    role="",
+    priority=0,
+    metadata=None,
+):
+    return {
+        "region": region or "",
+        "orientation": orientation or "",
+        "role": role or "",
+        "priority": priority if priority is not None else 0,
+        "metadata": normalize_metadata(metadata),
+    }
+
+
+def build_visual_style(
+    style_id="",
+    style_type="",
+    bold=False,
+    italic=False,
+    color="",
+    background="",
+    metadata=None,
+):
+    return {
+        "style_id": style_id or "",
+        "style_type": style_type or "",
+        "bold": bool(bold),
+        "italic": bool(italic),
+        "color": color or "",
+        "background": background or "",
+        "metadata": normalize_metadata(metadata),
+    }
+
+
+def build_visual_merge(
+    is_merged=False,
+    merge_range="",
+    rows=None,
+    columns=None,
+    metadata=None,
+):
+    return {
+        "is_merged": bool(is_merged),
+        "merge_range": merge_range or "",
+        "rows": normalize_list(rows),
+        "columns": normalize_list(columns),
+        "metadata": normalize_metadata(metadata),
+    }
+
+
+def build_visual_logic(
+    source_cell="",
+    target_cell="",
+    row=None,
+    col=None,
+    page=None,
+    bbox=None,
+    region="",
+    orientation="",
+    role="",
+    priority=0,
+    style=None,
+    merge=None,
+    metadata=None,
+):
+    style_dict = normalize_dict(style)
+    merge_dict = normalize_dict(merge)
+
+    return {
+        "coordinates": build_visual_coordinates(
+            source_cell=source_cell,
+            target_cell=target_cell,
+            row=row,
+            col=col,
+            page=page,
+            bbox=bbox,
+        ),
+        "layout": build_visual_layout(
+            region=region,
+            orientation=orientation,
+            role=role,
+            priority=priority,
+            metadata=metadata,
+        ),
+        "style": build_visual_style(
+            style_id=style_dict.get("style_id", ""),
+            style_type=style_dict.get("style_type", ""),
+            bold=style_dict.get("bold", False),
+            italic=style_dict.get("italic", False),
+            color=style_dict.get("color", ""),
+            background=style_dict.get("background", ""),
+            metadata=style_dict.get("metadata"),
+        ),
+        "merge": build_visual_merge(
+            is_merged=merge_dict.get("is_merged", False),
+            merge_range=merge_dict.get("merge_range", ""),
+            rows=merge_dict.get("rows"),
+            columns=merge_dict.get("columns"),
+            metadata=merge_dict.get("metadata"),
+        ),
+        "metadata": normalize_metadata(metadata),
+    }
+
+
 def build_condition_metadata(
     visibility="",
     validation="",
@@ -1004,6 +1128,14 @@ def build_visual_semantic_node(
     confidence=0,
     metadata=None,
     source=None,
+    row=None,
+    col=None,
+    page=None,
+    bbox=None,
+    orientation="",
+    role="",
+    priority=0,
+    merge=None,
 ):
     shared_contract = build_node_shared_contract(
         label=label,
@@ -1015,6 +1147,22 @@ def build_visual_semantic_node(
         include_visual_metadata=True,
     )
 
+    visual_logic = build_visual_logic(
+        source_cell=cell,
+        target_cell=cell,
+        row=row,
+        col=col,
+        page=page,
+        bbox=bbox,
+        region=region,
+        orientation=orientation,
+        role=role,
+        priority=priority,
+        style=style,
+        merge=merge,
+        metadata=metadata,
+    )
+
     return {
         "node_type": NODE_TYPE_VISUAL,
         "node_id": normalize_text(node_id),
@@ -1023,6 +1171,7 @@ def build_visual_semantic_node(
         "cell": normalize_text(cell),
         "region": normalize_dict(region),
         "style": normalize_dict(style),
+        "visual_logic": visual_logic,
         "confidence": confidence,
         "source": _normalize_node_source(source),
         **shared_contract,
