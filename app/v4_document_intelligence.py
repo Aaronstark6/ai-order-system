@@ -623,6 +623,181 @@ def build_section_node(
     }
 
 
+def normalize_table_columns(columns=None):
+    normalized_columns = []
+    for index, item in enumerate(normalize_list(columns)):
+        if isinstance(item, dict):
+            column_data = normalize_dict(item)
+            label = (
+                column_data.get("label")
+                or column_data.get("name")
+                or column_data.get("field_key")
+                or column_data.get("column_id")
+                or ""
+            )
+            column_id = (
+                column_data.get("column_id")
+                or column_data.get("id")
+                or column_data.get("field_key")
+                or label
+                or f"column_{index + 1}"
+            )
+            normalized_columns.append(
+                {
+                    "column_id": str(column_id),
+                    "label": str(label),
+                    "field_key": column_data.get("field_key", ""),
+                    "value_type": column_data.get(
+                        "value_type",
+                        column_data.get("type", ""),
+                    ),
+                    "required": bool(column_data.get("required", False)),
+                    "aliases": normalize_list(column_data.get("aliases")),
+                    "metadata": normalize_metadata(column_data.get("metadata")),
+                }
+            )
+        else:
+            label = str(item)
+            normalized_columns.append(
+                {
+                    "column_id": label or f"column_{index + 1}",
+                    "label": label,
+                    "field_key": "",
+                    "value_type": "",
+                    "required": False,
+                    "aliases": [],
+                    "metadata": normalize_metadata(),
+                }
+            )
+    return normalized_columns
+
+
+def normalize_table_rows(rows=None):
+    normalized_rows = []
+    for index, item in enumerate(normalize_list(rows)):
+        if isinstance(item, dict):
+            row_data = normalize_dict(item)
+            row_id = row_data.get("row_id") or row_data.get("id") or f"row_{index + 1}"
+            normalized_rows.append(
+                {
+                    "row_id": str(row_id),
+                    "label": str(row_data.get("label", row_data.get("name", ""))),
+                    "index": row_data.get("index", index),
+                    "cells": normalize_table_cells(row_data.get("cells")),
+                    "metadata": normalize_metadata(row_data.get("metadata")),
+                }
+            )
+        else:
+            normalized_rows.append(
+                {
+                    "row_id": f"row_{index + 1}",
+                    "label": str(item),
+                    "index": index,
+                    "cells": [],
+                    "metadata": normalize_metadata(),
+                }
+            )
+    return normalized_rows
+
+
+def normalize_table_cells(cells=None):
+    normalized_cells = []
+    for index, item in enumerate(normalize_list(cells)):
+        if isinstance(item, dict):
+            cell_data = normalize_dict(item)
+            cell_id = cell_data.get("cell_id") or cell_data.get("id") or f"cell_{index + 1}"
+            normalized_cells.append(
+                {
+                    "cell_id": str(cell_id),
+                    "row_id": cell_data.get("row_id", ""),
+                    "column_id": cell_data.get("column_id", ""),
+                    "value": cell_data.get("value"),
+                    "source_cell": cell_data.get("source_cell", ""),
+                    "target_cell": cell_data.get("target_cell", ""),
+                    "metadata": normalize_metadata(cell_data.get("metadata")),
+                }
+            )
+        else:
+            normalized_cells.append(
+                {
+                    "cell_id": f"cell_{index + 1}",
+                    "row_id": "",
+                    "column_id": "",
+                    "value": item,
+                    "source_cell": "",
+                    "target_cell": "",
+                    "metadata": normalize_metadata(),
+                }
+            )
+    return normalized_cells
+
+
+def normalize_merged_cells(merged_cells=None):
+    normalized_merged_cells = []
+    for index, item in enumerate(normalize_list(merged_cells)):
+        if isinstance(item, dict):
+            merged_data = normalize_dict(item)
+            cell_id = (
+                merged_data.get("cell_id")
+                or merged_data.get("id")
+                or f"merged_cell_{index + 1}"
+            )
+            normalized_merged_cells.append(
+                {
+                    "cell_id": str(cell_id),
+                    "range": merged_data.get("range", ""),
+                    "rows": normalize_list(merged_data.get("rows")),
+                    "columns": normalize_list(merged_data.get("columns")),
+                    "metadata": normalize_metadata(merged_data.get("metadata")),
+                }
+            )
+        else:
+            normalized_merged_cells.append(
+                {
+                    "cell_id": f"merged_cell_{index + 1}",
+                    "range": str(item),
+                    "rows": [],
+                    "columns": [],
+                    "metadata": normalize_metadata(),
+                }
+            )
+    return normalized_merged_cells
+
+
+def build_table_logic(
+    orientation="row",
+    header_mode="first_row",
+    allow_dynamic_rows=False,
+    allow_dynamic_columns=False,
+    min_rows=0,
+    max_rows=None,
+    columns=None,
+    rows=None,
+    cells=None,
+):
+    if orientation not in ["row", "column", "matrix"]:
+        orientation = "row"
+
+    if header_mode not in ["none", "first_row", "first_column", "custom"]:
+        header_mode = "first_row"
+
+    normalized_columns = normalize_table_columns(columns)
+    normalized_rows = normalize_table_rows(rows)
+    normalized_cells = normalize_table_cells(cells)
+
+    return {
+        "orientation": orientation,
+        "header_mode": header_mode,
+        "allow_dynamic_rows": bool(allow_dynamic_rows),
+        "allow_dynamic_columns": bool(allow_dynamic_columns),
+        "min_rows": min_rows if min_rows is not None else 0,
+        "max_rows": max_rows,
+        "column_count": len(normalized_columns),
+        "row_count": len(normalized_rows),
+        "cell_count": len(normalized_cells),
+    }
+
+
 def build_table_node(
     node_id,
     label,
@@ -633,6 +808,15 @@ def build_table_node(
     confidence=0,
     metadata=None,
     source=None,
+    rows=None,
+    cells=None,
+    merged_cells=None,
+    orientation="row",
+    header_mode="first_row",
+    allow_dynamic_rows=False,
+    allow_dynamic_columns=False,
+    min_rows=0,
+    max_rows=None,
 ):
     shared_contract = build_node_shared_contract(
         label=label,
@@ -642,14 +826,36 @@ def build_table_node(
         include_visual_metadata=True,
     )
 
+    normalized_columns = normalize_table_columns(columns)
+    normalized_rows = normalize_table_rows(rows)
+    normalized_cells = normalize_table_cells(cells)
+    normalized_header_cells = normalize_table_cells(header_cells)
+    normalized_merged_cells = normalize_merged_cells(merged_cells)
+
+    table_logic = build_table_logic(
+        orientation=orientation,
+        header_mode=header_mode,
+        allow_dynamic_rows=allow_dynamic_rows,
+        allow_dynamic_columns=allow_dynamic_columns,
+        min_rows=min_rows,
+        max_rows=max_rows,
+        columns=normalized_columns,
+        rows=normalized_rows,
+        cells=normalized_cells,
+    )
+
     return {
         "node_type": NODE_TYPE_TABLE,
         "node_id": normalize_text(node_id),
         "label": normalize_text(label),
         "section_id": normalize_text(section_id),
-        "header_cells": normalize_list(header_cells),
+        "header_cells": normalized_header_cells,
         "data_region": normalize_dict(data_region),
-        "columns": normalize_list(columns),
+        "columns": normalized_columns,
+        "rows": normalized_rows,
+        "cells": normalized_cells,
+        "merged_cells": normalized_merged_cells,
+        "table_logic": table_logic,
         "confidence": confidence,
         "source": _normalize_node_source(source),
         **shared_contract,
