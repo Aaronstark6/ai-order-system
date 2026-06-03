@@ -24,6 +24,7 @@ from app.v4_excel_rule_preview import build_excel_rule_preview
 from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save_excel_render_rules
 from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_order_normalizer import normalize_flat_order_to_v4_order_object
+from app.v4_parse_adapter import normalize_parse_result_to_flat_data
 from app.v4_examples import list_examples, load_example, save_example
 from app.v4_pipeline_state import (
     get_pipeline_state,
@@ -5752,13 +5753,19 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
 
     field_binding_result = _bind_parsed_fields_to_template_cells(parsed, current_profile)
 
-    normalized = normalize_flat_order_to_v4_order_object(parsed)
+    flat_data = normalize_parse_result_to_flat_data(parsed)
+    parse_adapter = {
+        "flat_field_count": len(flat_data),
+        "enabled": True,
+    }
+    normalized = normalize_flat_order_to_v4_order_object(flat_data)
     order_object = normalized.get("order_object") if isinstance(normalized, dict) else {}
     if not isinstance(order_object, dict) or not order_object:
         return {
             "success": False,
             "error": "Order Object 转换失败",
             "parsed": parsed,
+            "parse_adapter": parse_adapter,
             "normalized": normalized,
             "last_extraction_contract": extraction_contract.get("fields", []),
             "extraction_contract": extraction_contract,
@@ -5784,6 +5791,7 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "success": True,
         "message": "Chat 已解析为 V4 Order Object 并加载",
         "parsed": parsed,
+        "parse_adapter": parse_adapter,
         "last_extraction_contract": extraction_contract.get("fields", []),
         "extraction_contract": extraction_contract,
         "ai_extraction_contract_summary": extraction_contract_summary,
@@ -5898,6 +5906,8 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
 
 @router.post("/api/v4/core-pipeline/run")
 def api_v4_core_pipeline_run():
+    from app.v4_document_intelligence_builder import build_document_intelligence_model
+    from app.v4_export_strategy_builder import build_export_plan_from_document_model
     from app.v4_pipeline_executor import run_operation_pipeline
 
     logger.info("V4 core pipeline run requested")
@@ -5922,7 +5932,35 @@ def api_v4_core_pipeline_run():
     
     current_template_path = state.get("current_template_path") if isinstance(state.get("current_template_path"), str) else None
 
-    result = run_operation_pipeline(order_object, profile=current_profile, template_path=current_template_path)
+    template_analysis = state.get("template_analysis") if isinstance(state.get("template_analysis"), dict) else {}
+    document_model_probe = {
+        "document_model_ok": False,
+        "export_plan_ok": False,
+        "operation_count": 0,
+        "export_operations_count": 0,
+    }
+    export_operations = None
+    try:
+        document_model = build_document_intelligence_model(template_analysis)
+        export_plan = build_export_plan_from_document_model(document_model)
+        export_operations = export_plan.get("operations", []) if isinstance(export_plan, dict) else None
+        document_model_probe = {
+            "document_model_ok": bool(document_model),
+            "export_plan_ok": bool(export_plan),
+            "operation_count": len(export_plan.get("operations", [])) if isinstance(export_plan, dict) else 0,
+            "export_operations_count": len(export_operations) if isinstance(export_operations, list) else 0,
+        }
+    except Exception:
+        logger.info("V4 document model export plan probe failed", exc_info=True)
+    else:
+        logger.info("V4 document model export plan probe: %s", document_model_probe)
+
+    result = run_operation_pipeline(
+        order_object,
+        profile=current_profile,
+        template_path=current_template_path,
+        export_operations=export_operations,
+    )
     validation = result.get("validation", {})
     set_validator_result(validation)
     if not result.get("success"):
@@ -6077,6 +6115,227 @@ def api_v4_parse_chat_export_excel(
             "error": str(exc) or "Chat 到 Excel 导出失败",
             "pipeline_state": get_pipeline_state(),
         }
+
+def _extract_confirmed_order_object_from_payload(payload):
+    payload = payload if isinstance(payload, dict) else {}
+    confirmed_order_object = payload.get("confirmed_order_object")
+    if not isinstance(confirmed_order_object, dict):
+        confirmed_order_object = payload.get("confirmedOrderObject")
+    if not isinstance(confirmed_order_object, dict):
+        confirmed_order_object = payload
+    return confirmed_order_object if isinstance(confirmed_order_object, dict) else {}
+
+
+def _confirmed_order_object_field_lookup(confirmed_order_object):
+    lookup = {}
+    fields = confirmed_order_object.get("fields") if isinstance(confirmed_order_object, dict) else []
+    if not isinstance(fields, list):
+        return lookup
+
+    for item in fields:
+        if not isinstance(item, dict):
+            continue
+        field_key = str(item.get("field_key") or "").strip()
+        if not field_key:
+            continue
+        lookup[field_key] = item
+
+    return lookup
+
+
+def _confirmed_order_object_values(confirmed_order_object):
+    values = {}
+    if not isinstance(confirmed_order_object, dict):
+        return values
+
+    values_by_field_key = confirmed_order_object.get("values_by_field_key")
+    if isinstance(values_by_field_key, dict):
+        for key, value in values_by_field_key.items():
+            field_key = str(key or "").strip()
+            if field_key:
+                values[field_key] = value
+
+    fields = confirmed_order_object.get("fields")
+    if isinstance(fields, list):
+        for item in fields:
+            if not isinstance(item, dict):
+                continue
+            field_key = str(item.get("field_key") or "").strip()
+            if not field_key:
+                continue
+            values[field_key] = item.get("value", "")
+
+    return values
+
+
+def _build_pipeline_order_object_from_confirmed_order_object(confirmed_order_object):
+    confirmed_order_object = confirmed_order_object if isinstance(confirmed_order_object, dict) else {}
+
+    base_order_object = confirmed_order_object.get("order_object")
+    if not isinstance(base_order_object, dict):
+        base_order_object = {}
+
+    order_object = deepcopy(base_order_object)
+    values_by_field_key = _confirmed_order_object_values(confirmed_order_object)
+    field_lookup = _confirmed_order_object_field_lookup(confirmed_order_object)
+
+    product = order_object.get("product")
+    if not isinstance(product, dict):
+        product = {}
+        order_object["product"] = product
+
+    product_fields = product.get("fields")
+    if not isinstance(product_fields, dict):
+        product_fields = {}
+        product["fields"] = product_fields
+
+    for field_key, value in values_by_field_key.items():
+        key = str(field_key or "").strip()
+        if not key:
+            continue
+
+        field_info = field_lookup.get(key, {})
+        label = str(field_info.get("label") or key).strip()
+
+        existing = product_fields.get(key)
+        entry = deepcopy(existing) if isinstance(existing, dict) else {}
+        entry["label"] = entry.get("label") or label
+        entry["value"] = value
+        entry["source"] = "confirmed_order_object"
+        product_fields[key] = entry
+
+    meta = confirmed_order_object.get("_meta")
+    if isinstance(meta, dict):
+        order_object["_confirmed_order_object_meta"] = deepcopy(meta)
+
+    field_meta = confirmed_order_object.get("_field_meta")
+    if isinstance(field_meta, dict):
+        order_object["_confirmed_field_meta"] = deepcopy(field_meta)
+
+    return order_object
+
+
+@router.post("/api/v4/export-pipeline-excel")
+def api_v4_export_pipeline_excel(payload: Any = Body(None)):
+    from app.v4_excel_executor import execute_processed_operations_to_excel
+    from app.v4_render_preview import build_render_preview
+    from app.v4_render_targets import render_preview_to_html
+
+    logger.info("V4 confirmed order object pipeline export requested")
+
+    payload = payload if isinstance(payload, dict) else {}
+    confirmed_order_object = _extract_confirmed_order_object_from_payload(payload)
+
+    if not isinstance(confirmed_order_object, dict) or not confirmed_order_object:
+        return {
+            "success": False,
+            "stage": "confirmed_order_object",
+            "error": "confirmed_order_object 涓嶈兘涓虹┖",
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    order_object = _build_pipeline_order_object_from_confirmed_order_object(confirmed_order_object)
+
+    if not isinstance(order_object, dict) or not order_object:
+        return {
+            "success": False,
+            "stage": "order_object",
+            "error": "confirmed_order_object 鏃犳硶杞崲涓烘湁鏁?order_object",
+            "confirmed_order_object": confirmed_order_object,
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    template_path = None
+    template_source = ""
+
+    try:
+        profile = _current_template_profile_for_export()
+        if profile:
+            set_current_profile(profile)
+
+        template_path, _, template_source = _resolve_export_template_source()
+
+        load_order_object_into_pipeline(order_object)
+
+        pipeline_result = api_v4_core_pipeline_run()
+        if not pipeline_result.get("success"):
+            return {
+                "success": False,
+                "stage": "pipeline",
+                "error": pipeline_result.get("error", "Pipeline 鎵ц澶辫触"),
+                "pipeline_result": pipeline_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        processed_operations = pipeline_result.get("processed_operations", [])
+        if not isinstance(processed_operations, list) or not processed_operations:
+            return {
+                "success": False,
+                "stage": "processed_operations",
+                "error": "鏆傛棤 processed operations锛屾棤娉曞鍑?Excel",
+                "pipeline_result": pipeline_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        export_result = execute_processed_operations_to_excel(template_path, processed_operations)
+        if not export_result.get("success"):
+            return {
+                "success": False,
+                "stage": "excel_export",
+                "error": export_result.get("error", "Excel 瀵煎嚭澶辫触"),
+                "warnings": export_result.get("warnings", []),
+                "pipeline_result": pipeline_result,
+                "pipeline_state": get_pipeline_state(),
+            }
+
+        state = merge_mapping_safety(export_result.get("mapping_safety", {}))
+        merged_safety = state.get("mapping_safety", {})
+        preview = build_render_preview(processed_operations, merged_safety, template_path)
+        state = set_render_preview(preview)
+
+        html_result = render_preview_to_html(state.get("render_preview", {}))
+        html_preview = ""
+        if html_result.get("success"):
+            html_preview = html_result.get("html", "")
+            state = set_render_targets({"html_preview": html_preview})
+
+        set_excel_result(export_result.get("filename"))
+
+        return {
+            "success": True,
+            "message": "Confirmed Order Object 宸查€氳繃 Stage2 Pipeline 瀵煎嚭 Excel",
+            "confirmed_order_object": confirmed_order_object,
+            "order_object": order_object,
+            "pipeline_result": pipeline_result,
+            "export_result": {
+                "filename": export_result.get("filename", ""),
+                "download_url": export_result.get("download_url", ""),
+                "operations_written": export_result.get("operations_written", 0),
+                "warnings": export_result.get("warnings", []),
+                "template_source": template_source,
+            },
+            "render_preview": get_pipeline_state().get("render_preview", {}),
+            "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
+            "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
+            "pipeline_state": get_pipeline_state(),
+        }
+
+    except ValueError as exc:
+        return {
+            "success": False,
+            "stage": "template",
+            "error": str(exc),
+            "pipeline_state": get_pipeline_state(),
+        }
+    except Exception as exc:
+        logger.exception("V4 confirmed order object pipeline export failed")
+        return {
+            "success": False,
+            "stage": "unknown",
+            "error": str(exc) or "Confirmed Order Object 鍒?Excel 瀵煎嚭澶辫触",
+            "pipeline_state": get_pipeline_state(),
+        }
+
 
 def _confirmed_cell_is_image_item(item):
     if not isinstance(item, dict):
