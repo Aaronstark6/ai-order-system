@@ -2,31 +2,30 @@
 
 Task:
 
-`STAGE2_CONFIG_DOCUMENTMODEL_VIEWER_01`
+`STAGE2_CONFIG_DOCUMENTMODEL_RUNTIME_BIND_01`
 
 Status:
 
-- Stage2 Config is adding a read-only DocumentModel Viewer observation layer.
+- Stage2 Config is adding a read-only DocumentModel Runtime build endpoint.
 
 Purpose:
 
-- Confirm whether a real DocumentModel / document_model / nodes source already exists.
-- Show node statistics and node summaries before building semantic schema generation.
-- Return diagnostics when no formal DocumentModel is available.
-- If only cache `rules.json` exists, display it only as diagnostic nodes.
+- Try to reuse the existing `build_document_intelligence_model(template_analysis)` path.
+- Return a formal DocumentModel summary when real `template_analysis.semantic_regions` exists.
+- Return diagnostics when the required template analysis input is missing.
 
 Rules:
 
-- Do not fake cache rules as a formal DocumentModel.
+- Do not generate `semantic_workspace_schema`.
 - Do not write old configuration data.
-- Do not modify Workspace, Pipeline, Validator, or export runtime.
-- Do not call old Workspace or export endpoints.
+- Do not modify Workspace, Pipeline, Validator, export runtime, or `app/routes/v4.py`.
+- Do not treat cache `rules.json` as a formal DocumentModel.
+- Do not fake `template_analysis` or `semantic_regions`.
 
 New observation API:
 
-- `/api/v4/stage2-config/documentmodel-viewer`
+- `/api/v4/stage2-config/documentmodel-runtime`
 
-Known diagnostic state:
+Expected next decision:
 
-- Cache rules may be shown with `source_type=cache_rules_diagnostic_only`.
-- Diagnostics must include `rules_json_is_not_document_model` when cache rules are used this way.
+- If the runtime cannot find real template analysis, build a Stage2-specific Template Analysis Runtime before semantic schema generation.

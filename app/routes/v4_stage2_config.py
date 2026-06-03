@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -585,7 +586,7 @@ def _normalize_documentmodel_node(node: Any, index: int) -> dict[str, Any]:
         "target": target if isinstance(target, dict) else {"value": target},
         "coordinates": coordinates if isinstance(coordinates, dict) else {"value": coordinates},
         "semantic_summary": semantic_summary if isinstance(semantic_summary, dict) else {"value": semantic_summary},
-        "has_visual_logic": bool(visual_logic),
+        "has_visual_logic": bool(visual_logic or coordinates or target),
         "has_condition_logic": bool(node_data.get("condition_logic")),
         "has_choice_logic": bool(node_data.get("choice_logic")),
         "has_table_logic": bool(node_data.get("table_logic")),
@@ -684,6 +685,301 @@ def _build_documentmodel_viewer() -> dict[str, Any]:
     return viewer
 
 
+def _empty_documentmodel_runtime(
+    status: str,
+    diagnostics: list[str] | None = None,
+    source: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    source = source if isinstance(source, dict) else {}
+    runtime = {
+        "status": status,
+        "source_type": source.get("source_type") or "",
+        "source_id": source.get("source_id") or "",
+        "template_filename": source.get("template_filename") or "",
+        "template_path": source.get("template_path") or "",
+        "template_analysis_source": source.get("template_analysis_source") or "",
+        "template_analysis_keys": source.get("template_analysis_keys") or [],
+        "semantic_regions_count": int(source.get("semantic_regions_count") or 0),
+        "document_model_type": "",
+        "summary": {},
+        "nodes": [],
+        "diagnostics": diagnostics or [],
+    }
+    runtime.update(_documentmodel_viewer_stats([]))
+    return runtime
+
+
+def _pipeline_state_template_analysis_source() -> dict[str, Any]:
+    diagnostics = []
+    try:
+        from app.v4_pipeline_state import get_pipeline_state
+    except Exception as exc:
+        return {
+            "template_analysis": {},
+            "source": {
+                "source_type": "pipeline_state",
+                "source_id": "",
+                "template_filename": "",
+                "template_path": "",
+                "template_analysis_source": "pipeline_state.template_analysis",
+                "template_analysis_keys": [],
+                "semantic_regions_count": 0,
+            },
+            "diagnostics": [f"pipeline_state_import_failed: {exc}"],
+        }
+
+    try:
+        state = get_pipeline_state()
+    except Exception as exc:
+        return {
+            "template_analysis": {},
+            "source": {
+                "source_type": "pipeline_state",
+                "source_id": "",
+                "template_filename": "",
+                "template_path": "",
+                "template_analysis_source": "pipeline_state.template_analysis",
+                "template_analysis_keys": [],
+                "semantic_regions_count": 0,
+            },
+            "diagnostics": [f"pipeline_state_read_failed: {exc}"],
+        }
+
+    state = state if isinstance(state, dict) else {}
+    profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
+    template_analysis = state.get("template_analysis") if isinstance(state.get("template_analysis"), dict) else {}
+    semantic_regions = template_analysis.get("semantic_regions") if isinstance(template_analysis, dict) else None
+    source = {
+        "source_type": "pipeline_state",
+        "source_id": _string_value(profile.get("profile_id") or profile.get("id")),
+        "template_filename": _string_value(
+            profile.get("template_filename")
+            or profile.get("template_file")
+            or profile.get("template_name")
+        ),
+        "template_path": _string_value(
+            state.get("current_template_path")
+            or profile.get("template_file_path")
+            or profile.get("template_path")
+            or profile.get("template_file")
+        ),
+        "template_analysis_source": "pipeline_state.template_analysis",
+        "template_analysis_keys": sorted(str(key) for key in template_analysis.keys()) if isinstance(template_analysis, dict) else [],
+        "semantic_regions_count": len(semantic_regions) if isinstance(semantic_regions, list) else 0,
+    }
+    if not template_analysis:
+        diagnostics.append("pipeline_state_template_analysis_empty")
+    elif not isinstance(semantic_regions, list):
+        diagnostics.append("template_analysis_semantic_regions_missing")
+    elif not semantic_regions:
+        diagnostics.append("template_analysis_semantic_regions_empty")
+    return {
+        "template_analysis": template_analysis,
+        "source": source,
+        "diagnostics": diagnostics,
+    }
+
+
+def _legacy_template_analysis_sources() -> list[dict[str, Any]]:
+    profiles, profile_error = _load_legacy_profile_items()
+    sources = []
+    if profile_error:
+        sources.append({
+            "template_analysis": {},
+            "source": {
+                "source_type": "legacy_template_profiles",
+                "source_id": "",
+                "template_filename": "",
+                "template_path": "",
+                "template_analysis_source": "legacy_template_profiles_error",
+                "template_analysis_keys": [],
+                "semantic_regions_count": 0,
+            },
+            "diagnostics": [f"legacy_template_profiles_read_failed: {profile_error}"],
+        })
+    for profile in profiles:
+        template_analysis = profile.get("template_analysis") if isinstance(profile.get("template_analysis"), dict) else {}
+        semantic_regions = template_analysis.get("semantic_regions") if isinstance(template_analysis, dict) else None
+        if not template_analysis:
+            continue
+        sources.append({
+            "template_analysis": template_analysis,
+            "source": {
+                "source_type": "legacy_template_profiles",
+                "source_id": _string_value(profile.get("profile_id") or profile.get("id")),
+                "template_filename": _string_value(
+                    profile.get("template_filename")
+                    or profile.get("template_file")
+                    or profile.get("filename")
+                    or profile.get("template_display_name")
+                ),
+                "template_path": _string_value(
+                    profile.get("template_file_path")
+                    or profile.get("template_path")
+                    or profile.get("template_file")
+                ),
+                "template_analysis_source": "legacy_template_profiles.template_analysis",
+                "template_analysis_keys": sorted(str(key) for key in template_analysis.keys()),
+                "semantic_regions_count": len(semantic_regions) if isinstance(semantic_regions, list) else 0,
+            },
+            "diagnostics": [] if isinstance(semantic_regions, list) and semantic_regions else ["template_analysis_semantic_regions_missing_or_empty"],
+        })
+    return sources
+
+
+def _cache_runtime_source_hint() -> dict[str, Any]:
+    cache_root = get_base_dir() / "data" / "v4_template_cache"
+    if not cache_root.is_dir():
+        return {}
+    for cache_dir in sorted((path for path in cache_root.iterdir() if path.is_dir()), key=lambda path: path.name):
+        meta_path = cache_dir / "meta.json"
+        meta_data = {}
+        if meta_path.is_file():
+            try:
+                loaded_meta = _read_json_file(meta_path)
+                meta_data = loaded_meta if isinstance(loaded_meta, dict) else {}
+            except Exception:
+                meta_data = {}
+        return {
+            "source_type": "cache_rules_diagnostic_only",
+            "source_id": cache_dir.name,
+            "template_filename": _possible_template_filename(meta_data),
+            "template_path": _possible_template_path(meta_data),
+            "template_analysis_source": "",
+            "template_analysis_keys": [],
+            "semantic_regions_count": 0,
+        }
+    return {}
+
+
+def _select_template_analysis_for_runtime() -> dict[str, Any]:
+    candidates = [_pipeline_state_template_analysis_source()]
+    candidates.extend(_legacy_template_analysis_sources())
+    diagnostics = []
+    source_hint: dict[str, Any] = {}
+    for candidate in candidates:
+        source = candidate.get("source") if isinstance(candidate.get("source"), dict) else {}
+        if not source_hint and source:
+            source_hint = source
+        diagnostics.extend(candidate.get("diagnostics") or [])
+        analysis = candidate.get("template_analysis") if isinstance(candidate.get("template_analysis"), dict) else {}
+        semantic_regions = analysis.get("semantic_regions") if isinstance(analysis, dict) else None
+        if isinstance(semantic_regions, list) and semantic_regions:
+            return {
+                "template_analysis": analysis,
+                "source": source,
+                "diagnostics": diagnostics,
+            }
+    if not source_hint:
+        source_hint = _cache_runtime_source_hint()
+    diagnostics.append("template_analysis_not_available_for_document_model_builder")
+    return {
+        "template_analysis": {},
+        "source": source_hint,
+        "diagnostics": diagnostics,
+    }
+
+
+def _model_to_dict(document_model: Any) -> dict[str, Any]:
+    if isinstance(document_model, dict):
+        return document_model
+    if is_dataclass(document_model):
+        try:
+            value = asdict(document_model)
+            return value if isinstance(value, dict) else {}
+        except Exception:
+            return {}
+    attrs = {}
+    for key in ("nodes", "summary", "warnings", "errors", "source", "schema_version"):
+        if hasattr(document_model, key):
+            attrs[key] = getattr(document_model, key)
+    return attrs
+
+
+def _document_model_nodes(document_model: Any) -> list[Any]:
+    try:
+        from app.v4_document_intelligence import collect_all_nodes
+        collected = collect_all_nodes(document_model)
+        if collected:
+            return collected
+    except Exception:
+        pass
+    model = _model_to_dict(document_model)
+    nodes = model.get("nodes")
+    if isinstance(nodes, list):
+        return nodes
+    if isinstance(nodes, dict):
+        collected = []
+        for value in nodes.values():
+            if isinstance(value, list):
+                collected.extend(item for item in value if isinstance(item, dict))
+        return collected
+    nodes_attr = getattr(document_model, "nodes", None)
+    return nodes_attr if isinstance(nodes_attr, list) else []
+
+
+def _document_model_summary(document_model: Any) -> dict[str, Any]:
+    model = _model_to_dict(document_model)
+    summary = model.get("summary")
+    if isinstance(summary, dict):
+        return summary
+    summary_attr = getattr(document_model, "summary", None)
+    return summary_attr if isinstance(summary_attr, dict) else {}
+
+
+def _build_documentmodel_runtime() -> dict[str, Any]:
+    selected = _select_template_analysis_for_runtime()
+    template_analysis = selected.get("template_analysis") if isinstance(selected.get("template_analysis"), dict) else {}
+    source = selected.get("source") if isinstance(selected.get("source"), dict) else {}
+    diagnostics = list(selected.get("diagnostics") or [])
+    semantic_regions = template_analysis.get("semantic_regions") if isinstance(template_analysis, dict) else None
+    if not isinstance(semantic_regions, list) or not semantic_regions:
+        diagnostics.append("formal_template_analysis_required")
+        diagnostics.append("cache_rules_are_not_document_model")
+        return _empty_documentmodel_runtime("unavailable", diagnostics, source)
+
+    try:
+        from app.v4_document_intelligence_builder import build_document_intelligence_model
+        document_model = build_document_intelligence_model(template_analysis)
+    except Exception as exc:
+        diagnostics.append(f"build_document_intelligence_model_failed: {exc}")
+        return _empty_documentmodel_runtime("error", diagnostics, source)
+
+    document_model_dict = _model_to_dict(document_model)
+    raw_nodes = _document_model_nodes(document_model)
+    nodes = [
+        _normalize_documentmodel_node(node, index)
+        for index, node in enumerate(raw_nodes[:DOCUMENTMODEL_VIEWER_MAX_NODES], start=1)
+    ]
+    if len(raw_nodes) > DOCUMENTMODEL_VIEWER_MAX_NODES:
+        diagnostics.append("node_list_truncated_to_200")
+    warnings = document_model_dict.get("warnings")
+    errors = document_model_dict.get("errors")
+    if isinstance(warnings, list):
+        diagnostics.extend(f"builder_warning: {warning}" for warning in warnings if warning)
+    if isinstance(errors, list):
+        diagnostics.extend(f"builder_error: {error}" for error in errors if error)
+    status = "built" if nodes else "partial"
+    if not nodes:
+        diagnostics.append("document_model_built_but_nodes_empty")
+    runtime = {
+        "status": status,
+        "source_type": source.get("source_type") or "",
+        "source_id": source.get("source_id") or "",
+        "template_filename": source.get("template_filename") or "",
+        "template_path": source.get("template_path") or "",
+        "template_analysis_source": source.get("template_analysis_source") or "",
+        "template_analysis_keys": source.get("template_analysis_keys") or [],
+        "semantic_regions_count": len(semantic_regions),
+        "document_model_type": type(document_model).__name__,
+        "summary": _document_model_summary(document_model),
+        "nodes": nodes,
+        "diagnostics": diagnostics,
+    }
+    runtime.update(_documentmodel_viewer_stats(nodes))
+    return runtime
+
+
 @router.get("/health")
 def api_v4_stage2_config_health():
     return {
@@ -737,6 +1033,17 @@ def api_v4_stage2_config_documentmodel_viewer():
         "module": "stage2_config",
         "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
         "viewer": _build_documentmodel_viewer(),
+    }
+
+
+@router.get("/documentmodel-runtime")
+def api_v4_stage2_config_documentmodel_runtime():
+    runtime = _build_documentmodel_runtime()
+    return {
+        "ok": runtime.get("status") != "error",
+        "module": "stage2_config",
+        "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+        "runtime": runtime,
     }
 
 

@@ -54,6 +54,8 @@ Stage2 config rebuild:
 - Stage2 Config has entered the DocumentModel Viewer phase.
 - Current goal is to confirm whether template analysis results can form complete DocumentModel nodes for the future semantic schema generator.
 - If only cache rules exist, they are diagnostic-only and are not treated as formal DocumentModel data.
+- Stage2 Config has entered the formal DocumentModel Runtime bind phase.
+- Current goal is not schema generation, but confirming whether existing Template Analysis can provide real input to `build_document_intelligence_model(template_analysis)`.
 
 Latest observed real flow result:
 

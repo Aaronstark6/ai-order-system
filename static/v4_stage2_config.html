@@ -198,6 +198,14 @@
                 </div>
                 <div id="documentModelViewerArea" class="status">DocumentModel Viewer not loaded.</div>
             </div>
+
+            <div style="margin-top:16px;">
+                <h2>DocumentModel Runtime</h2>
+                <div class="actions">
+                    <button id="documentModelRuntimeButton" type="button">Build DocumentModel Runtime</button>
+                </div>
+                <div id="documentModelRuntimeArea" class="status">DocumentModel Runtime not built.</div>
+            </div>
         </section>
 
         <section>
@@ -412,6 +420,75 @@
             `;
         }
 
+        function renderDocumentModelRuntime(result) {
+            const runtime = result.runtime || {};
+            const diagnostics = Array.isArray(runtime.diagnostics) ? runtime.diagnostics : [];
+            const nodes = Array.isArray(runtime.nodes) ? runtime.nodes : [];
+            const area = document.getElementById("documentModelRuntimeArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>status</span>
+                        <strong>${escapeHtml(runtime.status || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>source_type</span>
+                        <strong>${escapeHtml(runtime.source_type || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>source_id</span>
+                        <strong>${escapeHtml(runtime.source_id || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>semantic regions</span>
+                        <strong>${runtime.semantic_regions_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>node_count</span>
+                        <strong>${runtime.node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>field nodes</span>
+                        <strong>${runtime.field_node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>choice nodes</span>
+                        <strong>${runtime.choice_node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>table nodes</span>
+                        <strong>${runtime.table_node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>unknown nodes</span>
+                        <strong>${runtime.unknown_node_count || 0}</strong>
+                    </div>
+                </div>
+                <div class="status">
+                    template_filename: ${escapeHtml(runtime.template_filename || "")}
+                    template_path: ${escapeHtml(runtime.template_path || "")}
+                    template_analysis_source: ${escapeHtml(runtime.template_analysis_source || "")}
+                    document_model_type: ${escapeHtml(runtime.document_model_type || "")}
+                    section_node_count: ${runtime.section_node_count || 0}
+                    visual_node_count: ${runtime.visual_node_count || 0}
+                    diagnostics: ${diagnostics.map(escapeHtml).join(", ") || "-"}
+                </div>
+                <div class="cache-list">
+                    ${nodes.length ? nodes.map(node => `
+                        <div class="cache-item">
+                            <h3>${escapeHtml(node.node_id || "")}</h3>
+                            <div class="small">node_type: ${escapeHtml(node.node_type || "")}</div>
+                            <div class="small">label: ${escapeHtml(node.label || "")}</div>
+                            <div class="small">field_key: ${escapeHtml(node.field_key || "")}</div>
+                            <div class="small">intent_type: ${escapeHtml(node.intent_type || "")}</div>
+                            <div class="small">write_mode: ${escapeHtml(node.write_mode || "")}</div>
+                        </div>
+                    `).join("") : '<div class="small">No runtime nodes.</div>'}
+                </div>
+            `;
+        }
+
         async function healthCheck() {
             const response = await fetch("/api/v4/stage2-config/health");
             const result = await response.json();
@@ -500,6 +577,18 @@
             setStatus("DocumentModel Viewer loaded.");
         }
 
+        async function buildDocumentModelRuntime() {
+            const response = await fetch("/api/v4/stage2-config/documentmodel-runtime");
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.detail || result.error || "Build DocumentModel Runtime failed.");
+            }
+            renderDocumentModelRuntime(result);
+            renderJson(result);
+            const runtime = result.runtime || {};
+            setStatus(`DocumentModel Runtime status: ${runtime.status || "unknown"}.`);
+        }
+
         document.getElementById("healthButton").addEventListener("click", () => {
             healthCheck().catch(error => setStatus(error.message || "Health check failed."));
         });
@@ -525,6 +614,12 @@
             loadDocumentModelViewer().catch(error => {
                 document.getElementById("documentModelViewerArea").textContent = error.message || "Load DocumentModel Viewer failed.";
                 setStatus(error.message || "Load DocumentModel Viewer failed.");
+            });
+        });
+        document.getElementById("documentModelRuntimeButton").addEventListener("click", () => {
+            buildDocumentModelRuntime().catch(error => {
+                document.getElementById("documentModelRuntimeArea").textContent = error.message || "Build DocumentModel Runtime failed.";
+                setStatus(error.message || "Build DocumentModel Runtime failed.");
             });
         });
     </script>

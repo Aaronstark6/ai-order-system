@@ -113,3 +113,22 @@ DocumentModel Viewer rule:
 - It must not write old configuration data.
 - Cache `rules.json` can appear only as `cache_rules_diagnostic_only`.
 - Cache rules are not a formal DocumentModel.
+
+Stage2 Config DocumentModel Runtime:
+
+```text
+Stage2 Config Page
+-> /api/v4/stage2-config/documentmodel-runtime
+-> try to read real template_analysis
+-> build_document_intelligence_model(template_analysis)
+-> return formal DocumentModel summary or diagnostics
+-> decide whether Stage2 needs a Template Analysis Runtime
+```
+
+DocumentModel Runtime rule:
+
+- It is read-only.
+- It can report a built DocumentModel only after calling `build_document_intelligence_model`.
+- It must not synthesize `semantic_regions`.
+- It must not promote cache rules into formal DocumentModel input.
+- It must not generate semantic schema or workspace fields.
