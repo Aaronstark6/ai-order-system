@@ -95,3 +95,21 @@ Template analysis observation rule:
 - This is not a configuration bridge.
 - This does not promote old profile data into the Stage2 main chain.
 - This only reports whether the existing analysis data can support a future DocumentModel binding.
+
+Stage2 Config DocumentModel Viewer:
+
+```text
+Stage2 Config Page
+-> /api/v4/stage2-config/documentmodel-viewer
+-> read-only find DocumentModel / nodes / cache rules diagnostic
+-> output node stats and diagnostics
+-> decide next step formal DocumentModel Builder or rebuild Template Analysis -> DocumentModel chain
+```
+
+DocumentModel Viewer rule:
+
+- It is read-only.
+- It must not generate semantic schema, workspace fields, or field bound operations.
+- It must not write old configuration data.
+- Cache `rules.json` can appear only as `cache_rules_diagnostic_only`.
+- Cache rules are not a formal DocumentModel.

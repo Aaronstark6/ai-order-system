@@ -190,6 +190,14 @@
                 </div>
                 <div id="templateAnalysisArea" class="status">Template analysis summary not loaded.</div>
             </div>
+
+            <div style="margin-top:16px;">
+                <h2>DocumentModel Viewer</h2>
+                <div class="actions">
+                    <button id="documentModelViewerButton" type="button">Load DocumentModel Viewer</button>
+                </div>
+                <div id="documentModelViewerArea" class="status">DocumentModel Viewer not loaded.</div>
+            </div>
         </section>
 
         <section>
@@ -228,6 +236,15 @@
 
         function yesNo(value) {
             return value ? "yes" : "no";
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
 
         function renderSourceSummary(result) {
@@ -330,6 +347,71 @@
             `;
         }
 
+        function renderDocumentModelViewer(result) {
+            const viewer = result.viewer || {};
+            const diagnostics = Array.isArray(viewer.diagnostics) ? viewer.diagnostics : [];
+            const nodes = Array.isArray(viewer.nodes) ? viewer.nodes : [];
+            const area = document.getElementById("documentModelViewerArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>status</span>
+                        <strong>${escapeHtml(viewer.status || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>source_type</span>
+                        <strong>${escapeHtml(viewer.source_type || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>node_count</span>
+                        <strong>${viewer.node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>field nodes</span>
+                        <strong>${viewer.field_node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>choice nodes</span>
+                        <strong>${viewer.choice_node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>table nodes</span>
+                        <strong>${viewer.table_node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>section nodes</span>
+                        <strong>${viewer.section_node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>visual nodes</span>
+                        <strong>${viewer.visual_node_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>unknown nodes</span>
+                        <strong>${viewer.unknown_node_count || 0}</strong>
+                    </div>
+                </div>
+                <div class="status">
+                    source_id: ${escapeHtml(viewer.source_id || "")}
+                    template_filename: ${escapeHtml(viewer.template_filename || "")}
+                    diagnostics: ${diagnostics.map(escapeHtml).join(", ") || "-"}
+                </div>
+                <div class="cache-list">
+                    ${nodes.length ? nodes.map(node => `
+                        <div class="cache-item">
+                            <h3>${escapeHtml(node.node_id || "")}</h3>
+                            <div class="small">node_type: ${escapeHtml(node.node_type || "")}</div>
+                            <div class="small">label: ${escapeHtml(node.label || "")}</div>
+                            <div class="small">field_key: ${escapeHtml(node.field_key || "")}</div>
+                            <div class="small">intent_type: ${escapeHtml(node.intent_type || "")}</div>
+                            <div class="small">write_mode: ${escapeHtml(node.write_mode || "")}</div>
+                        </div>
+                    `).join("") : '<div class="small">No nodes.</div>'}
+                </div>
+            `;
+        }
+
         async function healthCheck() {
             const response = await fetch("/api/v4/stage2-config/health");
             const result = await response.json();
@@ -407,6 +489,17 @@
             setStatus("Template analysis summary loaded.");
         }
 
+        async function loadDocumentModelViewer() {
+            const response = await fetch("/api/v4/stage2-config/documentmodel-viewer");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Load DocumentModel Viewer failed.");
+            }
+            renderDocumentModelViewer(result);
+            renderJson(result);
+            setStatus("DocumentModel Viewer loaded.");
+        }
+
         document.getElementById("healthButton").addEventListener("click", () => {
             healthCheck().catch(error => setStatus(error.message || "Health check failed."));
         });
@@ -426,6 +519,12 @@
             loadTemplateAnalysisSummary().catch(error => {
                 document.getElementById("templateAnalysisArea").textContent = error.message || "Load template analysis summary failed.";
                 setStatus(error.message || "Load template analysis summary failed.");
+            });
+        });
+        document.getElementById("documentModelViewerButton").addEventListener("click", () => {
+            loadDocumentModelViewer().catch(error => {
+                document.getElementById("documentModelViewerArea").textContent = error.message || "Load DocumentModel Viewer failed.";
+                setStatus(error.message || "Load DocumentModel Viewer failed.");
             });
         });
     </script>

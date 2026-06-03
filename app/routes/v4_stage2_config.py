@@ -372,6 +372,318 @@ def _template_analysis_diagnosis(legacy_profiles: list[dict[str, Any]], template
     }
 
 
+DOCUMENTMODEL_VIEWER_MAX_NODES = 200
+
+
+def _string_value(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _mapping_value(data: Any, keys: tuple[str, ...]) -> Any:
+    if not isinstance(data, dict):
+        return None
+    for key in keys:
+        if key in data and data.get(key) not in (None, ""):
+            return data.get(key)
+    return None
+
+
+def _nested_mapping_value(data: Any, path: tuple[str, ...]) -> Any:
+    current = data
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def _documentmodel_nodes_from_value(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    if not isinstance(value, dict):
+        return []
+    for key in ("nodes", "semantic_nodes", "fields", "document_nodes"):
+        nodes = value.get(key)
+        if isinstance(nodes, list):
+            return nodes
+    return []
+
+
+def _legacy_profile_documentmodel_candidates() -> list[dict[str, Any]]:
+    profiles, _ = _load_legacy_profile_items()
+    candidates = []
+    for profile in profiles:
+        profile_id = _string_value(profile.get("profile_id") or profile.get("id"))
+        source_id = profile_id or _string_value(profile.get("profile_name") or profile.get("name"))
+        template_path = _string_value(
+            profile.get("template_file_path")
+            or profile.get("template_path")
+            or profile.get("template_file")
+        )
+        template_filename = _string_value(
+            profile.get("template_filename")
+            or profile.get("template_file")
+            or profile.get("filename")
+            or profile.get("template_display_name")
+        )
+        for key in ("document_model", "DocumentModel", "documentModel"):
+            if key in profile:
+                candidates.append({
+                    "status": "available",
+                    "source_type": f"legacy_profile_{key}",
+                    "source_id": source_id,
+                    "template_path": template_path,
+                    "template_filename": template_filename,
+                    "nodes": _documentmodel_nodes_from_value(profile.get(key)),
+                    "diagnostics": [],
+                })
+        for key in ("nodes", "semantic_nodes"):
+            nodes = profile.get(key)
+            if isinstance(nodes, list):
+                candidates.append({
+                    "status": "partial",
+                    "source_type": f"legacy_profile_{key}",
+                    "source_id": source_id,
+                    "template_path": template_path,
+                    "template_filename": template_filename,
+                    "nodes": nodes,
+                    "diagnostics": ["document_model_wrapper_not_found"],
+                })
+    return candidates
+
+
+def _cache_documentmodel_candidates() -> list[dict[str, Any]]:
+    cache_root = get_base_dir() / "data" / "v4_template_cache"
+    if not cache_root.is_dir():
+        return []
+    candidates = []
+    for cache_dir in sorted((path for path in cache_root.iterdir() if path.is_dir()), key=lambda path: path.name):
+        for filename in ("meta.json", "rules.json"):
+            path = cache_dir / filename
+            if not path.is_file():
+                continue
+            try:
+                data = _read_json_file(path)
+            except Exception as exc:
+                candidates.append({
+                    "status": "unavailable",
+                    "source_type": f"cache_{filename}_error",
+                    "source_id": cache_dir.name,
+                    "template_path": "",
+                    "template_filename": "",
+                    "nodes": [],
+                    "diagnostics": [str(exc)],
+                })
+                continue
+            template_path = _possible_template_path(data)
+            template_filename = _possible_template_filename(data)
+            for key in ("document_model", "DocumentModel", "documentModel"):
+                if isinstance(data, dict) and key in data:
+                    candidates.append({
+                        "status": "available",
+                        "source_type": f"cache_{filename}_{key}",
+                        "source_id": cache_dir.name,
+                        "template_path": template_path,
+                        "template_filename": template_filename,
+                        "nodes": _documentmodel_nodes_from_value(data.get(key)),
+                        "diagnostics": [],
+                    })
+            for key in ("nodes", "semantic_nodes"):
+                nodes = data.get(key) if isinstance(data, dict) else None
+                if isinstance(nodes, list):
+                    candidates.append({
+                        "status": "partial",
+                        "source_type": f"cache_{filename}_{key}",
+                        "source_id": cache_dir.name,
+                        "template_path": template_path,
+                        "template_filename": template_filename,
+                        "nodes": nodes,
+                        "diagnostics": ["document_model_wrapper_not_found"],
+                    })
+    return candidates
+
+
+def _diagnostic_rule_nodes_from_cache() -> tuple[list[dict[str, Any]], dict[str, str]]:
+    cache_root = get_base_dir() / "data" / "v4_template_cache"
+    if not cache_root.is_dir():
+        return [], {"source_id": "", "template_path": "", "template_filename": ""}
+    nodes = []
+    source_info = {"source_id": "", "template_path": "", "template_filename": ""}
+    for cache_dir in sorted((path for path in cache_root.iterdir() if path.is_dir()), key=lambda path: path.name):
+        meta_path = cache_dir / "meta.json"
+        if meta_path.is_file():
+            try:
+                meta_data = _read_json_file(meta_path)
+                if not source_info["template_path"]:
+                    source_info["template_path"] = _possible_template_path(meta_data)
+                if not source_info["template_filename"]:
+                    source_info["template_filename"] = _possible_template_filename(meta_data)
+            except Exception:
+                pass
+        rules_path = cache_dir / "rules.json"
+        if not rules_path.is_file():
+            continue
+        try:
+            rules = _rule_items_from_data(_read_json_file(rules_path))
+        except Exception:
+            continue
+        if rules and not source_info["source_id"]:
+            source_info["source_id"] = cache_dir.name
+        for index, rule in enumerate(rules, start=1):
+            rule_id = _string_value(rule.get("id") if isinstance(rule, dict) else "")
+            label = _rule_label(rule)
+            source = rule.get("source") if isinstance(rule, dict) else {}
+            target = rule.get("target") if isinstance(rule, dict) else {}
+            field_key = _string_value(rule.get("field_key") if isinstance(rule, dict) else "")
+            if not field_key and isinstance(source, dict):
+                field_key = _string_value(source.get("field_key") or source.get("description_field"))
+            nodes.append({
+                "node_id": rule_id or f"{cache_dir.name}.rule.{index}",
+                "node_type": "cache_rule_diagnostic",
+                "label": label or field_key or rule_id or f"Rule {index}",
+                "field_key": field_key,
+                "intent_type": _string_value(rule.get("type") if isinstance(rule, dict) else ""),
+                "write_mode": "diagnostic_read_only",
+                "target": target if isinstance(target, dict) else {},
+                "coordinates": {},
+                "semantic_summary": {
+                    "source_type": "cache_rules_diagnostic_only",
+                    "source": source if isinstance(source, dict) else {},
+                },
+            })
+    return nodes, source_info
+
+
+def _normalize_documentmodel_node(node: Any, index: int) -> dict[str, Any]:
+    node_data = node if isinstance(node, dict) else {"value": node}
+    visual_logic = node_data.get("visual_logic") if isinstance(node_data.get("visual_logic"), dict) else {}
+    target = (
+        _mapping_value(node_data, ("target",))
+        or _nested_mapping_value(node_data, ("visual_logic", "target"))
+        or _nested_mapping_value(node_data, ("visual_logic", "coordinates"))
+        or _mapping_value(node_data, ("coordinates",))
+        or _mapping_value(node_data, ("target_cell", "cell"))
+        or {}
+    )
+    coordinates = (
+        _mapping_value(node_data, ("coordinates",))
+        or _nested_mapping_value(node_data, ("visual_logic", "coordinates"))
+        or _nested_mapping_value(node_data, ("target", "coordinates"))
+        or {}
+    )
+    semantic_summary = (
+        _mapping_value(node_data, ("semantic_summary", "summary", "semantic"))
+        or {}
+    )
+    normalized = {
+        "node_id": _string_value(_mapping_value(node_data, ("node_id", "id", "key", "field_key")) or f"node_{index}"),
+        "node_type": _string_value(_mapping_value(node_data, ("node_type", "type", "intent_type"))),
+        "label": _string_value(_mapping_value(node_data, ("label", "field_label", "title", "name", "text", "field_key"))),
+        "field_key": _string_value(_mapping_value(node_data, ("field_key", "key"))),
+        "intent_type": _string_value(_mapping_value(node_data, ("intent_type", "intent"))),
+        "write_mode": _string_value(_mapping_value(node_data, ("write_mode", "mode"))),
+        "target": target if isinstance(target, dict) else {"value": target},
+        "coordinates": coordinates if isinstance(coordinates, dict) else {"value": coordinates},
+        "semantic_summary": semantic_summary if isinstance(semantic_summary, dict) else {"value": semantic_summary},
+        "has_visual_logic": bool(visual_logic),
+        "has_condition_logic": bool(node_data.get("condition_logic")),
+        "has_choice_logic": bool(node_data.get("choice_logic")),
+        "has_table_logic": bool(node_data.get("table_logic")),
+        "has_runtime_policy": bool(node_data.get("runtime_policy")),
+    }
+    if not normalized["label"]:
+        normalized["label"] = normalized["field_key"] or normalized["node_id"]
+    return normalized
+
+
+def _documentmodel_viewer_stats(nodes: list[dict[str, Any]]) -> dict[str, int]:
+    stats = {
+        "node_count": len(nodes),
+        "field_node_count": 0,
+        "choice_node_count": 0,
+        "table_node_count": 0,
+        "section_node_count": 0,
+        "visual_node_count": 0,
+        "unknown_node_count": 0,
+    }
+    for node in nodes:
+        node_type = _string_value(node.get("node_type")).lower()
+        is_field = "field" in node_type or bool(node.get("field_key"))
+        is_choice = "choice" in node_type
+        is_table = "table" in node_type
+        is_section = any(token in node_type for token in ("section", "header", "title"))
+        is_visual = bool(node.get("has_visual_logic") or node.get("coordinates") or node.get("target"))
+        stats["field_node_count"] += int(is_field)
+        stats["choice_node_count"] += int(is_choice)
+        stats["table_node_count"] += int(is_table)
+        stats["section_node_count"] += int(is_section)
+        stats["visual_node_count"] += int(is_visual)
+        if not any((is_field, is_choice, is_table, is_section, is_visual)):
+            stats["unknown_node_count"] += 1
+    return stats
+
+
+def _build_documentmodel_viewer() -> dict[str, Any]:
+    candidates = _legacy_profile_documentmodel_candidates() + _cache_documentmodel_candidates()
+    selected = next((candidate for candidate in candidates if candidate.get("nodes")), None)
+    selected = selected or next((candidate for candidate in candidates if candidate.get("status") != "unavailable"), None)
+    if selected:
+        raw_nodes = list(selected.get("nodes") or [])[:DOCUMENTMODEL_VIEWER_MAX_NODES]
+        nodes = [_normalize_documentmodel_node(node, index) for index, node in enumerate(raw_nodes, start=1)]
+        diagnostics = list(selected.get("diagnostics") or [])
+        if not nodes:
+            diagnostics.append("document_model_found_but_nodes_missing")
+        if len(selected.get("nodes") or []) > DOCUMENTMODEL_VIEWER_MAX_NODES:
+            diagnostics.append("node_list_truncated_to_200")
+        viewer = {
+            "status": selected.get("status") or "partial",
+            "source_type": selected.get("source_type") or "",
+            "source_id": selected.get("source_id") or "",
+            "template_path": selected.get("template_path") or "",
+            "template_filename": selected.get("template_filename") or "",
+            "nodes": nodes,
+            "diagnostics": diagnostics,
+        }
+        viewer.update(_documentmodel_viewer_stats(nodes))
+        return viewer
+
+    diagnostic_nodes, source_info = _diagnostic_rule_nodes_from_cache()
+    if diagnostic_nodes:
+        nodes = [
+            _normalize_documentmodel_node(node, index)
+            for index, node in enumerate(diagnostic_nodes[:DOCUMENTMODEL_VIEWER_MAX_NODES], start=1)
+        ]
+        diagnostics = ["document_model_not_found", "rules_json_is_not_document_model"]
+        if len(diagnostic_nodes) > DOCUMENTMODEL_VIEWER_MAX_NODES:
+            diagnostics.append("node_list_truncated_to_200")
+        viewer = {
+            "status": "partial",
+            "source_type": "cache_rules_diagnostic_only",
+            "source_id": source_info.get("source_id") or "",
+            "template_path": source_info.get("template_path") or "",
+            "template_filename": source_info.get("template_filename") or "",
+            "nodes": nodes,
+            "diagnostics": diagnostics,
+        }
+        viewer.update(_documentmodel_viewer_stats(nodes))
+        return viewer
+
+    viewer = {
+        "status": "unavailable",
+        "source_type": "",
+        "source_id": "",
+        "template_path": "",
+        "template_filename": "",
+        "nodes": [],
+        "diagnostics": [
+            "document_model_not_found",
+            "stage2_config_not_yet_connected_to_template_analysis",
+        ],
+    }
+    viewer.update(_documentmodel_viewer_stats([]))
+    return viewer
+
+
 @router.get("/health")
 def api_v4_stage2_config_health():
     return {
@@ -415,6 +727,16 @@ def api_v4_stage2_config_template_analysis_summary():
         "module": "stage2_config",
         "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
         "summary": summary,
+    }
+
+
+@router.get("/documentmodel-viewer")
+def api_v4_stage2_config_documentmodel_viewer():
+    return {
+        "ok": True,
+        "module": "stage2_config",
+        "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+        "viewer": _build_documentmodel_viewer(),
     }
 
 

@@ -51,6 +51,9 @@ Stage2 config rebuild:
 - Stage2 Config has entered the template analysis observation phase.
 - Current observation is read-only and checks whether DocumentModel / semantic schema data is present as a real data source.
 - This phase does not write old configuration data and does not modify the old Workspace.
+- Stage2 Config has entered the DocumentModel Viewer phase.
+- Current goal is to confirm whether template analysis results can form complete DocumentModel nodes for the future semantic schema generator.
+- If only cache rules exist, they are diagnostic-only and are not treated as formal DocumentModel data.
 
 Latest observed real flow result:
 
