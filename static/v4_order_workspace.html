@@ -912,6 +912,8 @@
         let latestV4ParseResult = null;
         let confirmedCells = [];
         let originalConfirmedCells = [];
+        let confirmedOrderObject = null;
+        let originalConfirmedOrderObject = null;
         let v4LayoutSections = [];
         let v4WorkspaceFields = [];
         let v4SemanticWorkspaceSchema = null;
@@ -936,6 +938,8 @@
         let selectedNativeCell = "";
         window.confirmedCells = confirmedCells;
         window.originalConfirmedCells = originalConfirmedCells;
+        window.confirmedOrderObject = confirmedOrderObject;
+        window.originalConfirmedOrderObject = originalConfirmedOrderObject;
         window.v4LayoutSections = v4LayoutSections;
         window.v4WorkspaceFields = v4WorkspaceFields;
         window.v4SemanticWorkspaceSchema = v4SemanticWorkspaceSchema;
@@ -2104,13 +2108,7 @@
                     </table>
                 </div>
             `;
-            confirmedCells = collectConfirmedCellsFromInputs();
-            originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
-            window.confirmedCells = confirmedCells;
-            window.originalConfirmedCells = originalConfirmedCells;
-            const area = document.getElementById("v4ConfirmationArea");
-            area.dataset.confirmedCellsCount = String(confirmedCells.length);
-            area.dataset.hasManualChanges = "false";
+            initializeConfirmedCellsSnapshotFromInputs();
             return true;
         }
 
@@ -3152,6 +3150,121 @@
             if (source) source.textContent = "Manual";
         }
 
+        function cloneWorkspaceObject(value) {
+            if (value == null) return value;
+            try {
+                return JSON.parse(JSON.stringify(value));
+            } catch (error) {
+                return value;
+            }
+        }
+
+        function getLatestOrderObjectSnapshot() {
+            const result = latestV4ParseResult && typeof latestV4ParseResult === "object"
+                ? latestV4ParseResult
+                : {};
+            const parseResult = result.parse_result && typeof result.parse_result === "object"
+                ? result.parse_result
+                : {};
+            const orderObject = parseResult.order_object && typeof parseResult.order_object === "object"
+                ? parseResult.order_object
+                : (
+                    result.order_object && typeof result.order_object === "object"
+                        ? result.order_object
+                        : {}
+                );
+            return cloneWorkspaceObject(orderObject) || {};
+        }
+
+        function buildConfirmedOrderObjectFromInputs() {
+            const cells = collectConfirmedCellsFromInputs();
+            const parsedValues = getParsedFieldValues(latestV4ParseResult);
+            const valuesByFieldKey = {};
+            const fields = [];
+            const fieldMeta = {};
+
+            cells.forEach((item) => {
+                const fieldKey = String(item.field_key || "").trim();
+                const label = String(item.label || fieldKey || item.display_cell || item.cell || "").trim();
+                const value = item.value == null ? "" : String(item.value);
+
+                const fieldRecord = {
+                    field_key: fieldKey,
+                    label,
+                    value,
+                    cell: item.cell || "",
+                    display_cell: item.display_cell || item.cell || "",
+                    source_cell: item.source_cell || "",
+                    source: item.source || "",
+                    write_mode: item.write_mode || "",
+                    intent_type: item.intent_type || "",
+                    option_value: item.option_value || "",
+                    row_offset: Number(item.row_offset || 0),
+                    col_offset: Number(item.col_offset || 0),
+                    image: item.image || null,
+                };
+
+                fields.push(fieldRecord);
+
+                if (fieldKey) {
+                    valuesByFieldKey[fieldKey] = value;
+                    const originalValue = parsedValueForField(fieldKey, parsedValues);
+                    const originalText = originalValue == null ? "" : String(originalValue);
+                    const editedByUser = originalText !== value;
+                    fieldMeta[fieldKey] = {
+                        source: editedByUser ? "manual" : (originalText.trim() ? "ai" : "manual"),
+                        confirmed: true,
+                        edited_by_user: editedByUser,
+                        label,
+                        cell: item.cell || "",
+                        display_cell: item.display_cell || item.cell || "",
+                        evidence: "",
+                    };
+                }
+            });
+
+            return {
+                document_type: "order",
+                source: "workspace",
+                order_object: getLatestOrderObjectSnapshot(),
+                values_by_field_key: valuesByFieldKey,
+                fields,
+                _meta: {
+                    source: "workspace",
+                    confirmed_by_user: true,
+                    confirmed_at: new Date().toISOString(),
+                    template_profile_id: activeV4Profile?.profile_id || "",
+                    runtime_mapping_source: cloneWorkspaceObject(v4RuntimeMappingSource) || null,
+                    has_ai_parse_result: !!latestV4ParseResult,
+                },
+                _field_meta: fieldMeta,
+            };
+        }
+
+        function syncConfirmedOrderObjectFromInputs() {
+            confirmedOrderObject = buildConfirmedOrderObjectFromInputs();
+            window.confirmedOrderObject = confirmedOrderObject;
+            return confirmedOrderObject;
+        }
+
+        function initializeConfirmedOrderObjectSnapshotFromInputs() {
+            confirmedOrderObject = buildConfirmedOrderObjectFromInputs();
+            originalConfirmedOrderObject = cloneWorkspaceObject(confirmedOrderObject);
+            window.confirmedOrderObject = confirmedOrderObject;
+            window.originalConfirmedOrderObject = originalConfirmedOrderObject;
+            return confirmedOrderObject;
+        }
+
+        function resetConfirmedOrderObject() {
+            confirmedOrderObject = null;
+            originalConfirmedOrderObject = null;
+            window.confirmedOrderObject = confirmedOrderObject;
+            window.originalConfirmedOrderObject = originalConfirmedOrderObject;
+        }
+
+        window.buildConfirmedOrderObjectFromInputs = buildConfirmedOrderObjectFromInputs;
+        window.syncConfirmedOrderObjectFromInputs = syncConfirmedOrderObjectFromInputs;
+
         function collectConfirmedCellsFromInputs() {
             const textItems = Array.from(document.querySelectorAll("#v4ConfirmationArea input[data-cell], #v4ConfirmationArea textarea[data-cell]"))
                 .filter(input => input.type !== "radio")
@@ -3299,6 +3412,7 @@
         function syncConfirmedCellsFromInputs() {
             confirmedCells = collectConfirmedCellsFromInputs();
             window.confirmedCells = confirmedCells;
+            syncConfirmedOrderObjectFromInputs();
             const area = document.getElementById("v4ConfirmationArea");
             if (area) area.dataset.confirmedCellsCount = String(confirmedCells.length);
             renderExportCheck();
@@ -3310,6 +3424,7 @@
             originalConfirmedCells = confirmedCells.map(item => ({ ...item }));
             window.confirmedCells = confirmedCells;
             window.originalConfirmedCells = originalConfirmedCells;
+            initializeConfirmedOrderObjectSnapshotFromInputs();
             const area = document.getElementById("v4ConfirmationArea");
             if (area) {
                 area.dataset.confirmedCellsCount = String(confirmedCells.length);
@@ -3388,6 +3503,25 @@
             originalConfirmedCells = [];
             window.confirmedCells = confirmedCells;
             window.originalConfirmedCells = originalConfirmedCells;
+            confirmedOrderObject = {
+                document_type: "order",
+                source: "workspace_fallback",
+                order_object: cloneWorkspaceObject(safeOrder) || {},
+                values_by_field_key: {},
+                fields: [],
+                _meta: {
+                    source: "workspace_fallback",
+                    confirmed_by_user: true,
+                    confirmed_at: new Date().toISOString(),
+                    template_profile_id: activeV4Profile?.profile_id || "",
+                    runtime_mapping_source: cloneWorkspaceObject(v4RuntimeMappingSource) || null,
+                    has_ai_parse_result: !!latestV4ParseResult,
+                },
+                _field_meta: {},
+            };
+            originalConfirmedOrderObject = cloneWorkspaceObject(confirmedOrderObject);
+            window.confirmedOrderObject = confirmedOrderObject;
+            window.originalConfirmedOrderObject = originalConfirmedOrderObject;
             document.getElementById("v4ConfirmationArea").innerHTML = `
                 <div class="fallback-grid">
                     ${groups.map(([title, data]) => `
@@ -3597,6 +3731,7 @@
             originalConfirmedCells = [];
             window.confirmedCells = confirmedCells;
             window.originalConfirmedCells = originalConfirmedCells;
+            resetConfirmedOrderObject();
             latestV4ParseResult = null;
             workspaceCandidateValues = {};
             workspaceImageValues = {};
