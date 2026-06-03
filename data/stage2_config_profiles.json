@@ -1,0 +1,15 @@
+[
+  {
+    "profile_id": "test",
+    "profile_name": "测试配置",
+    "schema_version": "stage2_config_v1",
+    "document_model_source": {},
+    "semantic_workspace_schema": {},
+    "workspace_fields": [],
+    "field_bound_operations": [],
+    "metadata": {
+      "created_by": "stage2_config",
+      "status": "empty"
+    }
+  }
+]

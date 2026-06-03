@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>AI Order System V4 - Stage2 Config</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            background: #f4f6fb;
+            color: #172033;
+        }
+        header {
+            padding: 20px 24px;
+            background: #102033;
+            color: #fff;
+        }
+        h1 { margin: 0 0 8px; font-size: 24px; }
+        .notice { line-height: 1.7; color: #dbeafe; }
+        main {
+            display: grid;
+            grid-template-columns: minmax(320px, 420px) minmax(420px, 1fr);
+            gap: 16px;
+            padding: 16px;
+        }
+        section {
+            background: #fff;
+            border: 1px solid #d8dee8;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        h2 { margin: 0 0 12px; font-size: 18px; }
+        label {
+            display: block;
+            margin: 12px 0 6px;
+            color: #667085;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        input {
+            width: 100%;
+            border: 1px solid #d8dee8;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font: inherit;
+        }
+        button {
+            border: 0;
+            border-radius: 6px;
+            padding: 9px 13px;
+            background: #2563eb;
+            color: #fff;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        button.secondary { background: #16825d; }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .status {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border: 1px solid #d8dee8;
+            border-radius: 6px;
+            background: #f8fafc;
+            color: #667085;
+            white-space: pre-wrap;
+        }
+        .profile-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .profile-item {
+            width: 100%;
+            text-align: left;
+            background: #eef4ff;
+            color: #1d4ed8;
+            border: 1px solid #bfd0ff;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .summary-card {
+            border: 1px solid #d8dee8;
+            border-radius: 8px;
+            padding: 10px;
+            background: #fbfcff;
+        }
+        .summary-card span {
+            display: block;
+            color: #667085;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .summary-card strong {
+            font-size: 18px;
+        }
+        .cache-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .cache-item {
+            border: 1px solid #d8dee8;
+            border-radius: 8px;
+            padding: 10px;
+            background: #fff;
+        }
+        .cache-item h3 {
+            margin: 0 0 8px;
+            font-size: 14px;
+        }
+        .small {
+            color: #667085;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        pre {
+            min-height: 360px;
+            max-height: 70vh;
+            overflow: auto;
+            margin: 0;
+            padding: 14px;
+            border-radius: 8px;
+            background: #101827;
+            color: #d7e3ff;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+        @media (max-width: 900px) {
+            main { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>AI Order System V4 - Stage2 Config</h1>
+        <div class="notice">
+            这是 Stage2 新配置页。<br>
+            旧配置页已冻结。<br>
+            本页面只使用 /api/v4/stage2-config/* 接口。
+        </div>
+    </header>
+
+    <main>
+        <section>
+            <h2>Stage2 Profiles</h2>
+            <div class="actions">
+                <button id="healthButton" type="button">Health Check</button>
+                <button id="loadButton" class="secondary" type="button">Load Stage2 Profiles</button>
+            </div>
+            <div id="status" class="status">Ready.</div>
+
+            <label for="profileId">Profile ID</label>
+            <input id="profileId" placeholder="stage2_profile_id">
+
+            <label for="profileName">Profile Name</label>
+            <input id="profileName" placeholder="Stage2 Profile Name">
+
+            <div class="actions">
+                <button id="createButton" type="button">Create Stage2 Profile</button>
+            </div>
+
+            <div id="profileList" class="profile-list"></div>
+
+            <div style="margin-top:16px;">
+                <h2>Stage2 Source Summary</h2>
+                <div class="actions">
+                    <button id="sourceSummaryButton" type="button">Load Source Summary</button>
+                </div>
+                <div id="sourceSummaryArea" class="status">Source summary not loaded.</div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Current Profile JSON</h2>
+            <pre id="jsonPreview">{}</pre>
+        </section>
+    </main>
+
+    <script>
+        let stage2Profiles = [];
+        let currentStage2Profile = null;
+
+        function setStatus(text) {
+            document.getElementById("status").textContent = text;
+        }
+
+        function renderJson(value) {
+            document.getElementById("jsonPreview").textContent = JSON.stringify(value || {}, null, 2);
+        }
+
+        function renderProfiles() {
+            const list = document.getElementById("profileList");
+            if (!stage2Profiles.length) {
+                list.innerHTML = '<div class="status">No Stage2 config profiles.</div>';
+                return;
+            }
+            list.innerHTML = stage2Profiles.map(profile => `
+                <button class="profile-item" type="button" data-profile-id="${String(profile.profile_id || "")}">
+                    ${String(profile.profile_name || profile.profile_id || "Unnamed")}
+                </button>
+            `).join("");
+            list.querySelectorAll("button[data-profile-id]").forEach(button => {
+                button.addEventListener("click", () => loadProfile(button.dataset.profileId));
+            });
+        }
+
+        function yesNo(value) {
+            return value ? "yes" : "no";
+        }
+
+        function renderSourceSummary(result) {
+            const sources = result.sources || {};
+            const stage2 = sources.stage2_config_profiles || {};
+            const oldProfiles = sources.legacy_template_profiles || {};
+            const cache = sources.v4_template_cache || {};
+            const items = Array.isArray(cache.items) ? cache.items : [];
+            const area = document.getElementById("sourceSummaryArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>Stage2 config file</span>
+                        <strong>${yesNo(stage2.exists)}</strong>
+                        <div class="small">count: ${stage2.count || 0}</div>
+                    </div>
+                    <div class="summary-card">
+                        <span>legacy template_profiles</span>
+                        <strong>${yesNo(oldProfiles.exists)}</strong>
+                        <div class="small">count: ${oldProfiles.count || 0}</div>
+                    </div>
+                    <div class="summary-card">
+                        <span>v4_template_cache</span>
+                        <strong>${yesNo(cache.exists)}</strong>
+                        <div class="small">templates: ${cache.template_count || 0}</div>
+                    </div>
+                </div>
+                <div class="cache-list">
+                    ${items.length ? items.map(item => `
+                        <div class="cache-item">
+                            <h3>${String(item.cache_id || "")}</h3>
+                            <div class="small">has_meta: ${yesNo(item.has_meta)} | has_rules: ${yesNo(item.has_rules)} | rules_count: ${item.rules_count || 0}</div>
+                            <div class="small">rule_labels: ${(item.rule_labels || []).join(", ") || "-"}</div>
+                            ${item.error ? `<div class="small">error: ${String(item.error)}</div>` : ""}
+                        </div>
+                    `).join("") : '<div class="small">No cache items.</div>'}
+                </div>
+            `;
+        }
+
+        async function healthCheck() {
+            const response = await fetch("/api/v4/stage2-config/health");
+            const result = await response.json();
+            setStatus(JSON.stringify(result, null, 2));
+            renderJson(result);
+        }
+
+        async function loadProfiles() {
+            const response = await fetch("/api/v4/stage2-config/profiles");
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.error || "Load profiles failed.");
+            }
+            stage2Profiles = Array.isArray(result.profiles) ? result.profiles : [];
+            renderProfiles();
+            renderJson(result);
+            setStatus(`Loaded ${stage2Profiles.length} Stage2 profiles.`);
+        }
+
+        async function createProfile() {
+            const profileId = document.getElementById("profileId").value.trim();
+            const profileName = document.getElementById("profileName").value.trim();
+            if (!profileId || !profileName) {
+                setStatus("Profile ID and Profile Name are required.");
+                return;
+            }
+            const response = await fetch("/api/v4/stage2-config/profiles", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    profile_id: profileId,
+                    profile_name: profileName,
+                }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.error || "Create profile failed.");
+            }
+            currentStage2Profile = result.profile;
+            renderJson(currentStage2Profile);
+            await loadProfiles();
+            setStatus(`Active Stage2 profile: ${currentStage2Profile.profile_id}`);
+        }
+
+        async function loadProfile(profileId) {
+            const response = await fetch(`/api/v4/stage2-config/profiles/${encodeURIComponent(profileId)}`);
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.error || "Load profile failed.");
+            }
+            currentStage2Profile = result.profile;
+            renderJson(currentStage2Profile);
+            setStatus(`Active Stage2 profile: ${currentStage2Profile.profile_id}`);
+        }
+
+        async function loadSourceSummary() {
+            const response = await fetch("/api/v4/stage2-config/source-summary");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Load source summary failed.");
+            }
+            renderSourceSummary(result);
+            renderJson(result);
+            setStatus("Source summary loaded.");
+        }
+
+        document.getElementById("healthButton").addEventListener("click", () => {
+            healthCheck().catch(error => setStatus(error.message || "Health check failed."));
+        });
+        document.getElementById("loadButton").addEventListener("click", () => {
+            loadProfiles().catch(error => setStatus(error.message || "Load profiles failed."));
+        });
+        document.getElementById("createButton").addEventListener("click", () => {
+            createProfile().catch(error => setStatus(error.message || "Create profile failed."));
+        });
+        document.getElementById("sourceSummaryButton").addEventListener("click", () => {
+            loadSourceSummary().catch(error => {
+                document.getElementById("sourceSummaryArea").textContent = error.message || "Load source summary failed.";
+                setStatus(error.message || "Load source summary failed.");
+            });
+        });
+    </script>
+</body>
+</html>

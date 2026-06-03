@@ -43,3 +43,39 @@ Architecture rule:
 - Do not keep two production export chains.
 - Do not patch the retired chain for compatibility.
 - New work should follow `confirmedOrderObject` through Stage2 export.
+
+Stage2 Config chain:
+
+```text
+Stage2 Config Page
+-> /api/v4/stage2-config/*
+-> stage2_config_profiles.json
+-> semantic_workspace_schema
+-> workspace_fields
+-> field_bound_operations
+-> Workspace / Export Pipeline
+```
+
+Configuration boundary:
+
+- Old configuration chain is frozen.
+- Stage2 Config is an independent chain.
+- Stage2 Config must use `data/stage2_config_profiles.json`.
+- Old configuration pages should not receive new Stage2 configuration logic.
+
+Stage2 Config source observation:
+
+```text
+Stage2 Config Page
+-> /api/v4/stage2-config/source-summary
+-> stage2_config_profiles.json
+-> legacy template_profiles.json read-only
+-> v4_template_cache read-only
+-> data source status before DocumentModel / semantic schema binding
+```
+
+Observation rule:
+
+- Source Summary is read-only.
+- It must not write old profile data.
+- It must not use old profile data as the Stage2 main configuration source.

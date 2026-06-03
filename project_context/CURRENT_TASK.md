@@ -2,42 +2,27 @@
 
 Task:
 
-`POST_STAGE2_WORKSPACE_FIELD_LOSS_AUDIT_01`
+`STAGE2_CONFIG_DOCUMENTMODEL_BIND_01`
 
-Problem:
+Status:
 
-- AI Parse succeeds.
-- The new Workspace page only displays `3 fields ready`.
-- Many expected workspace fields are missing.
+- Stage2 Config is adding a Source Summary observation layer.
 
-Audit path:
+Purpose:
 
-```text
-DocumentModel
--> WorkspaceBuilder
--> workspace_fields
--> page fields
-```
+- Confirm current data sources available before binding DocumentModel into the new configuration chain.
+- Observe `stage2_config_profiles`.
+- Observe old `template_profiles` as a read-only audit source.
+- Observe `v4_template_cache` rule summaries.
 
-Audit question:
+Scope:
 
-- Why are many fields lost before they reach the page?
+- Read-only display.
+- No old configuration bridge.
+- No Workspace changes.
+- No export changes.
+- No old chain restoration.
 
-Expected audit style:
+New observation API:
 
-- PowerShell-first read-only audit.
-- Locate the exact loss boundary before editing.
-- Do not guess.
-- Do not patch randomly.
-- Do not revive old Workspace logic.
-- Do not revive old export logic.
-
-Likely evidence to gather:
-
-- Parse response shape.
-- `semantic_workspace_schema` field count.
-- `workspace_fields` field count.
-- `field_bound_operations` count.
-- `DocumentModel` node count.
-- WorkspaceBuilder output count.
-- Page extraction priority result count.
+- `/api/v4/stage2-config/source-summary`

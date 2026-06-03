@@ -37,6 +37,18 @@ Known blocker:
 
 - `processed_operations` is empty during export.
 
+Stage2 config rebuild:
+
+- Stage2 configuration page rebuild has started.
+- Old configuration chain is no longer the main configuration source for the new middle layer.
+- Stage2 configuration will be stored independently in `data/stage2_config_profiles.json`.
+- New config page entry: `/v4-stage2-config`.
+- New config API: `/api/v4/stage2-config/*`.
+- Stage2 Config has completed its independent skeleton.
+- Current focus is data source observation.
+- Old configuration chain remains frozen and is only a read-only audit object.
+- Old configuration chain is not the new configuration main chain.
+
 Latest observed real flow result:
 
 - Page opens.

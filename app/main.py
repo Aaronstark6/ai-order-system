@@ -8,6 +8,7 @@ from app.routes import (
     images_router,
     parse_router,
     templates_router,
+    v4_stage2_config,
     v4_router,
 )
 from app.runtime_paths import get_base_dir
@@ -49,6 +50,7 @@ app.include_router(images_router)
 app.include_router(parse_router)
 app.include_router(templates_router)
 app.include_router(v4_router)
+app.include_router(v4_stage2_config.router)
 app.include_router(core_router)
 
 
@@ -79,6 +81,11 @@ def v4_workbench_page():
 @app.get("/v4-core-config")
 def v4_core_config_page():
     return FileResponse(STATIC_DIR / "v4_core_config.html")
+
+
+@app.get("/v4-stage2-config")
+def v4_stage2_config_page():
+    return FileResponse(STATIC_DIR / "v4_stage2_config.html")
 
 
 @app.get("/v4-core-pipeline")
