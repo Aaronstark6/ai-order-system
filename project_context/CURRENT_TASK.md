@@ -2,30 +2,28 @@
 
 Task:
 
-`STAGE2_CONFIG_DOCUMENTMODEL_RUNTIME_BIND_01`
+`STAGE2_TEMPLATE_ANALYSIS_STATE_PRESERVE_01`
 
 Status:
 
-- Stage2 Config is adding a read-only DocumentModel Runtime build endpoint.
+- Fixing the Template Analysis state preservation breakpoint.
 
 Purpose:
 
-- Try to reuse the existing `build_document_intelligence_model(template_analysis)` path.
-- Return a formal DocumentModel summary when real `template_analysis.semantic_regions` exists.
-- Return diagnostics when the required template analysis input is missing.
+- Preserve `semantic_regions` and `semantic_summary` when `set_template_analysis()` writes `pipeline_state.template_analysis`.
+- Provide real Template Analysis input for Stage2 Config DocumentModel Runtime.
+- Allow `build_document_intelligence_model(template_analysis)` to build from genuine `semantic_regions` after template analysis is rerun.
 
 Rules:
 
-- Do not generate `semantic_workspace_schema`.
-- Do not write old configuration data.
-- Do not modify Workspace, Pipeline, Validator, export runtime, or `app/routes/v4.py`.
-- Do not treat cache `rules.json` as a formal DocumentModel.
-- Do not fake `template_analysis` or `semantic_regions`.
+- Do not modify `analyze_template()`.
+- Do not modify DocumentModel Builder.
+- Do not modify Workspace, old routes, old config pages, or export runtime.
+- Do not write old profile data.
+- Do not fake `semantic_regions`.
+- Do not treat cache `rules.json` as `semantic_regions`.
 
-New observation API:
+Expected next test:
 
-- `/api/v4/stage2-config/documentmodel-runtime`
-
-Expected next decision:
-
-- If the runtime cannot find real template analysis, build a Stage2-specific Template Analysis Runtime before semantic schema generation.
+- Rerun template analysis so `set_template_analysis()` stores the newly preserved fields.
+- Then verify `/api/v4/stage2-config/documentmodel-runtime` reports `semantic_regions_count > 0`.

@@ -56,6 +56,8 @@ Stage2 config rebuild:
 - If only cache rules exist, they are diagnostic-only and are not treated as formal DocumentModel data.
 - Stage2 Config has entered the formal DocumentModel Runtime bind phase.
 - Current goal is not schema generation, but confirming whether existing Template Analysis can provide real input to `build_document_intelligence_model(template_analysis)`.
+- Confirmed `analyze_template()` can generate `semantic_regions`, but `set_template_analysis()` did not preserve `semantic_regions` / `semantic_summary`.
+- Current task fixes that state write breakpoint so Stage2 Config DocumentModel Runtime can receive real Template Analysis input after analysis is rerun.
 
 Latest observed real flow result:
 

@@ -132,3 +132,21 @@ DocumentModel Runtime rule:
 - It must not synthesize `semantic_regions`.
 - It must not promote cache rules into formal DocumentModel input.
 - It must not generate semantic schema or workspace fields.
+
+Template Analysis state preservation:
+
+```text
+analyze_template()
+-> semantic_regions / semantic_summary
+-> set_template_analysis()
+-> pipeline_state.template_analysis
+-> Stage2 Config DocumentModel Runtime
+-> build_document_intelligence_model(template_analysis)
+```
+
+State preservation rule:
+
+- `set_template_analysis()` must preserve real `semantic_regions`.
+- `set_template_analysis()` must preserve real `semantic_summary`.
+- Missing `semantic_regions` should become an empty list.
+- Missing `semantic_summary` should become an empty dict.

@@ -295,6 +295,12 @@ def set_template_analysis(analysis):
             "needs_review": [],
             "rejected_candidates": [],
         },
+        "semantic_regions": deepcopy(analysis.get("semantic_regions", []))
+        if isinstance(analysis.get("semantic_regions", []), list)
+        else [],
+        "semantic_summary": deepcopy(analysis.get("semantic_summary", {}))
+        if isinstance(analysis.get("semantic_summary", {}), dict)
+        else {},
         "summary": deepcopy(analysis.get("summary", {})) if isinstance(analysis.get("summary", {}), dict) else {},
     }
     return get_pipeline_state()
