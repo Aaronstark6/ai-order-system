@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 import json
 import re
 import shutil
@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 from zipfile import BadZipFile
 
-from fastapi import APIRouter, Body, File, Form, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from openpyxl.utils.exceptions import InvalidFileException
 
@@ -3920,120 +3920,6 @@ def _confirmed_operation_from_item(item, worksheet):
     }
 
 
-def _override_operations_with_confirmed_cells(processed_operations, confirmed_cells, profile=None, template_path=None):
-    operations = deepcopy(processed_operations) if isinstance(processed_operations, list) else []
-    confirmed_items = _merge_append_after_colon_confirmed_cells_for_export(
-        confirmed_cells if isinstance(confirmed_cells, list) else [],
-        profile=profile if isinstance(profile, dict) else {},
-    )
-    confirmed_by_key = {}
-    config_lookup = _confirmed_config_lookup_from_profile(profile if isinstance(profile, dict) else {})
-    worksheet = _load_template_worksheet_for_confirmed_export(template_path)
-    write_mode_summary = _confirmed_export_empty_summary()
-
-    for item in confirmed_items:
-        if not isinstance(item, dict):
-            continue
-        key = _operation_merge_key(item)
-        if key:
-            confirmed_by_key[key] = item
-
-    override_count = 0
-    for operation in operations:
-        if not isinstance(operation, dict):
-            continue
-        operation_key = _operation_merge_key(operation)
-        confirmed_item = confirmed_by_key.get(operation_key)
-        if not confirmed_item:
-            continue
-
-        config = {} if confirmed_item.get("merged_append_after_colon") else _lookup_confirmed_mapping_config(confirmed_item, config_lookup)
-        enriched_item = _confirmed_item_with_mapping_config(confirmed_item, config)
-        write_mode = str(enriched_item.get("write_mode") or "").strip()
-        is_image_item = _confirmed_cell_is_image_item(enriched_item)
-        write_mode_summary["total"] += 1
-        if write_mode in {"skip", "none"} and not is_image_item:
-            operation["value"] = ""
-            operation["confirmed_override"] = True
-            operation["confirmed_skip_reason"] = f"write_mode={write_mode}"
-            write_mode_summary["skipped"] += 1
-            _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
-            continue
-
-        confirmed_value = _confirmed_write_value(enriched_item, worksheet)
-        operation["confirmed_override"] = True
-        operation["mapping_confirmed"] = True
-        operation["confirmed_label"] = enriched_item.get("label", "")
-        operation["confirmed_source"] = enriched_item.get("source", "")
-        operation["write_mode"] = write_mode
-        operation["intent_type"] = enriched_item.get("intent_type", "")
-        operation["source_cell"] = enriched_item.get("source_cell", "")
-        operation["option_value"] = enriched_item.get("option_value", "")
-        field_type = str(enriched_item.get("field_type") or enriched_item.get("type") or "").strip().lower()
-        if field_type in {"table", "dynamic_table"} or write_mode == "write_table_cell":
-            operation["op_type"] = "write_table_cell"
-            operation["row_offset"] = enriched_item.get("row_offset") or 0
-            operation["col_offset"] = enriched_item.get("col_offset") or 0
-        if enriched_item.get("field_key"):
-            operation["field_key"] = enriched_item.get("field_key")
-        if enriched_item.get("label"):
-            operation["field_label"] = enriched_item.get("label")
-        override_count += 1
-        operation["value"] = confirmed_value
-        if str(confirmed_value or "").strip() == "":
-            write_mode_summary["skipped"] += 1
-            _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
-            continue
-        write_mode_summary["written"] += 1
-        _increment_write_mode_summary(write_mode_summary, write_mode, "written")
-
-    operation_index_by_key = {}
-    for index, operation in enumerate(operations):
-        if not isinstance(operation, dict):
-            continue
-        merge_key = _operation_merge_key(operation)
-        if merge_key:
-            operation_index_by_key[merge_key] = index
-
-    added_count = 0
-    for item in confirmed_items:
-        if not isinstance(item, dict):
-            continue
-        config = {} if item.get("merged_append_after_colon") else _lookup_confirmed_mapping_config(item, config_lookup)
-        enriched_item = _confirmed_item_with_mapping_config(item, config)
-        target_cell = _cell_key(enriched_item.get("target_cell") or enriched_item.get("cell"))
-        merge_key = _operation_merge_key(enriched_item)
-        if not target_cell or not merge_key or merge_key in operation_index_by_key:
-            continue
-
-        write_mode = str(enriched_item.get("write_mode") or "").strip()
-        is_image_item = _confirmed_cell_is_image_item(enriched_item)
-        write_mode_summary["total"] += 1
-        if write_mode in {"skip", "none"} and not is_image_item:
-            write_mode_summary["skipped"] += 1
-            _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
-            continue
-
-        operation = _confirmed_operation_from_item(enriched_item, worksheet)
-        is_image = operation.get("op_type") == "write_image"
-        if not is_image and str(operation.get("value") or "").strip() == "":
-            write_mode_summary["skipped"] += 1
-            _increment_write_mode_summary(write_mode_summary, write_mode, "skipped")
-            continue
-
-        operations.append(operation)
-        operation_index_by_key[merge_key] = len(operations) - 1
-        added_count += 1
-        write_mode_summary["written"] += 1
-        _increment_write_mode_summary(write_mode_summary, write_mode, "written")
-
-    return {
-        "processed_operations": operations,
-        "override_count": override_count,
-        "added_count": added_count,
-        "write_mode_summary": write_mode_summary,
-    }
-
 
 @router.get("/api/v4/health")
 def api_v4_health():
@@ -6011,110 +5897,12 @@ def api_v4_core_pipeline_run():
 
 
 @router.post("/api/v4/parse-chat-export-excel")
-def api_v4_parse_chat_export_excel(
-    chat_text: str = Form(""),
-    message: str = Form(""),
-):
-    from app.v4_excel_executor import execute_processed_operations_to_excel
-    from app.v4_render_preview import build_render_preview
-    from app.v4_render_targets import render_preview_to_html
+def api_v4_parse_chat_export_excel():
+    raise HTTPException(
+        status_code=410,
+        detail="Old chat-to-export shortcut has been removed. Export must use confirmed_order_object through the Stage2 pipeline.",
+    )
 
-    logger.info("V4 parse chat and export Excel requested")
-
-    text = str(chat_text or "").strip()
-    if not text:
-        text = str(message or "").strip()
-    if not text:
-        return {
-            "success": False,
-            "stage": "input",
-            "error": "chat_text/message 不能为空",
-            "pipeline_state": get_pipeline_state(),
-        }
-
-    template_path = None
-    template_source = ""
-    try:
-        pipeline_e2e_result = api_v4_parse_chat_run_pipeline({"chat_text": text})
-        if not pipeline_e2e_result.get("success"):
-            return {
-                "success": False,
-                "stage": pipeline_e2e_result.get("stage", "parse_chat_run_pipeline"),
-                "error": pipeline_e2e_result.get("error", "Chat 到 Pipeline 执行失败"),
-                "pipeline_e2e_result": pipeline_e2e_result,
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        pipeline_result = pipeline_e2e_result.get("pipeline_result", {})
-        processed_operations = pipeline_result.get("processed_operations", [])
-        if not isinstance(processed_operations, list) or not processed_operations:
-            return {
-                "success": False,
-                "stage": "processed_operations",
-                "error": "暂无 processed operations，无法导出 Excel",
-                "pipeline_e2e_result": pipeline_e2e_result,
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        template_path, _, template_source = _resolve_export_template_source()
-
-        export_result = execute_processed_operations_to_excel(template_path, processed_operations)
-        if not export_result.get("success"):
-            return {
-                "success": False,
-                "stage": "excel_export",
-                "error": export_result.get("error", "Excel 导出失败"),
-                "warnings": export_result.get("warnings", []),
-                "pipeline_e2e_result": pipeline_e2e_result,
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        state = merge_mapping_safety(export_result.get("mapping_safety", {}))
-        merged_safety = state.get("mapping_safety", {})
-        preview = build_render_preview(processed_operations, merged_safety, template_path)
-        state = set_render_preview(preview)
-
-        html_result = render_preview_to_html(state.get("render_preview", {}))
-        html_preview = ""
-        if html_result.get("success"):
-            html_preview = html_result.get("html", "")
-            state = set_render_targets({"html_preview": html_preview})
-
-        state = set_excel_result(export_result.get("filename"))
-
-        return {
-            "success": True,
-            "message": "Chat 已解析并导出 Excel",
-            "parse_result": pipeline_e2e_result.get("parse_result", {}),
-            "pipeline_result": pipeline_result,
-            "workspace_fields": pipeline_e2e_result.get("workspace_fields", []),
-            "export_result": {
-                "filename": export_result.get("filename", ""),
-                "download_url": export_result.get("download_url", ""),
-                "operations_written": export_result.get("operations_written", 0),
-                "warnings": export_result.get("warnings", []),
-                "template_source": template_source,
-            },
-            "render_preview": get_pipeline_state().get("render_preview", {}),
-            "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
-            "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except ValueError as exc:
-        return {
-            "success": False,
-            "stage": "template_upload",
-            "error": str(exc),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except Exception as exc:
-        logger.exception("V4 parse chat and export Excel failed")
-        return {
-            "success": False,
-            "stage": "unknown",
-            "error": str(exc) or "Chat 到 Excel 导出失败",
-            "pipeline_state": get_pipeline_state(),
-        }
 
 def _extract_confirmed_order_object_from_payload(payload):
     payload = payload if isinstance(payload, dict) else {}
@@ -6676,207 +6464,21 @@ def _operation_image_export_summary(template_path, exported_file_path, operation
 
 
 @router.post("/api/v4/export-confirmed-excel")
-def api_v4_export_confirmed_excel(
-    chat_text: str = Form(""),
-    confirmed_cells_json: str = Form("[]"),
-):
-    from app.v4_excel_executor import execute_processed_operations_to_excel
-    from app.v4_render_preview import build_render_preview
-    from app.v4_render_targets import render_preview_to_html
+def api_v4_export_confirmed_excel():
+    raise HTTPException(
+        status_code=410,
+        detail="Old confirmed_cells export chain has been removed. Stage2 export pipeline is the only target architecture.",
+    )
 
-    logger.info("V4 confirmed cells export requested")
 
-    text = str(chat_text or "").strip()
-
-    try:
-        confirmed_cells = json.loads(str(confirmed_cells_json or "[]"))
-    except json.JSONDecodeError as exc:
-        return {
-            "success": False,
-            "stage": "confirmed_cells_json",
-            "error": f"confirmed_cells_json 解析失败: {exc}",
-            "pipeline_state": get_pipeline_state(),
-        }
-    if not isinstance(confirmed_cells, list):
-        return {
-            "success": False,
-            "stage": "confirmed_cells_json",
-            "error": "confirmed_cells_json 必须是 list",
-            "pipeline_state": get_pipeline_state(),
-        }
-
-    template_path = None
-    template_source = ""
-    try:
-        confirmed_has_items = any(isinstance(item, dict) for item in confirmed_cells)
-        if not confirmed_has_items:
-            return {
-                "success": False,
-                "stage": "confirmed_cells",
-                "error": "暂无人工确认数据，无法导出 Excel",
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        profile = _current_template_profile_for_export()
-        excel_feature_flags = _get_excel_feature_flags(profile)
-        runtime_mapping_source = _get_runtime_mapping_source(profile)
-        template_path, _, template_source = _resolve_export_template_source()
-
-        text_confirmed_cells, image_confirmed_cells = _split_confirmed_cells_for_excel_export(confirmed_cells)
-
-        use_operation_image_export = True
-        override_result = _override_operations_with_confirmed_cells(
-            [],
-            confirmed_cells,
-            profile=profile,
-            template_path=template_path,
-        )
-        overridden_operations = override_result.get("processed_operations", [])
-        confirmed_override_count = override_result.get("override_count", 0)
-        confirmed_added_count = override_result.get("added_count", 0)
-        write_mode_summary = override_result.get("write_mode_summary", _confirmed_export_empty_summary())
-        if not overridden_operations:
-            return {
-                "success": False,
-                "stage": "processed_operations",
-                "error": "无有效的 processed operations 或 confirmed cells，无法导出 Excel",
-                "confirmed_override_count": confirmed_override_count,
-                "confirmed_added_count": confirmed_added_count,
-                "write_mode_summary": write_mode_summary,
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        export_result = execute_processed_operations_to_excel(template_path, overridden_operations)
-        if not export_result.get("success"):
-            return {
-                "success": False,
-                "stage": "excel_export",
-                "error": export_result.get("error", "Excel 导出失败"),
-                "warnings": export_result.get("warnings", []),
-                "confirmed_override_count": confirmed_override_count,
-                "confirmed_added_count": confirmed_added_count,
-                "write_mode_summary": write_mode_summary,
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        exported_filename = str(export_result.get("filename") or "").strip()
-        exported_file_path = Path(exported_filename)
-        if not exported_file_path.is_absolute():
-            if exported_file_path.parts and exported_file_path.parts[0] == "output":
-                exported_file_path = exported_file_path
-            else:
-                exported_file_path = Path("output") / exported_file_path
-        if image_confirmed_cells and use_operation_image_export:
-            image_export_summary = _operation_image_export_summary(
-                template_path,
-                exported_file_path,
-                overridden_operations,
-                image_confirmed_cells,
-            )
-        elif image_confirmed_cells:
-            image_export_summary = _insert_confirmed_images_into_excel(
-                exported_file_path,
-                image_confirmed_cells,
-                excel_feature_flags=excel_feature_flags,
-            )
-        else:
-            image_export_summary = {"total": 0, "inserted": 0, "skipped": 0, "warnings": []}
-        if image_export_summary.get("warnings"):
-            export_result["warnings"] = [
-                *(export_result.get("warnings", []) or []),
-                *image_export_summary.get("warnings", []),
-            ]
-
-        if excel_feature_flags.get("export_readback_check", True):
-            export_readback_audit = _build_export_readback_audit(
-                exported_file_path,
-                text_confirmed_cells,
-                profile=profile,
-            )
-        else:
-            export_readback_audit = {
-                "success": True,
-                "disabled": True,
-                "summary": {},
-                "items": [],
-                "warnings": [],
-                "errors": [],
-            }
-
-        set_pipeline_result(overridden_operations, [])
-        state = merge_mapping_safety(export_result.get("mapping_safety", {}))
-        merged_safety = state.get("mapping_safety", {})
-        preview = build_render_preview(overridden_operations, merged_safety, template_path)
-        state = set_render_preview(preview)
-
-        html_result = render_preview_to_html(state.get("render_preview", {}))
-        html_preview = ""
-        if html_result.get("success"):
-            html_preview = html_result.get("html", "")
-            state = set_render_targets({"html_preview": html_preview})
-
-        state = set_excel_result(export_result.get("filename"))
-        response_pipeline_result = {"source": "confirmed_cells"}
-        response_pipeline_result["processed_operations"] = overridden_operations
-        response_pipeline_result["confirmed_override_count"] = confirmed_override_count
-        response_pipeline_result["confirmed_added_count"] = confirmed_added_count
-        response_pipeline_result["write_mode_summary"] = write_mode_summary
-        response_pipeline_result["render_preview"] = get_pipeline_state().get("render_preview", {})
-
-        return {
-            "success": True,
-            "message": "确认值已导出 Excel",
-            "confirmed_override_count": confirmed_override_count,
-            "confirmed_added_count": confirmed_added_count,
-            "write_mode_summary": write_mode_summary,
-            "runtime_mapping_source": runtime_mapping_source,
-            "excel_feature_flags": excel_feature_flags,
-            "image_export_summary": image_export_summary,
-            "export_readback_audit": export_readback_audit,
-            "parse_result": {},
-            "pipeline_result": response_pipeline_result,
-            "export_result": {
-                "filename": export_result.get("filename", ""),
-                "download_url": export_result.get("download_url", ""),
-                "operations_written": export_result.get("operations_written", 0),
-                "warnings": export_result.get("warnings", []),
-                "template_source": template_source,
-                "write_mode_summary": write_mode_summary,
-                "excel_feature_flags": excel_feature_flags,
-                "image_export_summary": image_export_summary,
-                "readback_audit": export_readback_audit,
-            },
-            "render_preview": get_pipeline_state().get("render_preview", {}),
-            "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
-            "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except ValueError as exc:
-        return {
-            "success": False,
-            "stage": "template_upload",
-            "error": str(exc),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except Exception as exc:
-        logger.exception("V4 confirmed cells export failed")
-        return {
-            "success": False,
-            "stage": "unknown",
-            "error": str(exc) or "确认值导出 Excel 失败",
-            "pipeline_state": get_pipeline_state(),
-        }
 @router.post("/api/v4/core-pipeline/export-excel")
 def api_v4_core_pipeline_export_excel():
-    logger.warning("Deprecated V4 core pipeline export endpoint blocked")
-    return {
-        "success": False,
-        "stage": "deprecated_export_entrypoint_disabled",
-        "error": "旧导出入口已禁用。请使用 /api/v4/export-confirmed-excel，以人工确认数据 confirmed_cells 作为唯一导出事实源。",
-        "message": "Core Pipeline 页面仅保留调试用途，不再允许直接导出 Excel。",
-        "replacement_endpoint": "/api/v4/export-confirmed-excel",
-        "pipeline_state": get_pipeline_state(),
-    }
+    raise HTTPException(
+        status_code=410,
+        detail="Old core-pipeline export endpoint has been removed. Stage2 export will be rebuilt through confirmed_order_object.",
+    )
+
+
 @router.post("/api/v4/render-preview/build")
 def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
     from app.v4_render_preview import build_render_preview
@@ -8020,8 +7622,8 @@ def _example_debug_export_boundary_payload():
     return {
         "scope": "example_debug_only",
         "production_export": False,
-        "boundary_warning": "This endpoint is for V4 example/debug export only. Production order export must use /api/v4/export-confirmed-excel with confirmed_cells as the only source of truth.",
-        "production_endpoint": "/api/v4/export-confirmed-excel",
+        "boundary_warning": "This endpoint is for V4 example/debug export only. Production order export must use /api/v4/export-pipeline-excel with confirmed_order_object as the Stage2 source of truth.",
+        "production_endpoint": "/api/v4/export-pipeline-excel",
     }
 
 
@@ -8033,10 +7635,10 @@ def _example_debug_export_boundary_payload():
 # They are not production order export routes.
 #
 # Production order export must go through:
-#   /api/v4/export-confirmed-excel
+#   /api/v4/export-pipeline-excel
 #
 # Production source of truth:
-#   confirmed_cells from /v4-order-workspace
+#   confirmed_order_object through the Stage2 pipeline
 #
 # Do not reuse these example/debug export routes for /v4-order-workspace.
 # ---------------------------------------------------------------------------
@@ -8377,8 +7979,8 @@ def api_v4_example_export_ai_template_excel_cn(example_name: str, payload: Any =
             {
                 "范围": "仅限示例调试导出",
                 "生产导出": False,
-                "边界警告": "该接口仅用于 V4 示例/调试导出。正式订单导出必须使用 /api/v4/export-confirmed-excel，并以 confirmed_cells 作为唯一事实源。",
-                "生产接口": "/api/v4/export-confirmed-excel",
+                "边界警告": "该接口仅用于 V4 示例/调试导出。正式订单导出必须使用 /api/v4/export-pipeline-excel，并以 confirmed_order_object 作为 Stage2 事实源。",
+                "生产接口": "/api/v4/export-pipeline-excel",
             }
         )
         return result
@@ -8432,8 +8034,8 @@ def api_v4_example_export_batch_ai_excel(example_name: str, payload: Any = Body(
             {
                 "范围": "仅限示例调试批量导出",
                 "生产导出": False,
-                "边界警告": "该接口仅用于 V4 示例/调试批量导出。正式订单导出必须使用 /api/v4/export-confirmed-excel，并以 confirmed_cells 作为唯一事实源。",
-                "生产接口": "/api/v4/export-confirmed-excel",
+                "边界警告": "该接口仅用于 V4 示例/调试批量导出。正式订单导出必须使用 /api/v4/export-pipeline-excel，并以 confirmed_order_object 作为 Stage2 事实源。",
+                "生产接口": "/api/v4/export-pipeline-excel",
             }
         )
         return result
@@ -8544,3 +8146,4 @@ def api_v4_example_export_debug_excel(example_name: str):
             "success": False,
             "error": str(exc),
         }
+
