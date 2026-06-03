@@ -79,3 +79,19 @@ Observation rule:
 - Source Summary is read-only.
 - It must not write old profile data.
 - It must not use old profile data as the Stage2 main configuration source.
+
+Stage2 Config template analysis observation:
+
+```text
+Stage2 Config Page
+-> /api/v4/stage2-config/template-analysis-summary
+-> legacy template_profiles.json read-only summary
+-> v4_template_cache read-only summary
+-> determine whether semantic_workspace_schema / workspace_fields / field_bound_operations exist
+```
+
+Template analysis observation rule:
+
+- This is not a configuration bridge.
+- This does not promote old profile data into the Stage2 main chain.
+- This only reports whether the existing analysis data can support a future DocumentModel binding.

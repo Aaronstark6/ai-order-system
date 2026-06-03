@@ -182,6 +182,14 @@
                 </div>
                 <div id="sourceSummaryArea" class="status">Source summary not loaded.</div>
             </div>
+
+            <div style="margin-top:16px;">
+                <h2>Template Analysis Summary</h2>
+                <div class="actions">
+                    <button id="templateAnalysisButton" type="button">Load Template Analysis Summary</button>
+                </div>
+                <div id="templateAnalysisArea" class="status">Template analysis summary not loaded.</div>
+            </div>
         </section>
 
         <section>
@@ -261,6 +269,67 @@
             `;
         }
 
+        function renderTemplateAnalysisSummary(result) {
+            const summary = result.summary || {};
+            const diagnosis = summary.diagnosis || {};
+            const profiles = Array.isArray(summary.legacy_profiles) ? summary.legacy_profiles : [];
+            const caches = Array.isArray(summary.template_cache) ? summary.template_cache : [];
+            const area = document.getElementById("templateAnalysisArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>legacy profile count</span>
+                        <strong>${diagnosis.legacy_profile_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>semantic schemas</span>
+                        <strong>${diagnosis.profiles_with_semantic_schema || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>workspace fields</span>
+                        <strong>${diagnosis.profiles_with_workspace_fields || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>field bound operations</span>
+                        <strong>${diagnosis.profiles_with_field_bound_operations || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>cache count</span>
+                        <strong>${diagnosis.cache_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>total cache rules</span>
+                        <strong>${diagnosis.total_cache_rules || 0}</strong>
+                    </div>
+                </div>
+                <div class="status">likely_issue: ${String(diagnosis.likely_issue || "")}</div>
+                <div class="cache-list">
+                    <h3>Legacy Profiles</h3>
+                    ${profiles.length ? profiles.map(profile => `
+                        <div class="cache-item">
+                            <h3>${String(profile.profile_name || profile.profile_id || "")}</h3>
+                            <div class="small">profile_id: ${String(profile.profile_id || "")}</div>
+                            <div class="small">template: ${String(profile.template_filename || profile.template_path || "-")}</div>
+                            <div class="small">semantic_fields: ${profile.semantic_workspace_schema_field_count || 0} | workspace_fields: ${profile.workspace_fields_count || 0} | field_bound_operations: ${profile.field_bound_operations_count || 0}</div>
+                        </div>
+                    `).join("") : '<div class="small">No legacy profile summaries.</div>'}
+                </div>
+                <div class="cache-list">
+                    <h3>Template Cache</h3>
+                    ${caches.length ? caches.map(item => `
+                        <div class="cache-item">
+                            <h3>${String(item.cache_id || "")}</h3>
+                            <div class="small">has_meta: ${yesNo(item.has_meta)} | has_rules: ${yesNo(item.has_rules)} | rules_count: ${(item.rules_summary || {}).rules_count || 0}</div>
+                            <div class="small">rule_labels: ${((item.rules_summary || {}).rule_labels || []).join(", ") || "-"}</div>
+                            <div class="small">target_cells: ${((item.rules_summary || {}).rule_target_cells || []).join(", ") || "-"}</div>
+                            ${item.error ? `<div class="small">error: ${String(item.error)}</div>` : ""}
+                        </div>
+                    `).join("") : '<div class="small">No template cache summaries.</div>'}
+                </div>
+            `;
+        }
+
         async function healthCheck() {
             const response = await fetch("/api/v4/stage2-config/health");
             const result = await response.json();
@@ -327,6 +396,17 @@
             setStatus("Source summary loaded.");
         }
 
+        async function loadTemplateAnalysisSummary() {
+            const response = await fetch("/api/v4/stage2-config/template-analysis-summary");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Load template analysis summary failed.");
+            }
+            renderTemplateAnalysisSummary(result);
+            renderJson(result);
+            setStatus("Template analysis summary loaded.");
+        }
+
         document.getElementById("healthButton").addEventListener("click", () => {
             healthCheck().catch(error => setStatus(error.message || "Health check failed."));
         });
@@ -340,6 +420,12 @@
             loadSourceSummary().catch(error => {
                 document.getElementById("sourceSummaryArea").textContent = error.message || "Load source summary failed.";
                 setStatus(error.message || "Load source summary failed.");
+            });
+        });
+        document.getElementById("templateAnalysisButton").addEventListener("click", () => {
+            loadTemplateAnalysisSummary().catch(error => {
+                document.getElementById("templateAnalysisArea").textContent = error.message || "Load template analysis summary failed.";
+                setStatus(error.message || "Load template analysis summary failed.");
             });
         });
     </script>

@@ -48,6 +48,9 @@ Stage2 config rebuild:
 - Current focus is data source observation.
 - Old configuration chain remains frozen and is only a read-only audit object.
 - Old configuration chain is not the new configuration main chain.
+- Stage2 Config has entered the template analysis observation phase.
+- Current observation is read-only and checks whether DocumentModel / semantic schema data is present as a real data source.
+- This phase does not write old configuration data and does not modify the old Workspace.
 
 Latest observed real flow result:
 
