@@ -78,13 +78,59 @@ def _region_type(region):
     return region_type
 
 
+def _region_coordinates(region):
+    region = normalize_dict(region)
+    return normalize_dict(region.get("coordinates"))
+
+
+def _region_source_cell(region):
+    coordinates = _region_coordinates(region)
+    return normalize_text(coordinates.get("source_cell"))
+
+
+def _region_target_cell(region):
+    coordinates = _region_coordinates(region)
+    return normalize_text(coordinates.get("target_cell"))
+
+
+def _region_cells(region):
+    coordinates = _region_coordinates(region)
+    return normalize_list(coordinates.get("cells"))
+
+
+def _region_row(region):
+    coordinates = _region_coordinates(region)
+    number = _safe_number(coordinates.get("row"), default=0)
+    if number == int(number):
+        return int(number)
+    return number
+
+
+def _region_col(region):
+    coordinates = _region_coordinates(region)
+    number = _safe_number(coordinates.get("col"), default=0)
+    if number == int(number):
+        return int(number)
+    return number
+
+
+def _region_area(region):
+    coordinates = _region_coordinates(region)
+    return {
+        "coordinates": coordinates,
+    }
+
+
 def _region_label(region):
     if not isinstance(region, dict):
         return ""
-    for key in ("label", "suggested_name", "name", "region_id", "source_cell"):
+    for key in ("label", "suggested_name", "name", "region_id"):
         value = normalize_text(region.get(key))
         if value:
             return value
+    source_cell = _region_source_cell(region)
+    if source_cell:
+        return source_cell
     return ""
 
 
@@ -96,21 +142,9 @@ def _region_node_source(region):
         source_detail=_region_type(region),
         confidence=region.get("confidence", 0),
         metadata={
-            "source_cell": normalize_text(region.get("source_cell")),
-            "target_cell": normalize_text(region.get("target_cell")),
+            "coordinates": _region_coordinates(region),
         },
     )
-
-
-def _region_area(region):
-    region = normalize_dict(region)
-    return {
-        "source_cell": normalize_text(region.get("source_cell")),
-        "target_cell": normalize_text(region.get("target_cell")),
-        "cells": normalize_list(region.get("cells")),
-        "row": region.get("row"),
-        "col": region.get("col"),
-    }
 
 
 def extract_semantic_regions(template_analysis):
@@ -159,22 +193,6 @@ def _node_id(node):
     return ""
 
 
-def _region_target_cell(region):
-    if isinstance(region, dict):
-        return normalize_text(region.get("target_cell"))
-    return ""
-
-
-def _region_row(region):
-    if not isinstance(region, dict):
-        return 0
-
-    number = _safe_number(region.get("row"), default=0)
-    if number == int(number):
-        return int(number)
-    return number
-
-
 def build_option_from_region(region):
     if not isinstance(region, dict):
         return {}
@@ -187,8 +205,7 @@ def build_option_from_region(region):
     return {
         "label": label,
         "value": value,
-        "source_cell": normalize_text(region.get("source_cell")),
-        "target_cell": normalize_text(region.get("target_cell")),
+        "coordinates": _region_coordinates(region),
         "write_mode": normalize_text(region.get("write_mode")),
         "intent_type": normalize_text(region.get("intent_type")),
         "confidence": _safe_number(region.get("confidence")),
@@ -367,7 +384,8 @@ def build_field_node_from_region(region):
     region_type = _region_type(region)
     label = _region_label(region)
     field_key = normalize_text(region.get("field_key")) or label
-    source_cell = normalize_text(region.get("source_cell"))
+    source_cell = _region_source_cell(region)
+    target_cell = _region_target_cell(region)
     write_mode = normalize_text(region.get("write_mode"))
     field_type = "text"
     if region_type == SEMANTIC_TYPE_INLINE_FIELD:
@@ -378,7 +396,7 @@ def build_field_node_from_region(region):
         field_key=field_key,
         label=label,
         source_cell=source_cell,
-        target_cell=region.get("target_cell", ""),
+        target_cell=target_cell,
         field_type=field_type,
         ai_extract_hint=label,
         confidence=_safe_number(region.get("confidence")),
@@ -397,18 +415,14 @@ def build_field_node_from_region(region):
 
 def build_section_node_from_region(region):
     label = _region_label(region)
-    source_cell = normalize_text(region.get("source_cell"))
+    source_cell = _region_source_cell(region)
     section_key = normalize_text(region.get("section_key")) or label
     return build_section_node(
         node_id=make_node_id(NODE_TYPE_SECTION, section_key or label or source_cell),
         label=label,
         section_key=section_key,
-        bounds={
-            "row": region.get("row"),
-            "col": region.get("col"),
-            "cells": normalize_list(region.get("cells")),
-        },
-        order=_safe_number(region.get("row")),
+        bounds=_region_area(region),
+        order=_safe_number(_region_row(region)),
         confidence=_safe_number(region.get("confidence")),
         metadata=build_metadata(
             origin="template_analysis.semantic_regions",
@@ -421,21 +435,19 @@ def build_section_node_from_region(region):
 
 def build_table_node_from_region(region):
     label = _region_label(region)
-    source_cell = normalize_text(region.get("source_cell"))
+    source_cell = _region_source_cell(region)
+    target_cell = _region_target_cell(region)
     return build_table_node(
         node_id=make_node_id(NODE_TYPE_TABLE, label or source_cell),
         label=label,
         section_id="",
-        header_cells=(region.get("header_cells") or region.get("cells")),
+        header_cells=(region.get("header_cells") or _region_cells(region)),
         data_region={
-            "source_cell": source_cell,
-            "target_cell": normalize_text(region.get("target_cell")),
-            "row": region.get("row"),
-            "col": region.get("col"),
+            "coordinates": _region_coordinates(region),
         },
         columns=normalize_table_columns(region.get("columns")),
         rows=region.get("rows"),
-        cells=region.get("cells"),
+        cells=_region_cells(region),
         merged_cells=region.get("merged_cells"),
         orientation=region.get("orientation", "row"),
         header_mode=region.get("header_mode", "first_row"),
@@ -461,16 +473,20 @@ def build_table_node_from_region(region):
 def build_choice_group_node_from_region(region, option_items_by_row=None):
     label = _region_label(region)
     field_key = normalize_text(region.get("field_key")) or label
-    source_cell = normalize_text(region.get("source_cell"))
+    source_cell = _region_source_cell(region)
     options = normalize_list(region.get("options"))
     if not options:
         options = [
             {
                 "label": str(cell),
                 "value": str(cell),
-                "source_cell": str(cell),
+                "coordinates": {
+                    "source_cell": str(cell),
+                    "target_cell": str(cell),
+                    "cells": [str(cell)],
+                },
             }
-            for cell in normalize_list(region.get("cells"))
+            for cell in _region_cells(region)
         ]
     row_key = str(_choice_group_row(region))
     if isinstance(option_items_by_row, dict) and row_key in option_items_by_row:
@@ -508,7 +524,7 @@ def build_choice_group_node_from_region(region, option_items_by_row=None):
 
 def build_object_node_from_region(region):
     label = _region_label(region)
-    source_cell = normalize_text(region.get("source_cell"))
+    source_cell = _region_source_cell(region)
     return build_object_node(
         node_id=make_node_id(NODE_TYPE_OBJECT, label or source_cell),
         object_type=SEMANTIC_TYPE_IMAGE_ATTACHMENT_AREA,
@@ -528,7 +544,7 @@ def build_object_node_from_region(region):
 def build_visual_node_from_region(region):
     region_type = _region_type(region)
     label = _region_label(region)
-    source_cell = normalize_text(region.get("source_cell"))
+    source_cell = _region_source_cell(region)
     return build_visual_semantic_node(
         node_id=make_node_id(
             NODE_TYPE_VISUAL,
@@ -539,8 +555,8 @@ def build_visual_node_from_region(region):
         cell=source_cell,
         region=_region_area(region),
         style=normalize_dict(region.get("style")),
-        row=region.get("row"),
-        col=region.get("col"),
+        row=_region_row(region),
+        col=_region_col(region),
         page=region.get("page"),
         bbox=region.get("bbox"),
         orientation=region.get("orientation", ""),

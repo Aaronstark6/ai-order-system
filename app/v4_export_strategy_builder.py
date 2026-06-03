@@ -126,8 +126,8 @@ def _visual_coordinates(node):
         }
 
     return {
-        "source_cell": node.get("source_cell", ""),
-        "target_cell": node.get("target_cell", ""),
+        "source_cell": "",
+        "target_cell": "",
         "row": None,
         "col": None,
         "page": None,
@@ -240,7 +240,8 @@ def resolve_target_cell_for_node(model, node):
     if target_cell:
         return target_cell
 
-    target_cell = normalize_text(node.get("target_cell")) if isinstance(node, dict) else ""
+    coordinates = _visual_coordinates(node)
+    target_cell = normalize_text(coordinates.get("target_cell"))
     if target_cell:
         return target_cell
 
@@ -335,6 +336,24 @@ def build_export_operation_from_node(model, node):
     write_mode = resolve_write_mode_for_node(model, node)
     op_type = normalize_export_op_type(write_mode, node_type)
     target_cell = resolve_target_cell_for_node(model, node)
+    if op_type == "write_table_cell":
+        runtime_source = "table"
+    elif op_type == "write_block":
+        runtime_source = "block"
+    else:
+        runtime_source = "structured"
+
+    runtime_value = (
+        node.get("value")
+        if node.get("value") is not None
+        else node.get("default_value")
+        if node.get("default_value") is not None
+        else node.get("sample_value")
+        if node.get("sample_value") is not None
+        else node.get("example_value")
+        if node.get("example_value") is not None
+        else ""
+    )
     metadata = {
         "node_type": node_type,
         "raw_node": node,
@@ -361,6 +380,8 @@ def build_export_operation_from_node(model, node):
         "target_cell": target_cell,
         "write_mode": write_mode,
         "value_source": field_key,
+        "source": runtime_source,
+        "value": runtime_value,
         "metadata": metadata,
     }
 

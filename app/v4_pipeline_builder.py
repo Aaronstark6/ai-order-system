@@ -118,6 +118,16 @@ def _get_product_field(order_object, identifier):
     return None, False
 
 
+def resolve_field_key_value(order_object, field_key):
+    if not str(field_key or "").strip():
+        return ""
+
+    value, found = _get_product_field(order_object, field_key)
+    if not found or value is None:
+        return ""
+    return value
+
+
 def resolve_source_value(order_object, source_path):
     source_path = str(source_path or "").strip()
     if not source_path:
@@ -433,6 +443,68 @@ def build_structured_operations(order_object, structured_mapping_path=None):
     return {"success": True, "operations": operations, "warnings": warnings}
 
 
+def build_table_runtime_operations(
+    table_name,
+    table_key,
+    rows,
+    columns,
+    start_cell,
+    mapping_confirmed=False,
+):
+    start_cell = str(start_cell or "").strip().upper()
+    row_number = _start_row(start_cell)
+    columns = columns if isinstance(columns, list) else []
+    rows = rows if isinstance(rows, list) else []
+    rendered_rows = []
+    cell_operations = []
+    mapping_confirmed = bool(mapping_confirmed)
+
+    for row_index, row in enumerate(rows):
+        current_row_number = row_number + row_index
+        cells = []
+        values = {}
+        for column in columns:
+            if not isinstance(column, dict):
+                continue
+            target_col = str(column.get("target_col") or "").strip().upper()
+            field = str(column.get("field") or column.get("source_path") or column.get("label") or "").strip()
+            cell_ref = _target_cell(target_col, current_row_number)
+            if not cell_ref or not field:
+                continue
+            value = _row_value(row, field)
+            cell = {
+                "target_cell": cell_ref,
+                "target_col": target_col,
+                "row_number": current_row_number,
+                "label": str(column.get("label") or ""),
+                "field": field,
+                "value": "" if value is None else value,
+                "mapping_confirmed": mapping_confirmed,
+            }
+            cells.append(cell)
+            values[target_col] = "" if value is None else value
+            cell_operations.append(cell)
+        rendered_rows.append(
+            {
+                "row_number": current_row_number,
+                "cells": cells,
+                "values": values,
+            }
+        )
+
+    return {
+        "type": "table",
+        "table_key": str(table_key or "").strip(),
+        "table_name": str(table_name or "").strip(),
+        "source_path": "",
+        "start_cell": start_cell,
+        "columns": deepcopy(columns),
+        "rows": rendered_rows,
+        "cell_operations": cell_operations,
+        "mapping_confirmed": mapping_confirmed,
+    }
+
+
 def build_table_operations(order_object, table_mapping_path=None):
     mapping = load_table_mapping(table_mapping_path)
     operations = []
@@ -454,58 +526,19 @@ def build_table_operations(order_object, table_mapping_path=None):
             rows = []
 
         start_cell = str(table.get("start_cell") or "").strip().upper()
-        row_number = _start_row(start_cell)
         columns = table.get("columns", [])
         columns = columns if isinstance(columns, list) else []
-        rendered_rows = []
-        cell_operations = []
-
-        for row_index, row in enumerate(rows):
-            current_row_number = row_number + row_index
-            cells = []
-            values = {}
-            for column in columns:
-                if not isinstance(column, dict):
-                    continue
-                target_col = str(column.get("target_col") or "").strip().upper()
-                field = str(column.get("field") or column.get("source_path") or column.get("label") or "").strip()
-                cell_ref = _target_cell(target_col, current_row_number)
-                if not cell_ref or not field:
-                    continue
-                value = _row_value(row, field)
-                cell = {
-                    "target_cell": cell_ref,
-                    "target_col": target_col,
-                    "row_number": current_row_number,
-                    "label": str(column.get("label") or ""),
-                    "field": field,
-                    "value": "" if value is None else value,
-                    "mapping_confirmed": bool(table.get("confirmed") or table.get("mapping_confirmed")),
-                }
-                cells.append(cell)
-                values[target_col] = "" if value is None else value
-                cell_operations.append(cell)
-            rendered_rows.append(
-                {
-                    "row_number": current_row_number,
-                    "cells": cells,
-                    "values": values,
-                }
-            )
-
-        operations.append(
-            {
-                "type": "table",
-                "table_key": table_key,
-                "table_name": table_name,
-                "source_path": source_path,
-                "start_cell": start_cell,
-                "columns": deepcopy(columns),
-                "rows": rendered_rows,
-                "cell_operations": cell_operations,
-                "mapping_confirmed": bool(table.get("confirmed") or table.get("mapping_confirmed")),
-            }
+        mapping_confirmed = bool(table.get("confirmed") or table.get("mapping_confirmed"))
+        operation = build_table_runtime_operations(
+            table_name=table_name,
+            table_key=table_key,
+            rows=rows,
+            columns=columns,
+            start_cell=start_cell,
+            mapping_confirmed=mapping_confirmed,
         )
+        operation["source_path"] = source_path
+        operations.append(operation)
     return {"success": True, "operations": operations, "warnings": warnings}
 
 
@@ -515,6 +548,37 @@ def _line_value(order_object, line):
     if line.get("field_id"):
         return _get_product_field(order_object, line.get("field_id"))
     return resolve_source_value(order_object, line.get("source_path"))
+
+
+def build_block_runtime_operations(
+    block_name,
+    block_key,
+    lines,
+    target_cell,
+    operation="write_block",
+    mapping_confirmed=False,
+):
+    if isinstance(lines, list):
+        rendered_lines = []
+        for line in lines:
+            value = _string_value(line).strip()
+            if value:
+                rendered_lines.append(value)
+        content = "\n".join(rendered_lines)
+    else:
+        content = _string_value(lines).strip()
+
+    return {
+        "type": "block",
+        "block_name": str(block_name or "").strip(),
+        "block_key": str(block_key or "").strip(),
+        "target_cell": str(target_cell or "").strip().upper(),
+        "operation": str(operation or "write_block").strip() or "write_block",
+        "content": content,
+        "value": content,
+        "source_path": "",
+        "mapping_confirmed": bool(mapping_confirmed),
+    }
 
 
 def build_block_operations(order_object, block_rules_path=None):
@@ -527,6 +591,10 @@ def build_block_operations(order_object, block_rules_path=None):
         if not _is_enabled(block):
             continue
         target_cell = str(block.get("target_cell") or "").strip().upper()
+        block_name = str(block.get("block_name") or "").strip()
+        block_key = str(block.get("block_key") or block_name or "").strip()
+        operation = str(block.get("operation") or "write_multiline").strip() or "write_multiline"
+        mapping_confirmed = bool(block.get("confirmed") or block.get("mapping_confirmed"))
         lines_config = block.get("lines", [])
         lines_config = lines_config if isinstance(lines_config, list) else []
         rendered_lines = []
@@ -549,24 +617,45 @@ def build_block_operations(order_object, block_rules_path=None):
             if found and _string_value(value).strip():
                 rendered_lines.append(_string_value(value).strip())
 
-        operations.append(
-            {
-                "type": "block",
-                "block_name": str(block.get("block_name") or "").strip(),
-                "target_cell": target_cell,
-                "operation": str(block.get("operation") or "write_multiline").strip() or "write_multiline",
-                "content": "\n".join(rendered_lines),
-                "value": "\n".join(rendered_lines),
-                "lines": deepcopy(lines_config),
-                "source_path": str(block.get("source_path") or "").strip(),
-                "mapping_confirmed": bool(block.get("confirmed") or block.get("mapping_confirmed")),
-            }
+        operation_result = build_block_runtime_operations(
+            block_name=block_name,
+            block_key=block_key,
+            lines=rendered_lines,
+            target_cell=target_cell,
+            operation=operation,
+            mapping_confirmed=mapping_confirmed,
         )
+        operation_result["lines"] = deepcopy(lines_config)
+        operation_result["source_path"] = str(block.get("source_path") or "").strip()
+        operations.append(operation_result)
     return {"success": True, "operations": operations, "warnings": warnings}
 
 
-def build_unified_operations(structured_operations, table_operations, block_operations):
+def build_unified_operations(
+    structured_operations,
+    table_operations,
+    block_operations,
+    export_operations=None,
+):
     unified = []
+    if isinstance(export_operations, list) and export_operations:
+        for operation in export_operations:
+            if not isinstance(operation, dict):
+                continue
+            unified.append(deepcopy(operation))
+
+        return {
+            "success": True,
+            "operations": unified,
+            "counts": {
+                "structured": 0,
+                "tables": 0,
+                "blocks": 0,
+                "export": len(export_operations),
+                "unified": len(unified),
+            },
+        }
+
     for operation in structured_operations if isinstance(structured_operations, list) else []:
         if not isinstance(operation, dict):
             continue

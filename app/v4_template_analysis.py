@@ -891,6 +891,26 @@ def _semantic_target_cell(context, row, col):
     return str(info.get("merged_start") or ref).strip().upper()
 
 
+def _semantic_coordinates(source_cell="", target_cell="", cells=None, row=None, col=None, page=None, bbox=None):
+    normalized_cells = []
+    if isinstance(cells, list):
+        normalized_cells = [
+            str(cell).strip().upper()
+            for cell in cells
+            if str(cell).strip()
+        ]
+
+    return {
+        "source_cell": str(source_cell or "").strip().upper(),
+        "target_cell": str(target_cell or "").strip().upper(),
+        "cells": normalized_cells,
+        "row": row,
+        "col": col,
+        "page": page,
+        "bbox": bbox if isinstance(bbox, dict) else {},
+    }
+
+
 def _semantic_right_target(context, row, col):
     for offset in range(1, 5):
         target_col = col + offset
@@ -918,11 +938,13 @@ def _semantic_region(region_id, region_type, label, source_cell, target_cell, ce
         "region_id": region_id,
         "type": region_type,
         "label": label,
-        "source_cell": source_cell,
-        "target_cell": target_cell,
-        "cells": cells,
-        "row": row,
-        "col": col,
+        "coordinates": _semantic_coordinates(
+            source_cell=source_cell,
+            target_cell=target_cell,
+            cells=cells,
+            row=row,
+            col=col,
+        ),
         "confidence": round(float(confidence), 2),
         "reason": reason,
         "write_mode": write_mode,

@@ -103,6 +103,7 @@ def _visual_coordinates(node):
 
     visual_metadata = node.get("visual_metadata")
     if isinstance(visual_metadata, dict):
+        visual_metadata = normalize_dict(visual_metadata)
         return {
             "source_cell": visual_metadata.get("source_cell", ""),
             "target_cell": visual_metadata.get("target_cell", ""),
@@ -113,8 +114,8 @@ def _visual_coordinates(node):
         }
 
     return {
-        "source_cell": node.get("source_cell", ""),
-        "target_cell": node.get("target_cell", ""),
+        "source_cell": "",
+        "target_cell": "",
         "row": None,
         "col": None,
         "page": None,

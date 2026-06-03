@@ -160,41 +160,29 @@ def build_semantic_summary_from_metadata(
     )
 
 
-def build_visual_metadata(
-    source_cell="",
-    target_cell="",
-    row=None,
-    col=None,
-    region="",
-    page=None,
-    bbox=None,
-):
+def build_visual_metadata(coordinates=None, region=""):
+    coordinates_dict = build_visual_coordinates(coordinates)
     return {
-        "source_cell": normalize_text(source_cell),
-        "target_cell": normalize_text(target_cell),
-        "row": row,
-        "col": col,
+        "source_cell": coordinates_dict.get("source_cell", ""),
+        "target_cell": coordinates_dict.get("target_cell", ""),
+        "row": coordinates_dict.get("row"),
+        "col": coordinates_dict.get("col"),
         "region": normalize_text(region),
-        "page": page,
-        "bbox": normalize_dict(bbox),
+        "page": coordinates_dict.get("page"),
+        "bbox": normalize_dict(coordinates_dict.get("bbox")),
     }
 
 
-def build_visual_coordinates(
-    source_cell="",
-    target_cell="",
-    row=None,
-    col=None,
-    page=None,
-    bbox=None,
-):
+def build_visual_coordinates(coordinates=None):
+    coordinates_dict = normalize_dict(coordinates)
     return {
-        "source_cell": source_cell or "",
-        "target_cell": target_cell or "",
-        "row": row,
-        "col": col,
-        "page": page,
-        "bbox": normalize_dict(bbox),
+        "source_cell": normalize_text(coordinates_dict.get("source_cell")),
+        "target_cell": normalize_text(coordinates_dict.get("target_cell")),
+        "cells": normalize_list(coordinates_dict.get("cells")),
+        "row": coordinates_dict.get("row"),
+        "col": coordinates_dict.get("col"),
+        "page": coordinates_dict.get("page"),
+        "bbox": normalize_dict(coordinates_dict.get("bbox")),
     }
 
 
@@ -251,12 +239,7 @@ def build_visual_merge(
 
 
 def build_visual_logic(
-    source_cell="",
-    target_cell="",
-    row=None,
-    col=None,
-    page=None,
-    bbox=None,
+    coordinates=None,
     region="",
     orientation="",
     role="",
@@ -269,14 +252,7 @@ def build_visual_logic(
     merge_dict = normalize_dict(merge)
 
     return {
-        "coordinates": build_visual_coordinates(
-            source_cell=source_cell,
-            target_cell=target_cell,
-            row=row,
-            col=col,
-            page=page,
-            bbox=bbox,
-        ),
+        "coordinates": build_visual_coordinates(coordinates),
         "layout": build_visual_layout(
             region=region,
             orientation=orientation,
@@ -564,13 +540,8 @@ def normalize_semantic_summary(value=None):
 def normalize_visual_metadata(value=None):
     value_dict = normalize_dict(value)
     return build_visual_metadata(
-        source_cell=value_dict.get("source_cell", ""),
-        target_cell=value_dict.get("target_cell", ""),
-        row=value_dict.get("row"),
-        col=value_dict.get("col"),
+        coordinates=value_dict,
         region=value_dict.get("region", ""),
-        page=value_dict.get("page"),
-        bbox=value_dict.get("bbox", {}),
     )
 
 
@@ -590,8 +561,7 @@ def build_node_shared_contract(
     label="",
     description="",
     field_type="",
-    source_cell="",
-    target_cell="",
+    coordinates=None,
     metadata=None,
     visual_metadata=None,
     condition_metadata=None,
@@ -599,6 +569,9 @@ def build_node_shared_contract(
     include_condition_metadata=False,
 ):
     normalized_metadata = normalize_metadata(metadata)
+    coordinates_dict = build_visual_coordinates(coordinates)
+    source_cell = coordinates_dict.get("source_cell", "")
+    target_cell = coordinates_dict.get("target_cell", "")
     shared_contract = {
         "metadata": normalized_metadata,
         "semantic_summary": build_semantic_summary_from_metadata(
@@ -613,8 +586,7 @@ def build_node_shared_contract(
 
     if include_visual_metadata:
         default_visual_metadata = build_visual_metadata(
-            source_cell=source_cell,
-            target_cell=target_cell,
+            coordinates=coordinates_dict,
         )
         merged_visual_metadata = {
             **default_visual_metadata,
@@ -691,8 +663,10 @@ def build_field_node(
         label=label,
         description=ai_extract_hint,
         field_type=field_type,
-        source_cell=source_cell,
-        target_cell=target_cell,
+        coordinates={
+            "source_cell": source_cell,
+            "target_cell": target_cell,
+        },
         metadata=metadata,
         include_visual_metadata=True,
         include_condition_metadata=True,
@@ -1100,7 +1074,10 @@ def build_object_node(
         label=label,
         description=object_type,
         field_type=object_type,
-        source_cell=cell,
+        coordinates={
+            "source_cell": cell,
+            "cells": [cell] if cell else [],
+        },
         metadata=metadata,
     )
 
@@ -1122,38 +1099,31 @@ def build_visual_semantic_node(
     node_id,
     semantic_type,
     label="",
-    cell="",
+    coordinates=None,
     region=None,
     style=None,
     confidence=0,
     metadata=None,
     source=None,
-    row=None,
-    col=None,
-    page=None,
-    bbox=None,
     orientation="",
     role="",
     priority=0,
     merge=None,
 ):
+    coordinates_dict = build_visual_coordinates(coordinates)
+    cell = coordinates_dict.get("source_cell", "")
     shared_contract = build_node_shared_contract(
         label=label,
         description=semantic_type,
         field_type="visual",
-        source_cell=cell,
+        coordinates=coordinates_dict,
         metadata=metadata,
-        visual_metadata=build_visual_metadata(source_cell=cell),
+        visual_metadata=build_visual_metadata(coordinates=coordinates_dict),
         include_visual_metadata=True,
     )
 
     visual_logic = build_visual_logic(
-        source_cell=cell,
-        target_cell=cell,
-        row=row,
-        col=col,
-        page=page,
-        bbox=bbox,
+        coordinates=coordinates_dict,
         region=region,
         orientation=orientation,
         role=role,

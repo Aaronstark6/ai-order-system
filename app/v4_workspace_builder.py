@@ -112,12 +112,6 @@ def _visual_coordinates(node):
         }
 
     return {
-        "source_cell": node.get("source_cell", ""),
-        "target_cell": node.get("target_cell", ""),
-        "row": None,
-        "col": None,
-        "page": None,
-        "bbox": {},
     }
 
 
