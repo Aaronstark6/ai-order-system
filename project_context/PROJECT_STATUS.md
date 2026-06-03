@@ -58,6 +58,8 @@ Stage2 config rebuild:
 - Current goal is not schema generation, but confirming whether existing Template Analysis can provide real input to `build_document_intelligence_model(template_analysis)`.
 - Confirmed `analyze_template()` can generate `semantic_regions`, but `set_template_analysis()` did not preserve `semantic_regions` / `semantic_summary`.
 - Current task fixes that state write breakpoint so Stage2 Config DocumentModel Runtime can receive real Template Analysis input after analysis is rerun.
+- Stage2 Config has established an independent Template Library.
+- Stage2 Config no longer needs the old configuration page for template selection before running template analysis.
 
 Latest observed real flow result:
 

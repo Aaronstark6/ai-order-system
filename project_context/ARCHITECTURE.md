@@ -150,3 +150,22 @@ State preservation rule:
 - `set_template_analysis()` must preserve real `semantic_summary`.
 - Missing `semantic_regions` should become an empty list.
 - Missing `semantic_summary` should become an empty dict.
+
+Stage2 Config Template Library:
+
+```text
+Stage2 Config
+-> Template Library
+-> Select Template
+-> analyze_template()
+-> set_template_analysis()
+-> pipeline_state.template_analysis
+-> DocumentModel Runtime
+```
+
+Template Library rule:
+
+- It reads `data/v4_template_uploads` directly.
+- It does not write `template_profiles.json`.
+- It does not depend on the old configuration page.
+- It only uses the selected template to run Template Analysis and refresh runtime state.

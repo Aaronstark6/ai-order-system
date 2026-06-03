@@ -176,6 +176,16 @@
             <div id="profileList" class="profile-list"></div>
 
             <div style="margin-top:16px;">
+                <h2>Template Library</h2>
+                <div class="actions">
+                    <button id="templateLibraryButton" type="button">Load Template Library</button>
+                    <button id="runTemplateAnalysisButton" class="secondary" type="button">Run Template Analysis</button>
+                </div>
+                <div id="currentTemplateArea" class="status">Current Template: none</div>
+                <div id="templateLibraryArea" class="status">Template library not loaded.</div>
+            </div>
+
+            <div style="margin-top:16px;">
                 <h2>Stage2 Source Summary</h2>
                 <div class="actions">
                     <button id="sourceSummaryButton" type="button">Load Source Summary</button>
@@ -217,6 +227,8 @@
     <script>
         let stage2Profiles = [];
         let currentStage2Profile = null;
+        let templateLibrary = [];
+        let currentTemplate = null;
 
         function setStatus(text) {
             document.getElementById("status").textContent = text;
@@ -240,6 +252,15 @@
             list.querySelectorAll("button[data-profile-id]").forEach(button => {
                 button.addEventListener("click", () => loadProfile(button.dataset.profileId));
             });
+        }
+
+        function renderCurrentTemplate(template) {
+            const area = document.getElementById("currentTemplateArea");
+            if (!template || !template.template_path) {
+                area.textContent = "Current Template: none";
+                return;
+            }
+            area.textContent = `Current Template: ${template.template_filename || template.filename || ""}`;
         }
 
         function yesNo(value) {
@@ -292,6 +313,35 @@
                     `).join("") : '<div class="small">No cache items.</div>'}
                 </div>
             `;
+        }
+
+        function renderTemplateLibrary(result) {
+            templateLibrary = Array.isArray(result.templates) ? result.templates : [];
+            currentTemplate = result.current_template || currentTemplate;
+            renderCurrentTemplate(currentTemplate);
+            const area = document.getElementById("templateLibraryArea");
+            area.className = "status";
+            if (!templateLibrary.length) {
+                area.innerHTML = '<div class="small">No templates found.</div>';
+                return;
+            }
+            area.innerHTML = `
+                <div class="cache-list">
+                    ${templateLibrary.map(template => `
+                        <div class="cache-item">
+                            <h3>${escapeHtml(template.filename || "")}</h3>
+                            <div class="small">modified: ${escapeHtml(template.modified_time || "")}</div>
+                            <div class="small">size: ${Number(template.size_bytes || 0)} bytes</div>
+                            <div class="actions">
+                                <button type="button" data-template-path="${escapeHtml(template.full_path || "")}">Select</button>
+                            </div>
+                        </div>
+                    `).join("")}
+                </div>
+            `;
+            area.querySelectorAll("button[data-template-path]").forEach(button => {
+                button.addEventListener("click", () => selectTemplate(button.dataset.templatePath));
+            });
         }
 
         function renderTemplateAnalysisSummary(result) {
@@ -352,6 +402,30 @@
                         </div>
                     `).join("") : '<div class="small">No template cache summaries.</div>'}
                 </div>
+            `;
+        }
+
+        function renderTemplateAnalysisRun(result) {
+            const diagnostics = Array.isArray(result.diagnostics) ? result.diagnostics : [];
+            const area = document.getElementById("templateLibraryArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>template</span>
+                        <strong>${escapeHtml(result.template_filename || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>semantic regions</span>
+                        <strong>${result.semantic_regions_count || 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>status</span>
+                        <strong>${result.ok ? "ok" : "failed"}</strong>
+                    </div>
+                </div>
+                <div class="status">diagnostics: ${diagnostics.map(escapeHtml).join(", ") || "-"}</div>
+                <div class="status">semantic_summary: ${escapeHtml(JSON.stringify(result.semantic_summary || {}, null, 2))}</div>
             `;
         }
 
@@ -533,6 +607,51 @@
             setStatus(`Active Stage2 profile: ${currentStage2Profile.profile_id}`);
         }
 
+        async function loadTemplateLibrary() {
+            const response = await fetch("/api/v4/stage2-config/template-library");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Load template library failed.");
+            }
+            renderTemplateLibrary(result);
+            renderJson(result);
+            setStatus(`Loaded ${result.template_count || 0} templates.`);
+        }
+
+        async function selectTemplate(templatePath) {
+            const response = await fetch("/api/v4/stage2-config/select-template", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ template_path: templatePath }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Select template failed.");
+            }
+            currentTemplate = {
+                template_path: result.template_path,
+                template_filename: result.template_filename,
+            };
+            renderCurrentTemplate(currentTemplate);
+            renderJson(result);
+            setStatus(`Selected template: ${result.template_filename || ""}.`);
+        }
+
+        async function runTemplateAnalysis() {
+            const response = await fetch("/api/v4/stage2-config/run-template-analysis", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.detail || result.error || "Run template analysis failed.");
+            }
+            renderTemplateAnalysisRun(result);
+            renderJson(result);
+            setStatus(`Template analysis semantic_regions_count: ${result.semantic_regions_count || 0}.`);
+        }
+
         async function loadProfile(profileId) {
             const response = await fetch(`/api/v4/stage2-config/profiles/${encodeURIComponent(profileId)}`);
             const result = await response.json();
@@ -597,6 +716,18 @@
         });
         document.getElementById("createButton").addEventListener("click", () => {
             createProfile().catch(error => setStatus(error.message || "Create profile failed."));
+        });
+        document.getElementById("templateLibraryButton").addEventListener("click", () => {
+            loadTemplateLibrary().catch(error => {
+                document.getElementById("templateLibraryArea").textContent = error.message || "Load template library failed.";
+                setStatus(error.message || "Load template library failed.");
+            });
+        });
+        document.getElementById("runTemplateAnalysisButton").addEventListener("click", () => {
+            runTemplateAnalysis().catch(error => {
+                document.getElementById("templateLibraryArea").textContent = error.message || "Run template analysis failed.";
+                setStatus(error.message || "Run template analysis failed.");
+            });
         });
         document.getElementById("sourceSummaryButton").addEventListener("click", () => {
             loadSourceSummary().catch(error => {

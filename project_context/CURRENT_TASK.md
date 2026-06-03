@@ -2,28 +2,25 @@
 
 Task:
 
-`STAGE2_TEMPLATE_ANALYSIS_STATE_PRESERVE_01`
+`STAGE2_CONFIG_TEMPLATE_LIBRARY_01`
 
 Status:
 
-- Fixing the Template Analysis state preservation breakpoint.
+- Building an independent Template Library inside Stage2 Config.
 
 Purpose:
 
-- Preserve `semantic_regions` and `semantic_summary` when `set_template_analysis()` writes `pipeline_state.template_analysis`.
-- Provide real Template Analysis input for Stage2 Config DocumentModel Runtime.
-- Allow `build_document_intelligence_model(template_analysis)` to build from genuine `semantic_regions` after template analysis is rerun.
+- Let Stage2 Config read templates directly from `data/v4_template_uploads`.
+- Let the user select a template without using the old configuration page.
+- Run `analyze_template(template_path)` from the Stage2 Config page.
+- Save the result through `set_template_analysis()` so `pipeline_state.template_analysis` contains real Template Analysis data.
+- Feed Stage2 Config DocumentModel Runtime with real `semantic_regions`.
 
 Rules:
 
-- Do not modify `analyze_template()`.
-- Do not modify DocumentModel Builder.
-- Do not modify Workspace, old routes, old config pages, or export runtime.
-- Do not write old profile data.
-- Do not fake `semantic_regions`.
-- Do not treat cache `rules.json` as `semantic_regions`.
-
-Expected next test:
-
-- Rerun template analysis so `set_template_analysis()` stores the newly preserved fields.
-- Then verify `/api/v4/stage2-config/documentmodel-runtime` reports `semantic_regions_count > 0`.
+- Do not modify old configuration pages.
+- Do not modify Workspace.
+- Do not modify `template_profiles.json`.
+- Do not modify `stage2_config_profiles.json`.
+- Do not modify `analyze_template()` or DocumentModel Builder.
+- Do not restore old export chains.

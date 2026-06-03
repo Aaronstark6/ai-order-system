@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, is_dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,10 +20,56 @@ from app.v4_stage2_config_store import (
 
 router = APIRouter(prefix="/api/v4/stage2-config")
 
+_STAGE2_CONFIG_CURRENT_TEMPLATE: dict[str, str] = {
+    "template_path": "",
+    "template_filename": "",
+}
+
 
 def _read_json_file(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def _template_uploads_root() -> Path:
+    return get_base_dir() / "data" / "v4_template_uploads"
+
+
+def _template_file_summary(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    return {
+        "filename": path.name,
+        "full_path": str(path),
+        "size_bytes": stat.st_size,
+        "modified_time": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def _list_stage2_template_uploads() -> list[dict[str, Any]]:
+    root = _template_uploads_root()
+    if not root.is_dir():
+        return []
+    files = [path for path in root.iterdir() if path.is_file()]
+    files.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    return [_template_file_summary(path) for path in files]
+
+
+def _resolve_stage2_template_path(template_path: Any) -> Path:
+    raw_path = _string_value(template_path)
+    if not raw_path:
+        raise HTTPException(status_code=400, detail="template_path is required")
+    root = _template_uploads_root().resolve()
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="template_path must be inside data/v4_template_uploads") from exc
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail="template file not found")
+    return candidate
 
 
 def _count_profile_data(data: Any) -> int:
@@ -987,6 +1034,84 @@ def api_v4_stage2_config_health():
         "module": "stage2_config",
         "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
     }
+
+
+@router.get("/template-library")
+def api_v4_stage2_config_template_library():
+    templates = _list_stage2_template_uploads()
+    return {
+        "ok": True,
+        "module": "stage2_config",
+        "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+        "template_count": len(templates),
+        "templates": templates,
+        "current_template": dict(_STAGE2_CONFIG_CURRENT_TEMPLATE),
+    }
+
+
+@router.post("/select-template")
+def api_v4_stage2_config_select_template(payload: Any = Body(None)):
+    payload = payload if isinstance(payload, dict) else {}
+    template_path = _resolve_stage2_template_path(payload.get("template_path"))
+    _STAGE2_CONFIG_CURRENT_TEMPLATE["template_path"] = str(template_path)
+    _STAGE2_CONFIG_CURRENT_TEMPLATE["template_filename"] = template_path.name
+    return {
+        "ok": True,
+        "module": "stage2_config",
+        "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+        "template_path": str(template_path),
+        "template_filename": template_path.name,
+    }
+
+
+@router.post("/run-template-analysis")
+def api_v4_stage2_config_run_template_analysis():
+    template_path_text = _STAGE2_CONFIG_CURRENT_TEMPLATE.get("template_path") or ""
+    diagnostics = []
+    if not template_path_text:
+        return {
+            "ok": False,
+            "module": "stage2_config",
+            "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+            "diagnostics": ["stage2_config_template_not_selected"],
+            "template_filename": "",
+            "semantic_regions_count": 0,
+            "semantic_summary": {},
+        }
+    try:
+        template_path = _resolve_stage2_template_path(template_path_text)
+        from app.v4_pipeline_state import set_template_analysis
+        from app.v4_template_analysis import analyze_template
+
+        analysis = analyze_template(template_path)
+        analysis = analysis if isinstance(analysis, dict) else {}
+        set_template_analysis(analysis)
+        semantic_regions = analysis.get("semantic_regions")
+        semantic_summary = analysis.get("semantic_summary")
+        return {
+            "ok": True,
+            "module": "stage2_config",
+            "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+            "template_path": str(template_path),
+            "template_filename": template_path.name,
+            "semantic_regions_count": len(semantic_regions) if isinstance(semantic_regions, list) else 0,
+            "semantic_summary": semantic_summary if isinstance(semantic_summary, dict) else {},
+            "diagnostics": diagnostics,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        diagnostics.append(f"template_analysis_failed: {exc}")
+        return {
+            "ok": False,
+            "module": "stage2_config",
+            "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+            "template_path": template_path_text,
+            "template_filename": Path(template_path_text).name,
+            "semantic_regions_count": 0,
+            "semantic_summary": {},
+            "diagnostics": diagnostics,
+        }
 
 
 @router.get("/source-summary")
