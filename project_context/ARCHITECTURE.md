@@ -169,3 +169,18 @@ Template Library rule:
 - It does not write `template_profiles.json`.
 - It does not depend on the old configuration page.
 - It only uses the selected template to run Template Analysis and refresh runtime state.
+
+DocumentModel Builder signature fix:
+
+```text
+Template Analysis
+-> semantic_regions
+-> build_document_intelligence_model
+-> DocumentModel Runtime
+```
+
+Current fix:
+
+- The builder accepts visual node `cell` / row / col / page / bbox call arguments.
+- These values are preserved through `coordinates`.
+- This keeps DocumentModel Runtime moving without changing Stage2 Config or old routes.

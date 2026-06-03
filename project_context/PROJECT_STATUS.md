@@ -60,6 +60,8 @@ Stage2 config rebuild:
 - Current task fixes that state write breakpoint so Stage2 Config DocumentModel Runtime can receive real Template Analysis input after analysis is rerun.
 - Stage2 Config has established an independent Template Library.
 - Stage2 Config no longer needs the old configuration page for template selection before running template analysis.
+- Stage2 Config has connected Template Library -> Template Analysis -> `semantic_regions`.
+- Current fix addresses a DocumentModel Builder visual node parameter signature mismatch so DocumentModel Runtime can continue building.
 
 Latest observed real flow result:
 

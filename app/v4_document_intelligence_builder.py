@@ -29,7 +29,7 @@ from app.v4_document_intelligence import (
     build_runtime_policy_node,
     build_section_node,
     build_table_node,
-    build_visual_semantic_node,
+    build_visual_semantic_node as _build_visual_semantic_node,
     make_node_id,
     normalize_dict,
     normalize_document_intelligence_model,
@@ -60,6 +60,54 @@ _NODE_COLLECTION_BY_TYPE = {
     NODE_TYPE_VISUAL: "visual_semantics",
     NODE_TYPE_RUNTIME_POLICY: "runtime_policies",
 }
+
+
+def build_visual_semantic_node(
+    node_id,
+    semantic_type,
+    label="",
+    coordinates=None,
+    region=None,
+    style=None,
+    confidence=0,
+    metadata=None,
+    source=None,
+    orientation="",
+    role="",
+    priority=0,
+    merge=None,
+    cell=None,
+    row=None,
+    col=None,
+    page=None,
+    bbox=None,
+):
+    coordinates_dict = normalize_dict(coordinates)
+    if cell is not None and not coordinates_dict.get("source_cell"):
+        coordinates_dict["source_cell"] = normalize_text(cell)
+    if row is not None:
+        coordinates_dict["row"] = row
+    if col is not None:
+        coordinates_dict["col"] = col
+    if page is not None:
+        coordinates_dict["page"] = page
+    if bbox is not None:
+        coordinates_dict["bbox"] = normalize_dict(bbox)
+    return _build_visual_semantic_node(
+        node_id=node_id,
+        semantic_type=semantic_type,
+        label=label,
+        coordinates=coordinates_dict,
+        region=region,
+        style=style,
+        confidence=confidence,
+        metadata=metadata,
+        source=source,
+        orientation=orientation,
+        role=role,
+        priority=priority,
+        merge=merge,
+    )
 
 
 def _safe_number(value, default=0):
