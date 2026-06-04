@@ -234,7 +234,6 @@ def _semantic_field_count(schema: Any) -> int:
 def _legacy_profile_summary(profile: dict[str, Any]) -> dict[str, Any]:
     semantic_schema = profile.get("semantic_workspace_schema")
     workspace_fields = profile.get("workspace_fields")
-    field_bound_operations = profile.get("field_bound_operations")
     return {
         "profile_id": str(profile.get("profile_id") or profile.get("id") or "").strip(),
         "profile_name": str(profile.get("profile_name") or profile.get("name") or "").strip(),
@@ -256,8 +255,6 @@ def _legacy_profile_summary(profile: dict[str, Any]) -> dict[str, Any]:
         "semantic_workspace_schema_field_count": _semantic_field_count(semantic_schema),
         "has_workspace_fields": isinstance(workspace_fields, list),
         "workspace_fields_count": len(workspace_fields) if isinstance(workspace_fields, list) else 0,
-        "has_field_bound_operations": isinstance(field_bound_operations, list),
-        "field_bound_operations_count": len(field_bound_operations) if isinstance(field_bound_operations, list) else 0,
         "top_level_keys": sorted(str(key) for key in profile.keys()),
     }
 
@@ -393,10 +390,6 @@ def _template_analysis_diagnosis(legacy_profiles: list[dict[str, Any]], template
         1 for profile in legacy_profiles
         if int(profile.get("workspace_fields_count") or 0) > 0
     )
-    profiles_with_field_bound_operations = sum(
-        1 for profile in legacy_profiles
-        if int(profile.get("field_bound_operations_count") or 0) > 0
-    )
     total_cache_rules = sum(
         int((item.get("rules_summary") or {}).get("rules_count") or 0)
         for item in template_cache
@@ -405,8 +398,6 @@ def _template_analysis_diagnosis(legacy_profiles: list[dict[str, Any]], template
         likely_issue = "semantic_workspace_schema_missing_and_cache_rules_too_few"
     elif profiles_with_semantic_schema > 0 and profiles_with_workspace_fields == 0:
         likely_issue = "semantic_schema_exists_but_workspace_fields_missing"
-    elif profiles_with_workspace_fields > 0 and profiles_with_field_bound_operations == 0:
-        likely_issue = "workspace_fields_exist_but_field_bound_operations_missing"
     else:
         likely_issue = "needs_manual_review"
     return {
@@ -414,7 +405,6 @@ def _template_analysis_diagnosis(legacy_profiles: list[dict[str, Any]], template
         "cache_count": len(template_cache),
         "profiles_with_semantic_schema": profiles_with_semantic_schema,
         "profiles_with_workspace_fields": profiles_with_workspace_fields,
-        "profiles_with_field_bound_operations": profiles_with_field_bound_operations,
         "total_cache_rules": total_cache_rules,
         "likely_issue": likely_issue,
     }

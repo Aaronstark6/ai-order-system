@@ -37,7 +37,6 @@ class Stage2ConfigProfile:
     document_model_source: dict[str, Any] = field(default_factory=dict)
     semantic_workspace_schema: dict[str, Any] = field(default_factory=dict)
     workspace_fields: list[dict[str, Any]] = field(default_factory=list)
-    field_bound_operations: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
