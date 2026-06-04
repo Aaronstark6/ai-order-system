@@ -67,6 +67,8 @@ Stage2 config rebuild:
 - Stage2 Template Analysis 修复字段识别优先级。此前 section_header 判断过宽，导致文档编号、日期、客户名称等明显字段被识别为 section_header。当前修复让有明确右侧/下方 target 的 label 优先成为 field_label。
 - 进入 DocumentModel 节点质量审计阶段，重点定位 duplicate node_id 与 missing link 来源。
 - 修复 DocumentModel node_id 生成策略。此前同 label 不同 source_cell 会生成重复 node_id，当前调整为 node_id seed 包含 source_cell，保证通用模板中同名字段不同位置可共存。
+- LINK_TYPE_WRITES_TO 调整为 target_cell contract。Validator 不再要求 cell.* node 存在。DocumentModel 使用 target_cell 作为坐标目标。
+- 新增 Stage2 Config Workspace Runtime Viewer，用于观察 DocumentModel 到 workspace_fields 的真实转换结果。
 
 Latest observed real flow result:
 

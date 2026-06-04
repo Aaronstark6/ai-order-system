@@ -2,21 +2,21 @@
 
 Task:
 
-`STAGE2_DOCUMENTMODEL_NODE_ID_FIX_01`
+`STAGE2_WORKSPACE_RUNTIME_PROBE_01`
 
 Status:
 
-- Fixing DocumentModel node ID generation for repeated labels.
+- Adding a read-only Workspace Runtime Viewer to Stage2 Config.
 
 Purpose:
 
-- Make same-label nodes at different source cells produce different stable node IDs.
-- Include `source_cell` in field, section, table, and visual node identity seeds.
-- Let runtime policy IDs inherit uniqueness from their source node IDs.
+- Observe the real in-memory conversion from DocumentModel to workspace fields.
+- Report workspace sections, fields, warnings, and diagnostics.
+- Verify WorkspaceBuilder can consume the current built DocumentModel.
 
 Rules:
 
-- Modify only the Builder-local seed passed to `make_node_id()`.
-- Do not modify `make_node_id()`, Template Analysis, Stage2 Config, pipeline state, Workspace, or export runtime.
-- Do not fix missing cell links in this task.
+- Keep the viewer read-only.
+- Do not modify WorkspaceBuilder, DocumentModel, Template Analysis, pipeline state, Workspace page, or export runtime.
+- Do not write configuration data.
 - Do not restore old export chains.

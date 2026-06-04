@@ -234,6 +234,14 @@
             </div>
 
             <div style="margin-top:16px;">
+                <h2>Workspace Runtime</h2>
+                <div class="actions">
+                    <button id="workspaceRuntimeButton" type="button">Load Workspace Runtime</button>
+                </div>
+                <div id="workspaceRuntimeArea" class="status">Workspace Runtime not loaded.</div>
+            </div>
+
+            <div style="margin-top:16px;">
                 <h2>DocumentModel Node ID Audit</h2>
                 <div class="actions">
                     <button id="documentModelNodeIdAuditButton" type="button">Load DocumentModel Node ID Audit</button>
@@ -773,6 +781,65 @@
             `;
         }
 
+        function renderWorkspaceRuntime(result) {
+            const runtime = result.runtime || {};
+            const workspaceFields = Array.isArray(runtime.workspace_fields) ? runtime.workspace_fields : [];
+            const warnings = Array.isArray(runtime.warnings) ? runtime.warnings : [];
+            const diagnostics = Array.isArray(runtime.diagnostics) ? runtime.diagnostics : [];
+            const area = document.getElementById("workspaceRuntimeArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>status</span>
+                        <strong>${escapeHtml(runtime.status || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>semantic_regions_count</span>
+                        <strong>${Number(runtime.semantic_regions_count || 0)}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>document_node_count</span>
+                        <strong>${Number(runtime.document_node_count || 0)}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>field_node_count</span>
+                        <strong>${Number(runtime.field_node_count || 0)}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>workspace_sections_count</span>
+                        <strong>${Number(runtime.workspace_sections_count || 0)}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>workspace_fields_count</span>
+                        <strong>${Number(runtime.workspace_fields_count || 0)}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>workspace_warnings_count</span>
+                        <strong>${Number(runtime.workspace_warnings_count || 0)}</strong>
+                    </div>
+                </div>
+                <div class="status">
+                    warnings: ${escapeHtml(JSON.stringify(warnings, null, 2))}
+                    diagnostics: ${diagnostics.map(escapeHtml).join(", ") || "-"}
+                </div>
+                <div class="cache-list">
+                    ${workspaceFields.length ? workspaceFields.map(field => `
+                        <div class="cache-item">
+                            <h3>${escapeHtml(field.label || field.field_key || field.node_id || "")}</h3>
+                            <div class="small">field_key: ${escapeHtml(field.field_key || "")}</div>
+                            <div class="small">field_type: ${escapeHtml(field.field_type || "")}</div>
+                            <div class="small">section: ${escapeHtml(field.section_title || field.section_key || "")}</div>
+                            <div class="small">source_cell: ${escapeHtml(field.source_cell || "")}</div>
+                            <div class="small">target_cell: ${escapeHtml(field.target_cell || "")}</div>
+                            <div class="small">write_mode: ${escapeHtml(field.write_mode || "")}</div>
+                            <div class="small">visibility: ${escapeHtml(field.visibility || "")}</div>
+                        </div>
+                    `).join("") : '<div class="small">No workspace fields.</div>'}
+                </div>
+            `;
+        }
+
         async function healthCheck() {
             const response = await fetch("/api/v4/stage2-config/health");
             const result = await response.json();
@@ -953,6 +1020,18 @@
             setStatus(`DocumentModel Node ID Audit status: ${audit.status || "unknown"}.`);
         }
 
+        async function loadWorkspaceRuntime() {
+            const response = await fetch("/api/v4/stage2-config/workspace-runtime");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Load Workspace Runtime failed.");
+            }
+            renderWorkspaceRuntime(result);
+            renderJson(result);
+            const runtime = result.runtime || {};
+            setStatus(`Workspace Runtime status: ${runtime.status || "unknown"}.`);
+        }
+
         document.getElementById("healthButton").addEventListener("click", () => {
             healthCheck().catch(error => setStatus(error.message || "Health check failed."));
         });
@@ -1008,6 +1087,12 @@
             buildDocumentModelRuntime().catch(error => {
                 document.getElementById("documentModelRuntimeArea").textContent = error.message || "Build DocumentModel Runtime failed.";
                 setStatus(error.message || "Build DocumentModel Runtime failed.");
+            });
+        });
+        document.getElementById("workspaceRuntimeButton").addEventListener("click", () => {
+            loadWorkspaceRuntime().catch(error => {
+                document.getElementById("workspaceRuntimeArea").textContent = error.message || "Load Workspace Runtime failed.";
+                setStatus(error.message || "Load Workspace Runtime failed.");
             });
         });
         document.getElementById("documentModelNodeIdAuditButton").addEventListener("click", () => {

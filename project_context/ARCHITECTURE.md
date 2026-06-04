@@ -236,3 +236,22 @@ DocumentModel Node Identity 规则：
 - `node_id` 必须稳定、唯一、可追溯。
 - 同 label 不同 `source_cell` 必须生成不同 `node_id`。
 - `node_id` 生成优先使用 label + source_cell，不使用随机数。
+
+DocumentModel Link Contract：
+
+- 普通业务 link：必须存在目标 node。
+- `LINK_TYPE_WRITES_TO`：目标为 `metadata.target_cell`，不要求 cell node 存在。
+
+新增链路：
+
+```text
+Stage2 Config
+↓
+Template Analysis
+↓
+DocumentModel
+↓
+WorkspaceBuilder
+↓
+workspace_fields
+```

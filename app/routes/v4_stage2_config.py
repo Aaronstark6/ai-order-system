@@ -422,6 +422,7 @@ def _template_analysis_diagnosis(legacy_profiles: list[dict[str, Any]], template
 
 DOCUMENTMODEL_VIEWER_MAX_NODES = 200
 DOCUMENTMODEL_NODE_ID_AUDIT_MAX_DUPLICATE_NODES = 20
+WORKSPACE_RUNTIME_MAX_FIELDS = 200
 
 
 def _string_value(value: Any) -> str:
@@ -1435,6 +1436,109 @@ def _build_documentmodel_runtime() -> dict[str, Any]:
     return runtime
 
 
+def _empty_workspace_runtime(status: str, diagnostics: list[str] | None = None) -> dict[str, Any]:
+    return {
+        "status": status,
+        "semantic_regions_count": 0,
+        "document_node_count": 0,
+        "field_node_count": 0,
+        "workspace_sections_count": 0,
+        "workspace_fields_count": 0,
+        "workspace_warnings_count": 0,
+        "sections": [],
+        "workspace_fields": [],
+        "warnings": [],
+        "diagnostics": diagnostics or [],
+    }
+
+
+def _build_workspace_runtime() -> dict[str, Any]:
+    try:
+        from app.v4_pipeline_state import get_pipeline_state
+    except Exception as exc:
+        return _empty_workspace_runtime(
+            "unavailable",
+            [f"pipeline_state_import_failed: {exc}"],
+        )
+
+    try:
+        pipeline_state = get_pipeline_state()
+        template_analysis = pipeline_state.get("template_analysis") if isinstance(pipeline_state, dict) else None
+        if not isinstance(template_analysis, dict) or not template_analysis:
+            return _empty_workspace_runtime("unavailable", ["template_analysis_missing"])
+        semantic_regions = template_analysis.get("semantic_regions")
+        if not isinstance(semantic_regions, list) or not semantic_regions:
+            return _empty_workspace_runtime("unavailable", ["semantic_regions_missing"])
+    except Exception as exc:
+        return _empty_workspace_runtime(
+            "unavailable",
+            [f"pipeline_state_read_failed: {exc}"],
+        )
+
+    try:
+        from app.v4_document_intelligence_builder import build_document_intelligence_model
+        document_model = build_document_intelligence_model(template_analysis)
+    except Exception as exc:
+        return _empty_workspace_runtime(
+            "error",
+            [f"build_document_intelligence_model_failed: {exc}"],
+        )
+
+    try:
+        from app.v4_workspace_builder import build_workspace_model_from_document_model
+        workspace_model = build_workspace_model_from_document_model(document_model)
+    except Exception as exc:
+        runtime = _empty_workspace_runtime(
+            "error",
+            [f"build_workspace_model_from_document_model_failed: {exc}"],
+        )
+        raw_nodes = _document_model_nodes(document_model)
+        runtime["semantic_regions_count"] = len(semantic_regions)
+        runtime["document_node_count"] = len(raw_nodes)
+        runtime["field_node_count"] = sum(
+            1 for node in raw_nodes
+            if isinstance(node, dict) and _string_value(node.get("node_type")).lower() == "field"
+        )
+        return runtime
+
+    try:
+        raw_nodes = _document_model_nodes(document_model)
+        workspace_model = workspace_model if isinstance(workspace_model, dict) else {}
+        sections = workspace_model.get("sections") if isinstance(workspace_model.get("sections"), list) else []
+        workspace_fields = (
+            workspace_model.get("workspace_fields")
+            if isinstance(workspace_model.get("workspace_fields"), list)
+            else []
+        )
+        warnings = workspace_model.get("warnings") if isinstance(workspace_model.get("warnings"), list) else []
+        diagnostics = []
+        if len(workspace_fields) > WORKSPACE_RUNTIME_MAX_FIELDS:
+            diagnostics.append("workspace_fields_truncated_to_200")
+        return {
+            "status": "built",
+            "semantic_regions_count": len(semantic_regions),
+            "document_node_count": len(raw_nodes),
+            "field_node_count": sum(
+                1 for node in raw_nodes
+                if isinstance(node, dict) and _string_value(node.get("node_type")).lower() == "field"
+            ),
+            "workspace_sections_count": len(sections),
+            "workspace_fields_count": len(workspace_fields),
+            "workspace_warnings_count": len(warnings),
+            "sections": _json_safe_summary_value(sections),
+            "workspace_fields": _json_safe_summary_value(
+                workspace_fields[:WORKSPACE_RUNTIME_MAX_FIELDS]
+            ),
+            "warnings": _json_safe_summary_value(warnings),
+            "diagnostics": diagnostics,
+        }
+    except Exception as exc:
+        return _empty_workspace_runtime(
+            "error",
+            [f"workspace_runtime_summary_failed: {exc}"],
+        )
+
+
 @router.get("/health")
 def api_v4_stage2_config_health():
     return {
@@ -1610,6 +1714,17 @@ def api_v4_stage2_config_documentmodel_node_id_audit():
         "module": "stage2_config",
         "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
         "audit": audit,
+    }
+
+
+@router.get("/workspace-runtime")
+def api_v4_stage2_config_workspace_runtime():
+    runtime = _build_workspace_runtime()
+    return {
+        "ok": runtime.get("status") != "error",
+        "module": "stage2_config",
+        "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+        "runtime": runtime,
     }
 
 
