@@ -1444,11 +1444,9 @@ def _empty_workspace_runtime(status: str, diagnostics: list[str] | None = None) 
         "field_node_count": 0,
         "workspace_sections_count": 0,
         "workspace_fields_count": 0,
-        "workspace_components_count": 0,
         "workspace_warnings_count": 0,
         "sections": [],
         "workspace_fields": [],
-        "workspace_components": [],
         "warnings": [],
         "diagnostics": diagnostics or [],
     }
@@ -1512,17 +1510,10 @@ def _build_workspace_runtime() -> dict[str, Any]:
             if isinstance(workspace_model.get("workspace_fields"), list)
             else []
         )
-        workspace_components = (
-            workspace_model.get("workspace_components")
-            if isinstance(workspace_model.get("workspace_components"), list)
-            else []
-        )
         warnings = workspace_model.get("warnings") if isinstance(workspace_model.get("warnings"), list) else []
         diagnostics = []
         if len(workspace_fields) > WORKSPACE_RUNTIME_MAX_FIELDS:
             diagnostics.append("workspace_fields_truncated_to_200")
-        if len(workspace_components) > WORKSPACE_RUNTIME_MAX_FIELDS:
-            diagnostics.append("workspace_components_truncated_to_200")
         return {
             "status": "built",
             "semantic_regions_count": len(semantic_regions),
@@ -1533,14 +1524,10 @@ def _build_workspace_runtime() -> dict[str, Any]:
             ),
             "workspace_sections_count": len(sections),
             "workspace_fields_count": len(workspace_fields),
-            "workspace_components_count": len(workspace_components),
             "workspace_warnings_count": len(warnings),
             "sections": _json_safe_summary_value(sections),
             "workspace_fields": _json_safe_summary_value(
                 workspace_fields[:WORKSPACE_RUNTIME_MAX_FIELDS]
-            ),
-            "workspace_components": _json_safe_summary_value(
-                workspace_components[:WORKSPACE_RUNTIME_MAX_FIELDS]
             ),
             "warnings": _json_safe_summary_value(warnings),
             "diagnostics": diagnostics,
