@@ -354,6 +354,7 @@ def _base_workspace_field(model, node):
         "semantic_summary": _semantic_summary(node),
         "visual_metadata": _visual_metadata(node),
         "condition_metadata": _condition_metadata(node),
+        "children": [],
     }
 
 
@@ -483,6 +484,79 @@ def _section_from_workspace_field(field):
     }
 
 
+def _build_workspace_field_children(field):
+    if not isinstance(field, dict) or normalize_text(field.get("field_type")) != "table":
+        return []
+
+    metadata = normalize_dict(field.get("metadata"))
+    raw = normalize_dict(metadata.get("raw"))
+    extra = normalize_dict(metadata.get("extra"))
+    table_extra = normalize_dict(extra.get("table"))
+    table_logic = normalize_dict(field.get("table_logic"))
+
+    columns = []
+    for candidate in (
+        field.get("columns"),
+        raw.get("columns"),
+        table_extra.get("columns"),
+        table_logic.get("columns"),
+    ):
+        if isinstance(candidate, list) and candidate:
+            columns = candidate
+            break
+
+    parent_field_key = normalize_text(field.get("field_key")) or "table"
+    section_key = normalize_text(field.get("section_key"))
+    children = []
+    for index, column in enumerate(columns):
+        if not isinstance(column, dict):
+            continue
+
+        column_metadata = normalize_dict(column.get("metadata"))
+        column_raw = normalize_dict(column_metadata.get("raw"))
+        label = (
+            normalize_text(column.get("label"))
+            or normalize_text(column.get("header"))
+            or normalize_text(column.get("name"))
+            or normalize_text(column_raw.get("label"))
+            or normalize_text(column_raw.get("header"))
+            or normalize_text(column_raw.get("name"))
+            or f"列{index + 1}"
+        )
+        source_cell = (
+            normalize_text(column.get("source_cell"))
+            or normalize_text(column.get("cell"))
+            or normalize_text(column.get("header_cell"))
+            or normalize_text(column_raw.get("source_cell"))
+            or normalize_text(column_raw.get("cell"))
+            or normalize_text(column_raw.get("header_cell"))
+        )
+        target_cell = (
+            normalize_text(column.get("target_cell"))
+            or normalize_text(column_raw.get("target_cell"))
+            or source_cell
+        )
+
+        children.append(
+            {
+                "field_key": f"{parent_field_key}.column.{index + 1}",
+                "field_type": "table_column",
+                "label": label,
+                "section_key": section_key,
+                "source_cell": source_cell,
+                "target_cell": target_cell,
+                "parent_field_key": parent_field_key,
+                "metadata": {
+                    "raw": column,
+                    "column_index": index,
+                },
+                "children": [],
+            }
+        )
+
+    return children
+
+
 def _append_workspace_field_warnings(result, field):
     if not isinstance(field, dict):
         return result
@@ -567,6 +641,7 @@ def build_workspace_model_from_document_model(model):
         if not field:
             continue
 
+        field["children"] = _build_workspace_field_children(field)
         workspace_model["workspace_fields"].append(field)
 
         _append_workspace_field_warnings(workspace_model, field)
