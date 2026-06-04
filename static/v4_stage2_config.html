@@ -22,9 +22,10 @@
         .notice { line-height: 1.7; color: #dbeafe; }
         main {
             display: grid;
-            grid-template-columns: minmax(320px, 420px) minmax(420px, 1fr);
+            grid-template-columns: minmax(300px, 360px) minmax(520px, 1fr) minmax(360px, 460px);
             gap: 16px;
             padding: 16px;
+            align-items: start;
         }
         section {
             background: #fff;
@@ -126,6 +127,40 @@
             font-size: 12px;
             line-height: 1.6;
         }
+        .panel-title-note {
+            color: #667085;
+            font-size: 12px;
+            line-height: 1.6;
+            margin-top: -4px;
+            margin-bottom: 12px;
+        }
+        .config-panel {
+            min-height: 200px;
+        }
+        .component-center-panel {
+            min-height: 70vh;
+        }
+        .component-tree-shell {
+            border: 1px solid #d8dee8;
+            border-radius: 10px;
+            background: #f8fafc;
+            padding: 12px;
+        }
+        .detail-panel {
+            position: sticky;
+            top: 16px;
+        }
+        .diagnostic-fold {
+            margin-top: 16px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 12px;
+        }
+        .diagnostic-fold summary {
+            cursor: pointer;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 10px;
+        }
         pre {
             min-height: 360px;
             max-height: 70vh;
@@ -137,6 +172,10 @@
             color: #d7e3ff;
             line-height: 1.45;
             white-space: pre-wrap;
+        }
+        @media (max-width: 1200px) {
+            main { grid-template-columns: 1fr; }
+            .detail-panel { position: static; }
         }
         @media (max-width: 900px) {
             main { grid-template-columns: 1fr; }
@@ -155,8 +194,11 @@
     </header>
 
     <main>
-        <section>
-            <h2>Stage2 Profiles</h2>
+        <section class="config-panel">
+            <h2>模板与运行</h2>
+            <div class="panel-title-note">选择模板、运行模板分析，并保留 Stage2 配置入口。</div>
+
+            <h3>Stage2 Profiles</h3>
             <div class="actions">
                 <button id="healthButton" type="button">Health Check</button>
                 <button id="loadButton" class="secondary" type="button">Load Stage2 Profiles</button>
@@ -192,7 +234,38 @@
                 </div>
                 <div id="sourceSummaryArea" class="status">Source summary not loaded.</div>
             </div>
+        </section>
 
+        <section class="component-center-panel">
+            <h2>模板结构配置</h2>
+            <div class="panel-title-note">按 Section → Component 查看当前模板结构，这是后续配置页和工作区的主结构。</div>
+
+            <div style="margin-top:16px;">
+                <h2>组件结构视图</h2>
+                <div class="actions">
+                    <button id="componentStructureButton" type="button">加载组件结构</button>
+                </div>
+                <div id="componentStructureArea" class="status">组件结构尚未加载。</div>
+            </div>
+
+            <div style="margin-top:16px;">
+                <h2>Workspace Runtime</h2>
+                <div class="actions">
+                    <button id="workspaceRuntimeButton" type="button">Load Workspace Runtime</button>
+                </div>
+                <div id="workspaceRuntimeArea" class="status">Workspace Runtime not loaded.</div>
+            </div>
+        </section>
+
+        <section class="detail-panel">
+            <h2>详情与诊断</h2>
+            <div class="panel-title-note">查看当前选中结果、运行时 JSON 与高级诊断。</div>
+
+            <h2>Current Profile JSON</h2>
+            <pre id="jsonPreview">{}</pre>
+
+            <details class="diagnostic-fold">
+                <summary>高级诊断</summary>
             <div style="margin-top:16px;">
                 <h2>Template Analysis Summary</h2>
                 <div class="actions">
@@ -234,33 +307,13 @@
             </div>
 
             <div style="margin-top:16px;">
-                <h2>Workspace Runtime</h2>
-                <div class="actions">
-                    <button id="workspaceRuntimeButton" type="button">Load Workspace Runtime</button>
-                </div>
-                <div id="workspaceRuntimeArea" class="status">Workspace Runtime not loaded.</div>
-            </div>
-
-            <div style="margin-top:16px;">
-                <h2>组件结构视图</h2>
-                <div class="actions">
-                    <button id="componentStructureButton" type="button">加载组件结构</button>
-                </div>
-                <div id="componentStructureArea" class="status">组件结构尚未加载。</div>
-            </div>
-
-            <div style="margin-top:16px;">
                 <h2>DocumentModel Node ID Audit</h2>
                 <div class="actions">
                     <button id="documentModelNodeIdAuditButton" type="button">Load DocumentModel Node ID Audit</button>
                 </div>
                 <div id="documentModelNodeIdAuditArea" class="status">DocumentModel Node ID Audit not loaded.</div>
             </div>
-        </section>
-
-        <section>
-            <h2>Current Profile JSON</h2>
-            <pre id="jsonPreview">{}</pre>
+            </details>
         </section>
     </main>
 
@@ -918,7 +971,7 @@
                     </div>
                 </div>
 
-                <div class="cache-list">
+                <div class="cache-list component-tree-shell">
                     ${groups.map(group => `
                         <div class="cache-item">
                             <h3>${escapeHtml(group.section_title || group.section_key || "其他")}</h3>
