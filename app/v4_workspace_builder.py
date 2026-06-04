@@ -504,6 +504,204 @@ def _component_type_from_workspace_field(field):
     return "text"
 
 
+def _field_metadata_raw(field):
+    if not isinstance(field, dict):
+        return {}
+    metadata = field.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    raw = metadata.get("raw")
+    if isinstance(raw, dict):
+        return raw
+    return {}
+
+
+def _field_metadata_extra(field):
+    if not isinstance(field, dict):
+        return {}
+    metadata = field.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    extra = metadata.get("extra")
+    if isinstance(extra, dict):
+        return extra
+    return {}
+
+
+def _first_list_value(*values):
+    for value in values:
+        if isinstance(value, list) and value:
+            return value
+    return []
+
+
+def _build_choice_option_elements(field):
+    nested_field = field.get("field") if isinstance(field.get("field"), dict) else {}
+    options = _first_list_value(
+        field.get("options"),
+        nested_field.get("options"),
+        _field_metadata_raw(field).get("options"),
+    )
+    elements = []
+    for index, option in enumerate(normalize_list(options), start=1):
+        if isinstance(option, dict):
+            label = normalize_text(option.get("label"))
+            value = normalize_text(option.get("value")) or label
+            coordinates = (
+                option.get("coordinates")
+                if isinstance(option.get("coordinates"), dict)
+                else {}
+            )
+        else:
+            label = normalize_text(option)
+            value = label
+            coordinates = {}
+        if not label and not value:
+            continue
+        elements.append(
+            {
+                "element_key": f"option_{index}",
+                "element_type": "choice_option",
+                "label": label,
+                "value": value,
+                "coordinates": coordinates,
+                "raw": option,
+            }
+        )
+    return elements
+
+
+def _build_table_column_elements(field):
+    raw = _field_metadata_raw(field)
+    extra = _field_metadata_extra(field)
+    nested_field = field.get("field") if isinstance(field.get("field"), dict) else {}
+    raw_field = raw.get("field") if isinstance(raw.get("field"), dict) else {}
+    raw_table = raw.get("table") if isinstance(raw.get("table"), dict) else {}
+    table_extra = extra.get("table") if isinstance(extra.get("table"), dict) else {}
+
+    columns = _first_list_value(
+        field.get("columns"),
+        nested_field.get("columns"),
+        raw.get("columns"),
+        raw_field.get("columns"),
+        raw_table.get("columns"),
+        table_extra.get("columns"),
+    )
+
+    elements = []
+    for index, column in enumerate(normalize_list(columns), start=1):
+        if isinstance(column, dict):
+            label = normalize_text(column.get("label")) or normalize_text(
+                column.get("field")
+            )
+            column_key = (
+                normalize_text(column.get("field"))
+                or normalize_text(column.get("column_key"))
+                or f"column_{index}"
+            )
+            header_cell = normalize_text(column.get("header_cell"))
+            target_col = column.get("target_col")
+        else:
+            label = normalize_text(column)
+            column_key = f"column_{index}"
+            header_cell = ""
+            target_col = None
+
+        if not label and not column_key:
+            continue
+
+        elements.append(
+            {
+                "element_key": column_key,
+                "element_type": "table_column",
+                "label": label,
+                "field": column_key,
+                "header_cell": header_cell,
+                "target_col": target_col,
+                "raw": column,
+            }
+        )
+
+    return elements
+
+
+def _build_anchor_elements(field, component_type):
+    raw = _field_metadata_raw(field)
+    coordinates = {}
+    for candidate in (
+        field.get("coordinates"),
+        raw.get("coordinates"),
+        field.get("region"),
+        raw.get("region"),
+    ):
+        if isinstance(candidate, dict):
+            nested_coordinates = candidate.get("coordinates")
+            coordinates = (
+                nested_coordinates
+                if isinstance(nested_coordinates, dict)
+                else candidate
+            )
+            break
+
+    source_cell = (
+        normalize_text(field.get("source_cell"))
+        or normalize_text(raw.get("source_cell"))
+        or normalize_text(coordinates.get("source_cell"))
+    )
+    target_cell = (
+        normalize_text(field.get("target_cell"))
+        or normalize_text(raw.get("target_cell"))
+        or normalize_text(coordinates.get("target_cell"))
+    )
+
+    element_type = (
+        "image_anchor"
+        if component_type in ("image_attachment_area", "image")
+        else "object_anchor"
+    )
+
+    return [
+        {
+            "element_key": element_type,
+            "element_type": element_type,
+            "source_cell": source_cell,
+            "target_cell": target_cell,
+            "coordinates": coordinates,
+            "raw": raw,
+        }
+    ]
+
+
+def _build_field_binding_elements(field):
+    return [
+        {
+            "element_key": "field_binding",
+            "element_type": "field_binding",
+            "source_cell": normalize_text(field.get("source_cell")),
+            "target_cell": normalize_text(field.get("target_cell")),
+            "write_mode": normalize_text(field.get("write_mode")),
+            "intent_type": normalize_text(field.get("intent_type")),
+        }
+    ]
+
+
+def build_workspace_component_elements(field, component_type):
+    if not isinstance(field, dict):
+        return []
+
+    if component_type == "choice_group":
+        elements = _build_choice_option_elements(field)
+        return elements or _build_field_binding_elements(field)
+
+    if component_type == "table":
+        return _build_table_column_elements(field)
+
+    if component_type in ("image_attachment_area", "image", "object_area", "object"):
+        return _build_anchor_elements(field, component_type)
+
+    return _build_field_binding_elements(field)
+
+
 def build_workspace_component_from_workspace_field(field):
     if not isinstance(field, dict):
         return {}
@@ -537,46 +735,7 @@ def build_workspace_component_from_workspace_field(field):
         "elements": [],
     }
 
-    if component_type == "choice_group":
-        component["elements"] = [
-            {
-                "element_type": "choice_option",
-                "label": normalize_text(option.get("label"))
-                if isinstance(option, dict)
-                else normalize_text(option),
-                "value": normalize_text(option.get("value"))
-                if isinstance(option, dict)
-                else normalize_text(option),
-                "raw": option,
-            }
-            for option in normalize_list(field.get("options"))
-        ]
-    elif component_type == "table":
-        component["elements"] = [
-            {
-                "element_type": "table_column",
-                "label": normalize_text(column.get("label"))
-                if isinstance(column, dict)
-                else normalize_text(column),
-                "field": normalize_text(column.get("field"))
-                if isinstance(column, dict)
-                else "",
-                "header_cell": normalize_text(column.get("header_cell"))
-                if isinstance(column, dict)
-                else "",
-                "raw": column,
-            }
-            for column in normalize_list(field.get("columns"))
-        ]
-    else:
-        component["elements"] = [
-            {
-                "element_type": "field_binding",
-                "source_cell": normalize_text(field.get("source_cell")),
-                "target_cell": normalize_text(field.get("target_cell")),
-                "write_mode": normalize_text(field.get("write_mode")),
-            }
-        ]
+    component["elements"] = build_workspace_component_elements(field, component_type)
 
     return component
 
