@@ -721,53 +721,58 @@ def build_section_node(
     }
 
 
-def normalize_table_columns(columns=None):
-    normalized_columns = []
-    for index, item in enumerate(normalize_list(columns)):
-        if isinstance(item, dict):
-            column_data = normalize_dict(item)
-            label = (
-                column_data.get("label")
-                or column_data.get("name")
-                or column_data.get("field_key")
-                or column_data.get("column_id")
-                or ""
-            )
-            column_id = (
-                column_data.get("column_id")
-                or column_data.get("id")
-                or column_data.get("field_key")
-                or label
-                or f"column_{index + 1}"
-            )
-            normalized_columns.append(
-                {
-                    "column_id": str(column_id),
-                    "label": str(label),
-                    "field_key": column_data.get("field_key", ""),
-                    "value_type": column_data.get(
-                        "value_type",
-                        column_data.get("type", ""),
-                    ),
-                    "required": bool(column_data.get("required", False)),
-                    "aliases": normalize_list(column_data.get("aliases")),
-                    "metadata": normalize_metadata(column_data.get("metadata")),
-                }
-            )
-        else:
-            label = str(item)
-            normalized_columns.append(
-                {
-                    "column_id": label or f"column_{index + 1}",
-                    "label": label,
-                    "field_key": "",
-                    "value_type": "",
-                    "required": False,
-                    "aliases": [],
-                    "metadata": normalize_metadata(),
-                }
-            )
-    return normalized_columns
+def normalize_table_children(children=None, parent_node_id=""):
+    normalized_children = []
+    parent_node_id = normalize_text(parent_node_id)
+    for index, item in enumerate(normalize_list(children)):
+        if not isinstance(item, dict):
+            continue
+
+        child_data = normalize_dict(item)
+        if normalize_text(child_data.get("field_type")) != "table_column":
+            continue
+
+        metadata = normalize_metadata(child_data.get("metadata"))
+        metadata["column_index"] = index
+        raw = normalize_dict(metadata.get("raw"))
+        label = (
+            normalize_text(child_data.get("label"))
+            or normalize_text(raw.get("label"))
+            or normalize_text(raw.get("header"))
+            or normalize_text(raw.get("name"))
+            or f"列{index + 1}"
+        )
+        source_cell = (
+            normalize_text(child_data.get("source_cell"))
+            or normalize_text(raw.get("source_cell"))
+            or normalize_text(raw.get("cell"))
+            or normalize_text(raw.get("header_cell"))
+        )
+        target_cell = (
+            normalize_text(child_data.get("target_cell"))
+            or normalize_text(raw.get("target_cell"))
+            or source_cell
+        )
+        field_key = (
+            normalize_text(child_data.get("field_key"))
+            or f"{parent_node_id or 'table'}.column.{index + 1}"
+        )
+        normalized_children.append(
+            {
+                "node_type": NODE_TYPE_FIELD,
+                "node_id": normalize_text(child_data.get("node_id"))
+                or make_node_id(NODE_TYPE_FIELD, field_key),
+                "field_key": field_key,
+                "field_type": "table_column",
+                "label": label,
+                "source_cell": source_cell,
+                "target_cell": target_cell,
+                "parent_node_id": parent_node_id,
+                "metadata": metadata,
+                "children": [],
+            }
+        )
+    return normalized_children
 
 
 def normalize_table_rows(rows=None):
@@ -869,7 +874,7 @@ def build_table_logic(
     allow_dynamic_columns=False,
     min_rows=0,
     max_rows=None,
-    columns=None,
+    children=None,
     rows=None,
     cells=None,
 ):
@@ -879,7 +884,7 @@ def build_table_logic(
     if header_mode not in ["none", "first_row", "first_column", "custom"]:
         header_mode = "first_row"
 
-    normalized_columns = normalize_table_columns(columns)
+    normalized_children = normalize_table_children(children)
     normalized_rows = normalize_table_rows(rows)
     normalized_cells = normalize_table_cells(cells)
 
@@ -890,7 +895,7 @@ def build_table_logic(
         "allow_dynamic_columns": bool(allow_dynamic_columns),
         "min_rows": min_rows if min_rows is not None else 0,
         "max_rows": max_rows,
-        "column_count": len(normalized_columns),
+        "column_count": len(normalized_children),
         "row_count": len(normalized_rows),
         "cell_count": len(normalized_cells),
     }
@@ -902,7 +907,7 @@ def build_table_node(
     section_id="",
     header_cells=None,
     data_region=None,
-    columns=None,
+    children=None,
     confidence=0,
     metadata=None,
     source=None,
@@ -924,7 +929,11 @@ def build_table_node(
         include_visual_metadata=True,
     )
 
-    normalized_columns = normalize_table_columns(columns)
+    normalized_node_id = normalize_text(node_id)
+    normalized_children = normalize_table_children(
+        children,
+        parent_node_id=normalized_node_id,
+    )
     normalized_rows = normalize_table_rows(rows)
     normalized_cells = normalize_table_cells(cells)
     normalized_header_cells = normalize_table_cells(header_cells)
@@ -937,19 +946,20 @@ def build_table_node(
         allow_dynamic_columns=allow_dynamic_columns,
         min_rows=min_rows,
         max_rows=max_rows,
-        columns=normalized_columns,
+        children=normalized_children,
         rows=normalized_rows,
         cells=normalized_cells,
     )
 
     return {
         "node_type": NODE_TYPE_TABLE,
-        "node_id": normalize_text(node_id),
+        "field_type": "table",
+        "node_id": normalized_node_id,
         "label": normalize_text(label),
         "section_id": normalize_text(section_id),
         "header_cells": normalized_header_cells,
         "data_region": normalize_dict(data_region),
-        "columns": normalized_columns,
+        "children": normalized_children,
         "rows": normalized_rows,
         "cells": normalized_cells,
         "merged_cells": normalized_merged_cells,
@@ -1286,6 +1296,8 @@ def validate_document_intelligence_model(model):
             from_node_id = normalize_text(link.get("from_node_id"))
             to_node_id = normalize_text(link.get("to_node_id"))
             condition_node_id = normalize_text(link.get("condition_node_id"))
+            metadata = normalize_dict(link.get("metadata"))
+            target_cell = normalize_text(metadata.get("target_cell"))
 
             if not link_type:
                 warnings.append(f"links[{index}] missing link_type")
@@ -1293,10 +1305,16 @@ def validate_document_intelligence_model(model):
                 warnings.append(f"links[{index}] missing from_node_id")
             elif from_node_id not in node_ids:
                 warnings.append(f"link from_node_id not found: {from_node_id}")
-            if not to_node_id:
-                warnings.append(f"links[{index}] missing to_node_id")
-            elif to_node_id not in node_ids:
-                warnings.append(f"link to_node_id not found: {to_node_id}")
+            if link_type == LINK_TYPE_WRITES_TO:
+                if not target_cell:
+                    warnings.append(
+                        f"links[{index}] writes_to missing metadata.target_cell"
+                    )
+            else:
+                if not to_node_id:
+                    warnings.append(f"links[{index}] missing to_node_id")
+                elif to_node_id not in node_ids:
+                    warnings.append(f"link to_node_id not found: {to_node_id}")
             if condition_node_id and condition_node_id not in node_ids:
                 warnings.append(
                     f"link condition_node_id not found: {condition_node_id}"

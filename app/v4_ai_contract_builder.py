@@ -284,29 +284,30 @@ def resolve_extract_priority(node, runtime_policy=None):
     return "normal"
 
 
-def _table_columns_from_table_node(node):
+def _table_children_from_table_node(node):
     if not isinstance(node, dict):
         return []
 
-    columns = node.get("columns")
-    if not isinstance(columns, list):
-        return []
-
-    table_columns = []
-    for column in columns:
-        if not isinstance(column, dict):
+    table_children = []
+    for child in normalize_list(node.get("children")):
+        if not isinstance(child, dict):
+            continue
+        if normalize_text(child.get("field_type")) != "table_column":
             continue
 
-        table_column = {
-            "label": normalize_text(column.get("label")),
-            "field": normalize_text(column.get("field")),
-            "target_col": column.get("target_col"),
-            "header_cell": normalize_text(column.get("header_cell")),
+        metadata = normalize_dict(child.get("metadata"))
+        raw = normalize_dict(metadata.get("raw"))
+        table_child = {
+            "label": normalize_text(child.get("label")),
+            "field": normalize_text(raw.get("field"))
+            or normalize_text(child.get("field_key")),
+            "target_col": raw.get("target_col"),
+            "header_cell": normalize_text(child.get("source_cell")),
         }
-        if not table_column["label"] and not table_column["field"]:
+        if not table_child["label"] and not table_child["field"]:
             continue
-        table_columns.append(table_column)
-    return table_columns
+        table_children.append(table_child)
+    return table_children
 
 
 def collect_table_fields_from_document_model(model):
@@ -319,8 +320,8 @@ def collect_table_fields_from_document_model(model):
         if _node_type(node) != NODE_TYPE_TABLE:
             continue
 
-        table_columns = _table_columns_from_table_node(node)
-        if not table_columns:
+        table_children = _table_children_from_table_node(node)
+        if not table_children:
             continue
 
         table_label = normalize_text(node.get("label")) or _node_id(node)
@@ -346,7 +347,7 @@ def collect_table_fields_from_document_model(model):
                 "cell": "",
                 "source": "document_intelligence",
                 "extract_priority": "normal",
-                "table_columns": table_columns,
+                "table_columns": table_children,
                 "table_logic": _table_logic(node),
             }
         )

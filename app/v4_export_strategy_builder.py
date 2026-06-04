@@ -422,11 +422,17 @@ def _append_operation_warnings(plan, operation):
 
     metadata = normalize_dict(operation.get("metadata"))
     raw_node = normalize_dict(metadata.get("raw_node"))
-    if op_type == "write_table_cell" and not normalize_list(raw_node.get("columns")):
+    table_children = [
+        child
+        for child in normalize_list(raw_node.get("children"))
+        if isinstance(child, dict)
+        and normalize_text(child.get("field_type")) == "table_column"
+    ]
+    if op_type == "write_table_cell" and not table_children:
         append_warning(
             plan,
-            "table_without_columns",
-            "table export operation has no columns",
+            "table_without_children",
+            "table export operation has no table_column children",
             node_id,
             field_key,
         )

@@ -304,28 +304,36 @@ def _choice_group_row(region):
     return _region_row(region)
 
 
-def normalize_table_columns(columns):
+def build_table_column_children(columns, parent_node_id):
     if not isinstance(columns, list):
         return []
 
-    normalized_columns = []
-    for column in columns:
+    children = []
+    for index, column in enumerate(columns):
         if not isinstance(column, dict):
             continue
-        normalized_columns.append(
+        label = normalize_text(column.get("label")) or f"列{index + 1}"
+        source_cell = normalize_text(column.get("header_cell"))
+        field_key = f"{parent_node_id}.column.{index + 1}"
+        children.append(
             {
-                "label": normalize_text(column.get("label")),
-                "field": normalize_text(column.get("field")),
-                "target_col": column.get("target_col"),
-                "header_cell": normalize_text(column.get("header_cell")),
+                "node_type": NODE_TYPE_FIELD,
+                "node_id": make_node_id(NODE_TYPE_FIELD, field_key),
+                "field_key": field_key,
+                "field_type": "table_column",
+                "label": label,
+                "source_cell": source_cell,
+                "target_cell": source_cell,
+                "parent_node_id": parent_node_id,
                 "metadata": build_metadata(
                     origin="template_analysis.table_region.columns",
                     raw=column,
-                    extra={},
+                    extra={"column_index": index},
                 ),
+                "children": [],
             }
         )
-    return normalized_columns
+    return children
 
 
 def build_table_metadata_extra(region):
@@ -507,15 +515,16 @@ def build_table_node_from_region(region):
     source_cell = _region_source_cell(region)
     target_cell = _region_target_cell(region)
     identity_seed = _node_identity_seed(label, source_cell, fallback=source_cell)
+    node_id = make_node_id(NODE_TYPE_TABLE, identity_seed)
     return build_table_node(
-        node_id=make_node_id(NODE_TYPE_TABLE, identity_seed),
+        node_id=node_id,
         label=label,
         section_id="",
         header_cells=(region.get("header_cells") or _region_cells(region)),
         data_region={
             "coordinates": _region_coordinates(region),
         },
-        columns=normalize_table_columns(region.get("columns")),
+        children=build_table_column_children(region.get("columns"), node_id),
         rows=region.get("rows"),
         cells=_region_cells(region),
         merged_cells=region.get("merged_cells"),
