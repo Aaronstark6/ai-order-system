@@ -421,6 +421,7 @@ def _template_analysis_diagnosis(legacy_profiles: list[dict[str, Any]], template
 
 
 DOCUMENTMODEL_VIEWER_MAX_NODES = 200
+DOCUMENTMODEL_NODE_ID_AUDIT_MAX_DUPLICATE_NODES = 20
 
 
 def _string_value(value: Any) -> str:
@@ -850,6 +851,15 @@ SEMANTIC_REGION_SPECIAL_VALUE_KEYS = (
     "source_cell",
 )
 
+FIELD_CANDIDATE_AUDIT_TYPES = (
+    "section_header",
+    "table_header",
+    "inline_field",
+    "unknown",
+)
+
+FIELD_CANDIDATE_AUDIT_MAX_ITEMS = 50
+
 
 def _semantic_region_counter_value(value: Any) -> str:
     if isinstance(value, str):
@@ -940,6 +950,60 @@ def _semantic_region_type_summary() -> dict[str, Any]:
         diagnostics.append(f"semantic_region_type_summary_failed: {exc}")
 
     return summary
+
+
+def _field_candidate_audit_item(region: dict[str, Any], region_type: str) -> dict[str, Any]:
+    return {
+        "type": region_type,
+        "text": _json_safe_summary_value(region.get("text")),
+        "label": _json_safe_summary_value(region.get("label")),
+        "cell": _json_safe_summary_value(region.get("cell")),
+        "target_cell": _json_safe_summary_value(region.get("target_cell")),
+        "field_key": _json_safe_summary_value(region.get("field_key")),
+        "original_region": _json_safe_summary_value(region),
+    }
+
+
+def _field_candidate_audit() -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    audit: dict[str, list[dict[str, Any]]] = {
+        region_type: []
+        for region_type in FIELD_CANDIDATE_AUDIT_TYPES
+    }
+    diagnostics: list[str] = []
+
+    try:
+        from app.v4_pipeline_state import get_pipeline_state
+    except Exception as exc:
+        diagnostics.append(f"pipeline_state_import_failed: {exc}")
+        return audit, diagnostics
+
+    try:
+        pipeline_state = get_pipeline_state()
+        template_analysis = pipeline_state.get("template_analysis") if isinstance(pipeline_state, dict) else None
+        if not isinstance(template_analysis, dict) or not template_analysis:
+            diagnostics.append("template_analysis_missing")
+            return audit, diagnostics
+
+        semantic_regions = template_analysis.get("semantic_regions")
+        if not isinstance(semantic_regions, list) or not semantic_regions:
+            diagnostics.append("semantic_regions_missing")
+            return audit, diagnostics
+
+        for index, region in enumerate(semantic_regions):
+            try:
+                if not isinstance(region, dict):
+                    diagnostics.append(f"semantic_region_{index}_not_dict")
+                    continue
+                region_type = _semantic_region_type(region)
+                if region_type not in audit or len(audit[region_type]) >= FIELD_CANDIDATE_AUDIT_MAX_ITEMS:
+                    continue
+                audit[region_type].append(_field_candidate_audit_item(region, region_type))
+            except Exception as exc:
+                diagnostics.append(f"semantic_region_{index}_audit_failed: {exc}")
+    except Exception as exc:
+        diagnostics.append(f"field_candidate_audit_failed: {exc}")
+
+    return audit, diagnostics
 
 
 def _legacy_template_analysis_sources() -> list[dict[str, Any]]:
@@ -1087,6 +1151,235 @@ def _document_model_summary(document_model: Any) -> dict[str, Any]:
         return summary
     summary_attr = getattr(document_model, "summary", None)
     return summary_attr if isinstance(summary_attr, dict) else {}
+
+
+def _documentmodel_audit_value(data: Any, paths: tuple[tuple[str, ...], ...]) -> Any:
+    for path in paths:
+        value = _nested_mapping_value(data, path)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _documentmodel_link_endpoint(link: Any, keys: tuple[str, ...]) -> str:
+    if not isinstance(link, dict):
+        return ""
+    for key in keys:
+        value = link.get(key)
+        if isinstance(value, dict):
+            value = value.get("node_id") or value.get("id") or value.get("key")
+        endpoint = _string_value(value)
+        if endpoint:
+            return endpoint
+    return ""
+
+
+def _documentmodel_node_audit_summary(node: Any) -> dict[str, Any]:
+    node_data = node if isinstance(node, dict) else {"value": node}
+    metadata = node_data.get("metadata") if isinstance(node_data.get("metadata"), dict) else {}
+    metadata_extra = metadata.get("extra") if isinstance(metadata.get("extra"), dict) else {}
+    raw_region = metadata.get("raw") if isinstance(metadata.get("raw"), dict) else {}
+    source_cell = _documentmodel_audit_value(node_data, (
+        ("source_cell",),
+        ("semantic_summary", "source_cell"),
+        ("visual_logic", "coordinates", "source_cell"),
+        ("coordinates", "source_cell"),
+    ))
+    if not source_cell:
+        source_cell = _documentmodel_audit_value(raw_region, (
+            ("source_cell",),
+            ("coordinates", "source_cell"),
+            ("cell",),
+        ))
+    target_cell = _documentmodel_audit_value(node_data, (
+        ("target_cell",),
+        ("semantic_summary", "target_cell"),
+        ("visual_logic", "coordinates", "target_cell"),
+        ("coordinates", "target_cell"),
+    ))
+    if not target_cell:
+        target_cell = _documentmodel_audit_value(raw_region, (
+            ("target_cell",),
+            ("coordinates", "target_cell"),
+        ))
+    cell = _documentmodel_audit_value(node_data, (
+        ("cell",),
+        ("visual_logic", "coordinates", "source_cell"),
+        ("coordinates", "source_cell"),
+    )) or _documentmodel_audit_value(raw_region, (
+        ("cell",),
+        ("coordinates", "source_cell"),
+    ))
+    region_type = (
+        metadata_extra.get("region_type")
+        or raw_region.get("type")
+        or raw_region.get("semantic_type")
+        or raw_region.get("region_type")
+        or ""
+    )
+    return {
+        "node_id": _string_value(node_data.get("node_id")),
+        "node_type": _string_value(node_data.get("node_type") or node_data.get("type")),
+        "label": _string_value(
+            node_data.get("label")
+            or node_data.get("field_label")
+            or node_data.get("name")
+            or node_data.get("title")
+        ),
+        "field_key": _string_value(node_data.get("field_key") or node_data.get("key")),
+        "cell": _string_value(cell),
+        "source_cell": _string_value(source_cell),
+        "target_cell": _string_value(target_cell),
+        "region_type": _string_value(region_type),
+        "origin": _string_value(metadata.get("origin")),
+        "raw_region": _json_safe_summary_value(raw_region),
+    }
+
+
+def _documentmodel_model_links(model: dict[str, Any]) -> list[dict[str, Any]]:
+    links = []
+    for key in ("links", "relationships", "edges"):
+        items = model.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict):
+                links.append(item)
+    return links
+
+
+def _empty_documentmodel_node_id_audit(status: str, diagnostics: list[str] | None = None) -> dict[str, Any]:
+    return {
+        "status": status,
+        "node_count": 0,
+        "duplicate_count": 0,
+        "missing_link_count": 0,
+        "duplicate_node_ids": [],
+        "missing_links": [],
+        "node_id_counter": {},
+        "nodes_by_duplicate_id": {},
+        "link_warnings": [],
+        "warnings": [],
+        "errors": [],
+        "diagnostics": diagnostics or [],
+    }
+
+
+def _build_documentmodel_node_id_audit() -> dict[str, Any]:
+    diagnostics = []
+    try:
+        from app.v4_pipeline_state import get_pipeline_state
+    except Exception as exc:
+        return _empty_documentmodel_node_id_audit(
+            "unavailable",
+            [f"pipeline_state_import_failed: {exc}"],
+        )
+
+    try:
+        pipeline_state = get_pipeline_state()
+        template_analysis = pipeline_state.get("template_analysis") if isinstance(pipeline_state, dict) else None
+        if not isinstance(template_analysis, dict) or not template_analysis:
+            return _empty_documentmodel_node_id_audit("unavailable", ["template_analysis_missing"])
+        semantic_regions = template_analysis.get("semantic_regions")
+        if not isinstance(semantic_regions, list) or not semantic_regions:
+            return _empty_documentmodel_node_id_audit("unavailable", ["semantic_regions_missing"])
+    except Exception as exc:
+        return _empty_documentmodel_node_id_audit(
+            "unavailable",
+            [f"pipeline_state_read_failed: {exc}"],
+        )
+
+    try:
+        from app.v4_document_intelligence_builder import build_document_intelligence_model
+        document_model = build_document_intelligence_model(template_analysis)
+    except Exception as exc:
+        return _empty_documentmodel_node_id_audit(
+            "error",
+            [f"build_document_intelligence_model_failed: {exc}"],
+        )
+
+    try:
+        model = _model_to_dict(document_model)
+        raw_nodes = _document_model_nodes(document_model)
+        node_id_counter: dict[str, int] = {}
+        nodes_by_id: dict[str, list[dict[str, Any]]] = {}
+        missing_node_id_count = 0
+        for node in raw_nodes:
+            node_summary = _documentmodel_node_audit_summary(node)
+            node_id = node_summary["node_id"]
+            if not node_id:
+                missing_node_id_count += 1
+                continue
+            node_id_counter[node_id] = node_id_counter.get(node_id, 0) + 1
+            nodes_by_id.setdefault(node_id, []).append(node_summary)
+
+        duplicate_node_ids = []
+        nodes_by_duplicate_id = {}
+        for node_id, count in node_id_counter.items():
+            if count <= 1:
+                continue
+            duplicate_nodes = nodes_by_id.get(node_id, [])[:DOCUMENTMODEL_NODE_ID_AUDIT_MAX_DUPLICATE_NODES]
+            nodes_by_duplicate_id[node_id] = duplicate_nodes
+            duplicate_node_ids.append({
+                "node_id": node_id,
+                "count": count,
+                "nodes": duplicate_nodes,
+            })
+
+        node_id_set = set(node_id_counter)
+        missing_links = []
+        for link in _documentmodel_model_links(model):
+            to_node_id = _documentmodel_link_endpoint(
+                link,
+                ("to_node_id", "target_node_id", "to", "target"),
+            )
+            if not to_node_id or to_node_id in node_id_set:
+                continue
+            missing_links.append({
+                "from_node_id": _documentmodel_link_endpoint(
+                    link,
+                    ("from_node_id", "source_node_id", "from", "source"),
+                ),
+                "to_node_id": to_node_id,
+                "link_type": _string_value(link.get("link_type") or link.get("type")),
+                "reason": "target_not_found",
+                "raw_link": _json_safe_summary_value(link),
+            })
+
+        warnings = [
+            _semantic_region_counter_value(warning)
+            for warning in model.get("warnings", [])
+        ] if isinstance(model.get("warnings"), list) else []
+        errors = [
+            _semantic_region_counter_value(error)
+            for error in model.get("errors", [])
+        ] if isinstance(model.get("errors"), list) else []
+        link_warnings = [
+            warning
+            for warning in warnings
+            if "link" in warning.lower() and "not found" in warning.lower()
+        ]
+        if missing_node_id_count:
+            diagnostics.append(f"nodes_missing_node_id: {missing_node_id_count}")
+        return {
+            "status": "available",
+            "node_count": len(raw_nodes),
+            "duplicate_count": len(duplicate_node_ids),
+            "missing_link_count": len(missing_links),
+            "duplicate_node_ids": duplicate_node_ids,
+            "missing_links": missing_links,
+            "node_id_counter": node_id_counter,
+            "nodes_by_duplicate_id": nodes_by_duplicate_id,
+            "link_warnings": link_warnings,
+            "warnings": warnings,
+            "errors": errors,
+            "diagnostics": diagnostics,
+        }
+    except Exception as exc:
+        return _empty_documentmodel_node_id_audit(
+            "error",
+            [f"documentmodel_node_id_audit_failed: {exc}"],
+        )
 
 
 def _build_documentmodel_runtime() -> dict[str, Any]:
@@ -1276,6 +1569,18 @@ def api_v4_stage2_config_semantic_region_type_summary():
     }
 
 
+@router.get("/field-candidate-audit")
+def api_v4_stage2_config_field_candidate_audit():
+    audit, diagnostics = _field_candidate_audit()
+    return {
+        "ok": True,
+        "module": "stage2_config",
+        "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+        **audit,
+        "diagnostics": diagnostics,
+    }
+
+
 @router.get("/documentmodel-viewer")
 def api_v4_stage2_config_documentmodel_viewer():
     return {
@@ -1294,6 +1599,17 @@ def api_v4_stage2_config_documentmodel_runtime():
         "module": "stage2_config",
         "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
         "runtime": runtime,
+    }
+
+
+@router.get("/documentmodel-node-id-audit")
+def api_v4_stage2_config_documentmodel_node_id_audit():
+    audit = _build_documentmodel_node_id_audit()
+    return {
+        "ok": audit.get("status") != "error",
+        "module": "stage2_config",
+        "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+        "audit": audit,
     }
 
 

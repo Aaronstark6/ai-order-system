@@ -2,22 +2,21 @@
 
 Task:
 
-`STAGE2_TEMPLATE_ANALYSIS_FIELD_PRIORITY_FIX_01`
+`STAGE2_DOCUMENTMODEL_NODE_ID_AUDIT_01`
 
 Status:
 
-- Fixing Template Analysis field recognition priority.
+- Auditing DocumentModel node ID uniqueness and link completeness.
 
 Purpose:
 
-- Prioritize labels with explicit right-side or below writable targets as `field_label`.
-- Keep explicit grouping headings as `section_header`.
-- Prevent obvious fields such as document number, date, and customer name from being claimed by broad section header rules.
+- Identify the real source regions behind duplicate `node_id` values.
+- Identify links whose target node IDs do not exist.
+- Preserve model warnings and errors for diagnosis before schema generation.
 
 Rules:
 
-- Make only a minimal rule priority adjustment in `build_semantic_regions()`.
-- Do not modify Stage2 Config, DocumentModel Builder, pipeline state, Workspace, or export runtime.
-- Do not modify table header logic.
-- Do not convert every `section_header` into a field.
+- Keep the audit read-only.
+- Do not modify DocumentModel Builder, Template Analysis, pipeline state, Workspace, or export runtime.
+- Do not write configuration data.
 - Do not restore old export chains.

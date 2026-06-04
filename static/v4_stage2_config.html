@@ -210,6 +210,14 @@
             </div>
 
             <div style="margin-top:16px;">
+                <h2>Field Candidate Audit</h2>
+                <div class="actions">
+                    <button id="fieldCandidateAuditButton" type="button">Load Field Candidate Audit</button>
+                </div>
+                <div id="fieldCandidateAuditArea" class="status">Field Candidate Audit not loaded.</div>
+            </div>
+
+            <div style="margin-top:16px;">
                 <h2>DocumentModel Viewer</h2>
                 <div class="actions">
                     <button id="documentModelViewerButton" type="button">Load DocumentModel Viewer</button>
@@ -223,6 +231,14 @@
                     <button id="documentModelRuntimeButton" type="button">Build DocumentModel Runtime</button>
                 </div>
                 <div id="documentModelRuntimeArea" class="status">DocumentModel Runtime not built.</div>
+            </div>
+
+            <div style="margin-top:16px;">
+                <h2>DocumentModel Node ID Audit</h2>
+                <div class="actions">
+                    <button id="documentModelNodeIdAuditButton" type="button">Load DocumentModel Node ID Audit</button>
+                </div>
+                <div id="documentModelNodeIdAuditArea" class="status">DocumentModel Node ID Audit not loaded.</div>
             </div>
         </section>
 
@@ -493,6 +509,61 @@
             `;
         }
 
+        function renderFieldCandidateGroup(groupName, items) {
+            const candidates = Array.isArray(items) ? items : [];
+            return `
+                <div class="cache-item">
+                    <h3>${escapeHtml(groupName)} (${candidates.length})</h3>
+                    <div class="cache-list">
+                        ${candidates.length ? candidates.map((item, index) => `
+                            <div class="cache-item">
+                                <h3>${index + 1}. ${escapeHtml(item.text ?? "") || "-"}</h3>
+                                <div class="small">type: ${escapeHtml(item.type ?? "")}</div>
+                                <div class="small">label: ${escapeHtml(item.label ?? "") || "-"}</div>
+                                <div class="small">cell: ${escapeHtml(item.cell ?? "") || "-"}</div>
+                                <div class="small">target_cell: ${escapeHtml(item.target_cell ?? "") || "-"}</div>
+                                <div class="small">field_key: ${escapeHtml(item.field_key ?? "") || "-"}</div>
+                                <div class="small">original_region: ${escapeHtml(JSON.stringify(item.original_region || {}, null, 2))}</div>
+                            </div>
+                        `).join("") : '<div class="small">No candidates.</div>'}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFieldCandidateAudit(result) {
+            const diagnostics = Array.isArray(result.diagnostics) ? result.diagnostics : [];
+            const area = document.getElementById("fieldCandidateAuditArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>section_header</span>
+                        <strong>${Array.isArray(result.section_header) ? result.section_header.length : 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>table_header</span>
+                        <strong>${Array.isArray(result.table_header) ? result.table_header.length : 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>inline_field</span>
+                        <strong>${Array.isArray(result.inline_field) ? result.inline_field.length : 0}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>unknown</span>
+                        <strong>${Array.isArray(result.unknown) ? result.unknown.length : 0}</strong>
+                    </div>
+                </div>
+                <div class="status">diagnostics: ${diagnostics.map(escapeHtml).join(", ") || "-"}</div>
+                <div class="cache-list">
+                    ${renderFieldCandidateGroup("section_header", result.section_header)}
+                    ${renderFieldCandidateGroup("table_header", result.table_header)}
+                    ${renderFieldCandidateGroup("inline_field", result.inline_field)}
+                    ${renderFieldCandidateGroup("unknown", result.unknown)}
+                </div>
+            `;
+        }
+
         function renderDocumentModelViewer(result) {
             const viewer = result.viewer || {};
             const diagnostics = Array.isArray(viewer.diagnostics) ? viewer.diagnostics : [];
@@ -623,6 +694,81 @@
                             <div class="small">write_mode: ${escapeHtml(node.write_mode || "")}</div>
                         </div>
                     `).join("") : '<div class="small">No runtime nodes.</div>'}
+                </div>
+            `;
+        }
+
+        function renderDocumentModelNodeIdAudit(result) {
+            const audit = result.audit || {};
+            const duplicates = Array.isArray(audit.duplicate_node_ids) ? audit.duplicate_node_ids : [];
+            const missingLinks = Array.isArray(audit.missing_links) ? audit.missing_links : [];
+            const warnings = Array.isArray(audit.warnings) ? audit.warnings : [];
+            const errors = Array.isArray(audit.errors) ? audit.errors : [];
+            const diagnostics = Array.isArray(audit.diagnostics) ? audit.diagnostics : [];
+            const area = document.getElementById("documentModelNodeIdAuditArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>status</span>
+                        <strong>${escapeHtml(audit.status || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>node_count</span>
+                        <strong>${Number(audit.node_count || 0)}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>duplicate_count</span>
+                        <strong>${Number(audit.duplicate_count || 0)}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>missing_link_count</span>
+                        <strong>${Number(audit.missing_link_count || 0)}</strong>
+                    </div>
+                </div>
+                <div class="cache-list">
+                    <div class="cache-item">
+                        <h3>duplicate_node_ids</h3>
+                        ${duplicates.length ? duplicates.map(item => `
+                            <div class="cache-item">
+                                <h3>${escapeHtml(item.node_id || "")} (${Number(item.count || 0)})</h3>
+                                ${(Array.isArray(item.nodes) ? item.nodes : []).map(node => `
+                                    <div class="small">
+                                        node_type: ${escapeHtml(node.node_type || "")}
+                                        | label: ${escapeHtml(node.label || "")}
+                                        | field_key: ${escapeHtml(node.field_key || "")}
+                                        | source_cell: ${escapeHtml(node.source_cell || "")}
+                                        | target_cell: ${escapeHtml(node.target_cell || "")}
+                                        | region_type: ${escapeHtml(node.region_type || "")}
+                                        | origin: ${escapeHtml(node.origin || "")}
+                                    </div>
+                                `).join("")}
+                            </div>
+                        `).join("") : '<div class="small">No duplicate node IDs.</div>'}
+                    </div>
+                    <div class="cache-item">
+                        <h3>missing_links</h3>
+                        ${missingLinks.length ? missingLinks.map(link => `
+                            <div class="small">
+                                ${escapeHtml(link.from_node_id || "")}
+                                -> ${escapeHtml(link.to_node_id || "")}
+                                | ${escapeHtml(link.link_type || "")}
+                                | ${escapeHtml(link.reason || "")}
+                            </div>
+                        `).join("") : '<div class="small">No missing links.</div>'}
+                    </div>
+                    <div class="cache-item">
+                        <h3>warnings (${warnings.length})</h3>
+                        <div class="small">${warnings.map(escapeHtml).join("<br>") || "-"}</div>
+                    </div>
+                    <div class="cache-item">
+                        <h3>errors (${errors.length})</h3>
+                        <div class="small">${errors.map(escapeHtml).join("<br>") || "-"}</div>
+                    </div>
+                    <div class="cache-item">
+                        <h3>diagnostics (${diagnostics.length})</h3>
+                        <div class="small">${diagnostics.map(escapeHtml).join("<br>") || "-"}</div>
+                    </div>
                 </div>
             `;
         }
@@ -761,6 +907,17 @@
             setStatus(`Semantic Region Type Summary status: ${summary.status || "unknown"}.`);
         }
 
+        async function loadFieldCandidateAudit() {
+            const response = await fetch("/api/v4/stage2-config/field-candidate-audit");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Load Field Candidate Audit failed.");
+            }
+            renderFieldCandidateAudit(result);
+            renderJson(result);
+            setStatus("Field Candidate Audit loaded.");
+        }
+
         async function loadDocumentModelViewer() {
             const response = await fetch("/api/v4/stage2-config/documentmodel-viewer");
             const result = await response.json();
@@ -782,6 +939,18 @@
             renderJson(result);
             const runtime = result.runtime || {};
             setStatus(`DocumentModel Runtime status: ${runtime.status || "unknown"}.`);
+        }
+
+        async function loadDocumentModelNodeIdAudit() {
+            const response = await fetch("/api/v4/stage2-config/documentmodel-node-id-audit");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Load DocumentModel Node ID Audit failed.");
+            }
+            renderDocumentModelNodeIdAudit(result);
+            renderJson(result);
+            const audit = result.audit || {};
+            setStatus(`DocumentModel Node ID Audit status: ${audit.status || "unknown"}.`);
         }
 
         document.getElementById("healthButton").addEventListener("click", () => {
@@ -823,6 +992,12 @@
                 setStatus(error.message || "Load Semantic Region Type Summary failed.");
             });
         });
+        document.getElementById("fieldCandidateAuditButton").addEventListener("click", () => {
+            loadFieldCandidateAudit().catch(error => {
+                document.getElementById("fieldCandidateAuditArea").textContent = error.message || "Load Field Candidate Audit failed.";
+                setStatus(error.message || "Load Field Candidate Audit failed.");
+            });
+        });
         document.getElementById("documentModelViewerButton").addEventListener("click", () => {
             loadDocumentModelViewer().catch(error => {
                 document.getElementById("documentModelViewerArea").textContent = error.message || "Load DocumentModel Viewer failed.";
@@ -833,6 +1008,12 @@
             buildDocumentModelRuntime().catch(error => {
                 document.getElementById("documentModelRuntimeArea").textContent = error.message || "Build DocumentModel Runtime failed.";
                 setStatus(error.message || "Build DocumentModel Runtime failed.");
+            });
+        });
+        document.getElementById("documentModelNodeIdAuditButton").addEventListener("click", () => {
+            loadDocumentModelNodeIdAudit().catch(error => {
+                document.getElementById("documentModelNodeIdAuditArea").textContent = error.message || "Load DocumentModel Node ID Audit failed.";
+                setStatus(error.message || "Load DocumentModel Node ID Audit failed.");
             });
         });
     </script>

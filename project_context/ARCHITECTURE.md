@@ -226,3 +226,7 @@ label
 -> section_header
 -> option / inline / unknown
 ```
+
+DocumentModel 质量门槛：
+
+DocumentModel built 后，必须先通过 node_id 唯一性与 link 完整性审计，再进入 semantic_workspace_schema / workspace_fields 生成。
