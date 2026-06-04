@@ -3542,33 +3542,67 @@ def _resolve_bound_template_file_path(path_value):
     return resolved
 
 
-def _resolve_export_template_source():
-    profile = _current_template_profile_for_export()
-    profile_id = profile.get("profile_id") or ""
-    if not profile_id:
-        raise ValueError("未选择系统模板")
-
-    template_file_path = str(profile.get("template_file_path") or "").strip()
-    if not template_file_path:
-        raise ValueError("当前系统模板未绑定模板文件")
-
-    try:
-        bound_path = _resolve_bound_template_file_path(template_file_path)
-    except FileNotFoundError as exc:
-        logger.info(
-            "V4 system template file missing: profile_id=%s template_file_path=%s",
-            profile_id,
-            template_file_path,
-        )
-        raise ValueError("系统模板文件不存在") from exc
-
-    set_current_template(str(bound_path))
-    logger.info(
-        "V4 export using system template file: profile_id=%s path=%s",
-        profile_id,
-        bound_path,
+def _export_template_path_inputs(payload, confirmed_order_object):
+    payload = payload if isinstance(payload, dict) else {}
+    profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
+    meta = (
+        confirmed_order_object.get("_meta")
+        if isinstance(confirmed_order_object, dict) and isinstance(confirmed_order_object.get("_meta"), dict)
+        else {}
     )
-    return bound_path, False, "profile"
+    return {
+        "received_template_file_path": str(payload.get("template_file_path") or "").strip(),
+        "received_profile_template_file_path": str(profile.get("template_file_path") or "").strip(),
+        "received_profile_current_template_path": str(profile.get("current_template_path") or "").strip(),
+        "received_meta_template_file_path": str(meta.get("template_file_path") or "").strip(),
+        "received_meta_current_template_path": str(meta.get("current_template_path") or "").strip(),
+        "received_template_file": str(payload.get("template_file") or "").strip(),
+    }
+
+
+def _resolve_export_template_source(payload, confirmed_order_object):
+    received = _export_template_path_inputs(payload, confirmed_order_object)
+    path_sources = (
+        ("payload.template_file_path", received["received_template_file_path"]),
+        ("payload.profile.template_file_path", received["received_profile_template_file_path"]),
+        ("payload.profile.current_template_path", received["received_profile_current_template_path"]),
+        ("payload.confirmed_order_object._meta.template_file_path", received["received_meta_template_file_path"]),
+        ("payload.confirmed_order_object._meta.current_template_path", received["received_meta_current_template_path"]),
+    )
+
+    for source, path_value in path_sources:
+        if not path_value:
+            continue
+        try:
+            resolved_path = _resolve_bound_template_file_path(path_value)
+        except (FileNotFoundError, ValueError):
+            logger.info("V4 export template candidate unavailable: source=%s path=%s", source, path_value)
+            continue
+        set_current_template(str(resolved_path))
+        logger.info("V4 export using request template file: source=%s path=%s", source, resolved_path)
+        return resolved_path, False, source
+
+    template_file = received["received_template_file"]
+    if template_file:
+        template_file_path = Path(template_file)
+        filename_candidates = []
+        if template_file_path.is_absolute() or len(template_file_path.parts) > 1:
+            filename_candidates.append(template_file_path)
+        else:
+            filename_candidates.append(get_base_dir() / "data" / "v4_template_uploads" / template_file_path.name)
+            filename_candidates.append(get_base_dir() / template_file_path)
+
+        for candidate in filename_candidates:
+            try:
+                resolved_path = _resolve_bound_template_file_path(candidate)
+            except (FileNotFoundError, ValueError):
+                logger.info("V4 export template filename candidate unavailable: path=%s", candidate)
+                continue
+            set_current_template(str(resolved_path))
+            logger.info("V4 export using template filename: path=%s", resolved_path)
+            return resolved_path, False, "payload.template_file"
+
+    raise ValueError("请求中未找到可用模板文件")
 
 
 def _cell_key(value):
@@ -6041,13 +6075,14 @@ def api_v4_export_pipeline_excel(payload: Any = Body(None)):
 
     template_path = None
     template_source = ""
+    template_path_inputs = _export_template_path_inputs(payload, confirmed_order_object)
 
     try:
-        profile = _current_template_profile_for_export()
+        profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
         if profile:
             set_current_profile(profile)
 
-        template_path, _, template_source = _resolve_export_template_source()
+        template_path, _, template_source = _resolve_export_template_source(payload, confirmed_order_object)
 
         load_order_object_into_pipeline(order_object)
 
@@ -6107,6 +6142,7 @@ def api_v4_export_pipeline_excel(payload: Any = Body(None)):
                 "operations_written": export_result.get("operations_written", 0),
                 "warnings": export_result.get("warnings", []),
                 "template_source": template_source,
+                "resolved_template_path": str(template_path),
             },
             "render_preview": get_pipeline_state().get("render_preview", {}),
             "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
@@ -6118,6 +6154,7 @@ def api_v4_export_pipeline_excel(payload: Any = Body(None)):
             "success": False,
             "stage": "template",
             "error": str(exc),
+            **template_path_inputs,
             "pipeline_state": get_pipeline_state(),
         }
     except Exception as exc:

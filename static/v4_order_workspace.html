@@ -10,8 +10,9 @@
             --ink: #172033;
             --muted: #667085;
             --line: #d8dee8;
-            --soft: #f5f7fb;
+            --soft: #f3f6fb;
             --panel: #ffffff;
+            --navy: #14243b;
             --blue: #2563eb;
             --green: #16825d;
             --red: #c7362f;
@@ -30,31 +31,52 @@
         header {
             display: flex;
             justify-content: space-between;
-            gap: 16px;
+            gap: 18px;
             align-items: center;
             padding: 18px 24px;
-            background: #132238;
+            background: var(--navy);
             color: #fff;
         }
 
-        h1 {
+        header h1 {
             margin: 0;
             font-size: 22px;
-            font-weight: 700;
+        }
+
+        header p {
+            margin: 4px 0 0;
+            color: #c9d4e7;
+            font-size: 13px;
+        }
+
+        .header-badge {
+            border: 1px solid #55708f;
+            border-radius: 999px;
+            padding: 7px 11px;
+            color: #dce8f7;
+            font-size: 12px;
+            white-space: nowrap;
         }
 
         main {
             display: grid;
-            grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.25fr);
+            grid-template-columns: minmax(330px, 0.9fr) minmax(500px, 1.45fr);
             gap: 18px;
             padding: 18px;
+        }
+
+        .left-stack {
+            display: grid;
+            align-content: start;
+            gap: 18px;
         }
 
         section {
             background: var(--panel);
             border: 1px solid var(--line);
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 16px;
+            box-shadow: 0 4px 18px rgba(29, 46, 74, 0.04);
         }
 
         h2 {
@@ -62,11 +84,18 @@
             font-size: 17px;
         }
 
+        .section-note {
+            margin: -4px 0 12px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
         label {
             display: block;
             margin: 12px 0 6px;
             color: var(--muted);
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 700;
         }
 
@@ -75,17 +104,24 @@
         input {
             width: 100%;
             border: 1px solid var(--line);
-            border-radius: 6px;
+            border-radius: 7px;
             padding: 10px 12px;
-            font: inherit;
             background: #fff;
             color: var(--ink);
+            font: inherit;
+        }
+
+        select:focus,
+        textarea:focus,
+        input:focus {
+            border-color: #87a7f9;
+            outline: 3px solid #e8efff;
         }
 
         textarea {
-            min-height: 190px;
+            min-height: 180px;
             resize: vertical;
-            line-height: 1.45;
+            line-height: 1.5;
         }
 
         button,
@@ -95,7 +131,7 @@
             justify-content: center;
             min-height: 38px;
             border: 0;
-            border-radius: 6px;
+            border-radius: 7px;
             padding: 9px 14px;
             font: inherit;
             font-weight: 700;
@@ -114,13 +150,13 @@
 
         button:disabled {
             cursor: not-allowed;
-            opacity: 0.55;
+            opacity: 0.52;
         }
 
         .download-link {
+            border: 1px solid #bfceff;
             background: #eef4ff;
             color: var(--blue);
-            border: 1px solid #bfceff;
         }
 
         .actions {
@@ -134,10 +170,12 @@
         .status {
             margin-top: 12px;
             padding: 10px 12px;
-            border-radius: 6px;
             border: 1px solid var(--line);
+            border-radius: 7px;
             background: #f8fafc;
             color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
             white-space: pre-wrap;
         }
 
@@ -159,14 +197,57 @@
             color: var(--amber);
         }
 
+        .template-detail,
+        .summary-grid {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .detail-row,
+        .summary-item {
+            border: 1px solid #e4e9f1;
+            border-radius: 7px;
+            padding: 9px 10px;
+            background: #fafbfe;
+        }
+
+        .detail-row span,
+        .summary-item span {
+            display: block;
+            margin-bottom: 3px;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .detail-row code {
+            display: block;
+            overflow-wrap: anywhere;
+            color: #344054;
+            font-size: 11px;
+        }
+
+        .summary-grid {
+            grid-template-columns: repeat(4, minmax(100px, 1fr));
+            margin: 0 0 14px;
+        }
+
+        .summary-item strong {
+            font-size: 18px;
+        }
+
         .field-list {
             display: grid;
             gap: 10px;
+            max-height: calc(100vh - 270px);
+            overflow: auto;
+            padding-right: 3px;
         }
 
-        .field-row {
+        .field-card {
             border: 1px solid var(--line);
-            border-radius: 8px;
+            border-radius: 9px;
             padding: 12px;
             background: #fff;
         }
@@ -178,367 +259,492 @@
             margin-bottom: 8px;
         }
 
+        .field-head strong {
+            font-size: 14px;
+        }
+
         .field-key {
             color: var(--muted);
-            font-size: 12px;
+            font-size: 11px;
+            overflow-wrap: anywhere;
+            text-align: right;
         }
 
         .field-meta {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px 14px;
-            margin-bottom: 8px;
+            gap: 6px 12px;
+            margin-bottom: 9px;
             color: var(--muted);
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .empty {
             border: 1px dashed var(--line);
-            border-radius: 8px;
-            padding: 18px;
+            border-radius: 9px;
+            padding: 24px 18px;
+            background: #fbfcff;
             color: var(--muted);
             text-align: center;
-            background: #fbfcff;
         }
 
-        @media (max-width: 920px) {
-            main {
-                grid-template-columns: 1fr;
-                padding: 12px;
-            }
+        @media (max-width: 980px) {
+            main { grid-template-columns: 1fr; padding: 12px; }
+            .field-list { max-height: none; }
+        }
+
+        @media (max-width: 620px) {
+            header { align-items: flex-start; flex-direction: column; }
+            .summary-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
         }
     </style>
 </head>
 <body>
     <header>
-        <h1>Stage2 Workspace</h1>
-        <span>confirmedOrderObject -> Pipeline Export</span>
+        <div>
+            <h1>Stage2 Workspace</h1>
+            <p>Template Library → Workspace Fields → Manual Confirmation → Excel</p>
+        </div>
+        <span class="header-badge">Stage2 Template Library Only</span>
     </header>
 
     <main>
+        <div class="left-stack">
+            <section>
+                <h2>Template Library</h2>
+                <p class="section-note">模板选择只来自 Stage2 Template Library。Parse 前会建立所选模板的分析上下文。</p>
+
+                <label for="templateSelect">Select template</label>
+                <select id="templateSelect" data-testid="template-select" disabled>
+                    <option value="">Loading templates...</option>
+                </select>
+
+                <div id="templateDetail" class="template-detail"></div>
+                <div id="templateStatus" class="status">Loading Template Library...</div>
+            </section>
+
+            <section>
+                <h2>Chat Input</h2>
+                <label for="chatText">Order conversation</label>
+                <textarea id="chatText" data-testid="chat-input" placeholder="客户：ABC Company&#10;产品：Vitamin C&#10;数量：1000 bottles">客户：ABC Company
+产品：Vitamin C
+数量：1000 bottles</textarea>
+
+                <div class="actions">
+                    <button id="parseButton" data-testid="parse-button" type="button" disabled>Parse To Workspace Fields</button>
+                </div>
+                <div id="parseStatus" class="status">Select a template, then run Parse.</div>
+            </section>
+
+            <section>
+                <h2>Export</h2>
+                <p class="section-note">导出使用当前人工确认字段与所选模板上下文。</p>
+                <div class="actions">
+                    <button id="exportButton" data-testid="export-button" class="secondary" type="button" disabled>Export Excel</button>
+                    <a id="downloadLink" class="download-link" href="#" target="_blank" rel="noopener" style="display:none;">Download Excel</a>
+                </div>
+                <div id="exportStatus" class="status">Parse and confirm fields before export.</div>
+            </section>
+        </div>
+
         <section>
-            <h2>Template And Chat</h2>
-            <label for="profileSelect">Template profile</label>
-            <select id="profileSelect"></select>
-
-            <label for="chatText">Chat record</label>
-            <textarea id="chatText" placeholder="Customer: ABC Company&#10;Product: Vitamin C&#10;Quantity: 1000 bottles"></textarea>
-
-            <div class="actions">
-                <button id="parseButton" type="button">AI Parse</button>
+            <h2>Workspace Fields Confirmation</h2>
+            <div class="summary-grid">
+                <div class="summary-item"><span>Templates</span><strong id="templateCount">0</strong></div>
+                <div class="summary-item"><span>Fields</span><strong id="fieldCount">0</strong></div>
+                <div class="summary-item"><span>Table Fields</span><strong id="tableFieldCount">0</strong></div>
+                <div class="summary-item"><span>Children</span><strong id="childrenCount">0</strong></div>
             </div>
-            <div id="parseStatus" class="status">Waiting for chat input.</div>
-        </section>
-
-        <section>
-            <h2>Manual Confirmation</h2>
-            <div id="confirmationArea" class="field-list">
-                <div class="empty">Run AI Parse to generate confirmable fields.</div>
+            <div id="workspaceFieldsArea" class="field-list" data-testid="workspace-fields">
+                <div class="empty">Run Parse to load workspace fields.</div>
             </div>
-
-            <div class="actions">
-                <button id="exportButton" class="secondary" type="button">Export Excel</button>
-                <a id="downloadLink" class="download-link" href="#" target="_blank" rel="noopener" style="display:none;">Download Excel</a>
-            </div>
-            <div id="exportStatus" class="status">Confirm fields before export.</div>
         </section>
     </main>
 
     <script>
-        let profiles = [];
-        let activeProfile = null;
+        let templateLibrary = [];
+        let selectedTemplate = null;
         let latestParseResult = null;
+        let renderedWorkspaceFields = [];
         let confirmedOrderObject = null;
-        let renderedFields = [];
 
-        function profileId(profile) {
-            return String(profile?.id || profile?.profile_id || "").trim();
-        }
-
-        function profileName(profile) {
-            return String(profile?.name || profile?.profile_name || profileId(profile) || "Unnamed profile").trim();
-        }
-
-        function setStatus(id, text, type = "") {
-            const element = document.getElementById(id);
-            if (!element) return;
-            element.textContent = text;
-            element.className = type ? `status ${type}` : "status";
+        function text(value) {
+            return value == null ? "" : String(value).trim();
         }
 
         function escapeHtml(value) {
-            const div = document.createElement("div");
-            div.textContent = value ?? "";
-            return div.innerHTML;
+            const element = document.createElement("div");
+            element.textContent = value == null ? "" : String(value);
+            return element.innerHTML;
         }
 
-        function normalizeField(item, source) {
-            if (!item || typeof item !== "object") return null;
-            const fieldKey = String(item.field_key || item.key || item.name || "").trim();
-            const label = String(item.label || item.field_label || item.name || fieldKey || "").trim();
-            if (!fieldKey && !label) return null;
-            const value = item.value || item.raw_value || item.text || "";
+        function setStatus(id, message, type = "") {
+            const element = document.getElementById(id);
+            if (!element) return;
+            element.textContent = message;
+            element.className = type ? `status ${type}` : "status";
+        }
+
+        function normalizeTemplate(item, index) {
+            const source = item && typeof item === "object" ? item : {};
+            const templateFilePath = text(
+                source.template_file_path
+                || source.current_template_path
+                || source.full_path
+                || source.template_file
+            );
+            const templateFile = text(source.template_file || source.filename || templateFilePath.split(/[\\/]/).pop());
+            const templateId = text(source.template_id || source.id || source.profile_id || templateFile || `template-${index + 1}`);
+            const profileId = text(source.profile_id || source.id || source.template_id || templateId);
+            const name = text(source.name || source.profile_name || source.template_name || source.filename || templateFile || templateId);
             return {
-                field_key: fieldKey || label,
-                field_type: String(item.field_type || item.type || "text").trim() || "text",
-                label: label || fieldKey,
-                value: value == null ? "" : String(value),
-                source_cell: String(item.source_cell || "").trim(),
-                target_cell: String(item.target_cell || "").trim(),
-                section_key: String(item.section_key || "").trim(),
-                children: Array.isArray(item.children) ? item.children : [],
-                source,
+                ...source,
+                template_id: templateId,
+                profile_id: profileId,
+                name,
+                template_file: templateFile,
+                template_file_path: templateFilePath,
+                current_template_path: text(source.current_template_path || templateFilePath),
             };
         }
 
-        function fieldsFromObjectMap(map, source) {
-            if (!map || typeof map !== "object" || Array.isArray(map)) return [];
-            return Object.entries(map)
-                .map(([key, item]) => {
-                    if (item && typeof item === "object" && !Array.isArray(item)) {
-                        return normalizeField({ field_key: key, ...item }, source);
-                    }
-                    return normalizeField({ field_key: key, label: key, value: item }, source);
-                })
-                .filter(Boolean);
+        function selectedProfileId() {
+            return text(selectedTemplate?.profile_id || selectedTemplate?.id || selectedTemplate?.template_id);
         }
 
-        function collectSchemaFields(schema) {
-            if (!schema || typeof schema !== "object") return [];
-            if (Array.isArray(schema.fields)) {
-                return schema.fields.map(item => normalizeField(item, "semantic_workspace_schema")).filter(Boolean);
-            }
-            if (Array.isArray(schema.sections)) {
-                return schema.sections
-                    .flatMap(section => Array.isArray(section.fields) ? section.fields : [])
-                    .map(item => normalizeField(item, "semantic_workspace_schema"))
-                    .filter(Boolean);
-            }
-            return [];
+        function selectedTemplatePath() {
+            return text(selectedTemplate?.template_file_path || selectedTemplate?.current_template_path);
         }
 
-        function extractFields(result) {
-            const workspaceFields = Array.isArray(result?.workspace_fields)
-                ? result.workspace_fields.map(item => normalizeField(item, "workspace_fields")).filter(Boolean)
-                : [];
-            if (workspaceFields.length) return workspaceFields;
-
-            const directSchemaFields = collectSchemaFields(result?.semantic_workspace_schema);
-            if (directSchemaFields.length) return directSchemaFields;
-
-            const directOrder = result?.order_object || {};
-            const directProductFields = fieldsFromObjectMap(directOrder?.product?.fields, "order_object.product.fields");
-            if (directProductFields.length) return directProductFields;
-
-            const directCustomerFields = fieldsFromObjectMap(directOrder?.customer?.fields, "order_object.customer.fields");
-            if (directCustomerFields.length) return directCustomerFields;
-
-            const parseOrder = result?.parse_result?.order_object || {};
-            const parseProductFields = fieldsFromObjectMap(parseOrder?.product?.fields, "parse_result.order_object.product.fields");
-            if (parseProductFields.length) return parseProductFields;
-
-            const parseCustomerFields = fieldsFromObjectMap(parseOrder?.customer?.fields, "parse_result.order_object.customer.fields");
-            if (parseCustomerFields.length) return parseCustomerFields;
-
-            return [];
+        function templateLabel(template) {
+            return text(template?.name || template?.template_name || template?.template_file || template?.template_id || "Unnamed template");
         }
 
-        function renderProfiles() {
-            const select = document.getElementById("profileSelect");
-            select.innerHTML = profiles.map(profile => {
-                const id = profileId(profile);
-                return `<option value="${escapeHtml(id)}">${escapeHtml(profileName(profile))}</option>`;
-            }).join("");
-            activeProfile = profiles.find(profile => profileId(profile) === select.value) || profiles[0] || null;
-            if (activeProfile) select.value = profileId(activeProfile);
-        }
-
-        async function loadProfiles() {
-            setStatus("parseStatus", "Loading template profiles...");
-            const response = await fetch("/api/v4/template-profiles");
-            const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result.error || "Template profiles failed to load.");
-            }
-            profiles = Array.isArray(result.profiles) ? result.profiles : [];
-            renderProfiles();
-            setStatus("parseStatus", profiles.length ? `Loaded ${profiles.length} profiles.` : "No template profiles found.", profiles.length ? "ok" : "warn");
-        }
-
-        function renderFields(fields) {
-            const area = document.getElementById("confirmationArea");
-            renderedFields = Array.isArray(fields) ? fields : [];
-            if (!fields.length) {
-                area.innerHTML = '<div class="empty">未生成可确认字段，请检查模板配置或 AI解析结果。</div>';
+        function renderTemplateDetail() {
+            const area = document.getElementById("templateDetail");
+            if (!selectedTemplate) {
+                area.innerHTML = "";
                 return;
             }
-            area.innerHTML = fields.map((field, index) => `
-                <div class="field-row">
+            area.innerHTML = `
+                <div class="detail-row"><span>profile_id</span><code>${escapeHtml(selectedProfileId() || "-")}</code></div>
+                <div class="detail-row"><span>template_file</span><code>${escapeHtml(selectedTemplate.template_file || "-")}</code></div>
+                <div class="detail-row"><span>template_file_path</span><code>${escapeHtml(selectedTemplatePath() || "-")}</code></div>
+            `;
+        }
+
+        function renderTemplateLibrary() {
+            const select = document.getElementById("templateSelect");
+            select.innerHTML = templateLibrary.map((template, index) => (
+                `<option value="${index}">${escapeHtml(templateLabel(template))}</option>`
+            )).join("");
+            select.disabled = templateLibrary.length === 0;
+            selectedTemplate = templateLibrary[0] || null;
+            select.value = selectedTemplate ? "0" : "";
+            document.getElementById("parseButton").disabled = !selectedTemplate;
+            document.getElementById("templateCount").textContent = String(templateLibrary.length);
+            renderTemplateDetail();
+        }
+
+        async function loadTemplateLibrary() {
+            setStatus("templateStatus", "Loading Template Library...");
+            const response = await fetch("/api/v4/stage2-config/template-library");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Template Library failed to load.");
+            }
+            templateLibrary = Array.isArray(result.templates)
+                ? result.templates.map(normalizeTemplate)
+                : [];
+            renderTemplateLibrary();
+            setStatus(
+                "templateStatus",
+                templateLibrary.length
+                    ? `Template Library loaded: ${templateLibrary.length} templates.`
+                    : "Template Library is empty.",
+                templateLibrary.length ? "ok" : "warn",
+            );
+        }
+
+        async function prepareSelectedTemplate() {
+            const templatePath = selectedTemplatePath();
+            if (!selectedTemplate || !templatePath) {
+                throw new Error("Selected template has no template_file_path.");
+            }
+
+            setStatus("templateStatus", `Preparing template: ${templateLabel(selectedTemplate)}...`);
+            const selectResponse = await fetch("/api/v4/stage2-config/select-template", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ template_path: templatePath }),
+            });
+            const selectResult = await selectResponse.json();
+            if (!selectResponse.ok || !selectResult.ok) {
+                throw new Error(selectResult.detail || selectResult.error || "Template selection failed.");
+            }
+
+            const analysisResponse = await fetch("/api/v4/stage2-config/run-template-analysis", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+            });
+            const analysisResult = await analysisResponse.json();
+            if (!analysisResponse.ok || !analysisResult.ok) {
+                throw new Error(
+                    (Array.isArray(analysisResult.diagnostics) && analysisResult.diagnostics.join("; "))
+                    || analysisResult.detail
+                    || analysisResult.error
+                    || "Template analysis failed."
+                );
+            }
+            setStatus(
+                "templateStatus",
+                `Template ready: ${selectResult.template_filename || selectedTemplate.template_file}. Semantic regions: ${analysisResult.semantic_regions_count || 0}.`,
+                "ok",
+            );
+            return analysisResult;
+        }
+
+        function normalizeWorkspaceField(item, index) {
+            const source = item && typeof item === "object" ? item : {};
+            const fieldKey = text(source.field_key || source.key || source.name || `field-${index + 1}`);
+            return {
+                ...source,
+                field_key: fieldKey,
+                field_type: text(source.field_type || source.type || "text") || "text",
+                label: text(source.label || source.field_label || source.name || fieldKey) || fieldKey,
+                value: source.value == null
+                    ? text(source.raw_value || source.text)
+                    : String(source.value),
+                source_cell: text(source.source_cell),
+                target_cell: text(source.target_cell),
+                section_key: text(source.section_key),
+                children: Array.isArray(source.children) ? source.children : [],
+            };
+        }
+
+        function renderWorkspaceFields(fields) {
+            const area = document.getElementById("workspaceFieldsArea");
+            renderedWorkspaceFields = Array.isArray(fields) ? fields : [];
+            const tableFields = renderedWorkspaceFields.filter(field => field.field_type === "table");
+            const childrenTotal = renderedWorkspaceFields.reduce(
+                (total, field) => total + (Array.isArray(field.children) ? field.children.length : 0),
+                0,
+            );
+
+            document.getElementById("fieldCount").textContent = String(renderedWorkspaceFields.length);
+            document.getElementById("tableFieldCount").textContent = String(tableFields.length);
+            document.getElementById("childrenCount").textContent = String(childrenTotal);
+            document.getElementById("exportButton").disabled = renderedWorkspaceFields.length === 0;
+
+            if (!renderedWorkspaceFields.length) {
+                area.innerHTML = '<div class="empty">未返回 workspace_fields，请检查模板分析或模板上下文。</div>';
+                return;
+            }
+
+            area.innerHTML = renderedWorkspaceFields.map((field, index) => `
+                <article class="field-card" data-field-type="${escapeHtml(field.field_type)}">
                     <div class="field-head">
                         <strong>${escapeHtml(field.label)}</strong>
                         <span class="field-key">${escapeHtml(field.field_key)}</span>
                     </div>
                     <div class="field-meta">
-                        <span>field_type: ${escapeHtml(field.field_type)}</span>
-                        <span>source_cell -&gt; target_cell: ${escapeHtml(field.source_cell || "-")} -&gt; ${escapeHtml(field.target_cell || "-")}</span>
+                        <span>field_type: ${escapeHtml(field.field_type || "-")}</span>
+                        <span>section_key: ${escapeHtml(field.section_key || "-")}</span>
+                        <span>source_cell: ${escapeHtml(field.source_cell || "-")}</span>
+                        <span>target_cell: ${escapeHtml(field.target_cell || "-")}</span>
                         <span>children_count: ${Array.isArray(field.children) ? field.children.length : 0}</span>
                     </div>
                     <input
                         data-field-index="${index}"
-                        data-field-key="${escapeHtml(field.field_key)}"
-                        data-label="${escapeHtml(field.label)}"
-                        data-source="${escapeHtml(field.source)}"
+                        aria-label="${escapeHtml(field.label)}"
                         value="${escapeHtml(field.value)}"
                     >
-                </div>
+                </article>
             `).join("");
-            area.querySelectorAll("input[data-field-key]").forEach(input => {
+
+            area.querySelectorAll("input[data-field-index]").forEach(input => {
                 input.addEventListener("input", buildConfirmedOrderObject);
             });
         }
 
-        async function parseChat() {
-            const chatText = document.getElementById("chatText").value.trim();
-            if (!chatText) {
-                setStatus("parseStatus", "Please enter chat text.", "warn");
-                return;
-            }
-            if (!activeProfile) {
-                setStatus("parseStatus", "Please select a template profile.", "warn");
-                return;
-            }
-
-            document.getElementById("parseButton").disabled = true;
-            setStatus("parseStatus", "AI parsing...");
-            try {
-                const response = await fetch("/api/v4/parse-chat-run-pipeline", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ chat_text: chatText }),
-                });
-                const result = await response.json();
-                if (!response.ok || !result.success) {
-                    throw new Error(`${result.stage || "parse"}: ${result.error || "AI parse failed."}`);
-                }
-                latestParseResult = result;
-                const fields = extractFields(result);
-                renderFields(fields);
-                buildConfirmedOrderObject();
-                setStatus("parseStatus", `AI parse succeeded. ${fields.length} fields ready.`, fields.length ? "ok" : "warn");
-            } catch (error) {
-                latestParseResult = null;
-                confirmedOrderObject = null;
-                window.confirmedOrderObject = confirmedOrderObject;
-                renderFields([]);
-                setStatus("parseStatus", error.message || "AI parse failed.", "error");
-            } finally {
-                document.getElementById("parseButton").disabled = false;
-            }
-        }
-
         function buildConfirmedOrderObject() {
-            const fields = Array.from(document.querySelectorAll("#confirmationArea input[data-field-key]")).map(input => {
-                const original = renderedFields[Number(input.dataset.fieldIndex)] || {};
+            const fields = Array.from(document.querySelectorAll("#workspaceFieldsArea input[data-field-index]")).map(input => {
+                const field = renderedWorkspaceFields[Number(input.dataset.fieldIndex)] || {};
                 return {
-                    field_key: input.dataset.fieldKey || "",
-                    field_type: original.field_type || "text",
-                    label: input.dataset.label || input.dataset.fieldKey || "",
+                    field_key: field.field_key || "",
+                    field_type: field.field_type || "text",
+                    label: field.label || field.field_key || "",
                     value: input.value,
-                    source_cell: original.source_cell || "",
-                    target_cell: original.target_cell || "",
-                    section_key: original.section_key || "",
-                    children: Array.isArray(original.children) ? original.children : [],
-                    source: input.dataset.source || "manual_confirmation",
+                    source_cell: field.source_cell || "",
+                    target_cell: field.target_cell || "",
+                    section_key: field.section_key || "",
+                    children: Array.isArray(field.children) ? field.children : [],
                 };
             });
-            const valuesByFieldKey = Object.fromEntries(fields.map(field => [field.field_key, field.value]));
-            const fieldMeta = Object.fromEntries(fields.map(field => [
-                field.field_key,
-                {
-                    label: field.label,
-                    field_type: field.field_type,
-                    source_cell: field.source_cell,
-                    target_cell: field.target_cell,
-                    section_key: field.section_key,
-                    children: field.children,
-                    source: field.source,
-                },
-            ]));
+
             confirmedOrderObject = {
                 document_type: "order",
-                source: "stage2_workspace",
-                order_object: latestParseResult?.order_object || latestParseResult?.parse_result?.order_object || {},
-                values_by_field_key: valuesByFieldKey,
+                source: "stage2_workspace_rebuild",
+                order_object: latestParseResult?.order_object || {},
+                values_by_field_key: Object.fromEntries(fields.map(field => [field.field_key, field.value])),
                 fields,
                 _meta: {
                     confirmed_by_user: true,
                     confirmed_at: new Date().toISOString(),
-                    profile_id: activeProfile?.id || activeProfile?.profile_id || "",
-                    template_file: activeProfile?.template_file || "",
-                    template_file_path: activeProfile?.template_file_path || "",
+                    profile_id: selectedProfileId(),
+                    template_file: text(selectedTemplate?.template_file),
+                    template_file_path: selectedTemplatePath(),
+                    current_template_path: text(selectedTemplate?.current_template_path || selectedTemplatePath()),
                 },
-                _field_meta: fieldMeta,
             };
             window.confirmedOrderObject = confirmedOrderObject;
             return confirmedOrderObject;
         }
 
-        async function exportExcel() {
-            const objectForExport = buildConfirmedOrderObject();
-            if (!activeProfile) {
-                setStatus("exportStatus", "请选择模板", "warn");
+        async function parseChat() {
+            const chatText = document.getElementById("chatText").value.trim();
+            if (!selectedTemplate) {
+                setStatus("parseStatus", "Please select a template.", "warn");
                 return;
             }
-            if (!objectForExport.fields.length) {
-                setStatus("exportStatus", "没有可导出的确认字段", "warn");
+            if (!chatText) {
+                setStatus("parseStatus", "Please enter chat text.", "warn");
                 return;
             }
 
+            const button = document.getElementById("parseButton");
+            button.disabled = true;
             document.getElementById("exportButton").disabled = true;
             document.getElementById("downloadLink").style.display = "none";
-            setStatus("exportStatus", "Exporting Excel...");
+            setStatus("parseStatus", "Preparing template and parsing chat...");
+
             try {
-                const response = await fetch("/api/v4/export-pipeline-excel", {
+                await prepareSelectedTemplate();
+                const payload = {
+                    chat_text: chatText,
+                    template: selectedTemplate,
+                    profile: selectedTemplate,
+                    profile_id: selectedProfileId(),
+                    template_file: text(selectedTemplate.template_file),
+                    template_file_path: selectedTemplatePath(),
+                };
+                window.latestParsePayload = payload;
+
+                const response = await fetch("/api/v4/parse-chat-run-pipeline", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        confirmed_order_object: objectForExport,
-                        profile: activeProfile,
-                        profile_id: activeProfile?.id || activeProfile?.profile_id || "",
-                        template_file: activeProfile?.template_file || "",
-                        template_file_path: activeProfile?.template_file_path || "",
-                    }),
+                    body: JSON.stringify(payload),
                 });
                 const result = await response.json();
                 if (!response.ok || !result.success) {
-                    throw new Error(`${result.stage || "export"}: ${result.error || "Stage2 export failed."}`);
+                    throw new Error(`${result.stage || "parse"}: ${result.error || "Parse failed."}`);
                 }
 
-                const exportResult = result.export_result || {};
-                const link = document.getElementById("downloadLink");
-                link.href = exportResult.download_url || "#";
-                link.textContent = exportResult.filename ? `Download ${exportResult.filename}` : "Download Excel";
-                link.style.display = exportResult.download_url ? "inline-flex" : "none";
-                setStatus("exportStatus", `Excel exported: ${exportResult.filename || "-"}`, "ok");
+                latestParseResult = {
+                    ...result,
+                    order_object: result.order_object || result.parse_result?.order_object || {},
+                };
+                window.latestParseResult = latestParseResult;
+                const fields = Array.isArray(result.workspace_fields)
+                    ? result.workspace_fields.map(normalizeWorkspaceField)
+                    : [];
+                renderWorkspaceFields(fields);
+                buildConfirmedOrderObject();
+                setStatus(
+                    "parseStatus",
+                    fields.length
+                        ? `Parse succeeded. ${fields.length} workspace fields ready for confirmation.`
+                        : "未返回 workspace_fields，请检查模板分析或模板上下文。",
+                    fields.length ? "ok" : "warn",
+                );
             } catch (error) {
-                setStatus("exportStatus", error.message || "Stage2 export failed.", "error");
+                latestParseResult = null;
+                confirmedOrderObject = null;
+                window.latestParseResult = null;
+                window.confirmedOrderObject = null;
+                renderWorkspaceFields([]);
+                setStatus("parseStatus", error.message || "Parse failed.", "error");
             } finally {
-                document.getElementById("exportButton").disabled = false;
+                button.disabled = !selectedTemplate;
             }
         }
 
-        document.getElementById("profileSelect").addEventListener("change", event => {
-            activeProfile = profiles.find(profile => profileId(profile) === event.target.value) || null;
-            buildConfirmedOrderObject();
-            setStatus("parseStatus", activeProfile ? `Active profile: ${profileName(activeProfile)}` : "Please select a template profile.", activeProfile ? "ok" : "warn");
+        async function exportExcel() {
+            const objectForExport = buildConfirmedOrderObject();
+            if (!selectedTemplate) {
+                setStatus("exportStatus", "Please select a template.", "warn");
+                return;
+            }
+            if (!objectForExport.fields.length) {
+                setStatus("exportStatus", "No confirmed fields are available for export.", "warn");
+                return;
+            }
+
+            const button = document.getElementById("exportButton");
+            const link = document.getElementById("downloadLink");
+            button.disabled = true;
+            link.style.display = "none";
+            setStatus("exportStatus", "Exporting Excel...");
+
+            try {
+                const payload = {
+                    confirmed_order_object: objectForExport,
+                    profile: selectedTemplate,
+                    profile_id: selectedProfileId(),
+                    template_file: text(selectedTemplate.template_file),
+                    template_file_path: selectedTemplatePath(),
+                };
+                window.latestExportPayload = payload;
+
+                const response = await fetch("/api/v4/export-pipeline-excel", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                const result = await response.json();
+                window.latestExportResult = result;
+                if (!response.ok || !result.success) {
+                    throw new Error(`${result.stage || "export"}: ${result.error || "Export failed."}`);
+                }
+
+                const exportResult = result.export_result || {};
+                link.href = exportResult.download_url || "#";
+                link.textContent = exportResult.filename ? `Download ${exportResult.filename}` : "Download Excel";
+                link.style.display = exportResult.download_url ? "inline-flex" : "none";
+                setStatus("exportStatus", `Excel exported: ${exportResult.filename || "completed"}`, "ok");
+            } catch (error) {
+                setStatus("exportStatus", error.message || "Export failed.", "error");
+            } finally {
+                button.disabled = renderedWorkspaceFields.length === 0;
+            }
+        }
+
+        document.getElementById("templateSelect").addEventListener("change", event => {
+            selectedTemplate = templateLibrary[Number(event.target.value)] || null;
+            latestParseResult = null;
+            confirmedOrderObject = null;
+            window.selectedTemplate = selectedTemplate;
+            window.latestParseResult = null;
+            window.confirmedOrderObject = null;
+            renderTemplateDetail();
+            renderWorkspaceFields([]);
+            setStatus("templateStatus", selectedTemplate ? `Selected: ${templateLabel(selectedTemplate)}` : "Please select a template.", selectedTemplate ? "ok" : "warn");
+            setStatus("parseStatus", "Selected template changed. Run Parse to rebuild workspace fields.");
+            setStatus("exportStatus", "Parse and confirm fields before export.");
         });
 
         document.getElementById("parseButton").addEventListener("click", parseChat);
         document.getElementById("exportButton").addEventListener("click", exportExcel);
 
-        loadProfiles().catch(error => {
-            setStatus("parseStatus", error.message || "Template profiles failed to load.", "error");
-        });
+        loadTemplateLibrary()
+            .then(() => {
+                window.selectedTemplate = selectedTemplate;
+            })
+            .catch(error => {
+                setStatus("templateStatus", error.message || "Template Library failed to load.", "error");
+                document.getElementById("parseButton").disabled = true;
+            });
     </script>
 </body>
 </html>
