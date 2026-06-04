@@ -183,6 +183,15 @@
             font-size: 12px;
         }
 
+        .field-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 14px;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
         .empty {
             border: 1px dashed var(--line);
             border-radius: 8px;
@@ -240,6 +249,7 @@
         let activeProfile = null;
         let latestParseResult = null;
         let confirmedOrderObject = null;
+        let renderedFields = [];
 
         function profileId(profile) {
             return String(profile?.id || profile?.profile_id || "").trim();
@@ -267,11 +277,16 @@
             const fieldKey = String(item.field_key || item.key || item.name || "").trim();
             const label = String(item.label || item.field_label || item.name || fieldKey || "").trim();
             if (!fieldKey && !label) return null;
-            const value = item.value ?? item.raw_value ?? item.text ?? "";
+            const value = item.value || item.raw_value || item.text || "";
             return {
                 field_key: fieldKey || label,
+                field_type: String(item.field_type || item.type || "text").trim() || "text",
                 label: label || fieldKey,
                 value: value == null ? "" : String(value),
+                source_cell: String(item.source_cell || "").trim(),
+                target_cell: String(item.target_cell || "").trim(),
+                section_key: String(item.section_key || "").trim(),
+                children: Array.isArray(item.children) ? item.children : [],
                 source,
             };
         }
@@ -303,13 +318,13 @@
         }
 
         function extractFields(result) {
+            const workspaceFields = Array.isArray(result?.workspace_fields)
+                ? result.workspace_fields.map(item => normalizeField(item, "workspace_fields")).filter(Boolean)
+                : [];
+            if (workspaceFields.length) return workspaceFields;
+
             const directSchemaFields = collectSchemaFields(result?.semantic_workspace_schema);
             if (directSchemaFields.length) return directSchemaFields;
-
-            const boundFields = Array.isArray(result?.field_bound_operations)
-                ? result.field_bound_operations.map(item => normalizeField(item, "field_bound_operations")).filter(Boolean)
-                : [];
-            if (boundFields.length) return boundFields;
 
             const directOrder = result?.order_object || {};
             const directProductFields = fieldsFromObjectMap(directOrder?.product?.fields, "order_object.product.fields");
@@ -352,6 +367,7 @@
 
         function renderFields(fields) {
             const area = document.getElementById("confirmationArea");
+            renderedFields = Array.isArray(fields) ? fields : [];
             if (!fields.length) {
                 area.innerHTML = '<div class="empty">未生成可确认字段，请检查模板配置或 AI解析结果。</div>';
                 return;
@@ -361,6 +377,11 @@
                     <div class="field-head">
                         <strong>${escapeHtml(field.label)}</strong>
                         <span class="field-key">${escapeHtml(field.field_key)}</span>
+                    </div>
+                    <div class="field-meta">
+                        <span>field_type: ${escapeHtml(field.field_type)}</span>
+                        <span>source_cell -&gt; target_cell: ${escapeHtml(field.source_cell || "-")} -&gt; ${escapeHtml(field.target_cell || "-")}</span>
+                        <span>children_count: ${Array.isArray(field.children) ? field.children.length : 0}</span>
                     </div>
                     <input
                         data-field-index="${index}"
@@ -416,17 +437,30 @@
         }
 
         function buildConfirmedOrderObject() {
-            const fields = Array.from(document.querySelectorAll("#confirmationArea input[data-field-key]")).map(input => ({
-                field_key: input.dataset.fieldKey || "",
-                label: input.dataset.label || input.dataset.fieldKey || "",
-                value: input.value,
-                source: input.dataset.source || "manual_confirmation",
-            }));
+            const fields = Array.from(document.querySelectorAll("#confirmationArea input[data-field-key]")).map(input => {
+                const original = renderedFields[Number(input.dataset.fieldIndex)] || {};
+                return {
+                    field_key: input.dataset.fieldKey || "",
+                    field_type: original.field_type || "text",
+                    label: input.dataset.label || input.dataset.fieldKey || "",
+                    value: input.value,
+                    source_cell: original.source_cell || "",
+                    target_cell: original.target_cell || "",
+                    section_key: original.section_key || "",
+                    children: Array.isArray(original.children) ? original.children : [],
+                    source: input.dataset.source || "manual_confirmation",
+                };
+            });
             const valuesByFieldKey = Object.fromEntries(fields.map(field => [field.field_key, field.value]));
             const fieldMeta = Object.fromEntries(fields.map(field => [
                 field.field_key,
                 {
                     label: field.label,
+                    field_type: field.field_type,
+                    source_cell: field.source_cell,
+                    target_cell: field.target_cell,
+                    section_key: field.section_key,
+                    children: field.children,
                     source: field.source,
                 },
             ]));
