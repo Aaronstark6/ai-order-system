@@ -62,6 +62,7 @@ Stage2 config rebuild:
 - Stage2 Config no longer needs the old configuration page for template selection before running template analysis.
 - Stage2 Config has connected Template Library -> Template Analysis -> `semantic_regions`.
 - Current fix addresses a DocumentModel Builder visual node parameter signature mismatch so DocumentModel Runtime can continue building.
+- Stage2 Config 新增 Semantic Region Type Summary，用于诊断 semantic_regions 类型分布，定位 field_node_count 偏低原因。
 
 Latest observed real flow result:
 

@@ -184,3 +184,17 @@ Current fix:
 - The builder accepts visual node `cell` / row / col / page / bbox call arguments.
 - These values are preserved through `coordinates`.
 - This keeps DocumentModel Runtime moving without changing Stage2 Config or old routes.
+
+Semantic Region Type Summary:
+
+```text
+Stage2 Config
+↓
+Run Template Analysis
+↓
+pipeline_state.template_analysis.semantic_regions
+↓
+Semantic Region Type Summary
+↓
+判断 Template Analysis 分类与 DocumentModel Builder 字段识别是否一致
+```

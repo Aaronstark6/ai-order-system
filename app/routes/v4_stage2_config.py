@@ -827,6 +827,121 @@ def _pipeline_state_template_analysis_source() -> dict[str, Any]:
     }
 
 
+SEMANTIC_REGION_TYPE_KEYS = (
+    "semantic_type",
+    "region_type",
+    "type",
+    "kind",
+    "intent_type",
+)
+
+SEMANTIC_REGION_SPECIAL_VALUE_KEYS = (
+    "semantic_type",
+    "region_type",
+    "type",
+    "kind",
+    "intent_type",
+    "write_mode",
+    "label",
+    "text",
+    "field_key",
+    "cell",
+    "target_cell",
+    "source_cell",
+)
+
+
+def _semantic_region_counter_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    except Exception:
+        return str(value)
+
+
+def _semantic_region_type(region: Any) -> str:
+    if not isinstance(region, dict):
+        return "unknown"
+    for key in SEMANTIC_REGION_TYPE_KEYS:
+        value = region.get(key)
+        if value is not None and _semantic_region_counter_value(value).strip():
+            return _semantic_region_counter_value(value)
+    return "unknown"
+
+
+def _json_safe_summary_value(value: Any) -> Any:
+    try:
+        return json.loads(json.dumps(value, ensure_ascii=False, default=str))
+    except Exception:
+        return str(value)
+
+
+def _semantic_region_type_summary() -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "status": "unavailable",
+        "semantic_regions_count": 0,
+        "region_type_counter": {},
+        "key_counter": {},
+        "special_value_counter": {},
+        "first_regions": [],
+        "diagnostics": [],
+    }
+    diagnostics = summary["diagnostics"]
+
+    try:
+        from app.v4_pipeline_state import get_pipeline_state
+    except Exception as exc:
+        diagnostics.append(f"pipeline_state_import_failed: {exc}")
+        return summary
+
+    try:
+        pipeline_state = get_pipeline_state()
+        template_analysis = pipeline_state.get("template_analysis") if isinstance(pipeline_state, dict) else None
+        if not isinstance(template_analysis, dict) or not template_analysis:
+            diagnostics.append("template_analysis_missing")
+            return summary
+
+        semantic_regions = template_analysis.get("semantic_regions")
+        if not isinstance(semantic_regions, list) or not semantic_regions:
+            diagnostics.append("semantic_regions_missing")
+            return summary
+
+        region_type_counter: dict[str, int] = {}
+        key_counter: dict[str, int] = {}
+        special_value_counter: dict[str, int] = {}
+
+        for index, region in enumerate(semantic_regions):
+            try:
+                region_type = _semantic_region_type(region)
+                region_type_counter[region_type] = region_type_counter.get(region_type, 0) + 1
+                if not isinstance(region, dict):
+                    continue
+                for key in region:
+                    key_text = str(key)
+                    key_counter[key_text] = key_counter.get(key_text, 0) + 1
+                for key in SEMANTIC_REGION_SPECIAL_VALUE_KEYS:
+                    if key not in region:
+                        continue
+                    counter_key = f"{key}={_semantic_region_counter_value(region.get(key))}"
+                    special_value_counter[counter_key] = special_value_counter.get(counter_key, 0) + 1
+            except Exception as exc:
+                diagnostics.append(f"semantic_region_{index}_summary_failed: {exc}")
+
+        summary.update({
+            "status": "available",
+            "semantic_regions_count": len(semantic_regions),
+            "region_type_counter": region_type_counter,
+            "key_counter": key_counter,
+            "special_value_counter": special_value_counter,
+            "first_regions": _json_safe_summary_value(semantic_regions[:80]),
+        })
+    except Exception as exc:
+        diagnostics.append(f"semantic_region_type_summary_failed: {exc}")
+
+    return summary
+
+
 def _legacy_template_analysis_sources() -> list[dict[str, Any]]:
     profiles, profile_error = _load_legacy_profile_items()
     sources = []
@@ -1148,6 +1263,16 @@ def api_v4_stage2_config_template_analysis_summary():
         "module": "stage2_config",
         "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
         "summary": summary,
+    }
+
+
+@router.get("/semantic-region-type-summary")
+def api_v4_stage2_config_semantic_region_type_summary():
+    return {
+        "ok": True,
+        "module": "stage2_config",
+        "schema_version": STAGE2_CONFIG_SCHEMA_VERSION,
+        "summary": _semantic_region_type_summary(),
     }
 
 

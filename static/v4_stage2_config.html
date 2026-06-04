@@ -202,6 +202,14 @@
             </div>
 
             <div style="margin-top:16px;">
+                <h2>Semantic Region Type Summary</h2>
+                <div class="actions">
+                    <button id="semanticRegionTypeSummaryButton" type="button">Load Semantic Region Type Summary</button>
+                </div>
+                <div id="semanticRegionTypeSummaryArea" class="status">Semantic Region Type Summary not loaded.</div>
+            </div>
+
+            <div style="margin-top:16px;">
                 <h2>DocumentModel Viewer</h2>
                 <div class="actions">
                     <button id="documentModelViewerButton" type="button">Load DocumentModel Viewer</button>
@@ -426,6 +434,62 @@
                 </div>
                 <div class="status">diagnostics: ${diagnostics.map(escapeHtml).join(", ") || "-"}</div>
                 <div class="status">semantic_summary: ${escapeHtml(JSON.stringify(result.semantic_summary || {}, null, 2))}</div>
+            `;
+        }
+
+        function renderCounter(counter) {
+            const entries = Object.entries(counter || {});
+            if (!entries.length) {
+                return '<div class="small">-</div>';
+            }
+            return entries.map(([key, value]) => `
+                <div class="small">${escapeHtml(key)}: ${Number(value || 0)}</div>
+            `).join("");
+        }
+
+        function renderSemanticRegionTypeSummary(result) {
+            const summary = result.summary || {};
+            const diagnostics = Array.isArray(summary.diagnostics) ? summary.diagnostics : [];
+            const firstRegions = Array.isArray(summary.first_regions) ? summary.first_regions : [];
+            const area = document.getElementById("semanticRegionTypeSummaryArea");
+            area.className = "status";
+            area.innerHTML = `
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>status</span>
+                        <strong>${escapeHtml(summary.status || "")}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>semantic_regions_count</span>
+                        <strong>${Number(summary.semantic_regions_count || 0)}</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>diagnostics</span>
+                        <strong>${diagnostics.length}</strong>
+                    </div>
+                </div>
+                <div class="cache-list">
+                    <div class="cache-item">
+                        <h3>region_type_counter</h3>
+                        ${renderCounter(summary.region_type_counter)}
+                    </div>
+                    <div class="cache-item">
+                        <h3>key_counter</h3>
+                        ${renderCounter(summary.key_counter)}
+                    </div>
+                    <div class="cache-item">
+                        <h3>special_value_counter</h3>
+                        ${renderCounter(summary.special_value_counter)}
+                    </div>
+                    <div class="cache-item">
+                        <h3>diagnostics</h3>
+                        <div class="small">${diagnostics.map(escapeHtml).join(", ") || "-"}</div>
+                    </div>
+                    <div class="cache-item">
+                        <h3>first_regions (${firstRegions.length})</h3>
+                        <div class="small">${escapeHtml(JSON.stringify(firstRegions, null, 2))}</div>
+                    </div>
+                </div>
             `;
         }
 
@@ -685,6 +749,18 @@
             setStatus("Template analysis summary loaded.");
         }
 
+        async function loadSemanticRegionTypeSummary() {
+            const response = await fetch("/api/v4/stage2-config/semantic-region-type-summary");
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.detail || result.error || "Load Semantic Region Type Summary failed.");
+            }
+            renderSemanticRegionTypeSummary(result);
+            renderJson(result);
+            const summary = result.summary || {};
+            setStatus(`Semantic Region Type Summary status: ${summary.status || "unknown"}.`);
+        }
+
         async function loadDocumentModelViewer() {
             const response = await fetch("/api/v4/stage2-config/documentmodel-viewer");
             const result = await response.json();
@@ -739,6 +815,12 @@
             loadTemplateAnalysisSummary().catch(error => {
                 document.getElementById("templateAnalysisArea").textContent = error.message || "Load template analysis summary failed.";
                 setStatus(error.message || "Load template analysis summary failed.");
+            });
+        });
+        document.getElementById("semanticRegionTypeSummaryButton").addEventListener("click", () => {
+            loadSemanticRegionTypeSummary().catch(error => {
+                document.getElementById("semanticRegionTypeSummaryArea").textContent = error.message || "Load Semantic Region Type Summary failed.";
+                setStatus(error.message || "Load Semantic Region Type Summary failed.");
             });
         });
         document.getElementById("documentModelViewerButton").addEventListener("click", () => {
