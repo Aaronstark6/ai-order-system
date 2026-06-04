@@ -24,6 +24,7 @@ def _empty_workspace_model():
     return {
         "sections": [],
         "workspace_fields": [],
+        "workspace_components": [],
         "warnings": [],
     }
 
@@ -483,6 +484,103 @@ def _section_from_workspace_field(field):
     }
 
 
+def _component_type_from_workspace_field(field):
+    if not isinstance(field, dict):
+        return "unknown"
+
+    field_type = normalize_text(field.get("field_type"))
+    object_type = normalize_text(field.get("object_type"))
+
+    if field_type == "choice":
+        return "choice_group"
+    if field_type == "table":
+        return "table"
+    if field_type in ("image_attachment_area", "image", "object") or object_type:
+        return object_type or "object_area"
+    if field_type in ("date", "number", "text", "textarea"):
+        return field_type
+    if field_type:
+        return field_type
+    return "text"
+
+
+def build_workspace_component_from_workspace_field(field):
+    if not isinstance(field, dict):
+        return {}
+
+    component_key = normalize_text(field.get("field_key")) or normalize_text(
+        field.get("node_id")
+    )
+    if not component_key:
+        return {}
+
+    component_type = _component_type_from_workspace_field(field)
+    title = normalize_text(field.get("label")) or component_key
+
+    component = {
+        "component_key": component_key,
+        "component_type": component_type,
+        "component_title": title,
+        "node_id": normalize_text(field.get("node_id")),
+        "section_key": normalize_text(field.get("section_key")),
+        "section_title": normalize_text(field.get("section_title")),
+        "section_order": field.get("section_order"),
+        "source_cell": normalize_text(field.get("source_cell")),
+        "target_cell": normalize_text(field.get("target_cell")),
+        "write_mode": normalize_text(field.get("write_mode")),
+        "intent_type": normalize_text(field.get("intent_type")),
+        "display_order": field.get("display_order"),
+        "visibility": normalize_text(field.get("visibility")) or "visible",
+        "editable": bool(field.get("editable", True)),
+        "required": bool(field.get("required", False)),
+        "field": field,
+        "elements": [],
+    }
+
+    if component_type == "choice_group":
+        component["elements"] = [
+            {
+                "element_type": "choice_option",
+                "label": normalize_text(option.get("label"))
+                if isinstance(option, dict)
+                else normalize_text(option),
+                "value": normalize_text(option.get("value"))
+                if isinstance(option, dict)
+                else normalize_text(option),
+                "raw": option,
+            }
+            for option in normalize_list(field.get("options"))
+        ]
+    elif component_type == "table":
+        component["elements"] = [
+            {
+                "element_type": "table_column",
+                "label": normalize_text(column.get("label"))
+                if isinstance(column, dict)
+                else normalize_text(column),
+                "field": normalize_text(column.get("field"))
+                if isinstance(column, dict)
+                else "",
+                "header_cell": normalize_text(column.get("header_cell"))
+                if isinstance(column, dict)
+                else "",
+                "raw": column,
+            }
+            for column in normalize_list(field.get("columns"))
+        ]
+    else:
+        component["elements"] = [
+            {
+                "element_type": "field_binding",
+                "source_cell": normalize_text(field.get("source_cell")),
+                "target_cell": normalize_text(field.get("target_cell")),
+                "write_mode": normalize_text(field.get("write_mode")),
+            }
+        ]
+
+    return component
+
+
 def _append_workspace_field_warnings(result, field):
     if not isinstance(field, dict):
         return result
@@ -568,6 +666,11 @@ def build_workspace_model_from_document_model(model):
             continue
 
         workspace_model["workspace_fields"].append(field)
+
+        component = build_workspace_component_from_workspace_field(field)
+        if component:
+            workspace_model["workspace_components"].append(component)
+
         _append_workspace_field_warnings(workspace_model, field)
         _append_section(
             workspace_model["sections"],
@@ -580,6 +683,13 @@ def build_workspace_model_from_document_model(model):
             _safe_number(field.get("section_order"), default=999999),
             _safe_number(field.get("display_order"), default=0),
             normalize_text(field.get("label")),
+        )
+    )
+    workspace_model["workspace_components"].sort(
+        key=lambda component: (
+            _safe_number(component.get("section_order"), default=999999),
+            _safe_number(component.get("display_order"), default=0),
+            normalize_text(component.get("component_title")),
         )
     )
     workspace_model["sections"].sort(
