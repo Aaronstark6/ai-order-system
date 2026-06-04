@@ -230,3 +230,9 @@ label
 DocumentModel 质量门槛：
 
 DocumentModel built 后，必须先通过 node_id 唯一性与 link 完整性审计，再进入 semantic_workspace_schema / workspace_fields 生成。
+
+DocumentModel Node Identity 规则：
+
+- `node_id` 必须稳定、唯一、可追溯。
+- 同 label 不同 `source_cell` 必须生成不同 `node_id`。
+- `node_id` 生成优先使用 label + source_cell，不使用随机数。

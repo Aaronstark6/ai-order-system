@@ -182,6 +182,21 @@ def _region_label(region):
     return ""
 
 
+def _node_identity_seed(label, source_cell, fallback=""):
+    parts = []
+    normalized_label = normalize_text(label)
+    normalized_source_cell = normalize_text(source_cell)
+    if normalized_label:
+        parts.append(normalized_label)
+    if normalized_source_cell:
+        parts.append(normalized_source_cell)
+    if not parts:
+        normalized_fallback = normalize_text(fallback)
+        if normalized_fallback:
+            parts.append(normalized_fallback)
+    return ".".join(parts)
+
+
 def _region_node_source(region):
     region = normalize_dict(region)
     return build_node_source(
@@ -438,9 +453,14 @@ def build_field_node_from_region(region):
     field_type = "text"
     if region_type == SEMANTIC_TYPE_INLINE_FIELD:
         field_type = "textarea" if write_mode == "append_after_colon" else "text"
+    identity_seed = _node_identity_seed(
+        field_key or label,
+        source_cell,
+        fallback=source_cell,
+    )
 
     return build_field_node(
-        node_id=make_node_id(NODE_TYPE_FIELD, field_key or label or source_cell),
+        node_id=make_node_id(NODE_TYPE_FIELD, identity_seed),
         field_key=field_key,
         label=label,
         source_cell=source_cell,
@@ -465,8 +485,9 @@ def build_section_node_from_region(region):
     label = _region_label(region)
     source_cell = _region_source_cell(region)
     section_key = normalize_text(region.get("section_key")) or label
+    identity_seed = _node_identity_seed(label, source_cell, fallback=source_cell)
     return build_section_node(
-        node_id=make_node_id(NODE_TYPE_SECTION, section_key or label or source_cell),
+        node_id=make_node_id(NODE_TYPE_SECTION, identity_seed),
         label=label,
         section_key=section_key,
         bounds=_region_area(region),
@@ -485,8 +506,9 @@ def build_table_node_from_region(region):
     label = _region_label(region)
     source_cell = _region_source_cell(region)
     target_cell = _region_target_cell(region)
+    identity_seed = _node_identity_seed(label, source_cell, fallback=source_cell)
     return build_table_node(
-        node_id=make_node_id(NODE_TYPE_TABLE, label or source_cell),
+        node_id=make_node_id(NODE_TYPE_TABLE, identity_seed),
         label=label,
         section_id="",
         header_cells=(region.get("header_cells") or _region_cells(region)),
@@ -593,11 +615,13 @@ def build_visual_node_from_region(region):
     region_type = _region_type(region)
     label = _region_label(region)
     source_cell = _region_source_cell(region)
+    identity_seed = _node_identity_seed(
+        f"{region_type}.{label}",
+        source_cell,
+        fallback=region_type or source_cell,
+    )
     return build_visual_semantic_node(
-        node_id=make_node_id(
-            NODE_TYPE_VISUAL,
-            f"{region_type}.{label or source_cell}",
-        ),
+        node_id=make_node_id(NODE_TYPE_VISUAL, identity_seed),
         semantic_type=region_type,
         label=label,
         cell=source_cell,
