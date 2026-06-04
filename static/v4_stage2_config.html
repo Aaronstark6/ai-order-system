@@ -137,14 +137,8 @@
         .config-panel {
             min-height: 200px;
         }
-        .component-center-panel {
+        .workspace-center-panel {
             min-height: 70vh;
-        }
-        .component-tree-shell {
-            border: 1px solid #d8dee8;
-            border-radius: 10px;
-            background: #f8fafc;
-            padding: 12px;
         }
         .detail-panel {
             position: sticky;
@@ -236,17 +230,9 @@
             </div>
         </section>
 
-        <section class="component-center-panel">
-            <h2>模板结构配置</h2>
-            <div class="panel-title-note">按 Section → Component 查看当前模板结构，这是后续配置页和工作区的主结构。</div>
-
-            <div style="margin-top:16px;">
-                <h2>组件结构视图</h2>
-                <div class="actions">
-                    <button id="componentStructureButton" type="button">加载组件结构</button>
-                </div>
-                <div id="componentStructureArea" class="status">组件结构尚未加载。</div>
-            </div>
+        <section class="workspace-center-panel">
+            <h2>Workspace Fields</h2>
+            <div class="panel-title-note">按 Section 与字段查看当前 Workspace Runtime 结构。</div>
 
             <div style="margin-top:16px;">
                 <h2>Workspace Runtime</h2>
@@ -459,10 +445,6 @@
                         <strong>${diagnosis.profiles_with_workspace_fields || 0}</strong>
                     </div>
                     <div class="summary-card">
-                        <span>field bound operations</span>
-                        <strong>${diagnosis.profiles_with_field_bound_operations || 0}</strong>
-                    </div>
-                    <div class="summary-card">
                         <span>cache count</span>
                         <strong>${diagnosis.cache_count || 0}</strong>
                     </div>
@@ -479,7 +461,7 @@
                             <h3>${String(profile.profile_name || profile.profile_id || "")}</h3>
                             <div class="small">profile_id: ${String(profile.profile_id || "")}</div>
                             <div class="small">template: ${String(profile.template_filename || profile.template_path || "-")}</div>
-                            <div class="small">semantic_fields: ${profile.semantic_workspace_schema_field_count || 0} | workspace_fields: ${profile.workspace_fields_count || 0} | field_bound_operations: ${profile.field_bound_operations_count || 0}</div>
+                            <div class="small">semantic_fields: ${profile.semantic_workspace_schema_field_count || 0} | workspace_fields: ${profile.workspace_fields_count || 0}</div>
                         </div>
                     `).join("") : '<div class="small">No legacy profile summaries.</div>'}
                 </div>
@@ -890,126 +872,17 @@
                             <h3>${escapeHtml(field.label || field.field_key || field.node_id || "")}</h3>
                             <div class="small">field_key: ${escapeHtml(field.field_key || "")}</div>
                             <div class="small">field_type: ${escapeHtml(field.field_type || "")}</div>
-                            <div class="small">section: ${escapeHtml(field.section_title || field.section_key || "")}</div>
+                            <div class="small">label: ${escapeHtml(field.label || "")}</div>
+                            <div class="small">section_key: ${escapeHtml(field.section_key || "")}</div>
                             <div class="small">source_cell: ${escapeHtml(field.source_cell || "")}</div>
                             <div class="small">target_cell: ${escapeHtml(field.target_cell || "")}</div>
+                            <div class="small">children_count: ${Array.isArray(field.children) ? field.children.length : 0}</div>
                             <div class="small">write_mode: ${escapeHtml(field.write_mode || "")}</div>
                             <div class="small">visibility: ${escapeHtml(field.visibility || "")}</div>
                         </div>
                     `).join("") : '<div class="small">No workspace fields.</div>'}
                 </div>
             `;
-        }
-
-        function componentTypeLabel(type) {
-            const value = String(type || "");
-            const labels = {
-                "text": "文本字段",
-                "textarea": "长文本",
-                "date": "日期字段",
-                "number": "数字字段",
-                "choice_group": "选择组",
-                "table": "表格",
-                "image_attachment_area": "图片区域",
-                "object_area": "对象区域",
-                "unknown": "未知组件"
-            };
-            return labels[value] || value || "未知组件";
-        }
-
-        function groupComponentsBySection(components) {
-            const groups = [];
-            const groupMap = new Map();
-
-            (Array.isArray(components) ? components : []).forEach(component => {
-                const sectionKey = String(component.section_key || "other");
-                const sectionTitle = String(component.section_title || sectionKey || "其他");
-                if (!groupMap.has(sectionKey)) {
-                    const group = {
-                        section_key: sectionKey,
-                        section_title: sectionTitle,
-                        components: []
-                    };
-                    groupMap.set(sectionKey, group);
-                    groups.push(group);
-                }
-                groupMap.get(sectionKey).components.push(component);
-            });
-
-            return groups;
-        }
-
-        function renderComponentStructure(result) {
-            const runtime = result.runtime || {};
-            const components = Array.isArray(runtime.workspace_components) ? runtime.workspace_components : [];
-            const warnings = Array.isArray(runtime.warnings) ? runtime.warnings : [];
-            const groups = groupComponentsBySection(components);
-            const area = document.getElementById("componentStructureArea");
-
-            area.className = "status";
-
-            if (!components.length) {
-                area.innerHTML = `
-                    <div class="small">暂无组件数据。请先运行 Template Analysis、DocumentModel Runtime 和 Workspace Runtime。</div>
-                `;
-                return;
-            }
-
-            area.innerHTML = `
-                <div class="summary-grid">
-                    <div class="summary-card">
-                        <span>组件数量</span>
-                        <strong>${Number(runtime.workspace_components_count || components.length || 0)}</strong>
-                    </div>
-                    <div class="summary-card">
-                        <span>Section数量</span>
-                        <strong>${groups.length}</strong>
-                    </div>
-                    <div class="summary-card">
-                        <span>结构提示</span>
-                        <strong>${warnings.length}</strong>
-                    </div>
-                </div>
-
-                <div class="cache-list component-tree-shell">
-                    ${groups.map(group => `
-                        <div class="cache-item">
-                            <h3>${escapeHtml(group.section_title || group.section_key || "其他")}</h3>
-                            <div class="small">section_key: ${escapeHtml(group.section_key || "")}</div>
-                            <div class="small">组件数: ${group.components.length}</div>
-                            <div style="margin-top:8px;">
-                                ${group.components.map(component => `
-                                    <div class="small" style="padding:8px 0;border-top:1px solid #e5e7eb;">
-                                        <strong>${escapeHtml(component.component_title || component.component_key || "")}</strong>
-                                        <span>【${escapeHtml(componentTypeLabel(component.component_type))}】</span>
-                                        <div>component_key: ${escapeHtml(component.component_key || "")}</div>
-                                        <div>source_cell: ${escapeHtml(component.source_cell || "")}</div>
-                                        <div>target_cell: ${escapeHtml(component.target_cell || "")}</div>
-                                        <div>write_mode: ${escapeHtml(component.write_mode || "")}</div>
-                                    </div>
-                                `).join("")}
-                            </div>
-                        </div>
-                    `).join("")}
-                </div>
-
-                <div class="cache-item" style="margin-top:12px;">
-                    <h3>结构质量提示</h3>
-                    <div class="small">${warnings.length ? escapeHtml(JSON.stringify(warnings, null, 2)) : "暂无提示"}</div>
-                </div>
-            `;
-        }
-
-        async function loadComponentStructure() {
-            const response = await fetch("/api/v4/stage2-config/workspace-runtime");
-            const result = await response.json();
-            if (!response.ok || !result.ok) {
-                throw new Error(result.detail || result.error || "加载组件结构失败。");
-            }
-            renderComponentStructure(result);
-            renderJson(result);
-            const runtime = result.runtime || {};
-            setStatus(`组件结构已加载：${Number(runtime.workspace_components_count || 0)} 个组件。`);
         }
 
         async function healthCheck() {
@@ -1265,12 +1138,6 @@
             loadWorkspaceRuntime().catch(error => {
                 document.getElementById("workspaceRuntimeArea").textContent = error.message || "Load Workspace Runtime failed.";
                 setStatus(error.message || "Load Workspace Runtime failed.");
-            });
-        });
-        document.getElementById("componentStructureButton").addEventListener("click", () => {
-            loadComponentStructure().catch(error => {
-                document.getElementById("componentStructureArea").textContent = error.message || "加载组件结构失败。";
-                setStatus(error.message || "加载组件结构失败。");
             });
         });
         document.getElementById("documentModelNodeIdAuditButton").addEventListener("click", () => {
