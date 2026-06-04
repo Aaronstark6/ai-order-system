@@ -978,27 +978,41 @@ def build_semantic_regions(template_analysis):
     regions = []
     used_region_keys = set()
 
-    def add(region_type, label, source_cell, target_cell, cells, row, col, confidence, reason, write_mode, intent_type):
+    def add(
+        region_type,
+        label,
+        source_cell,
+        target_cell,
+        cells,
+        row,
+        col,
+        confidence,
+        reason,
+        write_mode,
+        intent_type,
+        extra=None,
+    ):
         key = (region_type, source_cell, target_cell, label)
         if key in used_region_keys:
             return
         used_region_keys.add(key)
-        regions.append(
-            _semantic_region(
-                f"semantic_{len(regions) + 1:03d}",
-                region_type,
-                label,
-                source_cell,
-                target_cell,
-                cells,
-                row,
-                col,
-                confidence,
-                reason,
-                write_mode,
-                intent_type,
-            )
+        region = _semantic_region(
+            f"semantic_{len(regions) + 1:03d}",
+            region_type,
+            label,
+            source_cell,
+            target_cell,
+            cells,
+            row,
+            col,
+            confidence,
+            reason,
+            write_mode,
+            intent_type,
         )
+        if isinstance(extra, dict):
+            region.update(extra)
+        regions.append(region)
 
     for table in analysis.get("table_regions", []) if isinstance(analysis.get("table_regions"), list) else []:
         columns = table.get("columns") if isinstance(table.get("columns"), list) else []
@@ -1006,7 +1020,30 @@ def build_semantic_regions(template_analysis):
         if header_cells:
             first_cell = header_cells[0]
             point = _cell_point(first_cell) or (int(table.get("header_row") or 0), 1)
-            add("table_region", table.get("table_name") or "表格区域", first_cell, "", header_cells, point[0], point[1], 0.86, "检测到连续表头字段", "write_table_column", "table_column_header")
+            add(
+                "table_region",
+                table.get("table_name") or "表格区域",
+                first_cell,
+                "",
+                header_cells,
+                point[0],
+                point[1],
+                0.86,
+                "检测到连续表头字段",
+                "write_table_column",
+                "table_column_header",
+                extra={
+                    "table_key": table.get("table_key"),
+                    "table_name": table.get("table_name"),
+                    "semantic_type": table.get("semantic_type"),
+                    "columns": columns,
+                    "header_cells": header_cells,
+                    "header_row": table.get("header_row"),
+                    "start_cell": table.get("start_cell"),
+                    "bounds": table.get("bounds"),
+                    "detection": table.get("detection"),
+                },
+            )
             for column in columns:
                 cell = str(column.get("header_cell") or "").strip().upper()
                 row, col = _cell_point(cell) or (int(table.get("header_row") or 0), 0)
