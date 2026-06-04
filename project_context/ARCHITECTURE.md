@@ -198,3 +198,31 @@ Semantic Region Type Summary
 ↓
 判断 Template Analysis 分类与 DocumentModel Builder 字段识别是否一致
 ```
+
+Field Candidate Audit:
+
+```text
+Stage2 Config
+-> Run Template Analysis
+-> pipeline_state.template_analysis.semantic_regions
+-> group section_header / table_header / inline_field / unknown without reclassification
+-> Field Candidate Audit
+```
+
+Field Candidate Audit rule:
+
+- It is read-only.
+- It preserves each original semantic region.
+- It does not convert `section_header` into a field.
+- It does not call or modify Template Analysis or DocumentModel Builder.
+
+Template Analysis 字段优先级调整：
+
+```text
+label
+-> image/note/title 排除
+-> explicit section keyword 保留为 section
+-> right_target / below_target 优先 field_label
+-> section_header
+-> option / inline / unknown
+```

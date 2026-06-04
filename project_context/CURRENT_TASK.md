@@ -2,22 +2,22 @@
 
 Task:
 
-`STAGE2_SEMANTIC_REGION_TYPE_SUMMARY_01`
+`STAGE2_TEMPLATE_ANALYSIS_FIELD_PRIORITY_FIX_01`
 
 Status:
 
-- Adding a read-only Semantic Region Type Summary to Stage2 Config.
+- Fixing Template Analysis field recognition priority.
 
 Purpose:
 
-- Read the current `pipeline_state.template_analysis.semantic_regions`.
-- Report the real semantic region type, key, and selected value distributions.
-- Use the results to diagnose why `field_node_count` is low.
+- Prioritize labels with explicit right-side or below writable targets as `field_label`.
+- Keep explicit grouping headings as `section_header`.
+- Prevent obvious fields such as document number, date, and customer name from being claimed by broad section header rules.
 
 Rules:
 
-- Keep the diagnostic read-only.
-- Do not modify old routes, old pages, old data, Workspace, or export runtime.
-- Do not modify `analyze_template()`.
-- Do not call DocumentModel Builder.
+- Make only a minimal rule priority adjustment in `build_semantic_regions()`.
+- Do not modify Stage2 Config, DocumentModel Builder, pipeline state, Workspace, or export runtime.
+- Do not modify table header logic.
+- Do not convert every `section_header` into a field.
 - Do not restore old export chains.

@@ -967,6 +967,14 @@ def build_semantic_regions(template_analysis):
     analysis = template_analysis if isinstance(template_analysis, dict) else {}
     labels = analysis.get("labels") if isinstance(analysis.get("labels"), list) else []
     context = analysis.get("_semantic_context") if isinstance(analysis.get("_semantic_context"), dict) else {}
+    explicit_section_keywords = [
+        "产品详细要求",
+        "包装要求",
+        "标签要求",
+        "其他要求",
+        "配方要求",
+        "检测项目",
+    ]
     regions = []
     used_region_keys = set()
 
@@ -1016,6 +1024,7 @@ def build_semantic_regions(template_analysis):
         row, col = point
         info = _semantic_cell_info(context, cell)
         normalized = text.rstrip(":：").strip()
+        compact_normalized = re.sub(r"\s+", "", normalized)
         lower_text = text.lower()
         has_colon = "：" in text or ":" in text
         ends_colon = text.endswith(("：", ":"))
@@ -1033,7 +1042,14 @@ def build_semantic_regions(template_analysis):
         if row <= 3 and (info.get("is_merged") or info.get("font_size", 0) >= 14 or info.get("bold") or info.get("align") == "center") and len(normalized) <= 24:
             add("title", normalized, cell, "", [cell], row, col, 0.84, "顶部区域且具备标题样式", "skip", "title")
             continue
-        if any(word in normalized for word in ["产品详细要求", "包装要求", "标签要求", "其他要求", "配方要求", "检测项目"]) or (merged_or_styled and 3 < row <= 80 and len(normalized) <= 18 and not has_colon):
+        is_explicit_section_header = any(word in compact_normalized for word in explicit_section_keywords)
+        if not is_explicit_section_header and right_target:
+            add("field_label", normalized, cell, right_target, [cell, right_target], row, col, 0.84, "存在右侧可填写目标单元格，优先识别为字段", "write_right_cell", "label_fill_right")
+            continue
+        if not is_explicit_section_header and below_target:
+            add("field_label", normalized, cell, below_target, [cell, below_target], row, col, 0.78, "存在下方可填写目标单元格，优先识别为字段", "write_below_cell", "label_fill_below")
+            continue
+        if is_explicit_section_header or (merged_or_styled and 3 < row <= 80 and len(normalized) <= 18 and not has_colon):
             add("section_header", normalized, cell, "", [cell], row, col, 0.76, "具备分组标题样式或关键词", "skip", "section_header")
             continue
         if any(mark in text for mark in ["□", "☐", "☑", "√", "✔", "[ ]", "( )", "（ ）"]):

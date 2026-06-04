@@ -63,6 +63,8 @@ Stage2 config rebuild:
 - Stage2 Config has connected Template Library -> Template Analysis -> `semantic_regions`.
 - Current fix addresses a DocumentModel Builder visual node parameter signature mismatch so DocumentModel Runtime can continue building.
 - Stage2 Config 新增 Semantic Region Type Summary，用于诊断 semantic_regions 类型分布，定位 field_node_count 偏低原因。
+- Stage2 Config 新增 Field Candidate Audit，用于只读查看 section_header、table_header、inline_field、unknown 的真实内容。
+- Stage2 Template Analysis 修复字段识别优先级。此前 section_header 判断过宽，导致文档编号、日期、客户名称等明显字段被识别为 section_header。当前修复让有明确右侧/下方 target 的 label 优先成为 field_label。
 
 Latest observed real flow result:
 
