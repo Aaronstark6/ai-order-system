@@ -5721,7 +5721,21 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
         }
 
     field_bound_operations = parse_result.get("field_bound_operations", [])
-    workspace_fields = parse_result.get("workspace_fields", [])
+    workspace_fields = (
+        pipeline_result.get("workspace_fields")
+        if isinstance(pipeline_result.get("workspace_fields"), list)
+        else []
+    )
+    workspace_sections = (
+        pipeline_result.get("workspace_sections")
+        if isinstance(pipeline_result.get("workspace_sections"), list)
+        else []
+    )
+    workspace_warnings = (
+        pipeline_result.get("workspace_warnings")
+        if isinstance(pipeline_result.get("workspace_warnings"), list)
+        else []
+    )
     semantic_workspace_schema = parse_result.get("semantic_workspace_schema", {})
     runtime_mapping_source = parse_result.get("runtime_mapping_source", {})
     excel_feature_flags = parse_result.get("excel_feature_flags", _get_excel_feature_flags({}))
@@ -5761,8 +5775,12 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "runtime_mapping_source": runtime_mapping_source,
             "excel_feature_flags": excel_feature_flags,
             "confirmed_cells": parse_result.get("confirmed_cells", []),
-            "field_bound_operations": field_bound_operations,
             "workspace_fields": workspace_fields,
+            "workspace_fields_count": len(workspace_fields),
+            "workspace_sections": workspace_sections,
+            "workspace_sections_count": len(workspace_sections),
+            "workspace_warnings": workspace_warnings,
+            "workspace_warnings_count": len(workspace_warnings),
             "semantic_workspace_schema": semantic_workspace_schema,
             "chat_preprocess": parse_result.get("chat_preprocess", {}),
         },
@@ -5778,10 +5796,20 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "field_bound_added_count": pipeline_result.get("field_bound_added_count", 0),
             "field_bound_override_count": pipeline_result.get("field_bound_override_count", 0),
             "workspace_fields": workspace_fields,
+            "workspace_fields_count": len(workspace_fields),
+            "workspace_sections": workspace_sections,
+            "workspace_sections_count": len(workspace_sections),
+            "workspace_warnings": workspace_warnings,
+            "workspace_warnings_count": len(workspace_warnings),
             "render_preview": pipeline_result.get("render_preview", {}),
             "render_ready": pipeline_result.get("render_ready", False),
         },
         "workspace_fields": workspace_fields,
+        "workspace_fields_count": len(workspace_fields),
+        "workspace_sections": workspace_sections,
+        "workspace_sections_count": len(workspace_sections),
+        "workspace_warnings": workspace_warnings,
+        "workspace_warnings_count": len(workspace_warnings),
         "semantic_workspace_schema": semantic_workspace_schema,
         "runtime_mapping_source": runtime_mapping_source,
         "excel_feature_flags": excel_feature_flags,
@@ -5795,6 +5823,7 @@ def api_v4_core_pipeline_run():
     from app.v4_document_intelligence_builder import build_document_intelligence_model
     from app.v4_export_strategy_builder import build_export_plan_from_document_model
     from app.v4_pipeline_executor import run_operation_pipeline
+    from app.v4_workspace_builder import build_workspace_model_from_document_model
 
     logger.info("V4 core pipeline run requested")
     state = get_pipeline_state()
@@ -5826,8 +5855,19 @@ def api_v4_core_pipeline_run():
         "export_operations_count": 0,
     }
     export_operations = None
+    workspace_model = {
+        "sections": [],
+        "workspace_fields": [],
+        "warnings": [],
+    }
     try:
         document_model = build_document_intelligence_model(template_analysis)
+        try:
+            built_workspace_model = build_workspace_model_from_document_model(document_model)
+            if isinstance(built_workspace_model, dict):
+                workspace_model = built_workspace_model
+        except Exception:
+            logger.info("V4 workspace model build failed", exc_info=True)
         export_plan = build_export_plan_from_document_model(document_model)
         export_operations = export_plan.get("operations", []) if isinstance(export_plan, dict) else None
         document_model_probe = {
@@ -5878,6 +5918,22 @@ def api_v4_core_pipeline_run():
     set_pipeline_result(processed_ops, stages)
     set_render_preview(result.get("render_preview", {}))
 
+    workspace_fields = (
+        workspace_model.get("workspace_fields")
+        if isinstance(workspace_model.get("workspace_fields"), list)
+        else []
+    )
+    workspace_sections = (
+        workspace_model.get("sections")
+        if isinstance(workspace_model.get("sections"), list)
+        else []
+    )
+    workspace_warnings = (
+        workspace_model.get("warnings")
+        if isinstance(workspace_model.get("warnings"), list)
+        else []
+    )
+
     return {
         "success": True,
         "validation": validation,
@@ -5892,6 +5948,12 @@ def api_v4_core_pipeline_run():
         "stages": stages,
         "render_ready": result.get("render_ready", False),
         "render_preview": result.get("render_preview", {}),
+        "workspace_fields": workspace_fields,
+        "workspace_fields_count": len(workspace_fields),
+        "workspace_sections": workspace_sections,
+        "workspace_sections_count": len(workspace_sections),
+        "workspace_warnings": workspace_warnings,
+        "workspace_warnings_count": len(workspace_warnings),
         "pipeline_state": get_pipeline_state(),
     }
 
