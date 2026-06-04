@@ -3578,7 +3578,6 @@ def _resolve_export_template_source(payload, confirmed_order_object):
         except (FileNotFoundError, ValueError):
             logger.info("V4 export template candidate unavailable: source=%s path=%s", source, path_value)
             continue
-        set_current_template(str(resolved_path))
         logger.info("V4 export using request template file: source=%s path=%s", source, resolved_path)
         return resolved_path, False, source
 
@@ -3598,7 +3597,6 @@ def _resolve_export_template_source(payload, confirmed_order_object):
             except (FileNotFoundError, ValueError):
                 logger.info("V4 export template filename candidate unavailable: path=%s", candidate)
                 continue
-            set_current_template(str(resolved_path))
             logger.info("V4 export using template filename: path=%s", resolved_path)
             return resolved_path, False, "payload.template_file"
 
@@ -6045,65 +6043,90 @@ def _build_pipeline_order_object_from_confirmed_order_object(confirmed_order_obj
 
 @router.post("/api/v4/export-pipeline-excel")
 def api_v4_export_pipeline_excel(payload: Any = Body(None)):
+    from app.v4_document_intelligence_builder import build_document_intelligence_model
     from app.v4_excel_executor import execute_operations_to_excel
-    from app.v4_render_preview import build_render_preview
-    from app.v4_render_targets import render_preview_to_html
+    from app.v4_export_strategy_builder import build_export_plan_from_document_model
+    from app.v4_operations_pipeline import process_operations_pipeline
 
-    logger.info("V4 confirmed order object pipeline export requested")
+    logger.info("V4 Stage2 export route requested")
 
     payload = payload if isinstance(payload, dict) else {}
     confirmed_order_object = _extract_confirmed_order_object_from_payload(payload)
-
     if not isinstance(confirmed_order_object, dict) or not confirmed_order_object:
         return {
             "success": False,
             "stage": "confirmed_order_object",
-            "error": "confirmed_order_object 涓嶈兘涓虹┖",
-            "pipeline_state": get_pipeline_state(),
+            "error": "confirmed_order_object must not be empty",
         }
 
-    order_object = _build_pipeline_order_object_from_confirmed_order_object(confirmed_order_object)
-
-    if not isinstance(order_object, dict) or not order_object:
-        return {
-            "success": False,
-            "stage": "order_object",
-            "error": "confirmed_order_object 鏃犳硶杞崲涓烘湁鏁?order_object",
-            "confirmed_order_object": confirmed_order_object,
-            "pipeline_state": get_pipeline_state(),
-        }
-
-    template_path = None
-    template_source = ""
     template_path_inputs = _export_template_path_inputs(payload, confirmed_order_object)
 
     try:
-        profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
-        if profile:
-            set_current_profile(profile)
-
         template_path, _, template_source = _resolve_export_template_source(payload, confirmed_order_object)
+    except ValueError as exc:
+        return {
+            "success": False,
+            "stage": "template",
+            "error": str(exc),
+            **template_path_inputs,
+        }
 
-        load_order_object_into_pipeline(order_object)
-
-        pipeline_result = api_v4_core_pipeline_run()
-        if not pipeline_result.get("success"):
+    try:
+        state = get_pipeline_state()
+        template_analysis = state.get("template_analysis") if isinstance(state.get("template_analysis"), dict) else {}
+        semantic_regions = template_analysis.get("semantic_regions")
+        if not isinstance(semantic_regions, list) or not semantic_regions:
             return {
                 "success": False,
-                "stage": "pipeline",
-                "error": pipeline_result.get("error", "Pipeline 鎵ц澶辫触"),
-                "pipeline_result": pipeline_result,
-                "pipeline_state": get_pipeline_state(),
+                "stage": "document_model",
+                "error": "template_analysis.semantic_regions is empty",
+                "resolved_template_path": str(template_path),
             }
 
-        operations = pipeline_result.get("operations", [])
-        if not isinstance(operations, list) or not operations:
+        document_model = build_document_intelligence_model(template_analysis)
+        export_plan = build_export_plan_from_document_model(document_model)
+        strategy_operations = (
+            export_plan.get("operations")
+            if isinstance(export_plan, dict) and isinstance(export_plan.get("operations"), list)
+            else []
+        )
+        if not strategy_operations:
+            return {
+                "success": False,
+                "stage": "export_strategy",
+                "error": "ExportStrategyBuilder returned no operations",
+                "operations_count": 0,
+                "warnings": export_plan.get("warnings", []) if isinstance(export_plan, dict) else [],
+                "resolved_template_path": str(template_path),
+            }
+
+        confirmed_values = _confirmed_order_object_values(confirmed_order_object)
+        operations_with_values = []
+        for operation in strategy_operations:
+            if not isinstance(operation, dict):
+                continue
+            item = deepcopy(operation)
+            field_key = str(item.get("field_key") or item.get("value_source") or "").strip()
+            if field_key in confirmed_values:
+                item["value"] = confirmed_values[field_key]
+            operations_with_values.append(item)
+
+        operations_pipeline_result = process_operations_pipeline(operations_with_values)
+        operations = (
+            operations_pipeline_result.get("operations")
+            if isinstance(operations_pipeline_result, dict)
+            and isinstance(operations_pipeline_result.get("operations"), list)
+            else []
+        )
+        if not operations:
             return {
                 "success": False,
                 "stage": "operations",
-                "error": "鏆傛棤 operations锛屾棤娉曞鍑?Excel",
-                "pipeline_result": pipeline_result,
-                "pipeline_state": get_pipeline_state(),
+                "error": "OperationsPipeline returned no operations",
+                "operations_count": 0,
+                "strategy_operations_count": len(strategy_operations),
+                "stages": operations_pipeline_result.get("stages", []),
+                "resolved_template_path": str(template_path),
             }
 
         export_result = execute_operations_to_excel(template_path, operations)
@@ -6111,31 +6134,19 @@ def api_v4_export_pipeline_excel(payload: Any = Body(None)):
             return {
                 "success": False,
                 "stage": "excel_export",
-                "error": export_result.get("error", "Excel 瀵煎嚭澶辫触"),
+                "error": export_result.get("error", "Excel export failed"),
+                "operations_count": len(operations),
                 "warnings": export_result.get("warnings", []),
-                "pipeline_result": pipeline_result,
-                "pipeline_state": get_pipeline_state(),
+                "resolved_template_path": str(template_path),
             }
-
-        state = merge_mapping_safety(export_result.get("mapping_safety", {}))
-        merged_safety = state.get("mapping_safety", {})
-        preview = build_render_preview(operations, merged_safety, template_path)
-        state = set_render_preview(preview)
-
-        html_result = render_preview_to_html(state.get("render_preview", {}))
-        html_preview = ""
-        if html_result.get("success"):
-            html_preview = html_result.get("html", "")
-            state = set_render_targets({"html_preview": html_preview})
-
-        set_excel_result(export_result.get("filename"))
 
         return {
             "success": True,
-            "message": "Confirmed Order Object 宸查€氳繃 Stage2 Pipeline 瀵煎嚭 Excel",
-            "confirmed_order_object": confirmed_order_object,
-            "order_object": order_object,
-            "pipeline_result": pipeline_result,
+            "message": "Stage2 confirmed order exported",
+            "operations_count": len(operations),
+            "strategy_operations_count": len(strategy_operations),
+            "stages": operations_pipeline_result.get("stages", []),
+            "warnings": export_plan.get("warnings", []),
             "export_result": {
                 "filename": export_result.get("filename", ""),
                 "download_url": export_result.get("download_url", ""),
@@ -6144,26 +6155,14 @@ def api_v4_export_pipeline_excel(payload: Any = Body(None)):
                 "template_source": template_source,
                 "resolved_template_path": str(template_path),
             },
-            "render_preview": get_pipeline_state().get("render_preview", {}),
-            "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
-            "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
-        }
-
-    except ValueError as exc:
-        return {
-            "success": False,
-            "stage": "template",
-            "error": str(exc),
-            **template_path_inputs,
-            "pipeline_state": get_pipeline_state(),
         }
     except Exception as exc:
-        logger.exception("V4 confirmed order object pipeline export failed")
+        logger.exception("V4 Stage2 export route failed")
         return {
             "success": False,
             "stage": "unknown",
-            "error": str(exc) or "Confirmed Order Object 鍒?Excel 瀵煎嚭澶辫触",
-            "pipeline_state": get_pipeline_state(),
+            "error": str(exc) or "Stage2 export failed",
+            "resolved_template_path": str(template_path),
         }
 
 
