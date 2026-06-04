@@ -3459,46 +3459,6 @@ def _operation_merge_key(operation):
     return f"{sheet}|{cell}|{row_offset}|{col_offset}"
 
 
-def _merge_field_bound_operations(input_operations, field_bound_operations):
-    operations = deepcopy(input_operations) if isinstance(input_operations, list) else []
-    bound_operations = field_bound_operations if isinstance(field_bound_operations, list) else []
-    operation_index_by_key = {}
-    for index, operation in enumerate(operations):
-        if not isinstance(operation, dict):
-            continue
-        merge_key = _operation_merge_key(operation)
-        if merge_key:
-            operation_index_by_key[merge_key] = index
-
-    added_count = 0
-    override_count = 0
-    for bound_operation in bound_operations:
-        if not isinstance(bound_operation, dict):
-            continue
-        merge_key = _operation_merge_key(bound_operation)
-        if not merge_key:
-            continue
-        existing_index = operation_index_by_key.get(merge_key)
-        if existing_index is None:
-            operations.append(deepcopy(bound_operation))
-            operation_index_by_key[merge_key] = len(operations) - 1
-            added_count += 1
-            continue
-
-        operations[existing_index] = {
-            **operations[existing_index],
-            **deepcopy(bound_operation),
-            "ai_extraction_override": True,
-        }
-        override_count += 1
-
-    return {
-        "operations": operations,
-        "added_count": added_count,
-        "override_count": override_count,
-    }
-
-
 def _normalize_section_configuration_items(items):
     if items is None:
         return {}
@@ -5660,7 +5620,6 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
             "excel_feature_flags": excel_feature_flags,
             "semantic_workspace_schema": semantic_workspace_schema,
             "confirmed_cells": field_binding_result.get("confirmed_cells", []),
-            "field_bound_operations": field_binding_result.get("operations", []),
             "workspace_fields": workspace_fields,
             "chat_preprocess": preprocess_payload,
             "pipeline_state": get_pipeline_state(),
@@ -5685,7 +5644,6 @@ def api_v4_parse_chat_to_order_object(payload: Any = Body(None)):
         "excel_feature_flags": excel_feature_flags,
         "semantic_workspace_schema": semantic_workspace_schema,
         "confirmed_cells": field_binding_result.get("confirmed_cells", []),
-        "field_bound_operations": field_binding_result.get("operations", []),
         "workspace_fields": workspace_fields,
         "warnings": normalized.get("warnings", []),
         "source_keys": normalized.get("source_keys", []),
@@ -5720,7 +5678,6 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "pipeline_state": get_pipeline_state(),
         }
 
-    field_bound_operations = parse_result.get("field_bound_operations", [])
     workspace_fields = (
         pipeline_result.get("workspace_fields")
         if isinstance(pipeline_result.get("workspace_fields"), list)
@@ -5739,27 +5696,6 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
     semantic_workspace_schema = parse_result.get("semantic_workspace_schema", {})
     runtime_mapping_source = parse_result.get("runtime_mapping_source", {})
     excel_feature_flags = parse_result.get("excel_feature_flags", _get_excel_feature_flags({}))
-    field_binding_merge = _merge_field_bound_operations(
-        pipeline_result.get("operations", []),
-        field_bound_operations,
-    )
-    if field_bound_operations:
-        from app.v4_render_preview import build_render_preview
-
-        operations = field_binding_merge.get("operations", [])
-        pipeline_result["operations"] = operations
-        pipeline_result["field_bound_operation_count"] = len(field_bound_operations)
-        pipeline_result["field_bound_added_count"] = field_binding_merge.get("added_count", 0)
-        pipeline_result["field_bound_override_count"] = field_binding_merge.get("override_count", 0)
-        state = get_pipeline_state()
-        set_pipeline_result(operations, pipeline_result.get("stages", []))
-        render_preview = build_render_preview(
-            operations,
-            state.get("mapping_safety", {}),
-            state.get("current_template_path"),
-        )
-        set_render_preview(render_preview)
-        pipeline_result["render_preview"] = render_preview
 
     return {
         "success": True,
@@ -5792,9 +5728,6 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "table_operations": pipeline_result.get("table_operations", []),
             "block_operations": pipeline_result.get("block_operations", []),
             "operations": pipeline_result.get("operations", []),
-            "field_bound_operation_count": pipeline_result.get("field_bound_operation_count", len(field_bound_operations)),
-            "field_bound_added_count": pipeline_result.get("field_bound_added_count", 0),
-            "field_bound_override_count": pipeline_result.get("field_bound_override_count", 0),
             "workspace_fields": workspace_fields,
             "workspace_fields_count": len(workspace_fields),
             "workspace_sections": workspace_sections,
