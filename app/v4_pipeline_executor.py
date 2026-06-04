@@ -45,7 +45,7 @@ def run_operation_pipeline(order_object, profile=None, template_path=None, expor
             "table_operations": [],
             "block_operations": [],
             "unified_operations": [],
-            "processed_operations": [],
+            "operations": [],
             "stages": [],
             "render_preview": {},
             "mapping_safety": {
@@ -231,8 +231,8 @@ def run_operation_pipeline(order_object, profile=None, template_path=None, expor
         if isinstance(operation, dict) and operation.get("op_type")
     ]
     pipeline_result = process_operations_pipeline(safe_unified_operations)
-    processed_operations = pipeline_result.get("processed_operations", [])
-    render_preview = build_render_preview(processed_operations, mapping_safety)
+    operations = pipeline_result.get("operations", [])
+    render_preview = build_render_preview(operations, mapping_safety)
 
     warnings = []
     warnings.extend(validation.get("warnings", []))
@@ -250,7 +250,7 @@ def run_operation_pipeline(order_object, profile=None, template_path=None, expor
         "table_operations": table_operations,
         "block_operations": block_operations,
         "unified_operations": unified_operations,
-        "processed_operations": processed_operations,
+        "operations": operations,
         "mapping_safety": mapping_safety,
         "mapping_counts": mapping_counts,
         "stages": pipeline_result.get("stages", []),
@@ -261,6 +261,6 @@ def run_operation_pipeline(order_object, profile=None, template_path=None, expor
             "tables": len(table_operations),
             "blocks": len(block_operations),
             "unified": len(unified_operations),
-            "processed": len(processed_operations),
+            "processed": len(operations),
         },
     }

@@ -148,7 +148,7 @@ def _overwrite_cells(mapping_safety):
     return cells
 
 
-def build_render_preview(processed_operations, mapping_safety=None, template_path=None):
+def build_render_preview(operations, mapping_safety=None, template_path=None):
     mapping_safety = mapping_safety if isinstance(mapping_safety, dict) else {}
     conflict_cells = _conflict_cells(mapping_safety)
     overwrite_cells = _overwrite_cells(mapping_safety)
@@ -159,7 +159,7 @@ def build_render_preview(processed_operations, mapping_safety=None, template_pat
     block_preview = []
     merged_ranges = _load_merged_ranges(template_path)
 
-    for index, operation in enumerate(_as_list(processed_operations), start=1):
+    for index, operation in enumerate(_as_list(operations), start=1):
         item = _normalize_operation(operation)
         if not item:
             warnings.append(f"第 {index} 条 operation 格式无效，已跳过。")

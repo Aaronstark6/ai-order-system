@@ -3459,8 +3459,8 @@ def _operation_merge_key(operation):
     return f"{sheet}|{cell}|{row_offset}|{col_offset}"
 
 
-def _merge_field_bound_operations(processed_operations, field_bound_operations):
-    operations = deepcopy(processed_operations) if isinstance(processed_operations, list) else []
+def _merge_field_bound_operations(input_operations, field_bound_operations):
+    operations = deepcopy(input_operations) if isinstance(input_operations, list) else []
     bound_operations = field_bound_operations if isinstance(field_bound_operations, list) else []
     operation_index_by_key = {}
     for index, operation in enumerate(operations):
@@ -3493,7 +3493,7 @@ def _merge_field_bound_operations(processed_operations, field_bound_operations):
         override_count += 1
 
     return {
-        "processed_operations": operations,
+        "operations": operations,
         "added_count": added_count,
         "override_count": override_count,
     }
@@ -5740,21 +5740,21 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
     runtime_mapping_source = parse_result.get("runtime_mapping_source", {})
     excel_feature_flags = parse_result.get("excel_feature_flags", _get_excel_feature_flags({}))
     field_binding_merge = _merge_field_bound_operations(
-        pipeline_result.get("processed_operations", []),
+        pipeline_result.get("operations", []),
         field_bound_operations,
     )
     if field_bound_operations:
         from app.v4_render_preview import build_render_preview
 
-        processed_operations = field_binding_merge.get("processed_operations", [])
-        pipeline_result["processed_operations"] = processed_operations
+        operations = field_binding_merge.get("operations", [])
+        pipeline_result["operations"] = operations
         pipeline_result["field_bound_operation_count"] = len(field_bound_operations)
         pipeline_result["field_bound_added_count"] = field_binding_merge.get("added_count", 0)
         pipeline_result["field_bound_override_count"] = field_binding_merge.get("override_count", 0)
         state = get_pipeline_state()
-        set_pipeline_result(processed_operations, pipeline_result.get("stages", []))
+        set_pipeline_result(operations, pipeline_result.get("stages", []))
         render_preview = build_render_preview(
-            processed_operations,
+            operations,
             state.get("mapping_safety", {}),
             state.get("current_template_path"),
         )
@@ -5791,7 +5791,7 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
             "structured_operations": pipeline_result.get("structured_operations", []),
             "table_operations": pipeline_result.get("table_operations", []),
             "block_operations": pipeline_result.get("block_operations", []),
-            "processed_operations": pipeline_result.get("processed_operations", []),
+            "operations": pipeline_result.get("operations", []),
             "field_bound_operation_count": pipeline_result.get("field_bound_operation_count", len(field_bound_operations)),
             "field_bound_added_count": pipeline_result.get("field_bound_added_count", 0),
             "field_bound_override_count": pipeline_result.get("field_bound_override_count", 0),
@@ -5814,7 +5814,6 @@ def api_v4_parse_chat_run_pipeline(payload: Any = Body(None)):
         "runtime_mapping_source": runtime_mapping_source,
         "excel_feature_flags": excel_feature_flags,
         "ai_extraction_contract_summary": parse_result.get("ai_extraction_contract_summary", {}),
-        "pipeline_state": get_pipeline_state(),
     }
 
 
@@ -5823,6 +5822,8 @@ def api_v4_core_pipeline_run():
     from app.v4_document_intelligence_builder import build_document_intelligence_model
     from app.v4_export_strategy_builder import build_export_plan_from_document_model
     from app.v4_pipeline_executor import run_operation_pipeline
+    from app.v4_operations_pipeline import process_operations_pipeline
+    from app.v4_render_preview import build_render_preview
     from app.v4_workspace_builder import build_workspace_model_from_document_model
 
     logger.info("V4 core pipeline run requested")
@@ -5909,14 +5910,25 @@ def api_v4_core_pipeline_run():
     unified_ops = result.get("unified_operations", [])
     set_unified_operations(unified_ops)
 
-    processed_ops = result.get("processed_operations", [])
-    stages = result.get("stages", [])
     mapping_safety = result.get("mapping_safety", {})
+    safe_operations = [
+        operation
+        for operation in mapping_safety.get("operations", [])
+        if isinstance(operation, dict) and operation.get("op_type")
+    ]
+    operations_result = process_operations_pipeline(safe_operations)
+    operations = operations_result.get("operations", [])
+    stages = operations_result.get("stages", [])
     set_mapping_safety(mapping_safety)
     mapping_counts = result.get("mapping_counts", {})
     set_mapping_counts(mapping_counts)
-    set_pipeline_result(processed_ops, stages)
-    set_render_preview(result.get("render_preview", {}))
+    set_pipeline_result(operations, stages)
+    render_preview = build_render_preview(
+        operations,
+        mapping_safety,
+        current_template_path,
+    )
+    set_render_preview(render_preview)
 
     workspace_fields = (
         workspace_model.get("workspace_fields")
@@ -5942,19 +5954,18 @@ def api_v4_core_pipeline_run():
         "table_operations": table_ops,
         "block_operations": block_ops,
         "unified_operations": unified_ops,
-        "processed_operations": processed_ops,
+        "operations": operations,
         "mapping_safety": mapping_safety,
         "mapping_counts": mapping_counts,
         "stages": stages,
-        "render_ready": result.get("render_ready", False),
-        "render_preview": result.get("render_preview", {}),
+        "render_ready": operations_result.get("render_ready", False),
+        "render_preview": render_preview,
         "workspace_fields": workspace_fields,
         "workspace_fields_count": len(workspace_fields),
         "workspace_sections": workspace_sections,
         "workspace_sections_count": len(workspace_sections),
         "workspace_warnings": workspace_warnings,
         "workspace_warnings_count": len(workspace_warnings),
-        "pipeline_state": get_pipeline_state(),
     }
 
 
@@ -6067,7 +6078,7 @@ def _build_pipeline_order_object_from_confirmed_order_object(confirmed_order_obj
 
 @router.post("/api/v4/export-pipeline-excel")
 def api_v4_export_pipeline_excel(payload: Any = Body(None)):
-    from app.v4_excel_executor import execute_processed_operations_to_excel
+    from app.v4_excel_executor import execute_operations_to_excel
     from app.v4_render_preview import build_render_preview
     from app.v4_render_targets import render_preview_to_html
 
@@ -6117,17 +6128,17 @@ def api_v4_export_pipeline_excel(payload: Any = Body(None)):
                 "pipeline_state": get_pipeline_state(),
             }
 
-        processed_operations = pipeline_result.get("processed_operations", [])
-        if not isinstance(processed_operations, list) or not processed_operations:
+        operations = pipeline_result.get("operations", [])
+        if not isinstance(operations, list) or not operations:
             return {
                 "success": False,
-                "stage": "processed_operations",
-                "error": "鏆傛棤 processed operations锛屾棤娉曞鍑?Excel",
+                "stage": "operations",
+                "error": "鏆傛棤 operations锛屾棤娉曞鍑?Excel",
                 "pipeline_result": pipeline_result,
                 "pipeline_state": get_pipeline_state(),
             }
 
-        export_result = execute_processed_operations_to_excel(template_path, processed_operations)
+        export_result = execute_operations_to_excel(template_path, operations)
         if not export_result.get("success"):
             return {
                 "success": False,
@@ -6140,7 +6151,7 @@ def api_v4_export_pipeline_excel(payload: Any = Body(None)):
 
         state = merge_mapping_safety(export_result.get("mapping_safety", {}))
         merged_safety = state.get("mapping_safety", {})
-        preview = build_render_preview(processed_operations, merged_safety, template_path)
+        preview = build_render_preview(operations, merged_safety, template_path)
         state = set_render_preview(preview)
 
         html_result = render_preview_to_html(state.get("render_preview", {}))
@@ -6167,7 +6178,6 @@ def api_v4_export_pipeline_excel(payload: Any = Body(None)):
             "render_preview": get_pipeline_state().get("render_preview", {}),
             "html_preview": get_pipeline_state().get("render_targets", {}).get("html_preview", html_preview),
             "mapping_safety": get_pipeline_state().get("mapping_safety", {}),
-            "pipeline_state": get_pipeline_state(),
         }
 
     except ValueError as exc:
@@ -6547,24 +6557,24 @@ def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
     from app.v4_render_targets import render_preview_to_html
 
     logger.info("V4 render preview build requested")
-    processed_operations = None
+    operations = None
     if isinstance(payload, dict):
-        processed_operations = payload.get("processed_operations")
+        operations = payload.get("operations")
     elif isinstance(payload, list):
-        processed_operations = payload
+        operations = payload
 
     state = get_pipeline_state()
-    if processed_operations is None:
-        processed_operations = state.get("pipeline", {}).get("processed_operations", [])
+    if operations is None:
+        operations = state.get("pipeline", {}).get("operations", [])
 
-    if not isinstance(processed_operations, list) or not processed_operations:
+    if not isinstance(operations, list) or not operations:
         return {
             "success": False,
-            "error": "暂无 processed operations，无法生成 Render Preview",
+            "error": "暂无 operations，无法生成 Render Preview",
             "render_preview": get_pipeline_state().get("render_preview", {}),
         }
 
-    preview = build_render_preview(processed_operations, state.get("mapping_safety", {}), state.get("current_template_path"))
+    preview = build_render_preview(operations, state.get("mapping_safety", {}), state.get("current_template_path"))
     state = set_render_preview(preview)
     saved_preview = state.get("render_preview", {})
     html_result = render_preview_to_html(saved_preview)
@@ -6577,7 +6587,6 @@ def api_v4_render_preview_build(payload: Optional[Any] = Body(None)):
         "render_preview": saved_preview,
         "html_preview": html_result.get("html", ""),
         "warnings": preview.get("warnings", []),
-        "pipeline_state": state,
     }
 
 

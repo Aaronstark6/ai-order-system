@@ -298,7 +298,3 @@ def execute_operations_to_excel(template_file, operations):
         "warnings": warnings,
         "mapping_safety": _empty_safety(warnings, skipped_operations, overwrite_warnings, formula_protection),
     }
-
-
-def execute_processed_operations_to_excel(template_file, processed_operations):
-    return execute_operations_to_excel(template_file, processed_operations)

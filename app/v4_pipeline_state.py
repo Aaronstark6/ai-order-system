@@ -19,7 +19,7 @@ def _default_state():
             "unified_operations": [],
         },
         "pipeline": {
-            "processed_operations": [],
+            "operations": [],
             "stages": [],
         },
         "mapping_safety": {
@@ -153,9 +153,9 @@ def set_excel_result(file_path):
     return get_pipeline_state()
 
 
-def set_pipeline_result(processed_operations, stages):
+def set_pipeline_result(operations, stages):
     _PIPELINE_STATE["pipeline"] = {
-        "processed_operations": deepcopy(processed_operations) if isinstance(processed_operations, list) else [],
+        "operations": deepcopy(operations) if isinstance(operations, list) else [],
         "stages": deepcopy(stages) if isinstance(stages, list) else [],
     }
     _PIPELINE_STATE["render_preview"] = {

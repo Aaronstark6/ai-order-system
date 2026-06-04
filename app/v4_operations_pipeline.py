@@ -69,7 +69,7 @@ def process_operations_pipeline(unified_operations):
 
     return {
         "success": True,
-        "processed_operations": finalized,
+        "operations": finalized,
         "stages": [
             _stage("normalize"),
             _stage("sort"),
