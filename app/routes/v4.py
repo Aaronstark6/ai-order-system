@@ -4104,14 +4104,10 @@ def api_v4_schema_version():
 
 @router.get("/api/v4/template-profiles")
 def api_v4_template_profiles():
-    logger.info("V4 template profiles requested")
-    profiles = list_template_profiles()
-    return {
-        "success": True,
-        "profiles": profiles,
-    }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.get("/api/v4/current-template-profile")
 def api_v4_current_template_profile():
     logger.info("V4 current template profile requested")
@@ -4206,1013 +4202,109 @@ def api_v4_set_current_template_profile(payload: Any = Body(None)):
 
 @router.get("/api/v4/template-profiles/{profile_id}")
 def api_v4_template_profile_detail(profile_id: str):
-    logger.info("V4 template profile detail requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "Template Profile 不存在",
-            "profile": {},
-            "validation": {
-                "valid": False,
-                "warnings": [],
-                "errors": ["Template Profile 不存在"],
-                "file_status": {},
-            },
-        }
-
-    validation = validate_template_profile(profile)
-    return {
-        "success": True,
-        "profile": profile,
-        "validation": validation,
-    }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.get("/api/v4/template-profiles/{profile_id}/configuration")
 def api_v4_template_profile_configuration(profile_id: str):
-    from app.v4_template_analysis import analyze_template
-
-    logger.info("V4 template profile configuration requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "映射不存在",
-            "layout_sections": [],
-            "template_analysis": {},
-        }
-
-    template_file_path = str(profile.get("template_file_path") or "").strip()
-    if not template_file_path:
-        return {
-            "success": True,
-            "profile": profile,
-            "has_template_file": False,
-            "layout_sections": [],
-            "template_analysis": {},
-            "template_labels": [],
-            "template_analysis_summary": {},
-            "semantic_summary": {},
-            "template_configuration": _template_configuration_from_profile(profile),
-            "section_configuration": _section_configuration_from_profile(profile),
-            "runtime_mapping_source": _get_runtime_mapping_source(profile),
-            "excel_feature_flags": _get_excel_feature_flags(profile),
-            "mapping_candidates": [],
-        }
-
-    try:
-        bound_template_path = _resolve_bound_template_file_path(template_file_path)
-        analysis = analyze_template(bound_template_path)
-        layout_result = build_layout_sections_from_template_analysis(analysis)
-        layout_sections = layout_result.get("layout_sections", [])
-        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
-        return {
-            "success": True,
-            "profile": profile,
-            "has_template_file": True,
-            "layout_sections": layout_sections,
-            "layout_summary": layout_result.get("summary", {}),
-            "template_analysis": analysis if isinstance(analysis, dict) else {},
-            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
-            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
-            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
-            "template_configuration": _template_configuration_from_profile(profile),
-            "section_configuration": _section_configuration_from_profile(profile),
-            "runtime_mapping_source": _get_runtime_mapping_source(profile),
-            "excel_feature_flags": _get_excel_feature_flags(profile),
-            "mapping_candidates": mapping_candidates,
-        }
-    except (BadZipFile, InvalidFileException) as exc:
-        logger.warning("V4 template profile configuration invalid Excel: profile_id=%s", profile_id, exc_info=True)
-        return {
-            "success": False,
-            "error": f"Excel 模板格式无效：{exc}",
-            "layout_sections": [],
-            "template_analysis": {},
-        }
-    except (OSError, ValueError) as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "layout_sections": [],
-            "template_analysis": {},
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile configuration failed")
-        return {
-            "success": False,
-            "error": str(exc) or "模板配置加载失败",
-            "layout_sections": [],
-            "template_analysis": {},
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/{profile_id}/regenerate-field-catalog-candidates")
 def api_v4_template_profile_regenerate_field_catalog_candidates(profile_id: str):
-    from app.v4_template_analysis import analyze_template
-
-    logger.info("V4 field catalog candidate regeneration requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "Template Profile 不存在",
-            "mapping_candidates": [],
-        }
-
-    template_file_path = str(profile.get("template_file_path") or "").strip()
-    if not template_file_path:
-        return {
-            "success": False,
-            "error": "当前映射尚未绑定模板文件。",
-            "mapping_candidates": [],
-        }
-
-    try:
-        bound_template_path = _resolve_bound_template_file_path(template_file_path)
-        analysis = analyze_template(bound_template_path)
-        layout_result = build_layout_sections_from_template_analysis(analysis)
-        layout_sections = layout_result.get("layout_sections", [])
-        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
-        catalog = load_field_catalog()
-        return {
-            "success": True,
-            "profile_id": profile.get("profile_id", ""),
-            "field_catalog_version": catalog.get("version") or catalog.get("schema_version") or "",
-            "layout_sections": layout_sections,
-            "layout_summary": layout_result.get("summary", {}),
-            "template_analysis": analysis if isinstance(analysis, dict) else {},
-            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
-            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
-            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
-            "mapping_candidates": mapping_candidates,
-            "summary": {
-                "mapping_candidates_count": len(mapping_candidates),
-                "field_catalog_candidates_count": sum(
-                    1 for item in mapping_candidates
-                    if isinstance(item, dict) and str(item.get("source") or "").startswith("field_catalog")
-                ),
-                "applicable_candidates_count": sum(
-                    1 for item in mapping_candidates
-                    if isinstance(item, dict)
-                    and item.get("semantic_promoted") is True
-                    and float(item.get("confidence") or 0) >= 0.70
-                ),
-            },
-        }
-    except (BadZipFile, InvalidFileException) as exc:
-        return {
-            "success": False,
-            "error": f"Excel 模板格式无效：{exc}",
-            "mapping_candidates": [],
-        }
-    except (OSError, ValueError) as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "mapping_candidates": [],
-        }
-    except Exception as exc:
-        logger.exception("V4 field catalog candidate regeneration failed")
-        return {
-            "success": False,
-            "error": str(exc) or "字段库重新识别失败",
-            "mapping_candidates": [],
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/{profile_id}/full-refresh")
 def api_v4_template_profile_full_refresh(profile_id: str):
-    from app.v4_template_analysis import analyze_template
-
-    logger.info("V4 template profile full refresh requested: profile_id=%s", profile_id)
-
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "Template Profile 不存在",
-            "profile_id": profile_id,
-            "template_configuration": {},
-            "section_configuration": {},
-            "mapping_candidates": [],
-        }
-
-    template_file_path = str(profile.get("template_file_path") or "").strip()
-    if not template_file_path:
-        return {
-            "success": False,
-            "error": "当前映射尚未绑定模板文件。",
-            "profile_id": profile.get("profile_id") or profile_id,
-            "template_configuration": {},
-            "section_configuration": {},
-            "mapping_candidates": [],
-        }
-
-    try:
-        bound_template_path = _resolve_bound_template_file_path(template_file_path)
-        analysis = analyze_template(bound_template_path)
-        layout_result = build_layout_sections_from_template_analysis(analysis)
-        layout_sections = layout_result.get("layout_sections", [])
-        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
-
-        clean_profile = {
-            "profile_id": profile.get("profile_id") or profile_id,
-            "profile_name": profile.get("profile_name") or profile.get("profile_id") or profile_id,
-            "schema_version": profile.get("schema_version") or "v4.1",
-            "layout_hash": profile.get("layout_hash") or "",
-            "template_name": profile.get("template_name") or "",
-            "template_filename": profile.get("template_filename") or "",
-            "template_file_path": template_file_path,
-            "template_note": profile.get("template_note") or "",
-            "structured_mapping_file": profile.get("structured_mapping_file") or "",
-            "table_mapping_file": profile.get("table_mapping_file") or "",
-            "block_rules_file": profile.get("block_rules_file") or "",
-            "created_at": profile.get("created_at") or "",
-            "render_config": {
-                "html_theme": "dark",
-                "excel_mode": "standard",
-            },
-        }
-
-        saved_profile = overwrite_template_profile(clean_profile)
-
-        state = get_pipeline_state()
-        current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
-        if current_profile.get("profile_id") == saved_profile.get("profile_id"):
-            state = set_current_profile(saved_profile)
-            state = _clear_mapping_runtime_state()
-            try:
-                state = set_current_template(str(bound_template_path))
-            except Exception:
-                state = set_current_template(None)
-
-        runtime_report = _build_mapping_health_report(saved_profile)
-
-        return {
-            "success": True,
-            "profile_id": saved_profile.get("profile_id") or profile_id,
-            "message": "映射已彻底刷新",
-            "profile": saved_profile,
-            "has_template_file": True,
-            "layout_sections": layout_sections,
-            "layout_summary": layout_result.get("summary", {}),
-            "template_analysis": analysis if isinstance(analysis, dict) else {},
-            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
-            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
-            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
-            "template_configuration": {},
-            "section_configuration": {},
-            "runtime_mapping_source": _get_runtime_mapping_source(saved_profile),
-            "excel_feature_flags": _get_excel_feature_flags(saved_profile),
-            "mapping_candidates": mapping_candidates,
-            "mapping_health": runtime_report,
-            "pipeline_state": state,
-            "summary": {
-                "template_configuration_count": 0,
-                "mapping_candidates_count": len(mapping_candidates),
-                "field_catalog_candidates_count": sum(
-                    1 for item in mapping_candidates
-                    if isinstance(item, dict) and str(item.get("source") or "").startswith("field_catalog")
-                ),
-                "applicable_candidates_count": sum(
-                    1 for item in mapping_candidates
-                    if isinstance(item, dict)
-                    and item.get("semantic_promoted") is True
-                    and float(item.get("confidence") or 0) >= 0.70
-                ),
-            },
-        }
-
-    except (BadZipFile, InvalidFileException) as exc:
-        return {
-            "success": False,
-            "error": f"Excel 模板格式无效：{exc}",
-            "profile_id": profile.get("profile_id") or profile_id,
-            "template_configuration": {},
-            "section_configuration": {},
-            "mapping_candidates": [],
-        }
-    except (OSError, ValueError) as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "profile_id": profile.get("profile_id") or profile_id,
-            "template_configuration": {},
-            "section_configuration": {},
-            "mapping_candidates": [],
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile full refresh failed")
-        return {
-            "success": False,
-            "error": str(exc) or "彻底刷新映射失败",
-            "profile_id": profile.get("profile_id") or profile_id,
-            "template_configuration": {},
-            "section_configuration": {},
-            "mapping_candidates": [],
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.get("/api/v4/template-profiles/{profile_id}/visual-grid")
 def api_v4_template_profile_visual_grid(profile_id: str):
-    from app.v4_template_analysis import analyze_template
-
-    logger.info("V4 template profile visual grid requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "映射不存在",
-            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
-        }
-
-    template_file_path = str(profile.get("template_file_path") or "").strip()
-    if not template_file_path:
-        return {
-            "success": False,
-            "error": "当前映射尚未绑定模板文件。",
-            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
-        }
-
-    try:
-        bound_template_path = _resolve_bound_template_file_path(template_file_path)
-        analysis = analyze_template(bound_template_path)
-        layout_result = build_layout_sections_from_template_analysis(analysis)
-        layout_sections = layout_result.get("layout_sections", [])
-        mapping_candidates = _generate_mapping_candidates(analysis, layout_sections, bound_template_path)
-        template_configuration = _template_configuration_from_profile(profile)
-        semantic_by_cell = _semantic_by_cell_from_analysis(analysis)
-        visual_grid = _build_visual_grid(bound_template_path, mapping_candidates, template_configuration, semantic_by_cell)
-        return {
-            "success": True,
-            "profile_id": profile.get("profile_id", ""),
-            "template_filename": profile.get("template_filename", ""),
-            "visual_grid": visual_grid,
-            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
-        }
-    except (BadZipFile, InvalidFileException) as exc:
-        return {
-            "success": False,
-            "error": f"Excel 模板格式无效：{exc}",
-            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
-        }
-    except (OSError, ValueError) as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile visual grid failed")
-        return {
-            "success": False,
-            "error": str(exc) or "可视化模板配置加载失败",
-            "visual_grid": {"rows": 0, "cols": 0, "cells": [], "merges": []},
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.get("/api/v4/template-profiles/{profile_id}/mapping-health")
 def api_v4_template_profile_mapping_health(profile_id: str):
-    logger.info("V4 template profile mapping health requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "profile_id": profile_id,
-            "error": "Template Profile 不存在",
-            "summary": {
-                "total_config_items": 0,
-                "workspace_fields": 0,
-                "ai_contract_fields": 0,
-                "export_ready_fields": 0,
-                "errors_count": 1,
-                "warnings_count": 0,
-                "runtime_mapping_source": {
-                    "source": "empty",
-                    "saved_fields_count": 0,
-                    "semantic_fields_count": 0,
-                    "using_saved_configuration": False,
-                },
-            },
-            "runtime_mapping_source": {
-                "source": "empty",
-                "saved_fields_count": 0,
-                "semantic_fields_count": 0,
-                "using_saved_configuration": False,
-            },
-            "checks": [],
-            "errors": [_mapping_health_issue("error", "", "", "", "Template Profile 不存在")],
-            "warnings": [],
-        }
-    return _build_mapping_health_report(profile)
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/{profile_id}/validate-draft")
 def api_v4_template_profile_validate_draft(profile_id: str, payload: Any = Body(None)):
-    logger.info("V4 template profile draft validation requested: profile_id=%s", profile_id)
-
-    profile = load_template_profile(profile_id)
-
-    if not profile:
-        return {
-            "success": False,
-            "profile_id": profile_id,
-            "draft_validation": True,
-            "saved_profile_modified": False,
-            "error": "Template Profile 不存在",
-            "summary": {
-                "total_config_items": 0,
-                "workspace_fields": 0,
-                "ai_contract_fields": 0,
-                "export_ready_fields": 0,
-                "errors_count": 1,
-                "warnings_count": 0,
-                "runtime_mapping_source": {
-                    "source": "empty",
-                    "saved_fields_count": 0,
-                    "semantic_fields_count": 0,
-                    "using_saved_configuration": False
-                },
-                "draft_validation": True,
-                "saved_profile_modified": False
-            },
-            "runtime_mapping_source": {
-                "source": "empty",
-                "saved_fields_count": 0,
-                "semantic_fields_count": 0,
-                "using_saved_configuration": False
-            },
-            "checks": [],
-            "errors": [
-                _mapping_health_issue(
-                    "error",
-                    "",
-                    "",
-                    "",
-                    "Template Profile 不存在"
-                )
-            ],
-            "warnings": []
-        }
-
-    payload = payload if isinstance(payload, dict) else {}
-
-    draft_template_configuration = payload.get("template_configuration")
-    draft_section_configuration = payload.get("section_configuration")
-    draft_excel_feature_flags = payload.get("excel_feature_flags")
-
-    temp_profile = dict(profile)
-    existing_render_config = profile.get("render_config") if isinstance(profile.get("render_config"), dict) else {}
-    temp_profile["render_config"] = dict(existing_render_config)
-
-    if isinstance(draft_template_configuration, dict):
-        temp_profile["render_config"]["template_configuration"] = draft_template_configuration
-
-    if isinstance(draft_section_configuration, dict):
-        temp_profile["render_config"]["section_configuration"] = draft_section_configuration
-
-    if isinstance(draft_excel_feature_flags, dict):
-        temp_profile["excel_feature_flags"] = draft_excel_feature_flags
-
-    runtime_configuration = _template_configuration_from_profile(temp_profile)
-    draft_count = len(draft_template_configuration) if isinstance(draft_template_configuration, dict) else 0
-    runtime_count = len(runtime_configuration)
-
-    logger.info(
-        "V4 validate-draft using render_config config: profile_id=%s draft_template_configuration_count=%d runtime_template_configuration_count=%d render_config_exists=%s",
-        profile_id,
-        draft_count,
-        runtime_count,
-        "true"
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
     )
-
-    if draft_count != runtime_count:
-        logger.warning(
-            "V4 validate-draft configuration source mismatch: profile_id=%s draft_count=%d runtime_count=%d",
-            profile_id,
-            draft_count,
-            runtime_count
-        )
-
-    report = _build_mapping_health_report(temp_profile)
-
-    report["draft_validation"] = True
-    report["saved_profile_modified"] = False
-
-    summary = report.get("summary")
-
-    if isinstance(summary, dict):
-        summary["draft_validation"] = True
-        summary["saved_profile_modified"] = False
-
-    return report
-
-
 @router.get("/api/v4/template-profiles/{profile_id}/runtime-trace")
 def api_v4_template_profile_runtime_trace(profile_id: str):
-    logger.info("V4 template profile runtime trace requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        empty_runtime_source = {
-            "source": "empty",
-            "saved_fields_count": 0,
-            "semantic_fields_count": 0,
-            "using_saved_configuration": False,
-        }
-        return {
-            "success": False,
-            "profile_id": profile_id,
-            "error": "Template Profile 不存在",
-            "runtime_mapping_source": empty_runtime_source,
-            "summary": {
-                "saved_configuration_count": 0,
-                "workspace_fields_count": 0,
-                "ai_contract_fields_count": 0,
-                "export_ready_count": 0,
-                "warnings_count": 0,
-                "errors_count": 1,
-            },
-            "saved_configuration_count": 0,
-            "workspace_fields_count": 0,
-            "ai_contract_fields_count": 0,
-            "export_ready_count": 0,
-            "trace_items": [],
-            "warnings": [],
-            "errors": [{
-                "cell": "",
-                "target_cell": "",
-                "field_key": "",
-                "label": "",
-                "problems": ["Template Profile 不存在"],
-            }],
-        }
-    return _build_runtime_mapping_trace_report(profile)
-
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/{profile_id}/configuration")
 def api_v4_template_profile_configuration_save(profile_id: str, payload: Any = Body(None)):
-    logger.info("V4 template profile configuration save requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "映射不存在",
-        }
-
-    try:
-        payload = payload if isinstance(payload, dict) else {}
-        configuration = _normalize_template_configuration_items(payload.get("items"))
-        section_configuration = _normalize_section_configuration_items(payload.get("sections"))
-        excel_feature_flags = _get_excel_feature_flags({
-            "excel_feature_flags": payload.get("excel_feature_flags", profile.get("excel_feature_flags", {}))
-        })
-        render_config = profile.get("render_config") if isinstance(profile.get("render_config"), dict) else {}
-        profile["render_config"] = {
-            **render_config,
-            "template_configuration": configuration,
-            "section_configuration": section_configuration,
-        }
-        profile["excel_feature_flags"] = excel_feature_flags
-        saved_profile = save_template_profile(profile)
-        state = get_pipeline_state()
-        current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
-        if current_profile.get("profile_id") == saved_profile.get("profile_id"):
-            state = set_current_profile(saved_profile)
-        return {
-            "success": True,
-            "message": "模板配置已保存",
-            "profile": saved_profile,
-            "template_configuration": _template_configuration_from_profile(saved_profile),
-            "section_configuration": _section_configuration_from_profile(saved_profile),
-            "runtime_mapping_source": _get_runtime_mapping_source(saved_profile),
-            "excel_feature_flags": _get_excel_feature_flags(saved_profile),
-            "pipeline_state": state,
-        }
-    except ValueError as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile configuration save failed")
-        return {
-            "success": False,
-            "error": str(exc) or "模板配置保存失败",
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/create")
 def api_v4_template_profile_create(payload: Any = Body(None)):
-    logger.info("V4 template profile create requested")
-    try:
-        profile = create_template_profile(payload if isinstance(payload, dict) else {})
-        validation = validate_template_profile(profile)
-        return {
-            "success": True,
-            "message": "Template Profile 已创建",
-            "profile": profile,
-            "validation": validation,
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile create failed")
-        return {
-            "success": False,
-            "error": str(exc) or "Template Profile 创建失败",
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/create-empty")
 def api_v4_template_profile_create_empty(payload: Any = Body(None)):
-    logger.info("V4 template profile create empty requested")
-    try:
-        payload = payload if isinstance(payload, dict) else {}
-        profile_name = str(payload.get("profile_name") or "").strip()
-        if not profile_name:
-            return {
-                "success": False,
-                "error": "映射名称不能为空",
-            }
-
-        base_id = _safe_template_profile_id(profile_name)
-        profile_id = base_id
-        if load_template_profile(profile_id):
-            profile_id = f"{base_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:6]}"
-
-        profile = create_template_profile(
-            {
-                "profile_id": profile_id,
-                "profile_name": profile_name,
-                "template_name": "",
-                "template_filename": "",
-                "template_file_path": "",
-            }
-        )
-        validation = validate_template_profile(profile)
-        return {
-            "success": True,
-            "message": "映射已创建",
-            "profile": profile,
-            "validation": validation,
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile create empty failed")
-        return {
-            "success": False,
-            "error": str(exc) or "映射创建失败",
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/save")
 def api_v4_template_profile_save(payload: Any = Body(None)):
-    logger.info("V4 template profile save requested")
-    try:
-        if not isinstance(payload, dict):
-            return {
-                "success": False,
-                "error": "payload 必须是 object",
-            }
-
-        profile = save_template_profile(payload)
-        validation = validate_template_profile(profile)
-        return {
-            "success": True,
-            "message": "Template Profile 已保存",
-            "profile": profile,
-            "validation": validation,
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile save failed")
-        return {
-            "success": False,
-            "error": str(exc) or "Template Profile 保存失败",
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/{profile_id}/template-file")
 def api_v4_template_profile_template_file_update(profile_id: str, payload: Any = Body(None)):
-    logger.info("V4 template profile template file update requested: profile_id=%s", profile_id)
-    payload = payload if isinstance(payload, dict) else {}
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "Template Profile 不存在",
-        }
-
-    profile["template_file_path"] = str(payload.get("template_file_path") or "").strip()
-    try:
-        saved_profile = save_template_profile(profile)
-        state = get_pipeline_state()
-        current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
-        if current_profile.get("profile_id") == saved_profile.get("profile_id"):
-            state = set_current_profile(saved_profile)
-        validation = validate_template_profile(saved_profile)
-        return {
-            "success": True,
-            "message": "Template Profile 模板文件已保存",
-            "profile": saved_profile,
-            "validation": validation,
-            "pipeline_state": state,
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile template file update failed")
-        return {
-            "success": False,
-            "error": str(exc) or "Template Profile 模板文件保存失败",
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/{profile_id}/replace-template-file")
 def api_v4_template_profile_replace_template_file(profile_id: str, template_file: UploadFile = File(...)):
-    from app.v4_template_analysis import analyze_template
-
-    logger.info(
-        "V4 template profile replace template file requested: profile_id=%s filename=%s",
-        profile_id,
-        template_file.filename,
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
     )
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "系统模板不存在",
-        }
-
-    template_path = None
-    try:
-        template_path, original_name = _save_v4_system_template_file(profile_id, template_file)
-        analysis = analyze_template(template_path)
-        state = set_current_template(template_path.name)
-        state = set_template_analysis(analysis)
-        layout_result = build_layout_sections_from_template_analysis(analysis)
-
-        profile["template_name"] = Path(original_name or template_path.name).stem
-        profile["template_filename"] = original_name or template_path.name
-        profile["template_file_path"] = _system_template_relative_path(template_path)
-        saved_profile = save_template_profile(profile)
-        state = set_current_profile(saved_profile)
-        validation = validate_template_profile(saved_profile)
-
-        return {
-            "success": True,
-            "message": "模板文件已更新",
-            "profile": saved_profile,
-            "validation": validation,
-            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
-            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
-            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
-            "layout_summary": layout_result.get("summary", {}),
-            "layout_sections": layout_result.get("layout_sections", []),
-            "pipeline_state": state,
-        }
-    except (BadZipFile, InvalidFileException) as exc:
-        if template_path:
-            template_path.unlink(missing_ok=True)
-        logger.warning("V4 template profile replace invalid Excel: path=%s", template_path, exc_info=True)
-        return {
-            "success": False,
-            "error": f"Excel 模板格式无效：{exc}",
-            "pipeline_state": get_pipeline_state(),
-        }
-    except ValueError as exc:
-        if template_path:
-            template_path.unlink(missing_ok=True)
-        return {
-            "success": False,
-            "error": str(exc),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except Exception as exc:
-        if template_path:
-            template_path.unlink(missing_ok=True)
-        logger.exception("V4 template profile replace template file failed")
-        return {
-            "success": False,
-            "error": str(exc) or "模板文件更新失败",
-            "pipeline_state": get_pipeline_state(),
-        }
-
-
 @router.post("/api/v4/template-profiles/{profile_id}/delete-template-file")
 def api_v4_template_profile_delete_template_file(profile_id: str):
-    logger.info("V4 template profile delete template file requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "系统模板不存在",
-        }
-
-    try:
-        template_file_path = str(profile.get("template_file_path") or "").strip()
-        deleted = False
-        if template_file_path:
-            target_path = _resolve_template_file_path_for_delete(template_file_path)
-            if target_path and target_path.exists():
-                if not target_path.is_file():
-                    raise ValueError("模板文件路径不是文件")
-                target_path.unlink()
-                deleted = True
-
-        profile["template_file_path"] = ""
-        profile["template_filename"] = ""
-        profile["template_name"] = ""
-        saved_profile = save_template_profile(profile)
-        state = set_current_profile(saved_profile)
-        state = set_current_template(None)
-        validation = validate_template_profile(saved_profile)
-        return {
-            "success": True,
-            "message": "模板文件已删除" if deleted else "模板文件绑定已清空",
-            "profile": saved_profile,
-            "validation": validation,
-            "file_deleted": deleted,
-            "pipeline_state": state,
-        }
-    except ValueError as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile delete template file failed")
-        return {
-            "success": False,
-            "error": str(exc) or "模板文件删除失败",
-            "pipeline_state": get_pipeline_state(),
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/{profile_id}/delete")
 def api_v4_template_profile_delete(profile_id: str):
-    logger.info("V4 template profile delete requested: profile_id=%s", profile_id)
-    profile = load_template_profile(profile_id)
-    if not profile:
-        return {
-            "success": False,
-            "error": "映射不存在",
-        }
-
-    try:
-        template_file_path = str(profile.get("template_file_path") or "").strip()
-        template_deleted = False
-        if template_file_path:
-            target_path = _resolve_template_file_path_for_delete(template_file_path)
-            if target_path and target_path.exists():
-                if not target_path.is_file():
-                    raise ValueError("模板文件路径不是文件")
-                target_path.unlink()
-                template_deleted = True
-
-        profile_path = _resolve_template_profile_json_path_for_delete(profile_id, profile)
-        if not profile_path.is_file():
-            return {
-                "success": False,
-                "error": "映射不存在",
-            }
-        profile_path.unlink()
-
-        state = get_pipeline_state()
-        current_profile = state.get("current_profile") if isinstance(state.get("current_profile"), dict) else {}
-        if _safe_template_profile_id(current_profile.get("profile_id")) == _safe_template_profile_id(profile_id):
-            set_current_profile({})
-            set_current_template(None)
-
-        return {
-            "success": True,
-            "message": "映射已删除",
-            "template_file_deleted": template_deleted,
-        }
-    except ValueError as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile delete failed")
-        return {
-            "success": False,
-            "error": str(exc) or "映射删除失败",
-            "pipeline_state": get_pipeline_state(),
-        }
-
-
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
+    )
 @router.post("/api/v4/template-profiles/analyze-template")
 def api_v4_template_profile_analyze_template(
     profile_name: str = Form(...),
     template_file: UploadFile = File(...),
 ):
-    from app.v4_template_analysis import analyze_template
-
-    requested_profile_name = str(profile_name or "").strip()
-    logger.info(
-        "V4 template profile analyze template requested: profile_name=%s filename=%s",
-        requested_profile_name,
-        template_file.filename,
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings system has been disabled. Use Stage2 Config instead.",
     )
-    if not requested_profile_name:
-        return {
-            "success": False,
-            "error": "系统模板名称不能为空",
-            "pipeline_state": get_pipeline_state(),
-        }
-
-    template_path = None
-    try:
-        original_name = Path(template_file.filename or "").name
-        if not original_name:
-            return {
-                "success": False,
-                "error": "模板文件名不能为空",
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        safe_name = _safe_output_filename_part(requested_profile_name)
-        profile_id = f"system_template_{safe_name}"
-        if load_template_profile(profile_id):
-            profile_id = f"{profile_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
-        profile = create_template_profile(
-            {
-                "profile_id": profile_id,
-                "profile_name": requested_profile_name,
-                "template_name": Path(original_name).stem,
-                "template_filename": original_name,
-            }
-        )
-
-        safe_profile_id = _safe_output_filename_part(profile_id)
-        safe_original_name = _safe_output_filename_part(Path(original_name).stem) + Path(original_name).suffix.lower()
-        system_templates_dir = get_base_dir() / "v4" / "system_templates"
-        system_templates_dir.mkdir(parents=True, exist_ok=True)
-        template_path = system_templates_dir / f"{safe_profile_id}_{safe_original_name}"
-        with template_path.open("wb") as buffer:
-            template_file.file.seek(0)
-            shutil.copyfileobj(template_file.file, buffer)
-
-        if template_path.stat().st_size <= 0:
-            template_path.unlink(missing_ok=True)
-            return {
-                "success": False,
-                "error": "模板文件为空",
-                "pipeline_state": get_pipeline_state(),
-            }
-
-        analysis = analyze_template(template_path)
-        state = set_current_template(template_path.name)
-        state = set_template_analysis(analysis)
-        layout_result = build_layout_sections_from_template_analysis(analysis)
-
-        template_file_path = _system_template_relative_path(template_path)
-
-        profile["template_name"] = Path(original_name or template_path.name).stem
-        profile["template_filename"] = original_name or template_path.name
-        profile["template_file_path"] = template_file_path
-        saved_profile = save_template_profile(profile)
-        state = set_current_profile(saved_profile)
-
-        validation = validate_template_profile(saved_profile)
-        return {
-            "success": True,
-            "message": "系统模板已生成",
-            "profile": saved_profile,
-            "validation": validation,
-            "template_path": str(template_path),
-            "template_file_path": template_file_path,
-            "template_analysis_summary": analysis.get("summary", {}) if isinstance(analysis, dict) else {},
-            "semantic_summary": analysis.get("semantic_summary", {}) if isinstance(analysis, dict) else {},
-            "template_labels": analysis.get("labels", []) if isinstance(analysis, dict) else [],
-            "layout_summary": layout_result.get("summary", {}),
-            "layout_sections": layout_result.get("layout_sections", []),
-            "pipeline_state": state,
-        }
-    except (BadZipFile, InvalidFileException) as exc:
-        logger.warning("V4 template profile analyze invalid Excel: path=%s", template_path, exc_info=True)
-        return {
-            "success": False,
-            "error": f"Excel 模板格式无效：{exc}",
-            "pipeline_state": get_pipeline_state(),
-        }
-    except ValueError as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "pipeline_state": get_pipeline_state(),
-        }
-    except Exception as exc:
-        logger.exception("V4 template profile analyze template failed")
-        return {
-            "success": False,
-            "error": str(exc) or "公司模板分析失败",
-            "pipeline_state": get_pipeline_state(),
-        }
-
-
 @router.get("/api/v4/structured-mapping")
 def api_v4_structured_mapping():
     logger.info("V4 structured mapping requested")
