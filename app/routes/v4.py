@@ -17,12 +17,6 @@ from app.logger import get_logger
 from app.ai_parser import parse_message
 from app.chat_preprocessor import preprocess_chat_text
 from app.runtime_paths import get_base_dir
-from app.v4_batch_template_executor import execute_batch_template_to_excel
-from app.v4_excel_rule_executor import execute_excel_rule_preview_to_workbook
-from app.v4_excel_renderer import export_description_fields_to_debug_excel
-from app.v4_excel_rule_preview import build_excel_rule_preview
-from app.v4_excel_rules import get_template_rules, load_excel_render_rules, save_excel_render_rules
-from app.v4_excel_rules_validator import validate_excel_render_rules
 from app.v4_order_normalizer import normalize_flat_order_to_v4_order_object
 from app.v4_parse_adapter import normalize_parse_result_to_flat_data
 from app.v4_examples import list_examples, load_example, save_example
@@ -69,12 +63,6 @@ from app.v4_template_cache import (
 )
 from app.v4_template_fingerprint import SUPPORTED_SUFFIXES, build_template_fingerprint
 from app.v4_template_matcher import match_or_parse_template, match_template
-from app.v4_template_rule_executor import (
-    execute_ai_template_to_excel,
-    execute_rules_to_template_excel,
-    execute_rules_to_template_excel_with_preview,
-    执行模板规则并生成Excel,
-)
 from app.v4_validator import validate_example_order
 
 
@@ -84,7 +72,10 @@ logger = get_logger(__name__)
 
 @router.get("/v4-template-settings")
 def v4_template_settings_page():
-    return FileResponse(get_base_dir() / "static" / "v4_template_settings.html")
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 template settings page has been disabled. Use /v4-stage2-config instead.",
+    )
 
 
 def _save_v4_uploaded_template(file: UploadFile):
@@ -7313,192 +7304,42 @@ def api_v4_workbench_export(
     rules: str = Form(""),
     example_order: str = Form(""),
 ):
-    temp_path = None
-    if file is None:
-        return {
-            "success": False,
-            "error": "尚未上传模板",
-        }
-
-    try:
-        if not str(rules or "").strip():
-            return {
-                "success": False,
-                "error": "尚未完成智能解析",
-            }
-
-        parsed_rules = json.loads(rules)
-        if not isinstance(parsed_rules, list) or not parsed_rules:
-            return {
-                "success": False,
-                "error": "rules 为空",
-            }
-
-        logger.info("V4 workbench export requested: filename=%s rules=%s", file.filename, len(parsed_rules))
-        temp_path = _save_v4_uploaded_template(file)
-        example = _load_workbench_example_order(example_order)
-        template_key, rules_config = _build_workbench_rules_config(parsed_rules)
-
-        render_result = render_example_to_description_fields(example, load_product_schema())
-        if not render_result.get("success"):
-            return {
-                "success": False,
-                "error": render_result.get("error", "Excel 生成失败：Renderer 失败"),
-            }
-
-        preview_result = build_excel_rule_preview(
-            example,
-            render_result.get("description_fields", {}),
-            rules_config,
-            template_key,
-        )
-        if not preview_result.get("success"):
-            return {
-                "success": False,
-                "error": preview_result.get("error", "Excel 生成失败：规则预览失败"),
-            }
-
-        operations = preview_result.get("operations", [])
-        if not isinstance(operations, list):
-            operations = []
-
-        output_dir = get_base_dir() / "v4" / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_template_name = _safe_output_filename_part(Path(file.filename or "template").stem)
-        filename = f"workbench_{safe_template_name}_{timestamp}.xlsx"
-        output_path = output_dir / filename
-
-        executor_result = execute_rules_to_template_excel(
-            str(temp_path),
-            operations,
-            str(output_path),
-        )
-        if not executor_result.get("success"):
-            return {
-                "success": False,
-                "error": executor_result.get("error", "Excel 生成失败"),
-                "warnings": preview_result.get("warnings", []) + executor_result.get("warnings", []),
-                "operations_count": len(operations),
-            }
-
-        download_url = f"/api/v4/output/{filename}"
-        if not download_url:
-            return {
-                "success": False,
-                "error": "下载链接生成失败",
-            }
-
-        warnings = []
-        warnings.extend(render_result.get("warnings", []))
-        warnings.extend(preview_result.get("warnings", []))
-        warnings.extend(executor_result.get("warnings", []))
-
-        logger.info(
-            "V4 workbench export succeeded: filename=%s operations=%s warnings=%s",
-            filename,
-            len(operations),
-            len(warnings),
-        )
-        return {
-            "success": True,
-            "filename": filename,
-            "download_url": download_url,
-            "warnings": warnings,
-            "operations_count": len(operations),
-            "operations_written": executor_result.get("operations_written", 0),
-        }
-    except json.JSONDecodeError as exc:
-        logger.info("V4 workbench export rejected by invalid JSON: filename=%s error=%s", file.filename, exc)
-        return {
-            "success": False,
-            "error": f"Excel 生成失败：rules JSON 不合法",
-        }
-    except ValueError as exc:
-        logger.info("V4 workbench export rejected: filename=%s error=%s", file.filename, exc)
-        return {
-            "success": False,
-            "error": str(exc),
-        }
-    except (BadZipFile, InvalidFileException):
-        logger.info("V4 workbench export rejected as non Excel: filename=%s", file.filename)
-        return {
-            "success": False,
-            "error": "文件不是 Excel",
-        }
-    except Exception as exc:
-        logger.exception("V4 workbench export failed: filename=%s", file.filename)
-        return {
-            "success": False,
-            "error": f"Excel 生成失败：{exc}",
-        }
-    finally:
-        _remove_v4_uploaded_template(temp_path)
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.get("/api/v4/excel-render-rules")
 def api_v4_excel_render_rules():
-    logger.info("V4 Excel render rules requested")
-    return {
-        "success": True,
-        "data": load_excel_render_rules(),
-    }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.post("/api/v4/excel-render-rules")
 def api_v4_save_excel_render_rules(rules_config: Any):
-    logger.info("V4 Excel render rules save requested")
-    validation_result = validate_excel_render_rules(rules_config)
-    if validation_result.get("errors"):
-        logger.info(
-            "V4 Excel render rules save rejected by validation: errors=%s warnings=%s",
-            len(validation_result.get("errors", [])),
-            len(validation_result.get("warnings", [])),
-        )
-        return {
-            "success": False,
-            "error": "\u0045\u0078\u0063\u0065\u006c\u6e32\u67d3\u89c4\u5219\u6821\u9a8c\u5931\u8d25",
-            "validation": validation_result,
-        }
-
-    result = save_excel_render_rules(rules_config)
-    if not result.get("success"):
-        return {
-            "success": False,
-            "error": result.get("error", "V4 Excel render rules save failed"),
-        }
-
-    return {
-        "success": True,
-        "data": result.get("data", {}),
-        "validation": validation_result,
-    }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.get("/api/v4/excel-render-rules/validate")
 def api_v4_validate_excel_render_rules():
-    logger.info("V4 Excel render rules validation requested")
-    return {
-        "success": True,
-        "data": validate_excel_render_rules(load_excel_render_rules()),
-    }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.get("/api/v4/excel-render-rules/{template_key}")
 def api_v4_excel_render_template_rules(template_key: str):
-    template_rules = get_template_rules(template_key)
-    if not template_rules:
-        logger.info("V4 Excel render rules template not found: template_key=%s", template_key)
-        return {
-            "success": False,
-            "error": "\u0045\u0078\u0063\u0065\u006c\u6e32\u67d3\u89c4\u5219\u6a21\u677f\u4e0d\u5b58\u5728",
-        }
-
-    logger.info("V4 Excel render rules template requested: template_key=%s", template_key)
-    return {
-        "success": True,
-        "data": template_rules,
-    }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.get("/api/v4/product-forms")
@@ -7603,59 +7444,10 @@ def api_v4_example_render_description(example_name: str):
 
 @router.get("/api/v4/examples/{example_name}/excel-rule-preview")
 def api_v4_example_excel_rule_preview(example_name: str, template_key: str = ""):
-    if not str(template_key or "").strip():
-        return {
-            "success": False,
-            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
-        }
-
-    example = load_example(example_name)
-    if not example:
-        logger.info("V4 example Excel rule preview not found: example_name=%s", example_name)
-        return {
-            "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
-        }
-
-    try:
-        logger.info(
-            "V4 example Excel rule preview requested: example_name=%s template_key=%s",
-            example_name,
-            template_key,
-        )
-        render_result = render_example_to_description_fields(example, load_product_schema())
-        if not render_result.get("success"):
-            return {
-                "success": False,
-                "error": render_result.get("error", "V4 renderer failed"),
-            }
-
-        preview_result = build_excel_rule_preview(
-            example,
-            render_result.get("description_fields", {}),
-            load_excel_render_rules(),
-            template_key,
-        )
-        if not preview_result.get("success"):
-            return {
-                "success": False,
-                "error": preview_result.get("error", "V4 Excel rule preview failed"),
-            }
-
-        return {
-            "success": True,
-            "data": preview_result,
-        }
-    except Exception as exc:
-        logger.exception(
-            "V4 example Excel rule preview failed: example_name=%s template_key=%s",
-            example_name,
-            template_key,
-        )
-        return {
-            "success": False,
-            "error": str(exc),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 def _example_debug_export_boundary_payload():
@@ -7686,405 +7478,50 @@ def _example_debug_export_boundary_payload():
 
 @router.post("/api/v4/examples/{example_name}/export-rule-excel")
 def api_v4_example_export_rule_excel(example_name: str, template_key: str = ""):
-    if not str(template_key or "").strip():
-        return {
-            "success": False,
-            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
-        }
-
-    example = load_example(example_name)
-    if not example:
-        logger.info("V4 example export rule Excel not found: example_name=%s", example_name)
-        return {
-            "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
-        }
-
-    try:
-        logger.info(
-            "V4 example export rule Excel requested: example_name=%s template_key=%s",
-            example_name,
-            template_key,
-        )
-        render_result = render_example_to_description_fields(example, load_product_schema())
-        if not render_result.get("success"):
-            return {
-                "success": False,
-                "error": render_result.get("error", "V4 renderer failed"),
-            }
-
-        preview_result = build_excel_rule_preview(
-            example,
-            render_result.get("description_fields", {}),
-            load_excel_render_rules(),
-            template_key,
-        )
-        if not preview_result.get("success"):
-            return {
-                "success": False,
-                "error": preview_result.get("error", "V4 Excel rule preview failed"),
-            }
-
-        output_dir = get_base_dir() / "v4" / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_example_name = _safe_output_filename_part(example_name)
-        safe_template_key = _safe_output_filename_part(template_key)
-        filename = f"{safe_example_name}_{safe_template_key}_rule_excel_{timestamp}.xlsx"
-        output_path = output_dir / filename
-
-        executor_result = execute_excel_rule_preview_to_workbook(
-            preview_result.get("operations", []),
-            str(output_path),
-        )
-        if not executor_result.get("success"):
-            return {
-                "success": False,
-                "error": executor_result.get("error", "V4 Excel rule executor failed"),
-            }
-
-        warnings = []
-        warnings.extend(preview_result.get("warnings", []))
-        warnings.extend(executor_result.get("warnings", []))
-
-        logger.info(
-            "V4 example export rule Excel succeeded: output_path=%s operations_written=%s warnings=%s",
-            output_path,
-            executor_result.get("operations_written", 0),
-            len(warnings),
-        )
-        return {
-            "success": True,
-            **_example_debug_export_boundary_payload(),
-            "output_path": str(output_path),
-            "filename": filename,
-            "operations_written": executor_result.get("operations_written", 0),
-            "warnings": warnings,
-        }
-    except Exception as exc:
-        logger.exception(
-            "V4 example export rule Excel failed: example_name=%s template_key=%s",
-            example_name,
-            template_key,
-        )
-        return {
-            "success": False,
-            "error": str(exc),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.post("/api/v4/examples/{example_name}/export-template-rule-excel")
 def api_v4_example_export_template_rule_excel(example_name: str, payload: Any = Body(None), template_key: str = ""):
-    if not str(template_key or "").strip():
-        return {
-            "success": False,
-            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
-        }
-    if not isinstance(payload, dict):
-        return {
-            "success": False,
-            "error": "template_path \u4e0d\u80fd\u4e3a\u7a7a",
-        }
-
-    template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
-    if template_path_error:
-        return {
-            "success": False,
-            "error": template_path_error,
-        }
-
-    example = load_example(example_name)
-    if not example:
-        logger.info("V4 example export template rule Excel not found: example_name=%s", example_name)
-        return {
-            "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
-        }
-
-    try:
-        logger.info(
-            "V4 example export template rule Excel requested: example_name=%s template_key=%s template_path=%s",
-            example_name,
-            template_key,
-            template_path,
-        )
-        render_result = render_example_to_description_fields(example, load_product_schema())
-        if not render_result.get("success"):
-            return {
-                "success": False,
-                "error": render_result.get("error", "V4 renderer failed"),
-            }
-
-        preview_result = build_excel_rule_preview(
-            example,
-            render_result.get("description_fields", {}),
-            load_excel_render_rules(),
-            template_key,
-        )
-        if not preview_result.get("success"):
-            return {
-                "success": False,
-                "error": preview_result.get("error", "V4 Excel rule preview failed"),
-            }
-        operations = preview_result.get("operations", [])
-        if not isinstance(operations, list):
-            operations = []
-
-        output_dir = get_base_dir() / "v4" / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_example_name = _safe_output_filename_part(example_name)
-        safe_template_key = _safe_output_filename_part(template_key)
-        filename = f"{safe_example_name}_{safe_template_key}_template_rule_{timestamp}.xlsx"
-        output_path = output_dir / filename
-
-        executor_result = execute_rules_to_template_excel(
-            str(template_path),
-            operations,
-            str(output_path),
-        )
-        if not executor_result.get("success"):
-            return {
-                "success": False,
-                "error": executor_result.get("error", "V4 template rule executor failed"),
-            }
-
-        warnings = []
-        warnings.extend(preview_result.get("warnings", []))
-        warnings.extend(executor_result.get("warnings", []))
-
-        logger.info(
-            "V4 example export template rule Excel succeeded: output_path=%s operations_written=%s warnings=%s",
-            output_path,
-            executor_result.get("operations_written", 0),
-            len(warnings),
-        )
-        return {
-            "success": True,
-            **_example_debug_export_boundary_payload(),
-            "filename": filename,
-            "output_path": str(output_path),
-            "operations_written": executor_result.get("operations_written", 0),
-            "operations": operations,
-            "warnings": warnings,
-        }
-    except Exception as exc:
-        logger.exception(
-            "V4 example export template rule Excel failed: example_name=%s template_key=%s",
-            example_name,
-            template_key,
-        )
-        return {
-            "success": False,
-            "error": str(exc),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.post("/api/v4/examples/{example_name}/export-template-rule-excel-with-preview")
 def api_v4_example_export_template_rule_excel_with_preview(example_name: str, payload: Any = Body(None), template_key: str = ""):
-    if not str(template_key or "").strip():
-        return {
-            "success": False,
-            "error": "template_key \u4e0d\u80fd\u4e3a\u7a7a",
-        }
-    if not isinstance(payload, dict):
-        return {
-            "success": False,
-            "error": "template_path \u4e0d\u80fd\u4e3a\u7a7a",
-        }
-
-    template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
-    if template_path_error:
-        return {
-            "success": False,
-            "error": template_path_error,
-        }
-
-    try:
-        logger.info(
-            "V4 example export template rule Excel with preview requested: example_name=%s template_key=%s template_path=%s",
-            example_name,
-            template_key,
-            template_path,
-        )
-        result = execute_rules_to_template_excel_with_preview(
-            example_name,
-            template_key,
-            str(template_path),
-        )
-        if not result.get("success"):
-            logger.info(
-                "V4 example export template rule Excel with preview failed: example_name=%s template_key=%s error=%s",
-                example_name,
-                template_key,
-                result.get("error", ""),
-            )
-            return result
-
-        logger.info(
-            "V4 example export template rule Excel with preview succeeded: filename=%s operations_written=%s warnings=%s",
-            result.get("filename", ""),
-            result.get("operations_written", 0),
-            len(result.get("warnings", [])),
-        )
-        result.update(_example_debug_export_boundary_payload())
-        return result
-    except Exception as exc:
-        logger.exception(
-            "V4 example export template rule Excel with preview failed: example_name=%s template_key=%s",
-            example_name,
-            template_key,
-        )
-        return {
-            "success": False,
-            "error": str(exc),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.post("/api/v4/examples/{example_name}/export-ai-template-excel")
 def api_v4_example_export_ai_template_excel(example_name: str, payload: Any = Body(None)):
-    if not isinstance(payload, dict):
-        return {
-            "success": False,
-            "error": "template_path \u4e0d\u80fd\u4e3a\u7a7a",
-        }
-
-    template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
-    if template_path_error:
-        return {
-            "success": False,
-            "error": template_path_error,
-        }
-
-    try:
-        logger.info(
-            "V4 example export AI template Excel requested: example_name=%s template_path=%s",
-            example_name,
-            template_path,
-        )
-        result = execute_ai_template_to_excel(example_name, str(template_path))
-        if not result.get("success"):
-            logger.info(
-                "V4 example export AI template Excel failed: example_name=%s error=%s",
-                example_name,
-                result.get("error", ""),
-            )
-            return result
-
-        logger.info(
-            "V4 example export AI template Excel succeeded: filename=%s operations_written=%s warnings=%s",
-            result.get("filename", ""),
-            result.get("operations_written", 0),
-            len(result.get("warnings", [])),
-        )
-        result.update(_example_debug_export_boundary_payload())
-        return result
-    except Exception as exc:
-        logger.exception("V4 example export AI template Excel failed: example_name=%s", example_name)
-        return {
-            "success": False,
-            "error": str(exc),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.post("/api/v4/examples/{example_name}/export-ai-template-excel-cn")
 def api_v4_example_export_ai_template_excel_cn(example_name: str, payload: Any = Body(None)):
-    if not isinstance(payload, dict):
-        return {
-            "成功": False,
-            "错误": "模板路径不能为空",
-        }
-
-    template_path, template_path_error = _resolve_template_path(payload.get("template_path"))
-    if template_path_error:
-        return {
-            "成功": False,
-            "错误": template_path_error,
-        }
-
-    try:
-        logger.info(
-            "V4 example export AI template Excel CN requested: example_name=%s template_path=%s",
-            example_name,
-            template_path,
-        )
-        result = 执行模板规则并生成Excel(example_name, str(template_path))
-        if not result.get("成功"):
-            logger.info(
-                "V4 example export AI template Excel CN failed: example_name=%s error=%s",
-                example_name,
-                result.get("错误", ""),
-            )
-        result.update(
-            {
-                "范围": "仅限示例调试导出",
-                "生产导出": False,
-                "边界警告": "该接口仅用于 V4 示例/调试导出。正式订单导出必须使用 /api/v4/export-pipeline-excel，并以 confirmed_order_object 作为 Stage2 事实源。",
-                "生产接口": "/api/v4/export-pipeline-excel",
-            }
-        )
-        return result
-    except Exception as exc:
-        logger.exception("V4 example export AI template Excel CN failed: example_name=%s", example_name)
-        return {
-            "成功": False,
-            "错误": str(exc),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.post("/api/v4/examples/{example_name}/export-batch-ai-excel")
 def api_v4_example_export_batch_ai_excel(example_name: str, payload: Any = Body(None)):
-    if not isinstance(payload, dict):
-        return {
-            "成功": False,
-            "错误": "模板路径列表不能为空",
-        }
-
-    template_paths = payload.get("template_paths")
-    if not isinstance(template_paths, list) or not template_paths:
-        return {
-            "成功": False,
-            "错误": "模板路径列表不能为空",
-        }
-
-    resolved_template_paths = []
-    for template_path in template_paths:
-        resolved_path, template_path_error = _resolve_template_path(template_path)
-        if template_path_error:
-            return {
-                "成功": False,
-                "错误": f"模板缺失：{template_path or '未命名模板'}；{template_path_error}",
-            }
-        resolved_template_paths.append(str(resolved_path))
-
-    try:
-        logger.info(
-            "V4 example export batch AI Excel requested: example_name=%s templates=%s",
-            example_name,
-            len(resolved_template_paths),
-        )
-        result = execute_batch_template_to_excel(example_name, resolved_template_paths)
-        if not result.get("成功"):
-            logger.info(
-                "V4 example export batch AI Excel finished with issues: example_name=%s error=%s",
-                example_name,
-                result.get("错误", ""),
-            )
-        result.update(
-            {
-                "范围": "仅限示例调试批量导出",
-                "生产导出": False,
-                "边界警告": "该接口仅用于 V4 示例/调试批量导出。正式订单导出必须使用 /api/v4/export-pipeline-excel，并以 confirmed_order_object 作为 Stage2 事实源。",
-                "生产接口": "/api/v4/export-pipeline-excel",
-            }
-        )
-        return result
-    except Exception as exc:
-        logger.exception("V4 example export batch AI Excel failed: example_name=%s", example_name)
-        return {
-            "成功": False,
-            "错误": str(exc),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 
 
 @router.post("/api/v4/examples/{example_name}/export-render-json")
@@ -8142,48 +7579,8 @@ def api_v4_example_export_render_json(example_name: str):
 
 @router.post("/api/v4/examples/{example_name}/export-debug-excel")
 def api_v4_example_export_debug_excel(example_name: str):
-    example = load_example(example_name)
-    if not example:
-        logger.info("V4 example export debug Excel not found: example_name=%s", example_name)
-        return {
-            "success": False,
-            "error": "\u793a\u4f8b\u8ba2\u5355\u4e0d\u5b58\u5728",
-        }
-
-    try:
-        logger.info("V4 example export debug Excel requested: example_name=%s", example_name)
-        render_result = render_example_to_description_fields(example, load_product_schema())
-        if not render_result.get("success"):
-            return {
-                "success": False,
-                "error": render_result.get("error", "V4 renderer failed"),
-            }
-
-        export_result = export_description_fields_to_debug_excel(
-            example_name,
-            render_result.get("description_fields", {}),
-        )
-        if not export_result.get("success"):
-            return {
-                "success": False,
-                "error": export_result.get("error", "V4 debug Excel export failed"),
-            }
-
-        logger.info(
-            "V4 example export debug Excel succeeded: example_name=%s, filename=%s",
-            example_name,
-            export_result.get("filename"),
-        )
-        return {
-            "success": True,
-            **_example_debug_export_boundary_payload(),
-            "output_path": export_result.get("output_path", ""),
-            "filename": export_result.get("filename", ""),
-        }
-    except Exception as exc:
-        logger.exception("V4 example export debug Excel failed: example_name=%s", example_name)
-        return {
-            "success": False,
-            "error": str(exc),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 rule API has been disabled. Use Stage2 export pipeline instead.",
+    )
 

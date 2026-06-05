@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -70,7 +70,10 @@ def config_page():
 
 @app.get("/v4-schema")
 def v4_schema_page():
-    return FileResponse(STATIC_DIR / "v4_schema.html")
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy V4 schema page has been disabled. Use /v4-stage2-config instead.",
+    )
 
 
 @app.get("/v4-workbench")
